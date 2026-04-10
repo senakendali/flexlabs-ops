@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Trial\TrialClassController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,13 +33,44 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Trial Class Management
+    | Trial Management
     |--------------------------------------------------------------------------
     */
     Route::prefix('trial')->name('trial-')->group(function () {
 
-        Route::get('/classes', fn () => view('trial.classes.index'))->name('classes.index');
+        /*
+        |--------------------------------------------------------------------------
+        | Trial Classes
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/classes', [TrialClassController::class, 'index'])->name('classes.index');
+        Route::post('/classes', [TrialClassController::class, 'store'])->name('classes.store');
+        Route::get('/classes/{trialClass}', [TrialClassController::class, 'show'])->name('classes.show');
+        Route::put('/classes/{trialClass}', [TrialClassController::class, 'update'])->name('classes.update');
+        Route::delete('/classes/{trialClass}', [TrialClassController::class, 'destroy'])->name('classes.destroy');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Trial Themes (FIX ERROR DISINI)
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/themes', fn () => view('trial.themes.index'))->name('themes.index');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Trial Schedules
+        |--------------------------------------------------------------------------
+        */
         Route::get('/schedules', fn () => view('trial.schedules.index'))->name('schedules.index');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Trial Participants
+        |--------------------------------------------------------------------------
+        */
         Route::get('/participants', fn () => view('trial.participants.index'))->name('participants.index');
 
     });
@@ -46,16 +78,16 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Enrollment (Programs, Batches, Students)
+    | Enrollment
     |--------------------------------------------------------------------------
     */
     Route::prefix('enrollment')->group(function () {
 
+        Route::get('/', fn () => view('enrollment.index'))->name('enrollments.index');
         Route::get('/programs', fn () => view('enrollment.programs.index'))->name('programs.index');
         Route::get('/batches', fn () => view('enrollment.batches.index'))->name('batches.index');
         Route::get('/students', fn () => view('enrollment.students.index'))->name('students.index');
 
-        Route::get('/', fn () => view('enrollment.index'))->name('enrollments.index');
     });
 
 
