@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Program\ProgramController;
+use App\Http\Controllers\Instructor\InstructorController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -104,9 +106,12 @@ Route::middleware('auth')->group(function () {
     | Instructors
     |--------------------------------------------------------------------------
     */
-    Route::prefix('instructors')->group(function () {
-        Route::get('/', fn () => view('instructors.index'))->name('instructors.index');
-        Route::get('/sessions', fn () => view('instructors.sessions.index'))->name('sessions.index');
+    Route::prefix('instructors')->name('instructors.')->group(function () {
+        Route::get('/', [InstructorController::class, 'index'])->name('index');
+        Route::get('/{instructor}', [InstructorController::class, 'show'])->name('show');
+        Route::post('/', [InstructorController::class, 'store'])->name('store');
+        Route::put('/{instructor}', [InstructorController::class, 'update'])->name('update');
+        Route::delete('/{instructor}', [InstructorController::class, 'destroy'])->name('destroy');
     });
 
 

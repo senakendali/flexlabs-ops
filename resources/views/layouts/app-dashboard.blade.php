@@ -57,9 +57,9 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item {{ request()->routeIs('settings.*') ? 'active' : '' }}"
-                                        href="{{ route('settings.index') }}">
-                                            Settings
+                                        <a class="dropdown-item {{ request()->routeIs('equipment.*') ? 'active' : '' }}"
+                                        href="{{ route('equipment.index') }}">
+                                            Equipment
                                         </a>
                                     </li>
                                 </ul>
