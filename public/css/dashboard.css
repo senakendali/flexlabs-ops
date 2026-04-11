@@ -434,3 +434,11 @@ a {
     opacity: 1;
     transform: translateY(0);
 }
+
+.filter-action-btn {
+        height: 45px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+    }

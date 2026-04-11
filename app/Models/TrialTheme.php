@@ -42,4 +42,9 @@ class TrialTheme extends Model
             ->orderBy('day_name')
             ->orderBy('start_time');
     }
+
+    public function participants(): HasMany
+    {
+        return $this->hasMany(TrialParticipant::class);
+    }
 }

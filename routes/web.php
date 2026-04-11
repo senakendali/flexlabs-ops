@@ -8,6 +8,8 @@ use App\Http\Controllers\Equipment\EquipmentController;
 use App\Http\Controllers\Equipment\EquipmentBorrowingController;
 use App\Http\Controllers\Trial\TrialThemeController;
 use App\Http\Controllers\Trial\TrialScheduleController;
+use App\Http\Controllers\Trial\TrialParticipantController;
+use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 
 
 /*
@@ -19,6 +21,17 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+
+/*
+|--------------------------------------------------------------------------
+| Public Trial Registration
+|--------------------------------------------------------------------------
+*/
+Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
+    ->name('trial-class.index');
+
+Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
+    ->name('trial-class.store');
 
 /*
 |--------------------------------------------------------------------------
@@ -51,7 +64,7 @@ Route::middleware('auth')->group(function () {
     });
 
 
-    /*
+   /*
     |--------------------------------------------------------------------------
     | Trial Management
     |--------------------------------------------------------------------------
@@ -85,7 +98,11 @@ Route::middleware('auth')->group(function () {
         | Trial Participants
         |--------------------------------------------------------------------------
         */
-        Route::get('/participants', fn () => view('trial.participants.index'))->name('participants.index');
+        Route::get('/participants', [TrialParticipantController::class, 'index'])->name('participants.index');
+        Route::get('/participants/{trialParticipant}', [TrialParticipantController::class, 'show'])->name('participants.show');
+        Route::post('/participants', [TrialParticipantController::class, 'store'])->name('participants.store');
+        Route::put('/participants/{trialParticipant}', [TrialParticipantController::class, 'update'])->name('participants.update');
+        Route::delete('/participants/{trialParticipant}', [TrialParticipantController::class, 'destroy'])->name('participants.destroy');
     });
 
 

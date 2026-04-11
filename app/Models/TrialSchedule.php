@@ -33,4 +33,9 @@ class TrialSchedule extends Model
     {
         return $this->belongsTo(TrialTheme::class);
     }
+
+    public function participants(): HasMany
+    {
+        return $this->hasMany(TrialParticipant::class);
+    }
 }
