@@ -4,6 +4,10 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Program\ProgramController;
 use App\Http\Controllers\Instructor\InstructorController;
+use App\Http\Controllers\Equipment\EquipmentController;
+use App\Http\Controllers\Equipment\EquipmentBorrowingController;
+use App\Http\Controllers\Trial\TrialThemeController;
+use App\Http\Controllers\Trial\TrialScheduleController;
 
 
 /*
@@ -59,14 +63,22 @@ Route::middleware('auth')->group(function () {
         | Trial Themes
         |--------------------------------------------------------------------------
         */
-        Route::get('/themes', fn () => view('trial.themes.index'))->name('themes.index');
+        Route::get('/themes', [TrialThemeController::class, 'index'])->name('themes.index');
+        Route::get('/themes/{trialTheme}', [TrialThemeController::class, 'show'])->name('themes.show');
+        Route::post('/themes', [TrialThemeController::class, 'store'])->name('themes.store');
+        Route::put('/themes/{trialTheme}', [TrialThemeController::class, 'update'])->name('themes.update');
+        Route::delete('/themes/{trialTheme}', [TrialThemeController::class, 'destroy'])->name('themes.destroy');
 
         /*
         |--------------------------------------------------------------------------
         | Trial Schedules
         |--------------------------------------------------------------------------
         */
-        Route::get('/schedules', fn () => view('trial.schedules.index'))->name('schedules.index');
+        Route::get('/schedules', [TrialScheduleController::class, 'index'])->name('schedules.index');
+        Route::get('/schedules/{trialSchedule}', [TrialScheduleController::class, 'show'])->name('schedules.show');
+        Route::post('/schedules', [TrialScheduleController::class, 'store'])->name('schedules.store');
+        Route::put('/schedules/{trialSchedule}', [TrialScheduleController::class, 'update'])->name('schedules.update');
+        Route::delete('/schedules/{trialSchedule}', [TrialScheduleController::class, 'destroy'])->name('schedules.destroy');
 
         /*
         |--------------------------------------------------------------------------
@@ -112,6 +124,23 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [InstructorController::class, 'store'])->name('store');
         Route::put('/{instructor}', [InstructorController::class, 'update'])->name('update');
         Route::delete('/{instructor}', [InstructorController::class, 'destroy'])->name('destroy');
+    });
+
+
+     /*
+    |--------------------------------------------------------------------------
+    | Equipment
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('equipment')->name('equipment.')->group(function () {
+        Route::get('/', [EquipmentController::class, 'index'])->name('index');
+        Route::get('/{equipment}', [EquipmentController::class, 'show'])->name('show');
+        Route::post('/', [EquipmentController::class, 'store'])->name('store');
+        Route::put('/{equipment}', [EquipmentController::class, 'update'])->name('update');
+        Route::delete('/{equipment}', [EquipmentController::class, 'destroy'])->name('destroy');
+
+        Route::post('/{equipment}/borrow', [EquipmentBorrowingController::class, 'borrow'])->name('borrow');
+        Route::post('/borrowings/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
     });
 
 
