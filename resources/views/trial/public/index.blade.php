@@ -258,7 +258,10 @@
                                 Kenapa FlexLabs?
                             </div>
                             <div class="d-flex flex-column gap-3 mb-4">
-
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check2-square text-primary mt-1"></i>
+                                    <div>Curriculum aligned with industry standards</div>
+                                </div>
                                 <div class="d-flex align-items-start gap-2">
                                     <i class="bi bi-check2-square text-primary mt-1"></i>
                                     <div>1:1 Mentoring</div>
@@ -268,6 +271,9 @@
                                     <i class="bi bi-check2-square text-primary mt-1"></i>
                                     <div>Opportunity to get hired by PT. System Ever Indonesia</div>
                                 </div>
+
+                                
+
                             </div>
                             <hr class="my-4">
 

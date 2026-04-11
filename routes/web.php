@@ -10,6 +10,7 @@ use App\Http\Controllers\Trial\TrialThemeController;
 use App\Http\Controllers\Trial\TrialScheduleController;
 use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
+use App\Http\Controllers\DashboardController;
 
 
 /*
@@ -38,9 +39,9 @@ Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
 | Dashboard
 |--------------------------------------------------------------------------
 */
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 
 /*
