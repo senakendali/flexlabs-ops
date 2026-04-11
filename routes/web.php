@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Trial\TrialClassController;
+use App\Http\Controllers\Program\ProgramController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +33,20 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Master Data
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('programs')->name('programs.')->group(function () {
+        Route::get('/', [ProgramController::class, 'index'])->name('index');
+        Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
+        Route::post('/', [ProgramController::class, 'store'])->name('store');
+        Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
+        Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Trial Management
     |--------------------------------------------------------------------------
     */
@@ -40,23 +54,10 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Trial Classes
-        |--------------------------------------------------------------------------
-        */
-        Route::get('/classes', [TrialClassController::class, 'index'])->name('classes.index');
-        Route::post('/classes', [TrialClassController::class, 'store'])->name('classes.store');
-        Route::get('/classes/{trialClass}', [TrialClassController::class, 'show'])->name('classes.show');
-        Route::put('/classes/{trialClass}', [TrialClassController::class, 'update'])->name('classes.update');
-        Route::delete('/classes/{trialClass}', [TrialClassController::class, 'destroy'])->name('classes.destroy');
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Trial Themes (FIX ERROR DISINI)
+        | Trial Themes
         |--------------------------------------------------------------------------
         */
         Route::get('/themes', fn () => view('trial.themes.index'))->name('themes.index');
-
 
         /*
         |--------------------------------------------------------------------------
@@ -65,14 +66,12 @@ Route::middleware('auth')->group(function () {
         */
         Route::get('/schedules', fn () => view('trial.schedules.index'))->name('schedules.index');
 
-
         /*
         |--------------------------------------------------------------------------
         | Trial Participants
         |--------------------------------------------------------------------------
         */
         Route::get('/participants', fn () => view('trial.participants.index'))->name('participants.index');
-
     });
 
 
@@ -82,12 +81,9 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('enrollment')->group(function () {
-
         Route::get('/', fn () => view('enrollment.index'))->name('enrollments.index');
-        Route::get('/programs', fn () => view('enrollment.programs.index'))->name('programs.index');
         Route::get('/batches', fn () => view('enrollment.batches.index'))->name('batches.index');
         Route::get('/students', fn () => view('enrollment.students.index'))->name('students.index');
-
     });
 
 
@@ -97,25 +93,30 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('payments')->group(function () {
-
         Route::get('/', fn () => view('payments.index'))->name('payments.index');
         Route::get('/orders', fn () => view('payments.orders.index'))->name('orders.index');
         Route::get('/schedules', fn () => view('payments.schedules.index'))->name('payment-schedules.index');
-
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Instructor Monitoring
+    | Instructors
     |--------------------------------------------------------------------------
     */
     Route::prefix('instructors')->group(function () {
-
         Route::get('/', fn () => view('instructors.index'))->name('instructors.index');
         Route::get('/sessions', fn () => view('instructors.sessions.index'))->name('sessions.index');
-        Route::get('/monitoring', fn () => view('instructors.monitoring.index'))->name('monitoring.index');
+    });
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Monitoring
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('monitoring')->group(function () {
+        Route::get('/', fn () => view('monitoring.index'))->name('monitoring.index');
     });
 
 

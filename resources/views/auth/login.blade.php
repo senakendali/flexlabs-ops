@@ -25,33 +25,9 @@
                         </div>
                     </div>
 
-                    <div class="brand-copy">
-                        <span class="brand-label">Internal Operations System</span>
-                        <h2>Monitor instructor progress with clarity and control.</h2>
-                        <p>
-                            Track session delivery, material coverage, timing accuracy,
-                            and reporting in one streamlined workspace for FlexLabs.
-                        </p>
-                    </div>
+                    
 
-                    <div class="brand-features">
-                        <div class="brand-feature-item">
-                            <i class="bi bi-check2-circle"></i>
-                            <span>Session reporting</span>
-                        </div>
-                        <div class="brand-feature-item">
-                            <i class="bi bi-check2-circle"></i>
-                            <span>Timing & lateness monitoring</span>
-                        </div>
-                        <div class="brand-feature-item">
-                            <i class="bi bi-check2-circle"></i>
-                            <span>Material delivery tracking</span>
-                        </div>
-                        <div class="brand-feature-item">
-                            <i class="bi bi-check2-circle"></i>
-                            <span>Instructor performance monitoring</span>
-                        </div>
-                    </div>
+                    
 
                     <div class="brand-footer">
                         <span class="brand-footer-dot"></span>
