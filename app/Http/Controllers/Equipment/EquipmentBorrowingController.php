@@ -8,78 +8,150 @@ use App\Models\EquipmentBorrowing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 class EquipmentBorrowingController extends Controller
 {
-    public function borrow(Request $request, Equipment $equipment): JsonResponse
+    public function index(Request $request): View
     {
-        if ($equipment->status !== 'available') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Equipment ini tidak tersedia untuk dipinjam.',
-            ], 422);
+        $perPage = (int) $request->get('per_page', 10);
+
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
         }
 
+        $equipments = Equipment::query()
+            ->with([
+                'activeBorrowing.user',
+            ])
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return view('borrowings.index', compact('equipments'));
+    }
+
+    public function show(EquipmentBorrowing $borrowing): JsonResponse
+    {
+        $borrowing->load([
+            'equipment',
+            'user',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $borrowing,
+        ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
         $validated = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
-            'borrowed_at' => ['required', 'date'],
-            'due_at' => ['nullable', 'date', 'after_or_equal:borrowed_at'],
+            'equipment_id' => ['required', 'exists:equipments,id'],
+            'borrowed_at' => ['nullable', 'date'],
+            'expected_return_at' => ['nullable', 'date', 'after_or_equal:borrowed_at'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        DB::transaction(function () use ($validated, $equipment) {
-            EquipmentBorrowing::create([
+        $user = $request->user();
+
+        $borrowing = DB::transaction(function () use ($validated, $user) {
+            $equipment = Equipment::query()
+                ->lockForUpdate()
+                ->findOrFail($validated['equipment_id']);
+
+            if (!$equipment->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Equipment is inactive and cannot be borrowed.',
+                ], 422)->throwResponse();
+            }
+
+            if ($equipment->status !== 'available') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Equipment is not available for borrowing.',
+                ], 422)->throwResponse();
+            }
+
+            $hasActiveBorrowing = EquipmentBorrowing::query()
+                ->where('equipment_id', $equipment->id)
+                ->where('status', 'borrowed')
+                ->exists();
+
+            if ($hasActiveBorrowing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Equipment is currently borrowed by another user.',
+                ], 422)->throwResponse();
+            }
+
+            $borrowing = EquipmentBorrowing::create([
                 'equipment_id' => $equipment->id,
-                'user_id' => $validated['user_id'],
-                'borrowed_at' => $validated['borrowed_at'],
-                'due_at' => $validated['due_at'] ?? null,
+                'user_id' => $user->id,
                 'status' => 'borrowed',
+                'borrowed_at' => $validated['borrowed_at'] ?? now(),
+                'expected_return_at' => $validated['expected_return_at'] ?? null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
             $equipment->update([
                 'status' => 'borrowed',
             ]);
+
+            return $borrowing;
         });
+
+        $borrowing->load(['equipment', 'user']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Equipment berhasil dipinjamkan.',
+            'message' => 'Equipment borrowed successfully.',
+            'data' => $borrowing,
         ]);
     }
 
     public function returnEquipment(Request $request, EquipmentBorrowing $borrowing): JsonResponse
     {
-        if ($borrowing->status !== 'borrowed') {
+        $validated = $request->validate([
+            'returned_at' => ['nullable', 'date'],
+            'return_notes' => ['nullable', 'string'],
+        ]);
+
+        $user = $request->user();
+
+        if ((int) $borrowing->user_id !== (int) $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Data peminjaman ini sudah tidak aktif.',
+                'message' => 'You are not allowed to return this equipment.',
+            ], 403);
+        }
+
+        if ($borrowing->status === 'returned') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This equipment has already been returned.',
             ], 422);
         }
 
-        $validated = $request->validate([
-            'returned_at' => ['required', 'date', 'after_or_equal:borrowed_at'],
-            'condition' => ['nullable', Rule::in(['good', 'minor_damage', 'damaged'])],
-            'notes' => ['nullable', 'string'],
-        ]);
-
-        DB::transaction(function () use ($validated, $borrowing) {
+        DB::transaction(function () use ($borrowing, $validated) {
             $borrowing->update([
-                'returned_at' => $validated['returned_at'],
                 'status' => 'returned',
-                'notes' => $validated['notes'] ?? $borrowing->notes,
+                'returned_at' => $validated['returned_at'] ?? now(),
+                'return_notes' => $validated['return_notes'] ?? null,
             ]);
 
-            $borrowing->equipment->update([
+            $borrowing->equipment()->update([
                 'status' => 'available',
-                'condition' => $validated['condition'] ?? $borrowing->equipment->condition,
             ]);
         });
 
+        $borrowing->load(['equipment', 'user']);
+
         return response()->json([
             'success' => true,
-            'message' => 'Equipment berhasil dikembalikan.',
+            'message' => 'Equipment returned successfully.',
+            'data' => $borrowing,
         ]);
     }
 }

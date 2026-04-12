@@ -11,6 +11,10 @@ use App\Http\Controllers\Trial\TrialScheduleController;
 use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Operation\QuizController;
+use App\Http\Controllers\Operation\QuizQuestionController;
+use App\Http\Controllers\Operation\QuizOptionController;
+use App\Http\Controllers\Operation\QuizPlayController;
 
 
 /*
@@ -161,6 +165,53 @@ Route::middleware('auth')->group(function () {
         Route::post('/borrowings/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operations - Gear Borrowing
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('borrowings')->name('borrowings.')->group(function () {
+        Route::get('/', [EquipmentBorrowingController::class, 'index'])->name('index');
+        Route::get('/{borrowing}', [EquipmentBorrowingController::class, 'show'])->name('show');
+        Route::post('/', [EquipmentBorrowingController::class, 'store'])->name('store');
+        Route::post('/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operations - Quiz Management
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('auth')->group(function () {
+        Route::prefix('quiz')->name('quiz.')->group(function () {
+            Route::get('/', [QuizController::class, 'index'])->name('index');
+            Route::get('/{quiz}', [QuizController::class, 'show'])->name('show');
+            Route::post('/', [QuizController::class, 'store'])->name('store');
+            Route::put('/{quiz}', [QuizController::class, 'update'])->name('update');
+            Route::delete('/{quiz}', [QuizController::class, 'destroy'])->name('destroy');
+
+            Route::get('/{quiz}/questions', [QuizQuestionController::class, 'index'])->name('questions.index');
+            Route::post('/{quiz}/questions', [QuizQuestionController::class, 'store'])->name('questions.store');
+
+            Route::get('/questions/{question}', [QuizQuestionController::class, 'show'])->name('questions.show');
+            Route::put('/questions/{question}', [QuizQuestionController::class, 'update'])->name('questions.update');
+            Route::delete('/questions/{question}', [QuizQuestionController::class, 'destroy'])->name('questions.destroy');
+
+            Route::get('/questions/{question}/options', [QuizOptionController::class, 'index'])->name('options.index');
+            Route::post('/questions/{question}/options', [QuizOptionController::class, 'store'])->name('options.store');
+
+            Route::get('/options/{option}', [QuizOptionController::class, 'show'])->name('options.show');
+            Route::put('/options/{option}', [QuizOptionController::class, 'update'])->name('options.update');
+            Route::delete('/options/{option}', [QuizOptionController::class, 'destroy'])->name('options.destroy');
+
+            //Route::get('/{quiz}/play', [QuizPlayController::class, 'show'])->name('play');
+            Route::get('/{quiz}/leaderboard', [QuizLeaderboardController::class, 'index'])->name('leaderboard');
+        });
+    });
+
+    //Route::get('/play-quiz/{quiz}', [QuizPlayController::class, 'show'])->name('quiz.play');
+    Route::get('quiz/{quiz}/play', [QuizPlayController::class, 'show'])->name('quiz.play');
 
     /*
     |--------------------------------------------------------------------------

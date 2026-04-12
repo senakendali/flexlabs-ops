@@ -32,9 +32,10 @@
                                 <span>Dashboard</span>
                             </a>
 
+                            <!-- MASTER DATA -->
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('programs.*') || request()->routeIs('instructors.*') || request()->routeIs('settings.*') ? 'active' : '' }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('programs.*') || request()->routeIs('instructors.*') || request()->routeIs('equipment.*') ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
@@ -65,6 +66,7 @@
                                 </ul>
                             </div>
 
+                            <!-- TRIAL MANAGEMENT -->
                             <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('trial-themes.*') || request()->routeIs('trial-schedules.*') || request()->routeIs('trial-participants.*') ? 'active' : '' }}"
@@ -98,6 +100,7 @@
                                 </ul>
                             </div>
 
+                            <!-- ENROLLMENT -->
                             <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('batches.*') || request()->routeIs('students.*') || request()->routeIs('enrollments.*') ? 'active' : '' }}"
@@ -131,6 +134,7 @@
                                 </ul>
                             </div>
 
+                            <!-- PAYMENTS -->
                             <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('orders.*') || request()->routeIs('payment-schedules.*') || request()->routeIs('payments.*') ? 'active' : '' }}"
@@ -164,6 +168,35 @@
                                 </ul>
                             </div>
 
+                            <!-- 🔥 NEW: OPERATIONS -->
+                            <div class="dropdown">
+                                <button
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('borrowings.*') ? 'active' : '' }}"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                >
+                                    <i class="bi bi-box-arrow-in-down"></i>
+                                    <span>Operations</span>
+                                </button>
+
+                                <ul class="dropdown-menu shadow-sm">
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('borrowings.*') ? 'active' : '' }}"
+                                        href="{{ route('borrowings.index') }}">
+                                            Gear Borrowing
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
+                                        href="{{ route('quiz.index') }}">
+                                            Quiz Management
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- MONITORING -->
                             <a href="{{ route('monitoring.index') }}"
                             class="nav-btn {{ request()->routeIs('monitoring.*') || request()->routeIs('sessions.*') ? 'active' : '' }}">
                                 <i class="bi bi-clipboard-data"></i>
