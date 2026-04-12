@@ -6,122 +6,143 @@
     <title>Login - FlexOps</title>
 
     <link rel="stylesheet" href="{{ asset('css/login.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 <body class="login-page">
-    <div class="login-shell">
-        <div class="login-card">
-            <div class="login-brand-panel">
-                <div class="brand-overlay"></div>
+    <div class="container-fluid login-shell">
+        <div class="row justify-content-center align-items-center w-100 mx-0 min-vh-100">
+            <div class="col-12 col-xl-11 px-0">
+                <div class="login-card">
+                    <div class="row g-0 h-100">
+                        <div class="col-12 col-lg-6">
+                            <div class="login-brand-panel h-100">
+                               
+                                <div class="brand-content">
+                                    <div class="brand-logo brand-logo-top">
+                                        <img
+                                            src="{{ asset('images/logo.png') }}"
+                                            alt="FlexLabs Logo"
+                                            width="180"
+                                            class="img-fluid"
+                                        >
 
-                <div class="brand-content">
-                    <div class="brand-logo">
-                        <div class="brand-logo-icon">
-                            <i class="bi bi-grid-1x2-fill"></i>
-                        </div>
-                        <div class="brand-logo-text">
-                            <h1>FlexOps</h1>
-                            <p>Operations Platform</p>
-                        </div>
-                    </div>
+                                        
+                                    </div>
 
-                    
+                                    <div class="brand-main">
+                                        <span class="brand-badge">Internal System</span>
 
-                    
+                                        <div class="brand-copy">
+                                            <h2>Manage operations with clarity and speed.</h2>
+                                            <p>
+                                                Sign in to access FlexLabs internal operations dashboard
+                                                and manage your daily workflow in one place.
+                                            </p>
+                                        </div>
 
-                    <div class="brand-footer">
-                        <span class="brand-footer-dot"></span>
-                        <span>ops.flexlabs.co.id</span>
-                    </div>
-                </div>
-            </div>
+                                        <div class="brand-points">
+                                            <div class="brand-point-item">
+                                                <i class="bi bi-check2-circle"></i>
+                                                <span>Program, instructor, trial, sales, and schedule management</span>
+                                            </div>
+                                            <div class="brand-point-item">
+                                                <i class="bi bi-check2-circle"></i>
+                                                <span>Centralized participant and equipment tracking</span>
+                                            </div>
+                                            <div class="brand-point-item">
+                                                <i class="bi bi-check2-circle"></i>
+                                                <span>Built for smooth daily operational workflow</span>
+                                            </div>
+                                        </div>
 
-            <div class="login-form-panel">
-                <div class="form-box">
-                    <div class="form-header">
-                        <span class="form-badge">Sign In</span>
-                        <h3>Welcome back</h3>
-                        <p>Login to continue to FlexOps.</p>
-                    </div>
-
-                    @if (session('status'))
-                        <div class="alert-success">
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>{{ session('status') }}</span>
-                        </div>
-                    @endif
-
-                    <form method="POST" action="{{ route('login') }}" class="login-form">
-                        @csrf
-
-                        <div class="form-group">
-                            <label for="email">Email Address</label>
-                            <div class="input-wrapper">
-                                <span class="input-icon">
-                                    <i class="bi bi-envelope"></i>
-                                </span>
-                                <input
-                                    id="email"
-                                    type="email"
-                                    name="email"
-                                    value="{{ old('email') }}"
-                                    required
-                                    autofocus
-                                    autocomplete="username"
-                                    placeholder="Enter your email"
-                                >
+                                        
+                                    </div>
+                                </div>
                             </div>
-                            @error('email')
-                                <div class="error-text">{{ $message }}</div>
-                            @enderror
                         </div>
 
-                        <div class="form-group">
-                            <label for="password">Password</label>
-                            <div class="input-wrapper">
-                                <span class="input-icon">
-                                    <i class="bi bi-lock"></i>
-                                </span>
+                        <div class="col-12 col-lg-6">
+                            <div class="login-form-panel h-100">
+                                <div class="form-panel-inner">
+                                    <div class="form-box w-100">
+                                        <div class="form-header text-center">
+                                            <h3>Welcome</h3>
+                                            <p>Login in to your account to continue</p>
+                                        </div>
 
-                                <input
-                                    id="password"
-                                    type="password"
-                                    name="password"
-                                    required
-                                    autocomplete="current-password"
-                                    placeholder="Enter your password"
-                                >
+                                        @if (session('status'))
+                                            <div class="alert-success">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                                <span>{{ session('status') }}</span>
+                                            </div>
+                                        @endif
 
-                                <button type="button" class="toggle-password" onclick="togglePassword()" aria-label="Toggle password">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                        <form method="POST" action="{{ route('login') }}" class="login-form">
+                                            @csrf
+
+                                            <div class="form-group">
+                                                <div class="input-wrapper pill-input">
+                                                    <span class="input-icon">
+                                                        <i class="bi bi-envelope"></i>
+                                                    </span>
+                                                    <input
+                                                        id="email"
+                                                        type="email"
+                                                        name="email"
+                                                        value="{{ old('email') }}"
+                                                        required
+                                                        autofocus
+                                                        autocomplete="username"
+                                                        placeholder="Email"
+                                                        class="form-control custom-input"
+                                                    >
+                                                </div>
+                                                @error('email')
+                                                    <div class="error-text">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+
+                                            <div class="form-group">
+                                                <div class="input-wrapper pill-input">
+                                                    <span class="input-icon">
+                                                        <i class="bi bi-lock"></i>
+                                                    </span>
+
+                                                    <input
+                                                        id="password"
+                                                        type="password"
+                                                        name="password"
+                                                        required
+                                                        autocomplete="current-password"
+                                                        placeholder="Password"
+                                                        class="form-control custom-input pe-5"
+                                                    >
+
+                                                    <button type="button" class="toggle-password" onclick="togglePassword()" aria-label="Toggle password">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                </div>
+                                                @error('password')
+                                                    <div class="error-text">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+
+                                            <button type="submit" class="login-button">
+                                                <span>Log In</span>
+                                            </button>
+
+                                            <div class="form-meta centered-meta">
+                                                <label class="remember-me">
+                                                    <input id="remember_me" type="checkbox" name="remember">
+                                                    <span>Remember me</span>
+                                                </label>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
                             </div>
-                            @error('password')
-                                <div class="error-text">{{ $message }}</div>
-                            @enderror
                         </div>
-
-                        <div class="form-meta">
-                            <label class="remember-me">
-                                <input id="remember_me" type="checkbox" name="remember">
-                                <span>Remember me</span>
-                            </label>
-
-                            @if (Route::has('password.request'))
-                                <a class="forgot-link" href="{{ route('password.request') }}">
-                                    Forgot password?
-                                </a>
-                            @endif
-                        </div>
-
-                        <button type="submit" class="login-button">
-                            <i class="bi bi-box-arrow-in-right"></i>
-                            <span>Sign In</span>
-                        </button>
-                    </form>
-
-                    <div class="form-footer">
-                        <p>FlexLabs Internal Access</p>
                     </div>
                 </div>
             </div>
