@@ -10,93 +10,143 @@
             class="toast-container position-fixed top-0 end-0 p-3"
         ></div>
 
-        <div class="row align-items-center g-4">
+        <div class="row g-4 hero-row">
             <div class="col-lg-7">
-                <span class="hero-badge">
-                    <i class="bi bi-stars"></i>
-                    Trial Class FlexLabs
-                </span>
-
-                <h1 class="hero-title">
-                    Mulai langkah pertamamu
-                    <span class="highlight">di dunia digital</span>
-                    bareng FlexLabs
-                </h1>
-
-                <p class="hero-desc">
-                    Ikuti trial class FlexLabs dan rasakan langsung pengalaman belajar yang terarah,
-                    praktis, dan relevan dengan kebutuhan industri. Cocok buat pemula, career switcher,
-                    maupun kamu yang ingin naik level lebih cepat.
-                </p>
-
-                <div class="d-flex flex-wrap gap-3 mt-4">
-                    <span class="feature-chip">
-                        <i class="bi bi-check-circle-fill text-success"></i>
-                        Cocok untuk Pemula
+                <div class="hero-content">
+                    <span class="hero-badge">
+                        <i class="bi bi-stars"></i>
+                        Trial Class FlexLabs
                     </span>
-                    <span class="feature-chip">
-                        <i class="bi bi-check-circle-fill text-success"></i>
-                        Belajar Lebih Praktis
-                    </span>
-                    <span class="feature-chip">
-                        <i class="bi bi-check-circle-fill text-success"></i>
-                        Terarah ke Industri
-                    </span>
+
+                    <h1 class="hero-title">
+                        Mulai langkah pertamamu
+                        <span class="highlight">di dunia digital</span>
+                        bareng FlexLabs
+                    </h1>
+
+                    <p class="hero-desc">
+                        Ikuti trial class FlexLabs dan rasakan langsung pengalaman belajar yang terarah,
+                        praktis, dan relevan dengan kebutuhan industri. Cocok buat pemula, career switcher,
+                        maupun kamu yang ingin naik level lebih cepat.
+                    </p>
+
+                    {{-- Hero image mobile --}}
+                    <div class="hero-mobile-image-wrap d-lg-none">
+                        <img
+                            src="{{ asset('images/hero.png') }}"
+                            alt="Hero FlexLabs"
+                            class="hero-image hero-image-mobile"
+                        >
+                    </div>
+
+
+                    <div class="hero-cta-wrap d-flex flex-wrap gap-3 mt-4">
+                        <a href="#registration-form" class="btn btn-brand btn-lg">
+                            Daftar Trial Class
+                        </a>
+                    </div>
                 </div>
-
-                <div class="d-flex flex-wrap gap-3 mt-4">
-                    <a href="#registration-form" class="btn btn-brand">
-                        <i class="bi bi-pencil-square me-2"></i>
-                        Daftar Trial Class
-                    </a>
-                   
-                </div>
-
-                
             </div>
 
-            <div class="col-lg-5">
-                <div class="hero-card">
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <div class="hero-stat">
-                                <div class="hero-stat-label">Metode Belajar</div>
-                                <div class="hero-stat-value">Praktikal</div>
-                            </div>
-                        </div>
+            {{-- Hero image desktop --}}
+            <div class="col-lg-5 hero-visual-col d-none d-lg-flex">
+                <div class="hero-visual">
+                    <img
+                        src="{{ asset('images/hero.png') }}"
+                        alt="Hero FlexLabs"
+                        class="hero-image hero-image-desktop"
+                    >
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
-                        <div class="col-6">
-                            <div class="hero-stat">
-                                <div class="hero-stat-label">Cocok Untuk</div>
-                                <div class="hero-stat-value">Pemula</div>
+<section class="stats-highlight-section">
+    <div class="container-fluid px-0">
+        <div class="stats-highlight-full">
+            <div class="row g-0">
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-highlight-item">
+                        <div class="stats-highlight-head">
+                            <div class="stats-highlight-icon">
+                                <i class="bi bi-mortarboard"></i>
                             </div>
-                        </div>
-
-                        <div class="col-6">
-                            <div class="hero-stat">
-                                <div class="hero-stat-label">Pendekatan</div>
-                                <div class="hero-stat-value">Terstruktur</div>
-                            </div>
-                        </div>
-
-                        <div class="col-6">
-                            <div class="hero-stat">
-                                <div class="hero-stat-label">Fokus</div>
-                                <div class="hero-stat-value">Siap Industri</div>
+                            <div class="stats-highlight-title">
+                                Beginner-Friendly
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="about-card mt-3">
-                        <div class="fw-bold mb-2">
-                            Kenapa wajib coba trial class?
-                        </div>
-                        <div class="text-muted">
-                            Karena kamu bisa lihat langsung gaya belajar di FlexLabs,
-                            memahami arah programnya, dan merasakan bagaimana proses belajar
-                            dibangun supaya lebih relevan dengan kebutuhan industri nyata.
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-highlight-item">
+                        <div class="stats-highlight-head">
+                            <div class="stats-highlight-icon">
+                                <i class="bi bi-tools"></i>
+                            </div>
+                            <div class="stats-highlight-title">
+                                Hands-On Learning
+                            </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-highlight-item">
+                        <div class="stats-highlight-head">
+                            <div class="stats-highlight-icon">
+                                <i class="bi bi-compass"></i>
+                            </div>
+                            <div class="stats-highlight-title">
+                                Industry-Focused
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-highlight-item stats-highlight-item-last">
+                        <div class="stats-highlight-head">
+                            <div class="stats-highlight-icon">
+                                <i class="bi bi-kanban"></i>
+                            </div>
+                            <div class="stats-highlight-title">
+                                Engaging Projects
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="about-section" id="about-flexlabs">
+    <div class="about-full">
+        <div class="container">
+            <div class="row g-4 align-items-start">
+                <div class="col-lg-5">
+                    <span class="section-label">Why FlexLabs</span>
+                    <h2 class="section-title-large mt-3">
+                        Belajar lebih terarah untuk masuk ke dunia kerja digital
+                    </h2>
+                </div>
+
+                <div class="col-lg-7">
+                    <p class="about-main-text">
+                        FlexLabs adalah akademi digital dengan kurikulum yang dirancang agar peserta
+                        belajar secara praktis, terstruktur, dan relevan dengan kebutuhan industri nyata.
+                        Fokus kami bukan hanya membuat peserta memahami teori, tetapi juga membangun skill
+                        yang benar-benar bisa dipakai dalam dunia kerja.
+                    </p>
+
+                    <p class="about-main-text mb-0">
+                        Melalui pendekatan mentoring, pembelajaran berbasis praktik, dan arah kurikulum
+                        yang selaras dengan kebutuhan industri, FlexLabs membantu peserta membangun fondasi
+                        yang lebih kuat untuk berkembang dan membuka peluang karier, termasuk kesempatan
+                        untuk direkrut oleh PT. System Ever Indonesia.
+                    </p>
                 </div>
             </div>
         </div>
@@ -107,183 +157,133 @@
     <div class="container">
         <div class="section-card">
             <div class="section-card-header">
-                <h2 class="section-title">Daftar Trial Class Sekarang</h2>
+                <span class="section-label">Registration Form</span>
+                <h2 class="section-title mt-3">Daftar Trial Class Sekarang</h2>
                 <p class="section-subtitle">
                     Isi data dirimu dan pilih jadwal trial yang paling cocok buat kamu.
                 </p>
             </div>
 
             <div class="section-card-body">
-                <div class="row g-4">
-                    <div class="col-lg-8">
-                        <form id="trialRegistrationForm">
-                            @csrf
+                <form id="trialRegistrationForm">
+                    @csrf
 
-                            <div id="formContainer">
-                                <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
+                    <div id="formContainer">
+                        <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label for="full_name" class="form-label">
-                                            Nama Lengkap <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" id="full_name" class="form-control form-control-lg" placeholder="Masukkan nama lengkap">
-                                        <div class="invalid-feedback" id="error_full_name"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="email" class="form-label">
-                                            Email <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="email" id="email" class="form-control form-control-lg" placeholder="Masukkan email aktif">
-                                        <div class="invalid-feedback" id="error_email"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="phone" class="form-label">
-                                            Nomor HP <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" id="phone" class="form-control form-control-lg" placeholder="Masukkan nomor WhatsApp aktif">
-                                        <div class="invalid-feedback" id="error_phone"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="domicile_city" class="form-label">
-                                            Domisili <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" id="domicile_city" class="form-control form-control-lg" placeholder="Contoh: Jakarta">
-                                        <div class="invalid-feedback" id="error_domicile_city"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="current_activity" class="form-label">
-                                            Aktivitas Saat Ini <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" id="current_activity" class="form-control form-control-lg" placeholder="Contoh: Mahasiswa, Karyawan, Freelancer, Fresh Graduate">
-                                        <div class="invalid-feedback" id="error_current_activity"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="trial_schedule_id" class="form-label">
-                                            Pilih Jadwal Trial <span class="text-danger">*</span>
-                                        </label>
-                                        <select id="trial_schedule_id" class="form-select form-select-lg">
-                                            <option value="">Pilih jadwal yang tersedia</option>
-                                            @foreach ($schedules as $schedule)
-                                                <option
-                                                    value="{{ $schedule->id }}"
-                                                    data-theme-id="{{ $schedule->trial_theme_id }}"
-                                                >
-                                                    {{ $schedule->name }}
-                                                    - {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
-                                                    ({{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
-                                                    - {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }})
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <div class="invalid-feedback" id="error_trial_schedule_id"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="trial_theme_id" class="form-label">
-                                            Tema Trial
-                                        </label>
-                                        <select id="trial_theme_id" class="form-select form-select-lg">
-                                            <option value="">Pilih tema trial</option>
-                                            @foreach ($themes as $theme)
-                                                <option value="{{ $theme->id }}">
-                                                    {{ $theme->name }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <div class="invalid-feedback" id="error_trial_theme_id"></div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label for="goal" class="form-label">
-                                            Tujuan Mengikuti Trial <span class="text-danger">*</span>
-                                        </label>
-                                        <textarea id="goal" rows="5" class="form-control form-control-lg" placeholder="Ceritakan secara singkat kenapa kamu ingin ikut trial class ini"></textarea>
-                                        <div class="invalid-feedback" id="error_goal"></div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <button type="submit" class="btn btn-brand btn-lg px-4" id="submitBtn">
-                                            <span class="default-text">
-                                               
-                                                Kirim Pendaftaran
-                                            </span>
-                                            <span class="loading-text d-none">
-                                                <span class="spinner-border spinner-border-sm me-2"></span>
-                                                Mengirim...
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="full_name" class="form-label">
+                                    Nama Lengkap <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="full_name" class="form-control form-control-lg" placeholder="Masukkan nama lengkap">
+                                <div class="invalid-feedback" id="error_full_name"></div>
                             </div>
 
-                            <div id="successState" class="success-state">
-                                <div class="success-icon">
-                                    <i class="bi bi-check-lg"></i>
-                                </div>
-                                <h4 class="fw-bold mb-2">Pendaftaran Berhasil Dikirim</h4>
-                                <p class="text-muted mb-4">
-                                    Terima kasih, data kamu sudah masuk. Tim FlexLabs akan segera menghubungi kamu untuk informasi selanjutnya.
-                                </p>
-                                <button type="button" class="btn btn-soft" id="btnRegisterAgain">
-                                    <i class="bi bi-arrow-repeat me-2"></i>
-                                    Isi Form Lagi
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">
+                                    Email <span class="text-danger">*</span>
+                                </label>
+                                <input type="email" id="email" class="form-control form-control-lg" placeholder="Masukkan email aktif">
+                                <div class="invalid-feedback" id="error_email"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="phone" class="form-label">
+                                    Nomor HP <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="phone" class="form-control form-control-lg" placeholder="Masukkan nomor WhatsApp aktif">
+                                <div class="invalid-feedback" id="error_phone"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="domicile_city" class="form-label">
+                                    Domisili <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="domicile_city" class="form-control form-control-lg" placeholder="Contoh: Jakarta">
+                                <div class="invalid-feedback" id="error_domicile_city"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="current_activity" class="form-label">
+                                    Aktivitas Saat Ini <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="current_activity" class="form-control form-control-lg" placeholder="Contoh: Mahasiswa, Karyawan, Freelancer, Fresh Graduate">
+                                <div class="invalid-feedback" id="error_current_activity"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="trial_schedule_id" class="form-label">
+                                    Pilih Jadwal Trial <span class="text-danger">*</span>
+                                </label>
+                                <select id="trial_schedule_id" class="form-select form-select-lg">
+                                    <option value="">Pilih jadwal yang tersedia</option>
+                                    @foreach ($schedules as $schedule)
+                                        <option
+                                            value="{{ $schedule->id }}"
+                                            data-theme-id="{{ $schedule->trial_theme_id }}"
+                                        >
+                                            {{ $schedule->name }}
+                                            - {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
+                                            ({{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
+                                            - {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback" id="error_trial_schedule_id"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="trial_theme_id" class="form-label">
+                                    Tema Trial
+                                </label>
+                                <select id="trial_theme_id" class="form-select form-select-lg">
+                                    <option value="">Pilih tema trial</option>
+                                    @foreach ($themes as $theme)
+                                        <option value="{{ $theme->id }}">
+                                            {{ $theme->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback" id="error_trial_theme_id"></div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="goal" class="form-label">
+                                    Tujuan Mengikuti Trial <span class="text-danger">*</span>
+                                </label>
+                                <textarea id="goal" rows="5" class="form-control form-control-lg" placeholder="Ceritakan secara singkat kenapa kamu ingin ikut trial class ini"></textarea>
+                                <div class="invalid-feedback" id="error_goal"></div>
+                            </div>
+
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-brand btn-lg px-4" id="submitBtn">
+                                    <span class="default-text">
+                                        Kirim Pendaftaran
+                                    </span>
+                                    <span class="loading-text d-none">
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                        Mengirim...
+                                    </span>
                                 </button>
                             </div>
-                        </form>
+                        </div>
                     </div>
 
-                   <div class="col-lg-4" id="about-flexlabs">
-                        <div class="about-card h-100">
-                            <div class="fw-bold fs-5 mb-3">
-                                Tentang FlexLabs
-                            </div>
-
-                            <p class="text-muted mb-3">
-                                Flexlabs adalah akademi digital pertama di Indonesia dengan kurikulum berstandar global
-                                yang dirancang khusus agar pembelajar dapat bersaing di industri internasional
-                                atau direkrut ke PT. System Ever Indonesia.
-                            </p>
-
-                            <p class="text-muted mb-4">
-                                PT. System Ever Indonesia merupakan anak perusahaan dari perusahaan ERP terkemuka di Asia,
-                                yaitu YoungLimWon Soft Lab Co Ltd.
-                            </p>
-                            <div class="fw-semibold mb-3">
-                                Kenapa FlexLabs?
-                            </div>
-                            <div class="d-flex flex-column gap-3 mb-4">
-                                <div class="d-flex align-items-start gap-2">
-                                    <i class="bi bi-check2-square text-primary mt-1"></i>
-                                    <div>Curriculum aligned with industry standards</div>
-                                </div>
-                                <div class="d-flex align-items-start gap-2">
-                                    <i class="bi bi-check2-square text-primary mt-1"></i>
-                                    <div>1:1 Mentoring</div>
-                                </div>
-
-                                <div class="d-flex align-items-start gap-2">
-                                    <i class="bi bi-check2-square text-primary mt-1"></i>
-                                    <div>Opportunity to get hired by PT. System Ever Indonesia</div>
-                                </div>
-
-                                
-
-                            </div>
-                            <hr class="my-4">
-
-                            <div class="small text-muted">
-                                Setelah kamu mengisi form, tim kami akan meninjau pendaftaranmu
-                                dan menghubungi kamu untuk informasi berikutnya.
-        </div>
-    </div>
-</div>
-                </div>
+                    <div id="successState" class="success-state">
+                        <div class="success-icon">
+                            <i class="bi bi-check-lg"></i>
+                        </div>
+                        <h4 class="fw-bold mb-2">Pendaftaran Berhasil Dikirim</h4>
+                        <p class="text-muted mb-4">
+                            Terima kasih, data kamu sudah masuk. Tim FlexLabs akan segera menghubungi kamu untuk informasi selanjutnya.
+                        </p>
+                        <button type="button" class="btn btn-soft" id="btnRegisterAgain">
+                            <i class="bi bi-arrow-repeat me-2"></i>
+                            Isi Form Lagi
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -386,17 +386,42 @@
 
     function syncThemeFromSchedule() {
         const selectedOption = fields.trial_schedule_id.options[fields.trial_schedule_id.selectedIndex];
-
         if (!selectedOption) return;
 
         const themeId = selectedOption.dataset.themeId || '';
-
         if (themeId) {
             fields.trial_theme_id.value = themeId;
         }
     }
 
+    function scrollToSection(selector) {
+        const section = document.querySelector(selector);
+        if (!section) return;
+
+        const navOffset = 90;
+        const top = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
+
+        window.scrollTo({
+            top,
+            behavior: 'smooth'
+        });
+    }
+
     fields.trial_schedule_id.addEventListener('change', syncThemeFromSchedule);
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            const target = this.getAttribute('href');
+
+            if (target && target.startsWith('#')) {
+                const el = document.querySelector(target);
+                if (el) {
+                    e.preventDefault();
+                    scrollToSection(target);
+                }
+            }
+        });
+    });
 
     trialRegistrationForm.addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -445,11 +470,7 @@
             successState.style.display = 'block';
 
             showToast(result.message || 'Pendaftaran berhasil dikirim.', 'success');
-
-            document.getElementById('registration-form').scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
+            scrollToSection('#registration-form');
         } catch (error) {
             if (error.message !== 'Validation failed.') {
                 formAlert.classList.remove('d-none');
@@ -463,6 +484,7 @@
 
     btnRegisterAgain.addEventListener('click', function () {
         resetForm();
+        scrollToSection('#registration-form');
     });
 </script>
 @endpush
