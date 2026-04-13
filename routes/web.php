@@ -20,6 +20,7 @@ use App\Http\Controllers\Enrollment\BatchController;
 use App\Http\Controllers\Enrollment\StudentController;
 use App\Http\Controllers\Payment\OrderController;
 use App\Http\Controllers\Payment\PaymentScheduleController;
+use App\Http\Controllers\Payment\PaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -157,8 +158,6 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('payments')->group(function () {
-        Route::get('/', fn () => view('payments.index'))->name('payments.index');
-
         Route::prefix('orders')->name('orders.')->group(function () {
             Route::get('/', [OrderController::class, 'index'])->name('index');
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
@@ -174,6 +173,13 @@ Route::middleware('auth')->group(function () {
             Route::put('/{paymentSchedule}', [PaymentScheduleController::class, 'update'])->name('update');
             Route::delete('/{paymentSchedule}', [PaymentScheduleController::class, 'destroy'])->name('destroy');
         });
+
+        Route::get('/', [PaymentController::class, 'index'])->name('payments.index');
+        Route::post('/', [PaymentController::class, 'store'])->name('payments.store');
+        Route::get('/{payment}/invoice', [PaymentController::class, 'invoice'])->name('payments.invoice');
+        Route::get('/{payment}', [PaymentController::class, 'show'])->whereNumber('payment')->name('payments.show');
+        Route::put('/{payment}', [PaymentController::class, 'update'])->whereNumber('payment')->name('payments.update');
+        Route::delete('/{payment}', [PaymentController::class, 'destroy'])->whereNumber('payment')->name('payments.destroy');
     });
 
 

@@ -5,20 +5,29 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class PaymentSchedule extends Model
+class Payment extends Model
 {
     protected $fillable = [
         'order_id',
-        'title',
+        'payment_schedule_id',
+        'invoice_number',
         'amount',
-        'due_date',
+        'payment_date',
+        'payment_method',
+        'reference_number',
+        'gateway_transaction_id',
+        'gateway_provider',
+        'gateway_payload',
         'status',
         'notes',
+        'paid_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'due_date' => 'date',
+        'payment_date' => 'date',
+        'gateway_payload' => 'array',
+        'paid_at' => 'datetime',
     ];
 
     /*
@@ -32,8 +41,8 @@ class PaymentSchedule extends Model
         return $this->belongsTo(Order::class);
     }
 
-    public function payments(): HasMany
+    public function paymentSchedule(): BelongsTo
     {
-        return $this->hasMany(Payment::class);
+        return $this->belongsTo(PaymentSchedule::class);
     }
 }
