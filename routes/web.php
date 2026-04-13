@@ -19,6 +19,7 @@ use App\Http\Controllers\Operation\QuizLeaderboardController;
 use App\Http\Controllers\Enrollment\BatchController;
 use App\Http\Controllers\Enrollment\StudentController;
 use App\Http\Controllers\Payment\OrderController;
+use App\Http\Controllers\Payment\PaymentScheduleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -166,7 +167,13 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
         });
 
-        Route::get('/schedules', fn () => view('payments.schedules.index'))->name('payment-schedules.index');
+        Route::prefix('schedules')->name('payment-schedules.')->group(function () {
+            Route::get('/', [PaymentScheduleController::class, 'index'])->name('index');
+            Route::get('/{paymentSchedule}', [PaymentScheduleController::class, 'show'])->name('show');
+            Route::post('/', [PaymentScheduleController::class, 'store'])->name('store');
+            Route::put('/{paymentSchedule}', [PaymentScheduleController::class, 'update'])->name('update');
+            Route::delete('/{paymentSchedule}', [PaymentScheduleController::class, 'destroy'])->name('destroy');
+        });
     });
 
 

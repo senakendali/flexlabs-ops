@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
@@ -23,12 +24,6 @@ class Order extends Model
         'final_price' => 'decimal:2',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | RELATIONS
-    |--------------------------------------------------------------------------
-    */
-
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
@@ -37,5 +32,10 @@ class Order extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(Batch::class);
+    }
+
+    public function paymentSchedules(): HasMany
+    {
+        return $this->hasMany(PaymentSchedule::class);
     }
 }
