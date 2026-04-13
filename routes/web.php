@@ -16,7 +16,9 @@ use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
 use App\Http\Controllers\Operation\QuizPlayController;
 use App\Http\Controllers\Operation\QuizLeaderboardController;
-
+use App\Http\Controllers\Enrollment\BatchController;
+use App\Http\Controllers\Enrollment\StudentController;
+use App\Http\Controllers\Payment\OrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -119,8 +121,32 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('enrollment')->group(function () {
         Route::get('/', fn () => view('enrollment.index'))->name('enrollments.index');
-        Route::get('/batches', fn () => view('enrollment.batches.index'))->name('batches.index');
-        Route::get('/students', fn () => view('enrollment.students.index'))->name('students.index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Batches
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('batches')->name('batches.')->group(function () {
+            Route::get('/', [BatchController::class, 'index'])->name('index');
+            Route::get('/{batch}', [BatchController::class, 'show'])->name('show');
+            Route::post('/', [BatchController::class, 'store'])->name('store');
+            Route::put('/{batch}', [BatchController::class, 'update'])->name('update');
+            Route::delete('/{batch}', [BatchController::class, 'destroy'])->name('destroy');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Students
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('students')->name('students.')->group(function () {
+            Route::get('/', [StudentController::class, 'index'])->name('index');
+            Route::get('/{student}', [StudentController::class, 'show'])->name('show');
+            Route::post('/', [StudentController::class, 'store'])->name('store');
+            Route::put('/{student}', [StudentController::class, 'update'])->name('update');
+            Route::delete('/{student}', [StudentController::class, 'destroy'])->name('destroy');
+        });
     });
 
 
@@ -131,7 +157,15 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('payments')->group(function () {
         Route::get('/', fn () => view('payments.index'))->name('payments.index');
-        Route::get('/orders', fn () => view('payments.orders.index'))->name('orders.index');
+
+        Route::prefix('orders')->name('orders.')->group(function () {
+            Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
+        });
+
         Route::get('/schedules', fn () => view('payments.schedules.index'))->name('payment-schedules.index');
     });
 
@@ -208,6 +242,7 @@ Route::middleware('auth')->group(function () {
 
             //Route::get('/{quiz}/play', [QuizPlayController::class, 'show'])->name('play');
             Route::get('/{quiz}/leaderboard', [QuizLeaderboardController::class, 'index'])->name('leaderboard');
+            
         });
     });
 
