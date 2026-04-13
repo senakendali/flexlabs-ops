@@ -15,6 +15,7 @@ use App\Http\Controllers\Operation\QuizController;
 use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
 use App\Http\Controllers\Operation\QuizPlayController;
+use App\Http\Controllers\Operation\QuizLeaderboardController;
 
 
 /*

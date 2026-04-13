@@ -932,6 +932,261 @@ textarea.form-control {
 }
 
 /* =========================
+   LEADERBOARD
+========================= */
+.leaderboard-stat-card {
+    position: relative;
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 1.35rem 1.35rem 1.25rem;
+    border: 1px solid rgba(91, 62, 142, 0.10);
+    box-shadow:
+        0 18px 38px rgba(91, 62, 142, 0.08),
+        0 6px 16px rgba(91, 62, 142, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 182px;
+    overflow: hidden;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.leaderboard-stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 24px 48px rgba(91, 62, 142, 0.12),
+        0 8px 18px rgba(91, 62, 142, 0.08);
+    border-color: rgba(91, 62, 142, 0.16);
+}
+
+.leaderboard-stat-topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(90deg, #5B3E8E 0%, #7B58BE 100%);
+}
+
+.leaderboard-stat-card-participants .leaderboard-stat-topbar {
+    background: linear-gradient(90deg, #5B3E8E 0%, #8C6AE0 100%);
+}
+
+.leaderboard-stat-card-questions .leaderboard-stat-topbar {
+    background: linear-gradient(90deg, #6A46B6 0%, #A47BFF 100%);
+}
+
+.leaderboard-stat-card-score .leaderboard-stat-topbar {
+    background: linear-gradient(90deg, #5B3E8E 0%, #FFBE04 100%);
+}
+
+.leaderboard-stat-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-top: 0.2rem;
+}
+
+.leaderboard-stat-icon {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #F1E9FF 0%, #E8DBFF 100%);
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    flex-shrink: 0;
+}
+
+.leaderboard-stat-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-width: 0;
+    flex: 1;
+}
+
+.leaderboard-stat-title {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.45rem;
+}
+
+.leaderboard-stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+
+.leaderboard-stat-unit {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-left: 0.15rem;
+}
+
+.leaderboard-stat-caption {
+    margin-top: 1.1rem;
+    padding-top: 0.95rem;
+    border-top: 1px dashed rgba(91, 62, 142, 0.12);
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+}
+
+.leaderboard-podium-card {
+    border-radius: 20px;
+}
+
+.podium-item {
+    height: 100%;
+    border-radius: 20px;
+    padding: 1.25rem;
+    border: 1px solid rgba(91, 62, 142, 0.10);
+    background: linear-gradient(180deg, #ffffff 0%, #faf7ff 100%);
+    box-shadow: 0 10px 24px rgba(91, 62, 142, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+.podium-item.gold {
+    border-color: rgba(255, 193, 7, 0.35);
+}
+
+.podium-item.silver {
+    border-color: rgba(108, 117, 125, 0.20);
+}
+
+.podium-item.bronze {
+    border-color: rgba(205, 127, 50, 0.25);
+}
+
+.podium-badge {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #E8DBFF;
+    color: var(--primary);
+    font-size: 1.15rem;
+    margin-bottom: 1rem;
+}
+
+.podium-rank {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.podium-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.35rem;
+}
+
+.podium-meta {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    word-break: break-word;
+    line-height: 1.55;
+}
+
+.podium-mini-stat {
+    background: #fff;
+    border: 1px solid rgba(91, 62, 142, 0.08);
+    border-radius: 14px;
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.podium-mini-stat small {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.podium-mini-stat strong {
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.leaderboard-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: #ebe5f5;
+    overflow: hidden;
+}
+
+.leaderboard-progress .progress-bar {
+    background: var(--primary);
+    border-radius: 999px;
+}
+
+.leaderboard-table thead th {
+    white-space: nowrap;
+    font-size: 0.875rem;
+}
+
+.leaderboard-table tbody td {
+    vertical-align: middle;
+}
+
+.leaderboard-rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.leaderboard-rank-badge.first {
+    background: rgba(255, 193, 7, 0.15);
+    color: #9a6b00;
+}
+
+.leaderboard-rank-badge.second {
+    background: rgba(108, 117, 125, 0.12);
+    color: #495057;
+}
+
+.leaderboard-rank-badge.third {
+    background: rgba(205, 127, 50, 0.14);
+    color: #9a5528;
+}
+
+.leaderboard-rank-text {
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.leaderboard-percent-badge {
+    background: #E8DBFF;
+    color: var(--primary);
+    border: 1px solid #d9c8fb;
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 999px;
+}
+
+/* =========================
    RESPONSIVE
 ========================= */
 @media (max-width: 1199.98px) {
@@ -1077,6 +1332,21 @@ textarea.form-control {
     }
 }
 
+@media (max-width: 767.98px) {
+    .leaderboard-stat-value {
+        font-size: 1.6rem;
+    }
+
+    .podium-item {
+        padding: 1rem;
+    }
+
+    .leaderboard-table thead th,
+    .leaderboard-table tbody td {
+        white-space: nowrap;
+    }
+}
+
 @media (max-width: 575.98px) {
     .navbar-inner {
         min-height: 64px;
@@ -1179,5 +1449,112 @@ textarea.form-control {
 
     .quiz-nav-item {
         padding: 0.85rem 0.9rem;
+    }
+}
+
+.leaderboard-stat-box {
+    background: #ffffff !important;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(91, 62, 142, 0.08) !important;
+}
+
+.leaderboard-stat-box .card-body {
+    position: relative;
+    padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 180px;
+    background: #ffffff;
+}
+
+.leaderboard-stat-topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    border-radius: 20px 20px 0 0;
+}
+
+.leaderboard-stat-topbar-participants {
+    background: linear-gradient(90deg, #5B3E8E 0%, #8C6AE0 100%);
+}
+
+.leaderboard-stat-topbar-questions {
+    background: linear-gradient(90deg, #6A46B6 0%, #A47BFF 100%);
+}
+
+.leaderboard-stat-topbar-score {
+    background: linear-gradient(90deg, #5B3E8E 0%, #FFBE04 100%);
+}
+
+.leaderboard-stat-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-top: 0.35rem;
+}
+
+.leaderboard-stat-icon {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #E8DBFF;
+    color: #5B3E8E;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.leaderboard-stat-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.leaderboard-stat-title {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 0.45rem;
+}
+
+.leaderboard-stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.05;
+    color: #1f2937;
+    letter-spacing: -0.03em;
+}
+
+.leaderboard-stat-unit {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #6b7280;
+    margin-left: 0.15rem;
+}
+
+.leaderboard-stat-caption {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed rgba(91, 62, 142, 0.12);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: #6b7280;
+}
+
+@media (max-width: 767.98px) {
+    .leaderboard-stat-value {
+        font-size: 1.6rem;
+    }
+
+    .leaderboard-stat-box .card-body {
+        min-height: 165px;
     }
 }
