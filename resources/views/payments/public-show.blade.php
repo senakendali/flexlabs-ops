@@ -86,9 +86,9 @@
                                 <i class="bi bi-credit-card me-1"></i> Pay Now
                             </a-->
                         @else
-                            <button type="button" class="btn btn-outline-light btn-lg px-4" disabled>
+                            <!--button type="button" class="btn btn-outline-light btn-lg px-4" disabled>
                                 <i class="bi bi-clock-history me-1"></i> Payment Link Not Ready
-                            </button>
+                            </button-->
                         @endif
                     </div>
                 </div>
@@ -184,7 +184,6 @@
                         @elseif ($payment->payment_url)
                             <a
                                 href="{{ $payment->payment_url }}"
-                                target="_blank"
                                 rel="noopener noreferrer"
                                 class="btn btn-brand btn-lg px-5"
                             >
