@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
+use App\Services\PaymentGateway\XenditService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,6 +16,11 @@ use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
+    public function __construct(
+        protected XenditService $xenditService
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $perPage = (int) $request->get('per_page', 10);
@@ -72,6 +79,8 @@ class PaymentController extends Controller
                 'order_id' => $payment->order_id,
                 'payment_schedule_id' => $payment->payment_schedule_id,
                 'invoice_number' => $payment->invoice_number,
+                'public_token' => $payment->public_token,
+                'payment_url' => $payment->payment_url,
                 'amount' => (float) $payment->amount,
                 'payment_date' => optional($payment->payment_date)->format('Y-m-d'),
                 'payment_method' => $payment->payment_method,
@@ -80,8 +89,12 @@ class PaymentController extends Controller
                 'gateway_provider' => $payment->gateway_provider,
                 'gateway_payload' => $payment->gateway_payload,
                 'status' => $payment->status,
+                'expired_at' => optional($payment->expired_at)->format('Y-m-d H:i:s'),
                 'notes' => $payment->notes,
                 'paid_at' => optional($payment->paid_at)->format('Y-m-d H:i:s'),
+                'public_payment_link' => $payment->public_token
+                    ? route('public.payments.show', $payment->public_token)
+                    : null,
                 'order' => $payment->order ? [
                     'id' => $payment->order->id,
                     'final_price' => (float) $payment->order->final_price,
@@ -124,10 +137,17 @@ class PaymentController extends Controller
             'gateway_transaction_id' => ['nullable', 'string', 'max:255'],
             'gateway_provider' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['pending', 'paid', 'failed', 'expired', 'cancelled'])],
+            'expired_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $order = Order::findOrFail($validated['order_id']);
+        $order = Order::with([
+            'student:id,full_name,email,phone',
+            'batch:id,program_id,name',
+            'batch.program:id,name',
+        ])->findOrFail($validated['order_id']);
+
+        $paymentSchedule = null;
 
         if (!empty($validated['payment_schedule_id'])) {
             $paymentSchedule = PaymentSchedule::findOrFail($validated['payment_schedule_id']);
@@ -147,6 +167,8 @@ class PaymentController extends Controller
             'order_id' => $validated['order_id'],
             'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
             'invoice_number' => $this->generateInvoiceNumber(),
+            'public_token' => Str::uuid()->toString(),
+            'payment_url' => null,
             'amount' => $validated['amount'],
             'payment_date' => $validated['payment_date'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
@@ -155,9 +177,16 @@ class PaymentController extends Controller
             'gateway_provider' => $validated['gateway_provider'] ?? null,
             'gateway_payload' => null,
             'status' => $validated['status'],
+            'expired_at' => !empty($validated['expired_at'])
+                ? Carbon::parse($validated['expired_at'])
+                : now()->addDay(),
             'notes' => $validated['notes'] ?? null,
             'paid_at' => $validated['status'] === 'paid' ? now() : null,
         ]);
+
+        if ($payment->status === 'pending') {
+            $this->attachXenditPaymentLink($payment, $order, $paymentSchedule);
+        }
 
         $this->syncRelatedStatuses($payment);
 
@@ -188,10 +217,17 @@ class PaymentController extends Controller
             'gateway_transaction_id' => ['nullable', 'string', 'max:255'],
             'gateway_provider' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['pending', 'paid', 'failed', 'expired', 'cancelled'])],
+            'expired_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $order = Order::findOrFail($validated['order_id']);
+        $order = Order::with([
+            'student:id,full_name,email,phone',
+            'batch:id,program_id,name',
+            'batch.program:id,name',
+        ])->findOrFail($validated['order_id']);
+
+        $paymentSchedule = null;
 
         if (!empty($validated['payment_schedule_id'])) {
             $paymentSchedule = PaymentSchedule::findOrFail($validated['payment_schedule_id']);
@@ -207,6 +243,9 @@ class PaymentController extends Controller
             }
         }
 
+        $previousStatus = $payment->status;
+        $hadPaymentUrl = !empty($payment->payment_url);
+
         $payment->update([
             'order_id' => $validated['order_id'],
             'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
@@ -214,16 +253,28 @@ class PaymentController extends Controller
             'payment_date' => $validated['payment_date'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
             'reference_number' => $validated['reference_number'] ?? null,
-            'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? null,
-            'gateway_provider' => $validated['gateway_provider'] ?? null,
+            'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
+            'gateway_provider' => $validated['gateway_provider'] ?? $payment->gateway_provider,
             'status' => $validated['status'],
+            'expired_at' => !empty($validated['expired_at'])
+                ? Carbon::parse($validated['expired_at'])
+                : $payment->expired_at,
             'notes' => $validated['notes'] ?? null,
             'paid_at' => $validated['status'] === 'paid'
                 ? ($payment->paid_at ?? now())
                 : null,
         ]);
 
-        $this->syncRelatedStatuses($payment);
+        $shouldGenerateLink = $payment->status === 'pending' && (
+            !$hadPaymentUrl ||
+            $previousStatus !== 'pending'
+        );
+
+        if ($shouldGenerateLink) {
+            $this->attachXenditPaymentLink($payment->fresh(), $order, $paymentSchedule);
+        }
+
+        $this->syncRelatedStatuses($payment->fresh());
 
         $payment->load([
             'order:id,student_id,batch_id,final_price,status',
@@ -262,80 +313,6 @@ class PaymentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Payment deleted successfully.',
-        ]);
-    }
-
-    private function generateInvoiceNumber(): string
-    {
-        $prefix = 'FLX-INV-' . now()->format('Ymd');
-        $lastPayment = Payment::whereDate('created_at', now()->toDateString())
-            ->latest('id')
-            ->first();
-
-        $nextNumber = 1;
-
-        if ($lastPayment && preg_match('/(\d+)$/', $lastPayment->invoice_number, $matches)) {
-            $nextNumber = ((int) $matches[1]) + 1;
-        }
-
-        return $prefix . '-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
-    }
-
-    private function syncRelatedStatuses(Payment $payment): void
-    {
-        if ($payment->payment_schedule_id) {
-            $paymentSchedule = PaymentSchedule::find($payment->payment_schedule_id);
-            if ($paymentSchedule) {
-                $this->refreshScheduleStatus($paymentSchedule);
-            }
-        }
-
-        $order = Order::find($payment->order_id);
-        if ($order) {
-            $this->refreshOrderStatus($order);
-        }
-    }
-
-    private function refreshScheduleStatus(PaymentSchedule $paymentSchedule): void
-    {
-        $paidAmount = Payment::where('payment_schedule_id', $paymentSchedule->id)
-            ->where('status', 'paid')
-            ->sum('amount');
-
-        $newStatus = $paymentSchedule->status;
-
-        if ($paidAmount >= (float) $paymentSchedule->amount) {
-            $newStatus = 'paid';
-        } elseif ($paymentSchedule->due_date && now()->toDateString() > $paymentSchedule->due_date->format('Y-m-d')) {
-            $newStatus = 'overdue';
-        } else {
-            $newStatus = 'pending';
-        }
-
-        $paymentSchedule->update([
-            'status' => $newStatus,
-        ]);
-    }
-
-    private function refreshOrderStatus(Order $order): void
-    {
-        $paidAmount = Payment::where('order_id', $order->id)
-            ->where('status', 'paid')
-            ->sum('amount');
-
-        $finalPrice = (float) $order->final_price;
-        $newStatus = 'pending';
-
-        if ($paidAmount >= $finalPrice && $finalPrice > 0) {
-            $newStatus = 'paid';
-        } elseif ($paidAmount > 0) {
-            $newStatus = 'partial';
-        } else {
-            $newStatus = 'pending';
-        }
-
-        $order->update([
-            'status' => $newStatus,
         ]);
     }
 
@@ -384,6 +361,117 @@ class PaymentController extends Controller
             'subtotal' => (float) $payment->amount,
             'tax' => 0,
             'grandTotal' => (float) $payment->amount,
+        ]);
+    }
+
+    private function attachXenditPaymentLink(
+        Payment $payment,
+        Order $order,
+        ?PaymentSchedule $paymentSchedule = null
+    ): void {
+        try {
+            $student = $order->student;
+            $batch = $order->batch;
+            $program = $batch?->program;
+
+            $xenditResult = $this->xenditService->createPaymentLink($payment, [
+                'full_name' => $student?->full_name,
+                'email' => $student?->email,
+                'phone' => $student?->phone,
+                'program_name' => $program?->name,
+                'batch_name' => $batch?->name,
+                'item_name' => $paymentSchedule?->title ?: 'Program Payment',
+            ]);
+
+            $payment->update([
+                'payment_url' => $xenditResult['payment_url'] ?? $payment->payment_url,
+                'gateway_transaction_id' => $xenditResult['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
+                'gateway_provider' => $xenditResult['gateway_provider'] ?? 'xendit',
+                'gateway_payload' => $xenditResult['gateway_payload'] ?? null,
+                'expired_at' => !empty($xenditResult['expired_at'])
+                    ? Carbon::parse($xenditResult['expired_at'])
+                    : $payment->expired_at,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            $payment->update([
+                'gateway_provider' => 'xendit',
+                'gateway_payload' => [
+                    'error' => $e->getMessage(),
+                ],
+            ]);
+        }
+    }
+
+    private function generateInvoiceNumber(): string
+    {
+        $prefix = 'FLX-INV-' . now()->format('Ymd');
+        $lastPayment = Payment::whereDate('created_at', now()->toDateString())
+            ->latest('id')
+            ->first();
+
+        $nextNumber = 1;
+
+        if ($lastPayment && preg_match('/(\d+)$/', $lastPayment->invoice_number, $matches)) {
+            $nextNumber = ((int) $matches[1]) + 1;
+        }
+
+        return $prefix . '-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function syncRelatedStatuses(Payment $payment): void
+    {
+        if ($payment->payment_schedule_id) {
+            $paymentSchedule = PaymentSchedule::find($payment->payment_schedule_id);
+            if ($paymentSchedule) {
+                $this->refreshScheduleStatus($paymentSchedule);
+            }
+        }
+
+        $order = Order::find($payment->order_id);
+        if ($order) {
+            $this->refreshOrderStatus($order);
+        }
+    }
+
+    private function refreshScheduleStatus(PaymentSchedule $paymentSchedule): void
+    {
+        $paidAmount = Payment::where('payment_schedule_id', $paymentSchedule->id)
+            ->where('status', 'paid')
+            ->sum('amount');
+
+        if ($paidAmount >= (float) $paymentSchedule->amount) {
+            $newStatus = 'paid';
+        } elseif ($paymentSchedule->due_date && now()->toDateString() > $paymentSchedule->due_date->format('Y-m-d')) {
+            $newStatus = 'overdue';
+        } else {
+            $newStatus = 'pending';
+        }
+
+        $paymentSchedule->update([
+            'status' => $newStatus,
+        ]);
+    }
+
+    private function refreshOrderStatus(Order $order): void
+    {
+        $paidAmount = Payment::where('order_id', $order->id)
+            ->where('status', 'paid')
+            ->sum('amount');
+
+        $finalPrice = (float) $order->final_price;
+
+        if ($paidAmount >= $finalPrice && $finalPrice > 0) {
+            $newStatus = 'paid';
+        } elseif ($paidAmount > 0) {
+            $newStatus = 'partial';
+        } else {
+            $newStatus = 'pending';
+        }
+
+        $order->update([
+            'status' => $newStatus,
         ]);
     }
 }

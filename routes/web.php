@@ -21,6 +21,8 @@ use App\Http\Controllers\Enrollment\StudentController;
 use App\Http\Controllers\Payment\OrderController;
 use App\Http\Controllers\Payment\PaymentScheduleController;
 use App\Http\Controllers\Payment\PaymentController;
+use App\Http\Controllers\Payment\PublicPaymentController;
+use App\Http\Controllers\Payment\XenditWebhookController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,6 +44,18 @@ Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
 
 Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
     ->name('trial-class.store');
+
+/*
+|--------------------------------------------------------------------------
+| Public Payment
+|--------------------------------------------------------------------------
+*/
+Route::get('/pay/{token}', [PublicPaymentController::class, 'show'])
+    ->name('public.payments.show');
+
+
+Route::post('/webhooks/xendit/invoice', [XenditWebhookController::class, 'handle'])
+    ->name('webhooks.xendit.invoice');
 
 /*
 |--------------------------------------------------------------------------

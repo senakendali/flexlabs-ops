@@ -2,15 +2,63 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'FlexLabs')</title>
 
-    <meta name="description" content="Trial Class FlexLabs">
+    <!-- Mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Primary SEO -->
+    <title>@yield('title', 'FlexLabs - Digital Academy & Software Engineering Program')</title>
+    <meta
+        name="description"
+        content="@yield('meta_description', 'FlexLabs adalah digital academy dengan kurikulum berbasis industri untuk Software Engineering dan UI/UX Design. Belajar dengan project nyata, AI-assisted learning, dan peluang karir di perusahaan teknologi.')"
+    >
+    <meta
+        name="keywords"
+        content="FlexLabs, Software Engineering, UI UX, Coding Bootcamp, Belajar Programming, Laravel, Web Development, AI Learning, Digital Academy Indonesia"
+    >
+    <meta name="author" content="FlexLabs">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ url()->current() }}">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta
+        property="og:title"
+        content="@yield('og_title', 'FlexLabs - Digital Academy & Software Engineering Program')"
+    >
+    <meta
+        property="og:description"
+        content="@yield('og_description', 'Belajar Software Engineering dengan pendekatan real project dan AI-assisted learning di FlexLabs.')"
+    >
+    <meta property="og:image" content="@yield('og_image', asset('images/og-image.png'))">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:site_name" content="FlexLabs">
+    <meta property="og:locale" content="id_ID">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta
+        name="twitter:title"
+        content="@yield('og_title', 'FlexLabs - Digital Academy')"
+    >
+    <meta
+        name="twitter:description"
+        content="@yield('og_description', 'Belajar Software Engineering dengan pendekatan real project dan AI.')"
+    >
+    <meta name="twitter:image" content="@yield('og_image', asset('images/og-image.jpg'))">
+
+    <!-- Security -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
 
+    <!-- Vendor CSS -->
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -20,13 +68,17 @@
         rel="stylesheet"
     >
 
+    <!-- App CSS -->
     <link rel="stylesheet" href="{{ asset('css/public.css') }}">
+
+    
+    
 </head>
 <body>
     <header class="public-navbar" id="publicNavbar">
         <div class="container">
-            <div class="d-flex align-items-center justify-content-between navbar-inner">
-                <a href="{{ url('/trial-class') }}" class="brand-logo">
+            <div class="navbar-inner d-flex align-items-center justify-content-between">
+                <a href="{{ url('/trial-class') }}" class="brand-logo" aria-label="FlexLabs Home">
                     <img
                         src="{{ asset('images/logo-black.png') }}"
                         alt="FlexLabs Logo"
@@ -37,7 +89,7 @@
                     >
                 </a>
 
-                <nav class="d-flex align-items-center gap-4">
+                <nav class="d-flex align-items-center gap-4" aria-label="Public Navigation">
                     <a href="https://flexlabs.co.id" class="nav-public-link">
                         About FlexLabs
                     </a>
@@ -104,6 +156,7 @@
                                 allowfullscreen=""
                                 loading="lazy"
                                 referrerpolicy="no-referrer-when-downgrade"
+                                title="FlexLabs Location Map"
                             ></iframe>
                         </div>
                     </div>
@@ -119,17 +172,19 @@
             const navbar = document.getElementById('publicNavbar');
             const logo = document.getElementById('navbarLogo');
 
-            if (!navbar || !logo) return;
+            if (!navbar || !logo) {
+                return;
+            }
 
             const defaultLogo = logo.dataset.logoDefault;
             const scrolledLogo = logo.dataset.logoScrolled;
 
-            function updateNavbarState() {
+            const updateNavbarState = () => {
                 const isScrolled = window.scrollY > 24;
 
                 navbar.classList.toggle('scrolled', isScrolled);
                 logo.src = isScrolled ? scrolledLogo : defaultLogo;
-            }
+            };
 
             updateNavbarState();
             window.addEventListener('scroll', updateNavbarState);

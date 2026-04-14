@@ -125,12 +125,12 @@
                                             Students
                                         </a>
                                     </li>
-                                    <li>
+                                    <!--li>
                                         <a class="dropdown-item {{ request()->routeIs('enrollments.*') ? 'active' : '' }}"
                                         href="{{ route('enrollments.index') }}">
                                             Enrollments
                                         </a>
-                                    </li>
+                                    </li-->
                                 </ul>
                             </div>
 
@@ -197,11 +197,11 @@
                             </div>
 
                             <!-- MONITORING -->
-                            <a href="{{ route('monitoring.index') }}"
+                            <!-- <a href="{{ route('monitoring.index') }}"
                             class="nav-btn {{ request()->routeIs('monitoring.*') || request()->routeIs('sessions.*') ? 'active' : '' }}">
                                 <i class="bi bi-clipboard-data"></i>
                                 <span>Monitoring</span>
-                            </a>
+                            </a> -->
                         </nav>
                     </div>
 
