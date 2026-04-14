@@ -69,9 +69,9 @@
 
                     <div class="invoice-banner-action no-print">
                         @if ($isPaid)
-                            <button type="button" class="btn btn-success btn-lg px-4" disabled>
+                            <!--button type="button" class="btn btn-success btn-lg px-4" disabled>
                                 <i class="bi bi-check-circle me-1"></i> Already Paid
-                            </button>
+                            </button-->
                         @elseif ($isExpired)
                             <button type="button" class="btn btn-secondary btn-lg px-4" disabled>
                                 <i class="bi bi-x-circle me-1"></i> Link Expired
