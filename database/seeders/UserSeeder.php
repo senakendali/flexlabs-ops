@@ -66,6 +66,13 @@ class UserSeeder extends Seeder
             'password' => Hash::make('password123'),
         ]);
 
+         User::create([
+            'name' => 'Seff',
+            'email' => 'seff@flexlabs.co.id',
+            'role' => 'marketing',
+            'password' => Hash::make('password123'),
+        ]);
+
        
     }
 }
