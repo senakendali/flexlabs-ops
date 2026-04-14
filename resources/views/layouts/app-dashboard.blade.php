@@ -207,9 +207,9 @@
 
                     <div class="col-12 col-xl-3">
                         <div class="dashboard-actions">
-                            <button class="dashboard-icon-btn" type="button">
+                            <!--button class="dashboard-icon-btn" type="button">
                                 <i class="bi bi-bell"></i>
-                            </button>
+                            </button-->
 
                             <div class="dropdown">
                                 <button
