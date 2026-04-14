@@ -22,17 +22,36 @@ class XenditWebhookController extends Controller
             $callbackToken = (string) $request->header('x-callback-token');
             $expectedToken = (string) config('services.xendit.webhook_token');
 
+            $externalId = (string) ($payload['external_id'] ?? '');
+            $incomingStatus = strtoupper((string) ($payload['status'] ?? ''));
+            $paidAtRaw = $payload['paid_at'] ?? null;
+            $expiryDateRaw = $payload['expiry_date'] ?? null;
+            $transactionId = $payload['id'] ?? null;
+
+            $debug = [
+                'expected' => [
+                    'callback_token' => '[must match XENDIT_WEBHOOK_TOKEN]',
+                    'external_id' => '[must match payments.invoice_number]',
+                    'status' => '[PAID | SETTLED | EXPIRED | FAILED | VOIDED | PENDING | UNPAID]',
+                ],
+                'received' => [
+                    'callback_token' => $callbackToken,
+                    'external_id' => $externalId,
+                    'status' => $incomingStatus,
+                    'paid_at' => $paidAtRaw,
+                    'expiry_date' => $expiryDateRaw,
+                    'transaction_id' => $transactionId,
+                ],
+                'headers' => $headers,
+                'payload' => $payload,
+            ];
+
             if ($expectedToken === '') {
                 return response()->json([
                     'success' => false,
                     'stage' => 'token_validation',
                     'message' => 'XENDIT_WEBHOOK_TOKEN is empty in server environment.',
-                    'debug' => [
-                        'callback_token' => $callbackToken,
-                        'expected_token' => $expectedToken,
-                        'headers' => $headers,
-                        'payload' => $payload,
-                    ],
+                    'debug' => $debug,
                 ], 500);
             }
 
@@ -41,26 +60,22 @@ class XenditWebhookController extends Controller
                     'success' => false,
                     'stage' => 'token_validation',
                     'message' => 'Invalid callback token.',
-                    'debug' => [
-                        'callback_token' => $callbackToken,
-                        'expected_token' => $expectedToken,
-                        'headers' => $headers,
-                        'payload' => $payload,
-                    ],
+                    'debug' => array_merge($debug, [
+                        'comparison' => [
+                            'expected_token' => $expectedToken,
+                            'received_token' => $callbackToken,
+                            'matched' => false,
+                        ],
+                    ]),
                 ], 403);
             }
-
-            $externalId = (string) ($payload['external_id'] ?? '');
-            $invoiceStatus = strtoupper((string) ($payload['status'] ?? ''));
 
             if ($externalId === '') {
                 return response()->json([
                     'success' => false,
                     'stage' => 'payload_validation',
-                    'message' => 'Missing external_id.',
-                    'debug' => [
-                        'payload' => $payload,
-                    ],
+                    'message' => 'Missing external_id from webhook payload.',
+                    'debug' => $debug,
                 ], 422);
             }
 
@@ -70,31 +85,62 @@ class XenditWebhookController extends Controller
                 return response()->json([
                     'success' => false,
                     'stage' => 'payment_lookup',
-                    'message' => 'Payment not found.',
-                    'debug' => [
-                        'external_id' => $externalId,
-                        'invoice_status' => $invoiceStatus,
-                        'payload' => $payload,
-                    ],
+                    'message' => 'Payment not found using external_id.',
+                    'debug' => array_merge($debug, [
+                        'lookup' => [
+                            'query_field' => 'invoice_number',
+                            'query_value' => $externalId,
+                            'matched' => false,
+                            'latest_payments' => Payment::latest('id')
+                                ->take(10)
+                                ->get([
+                                    'id',
+                                    'invoice_number',
+                                    'status',
+                                    'gateway_transaction_id',
+                                    'created_at',
+                                ])
+                                ->map(function ($item) {
+                                    return [
+                                        'id' => $item->id,
+                                        'invoice_number' => $item->invoice_number,
+                                        'status' => $item->status,
+                                        'gateway_transaction_id' => $item->gateway_transaction_id,
+                                        'created_at' => optional($item->created_at)->format('Y-m-d H:i:s'),
+                                    ];
+                                })
+                                ->values()
+                                ->all(),
+                        ],
+                    ]),
                 ], 404);
             }
 
+            $before = [
+                'id' => $payment->id,
+                'invoice_number' => $payment->invoice_number,
+                'status' => $payment->status,
+                'paid_at' => optional($payment->paid_at)->format('Y-m-d H:i:s'),
+                'expired_at' => optional($payment->expired_at)->format('Y-m-d H:i:s'),
+                'gateway_transaction_id' => $payment->gateway_transaction_id,
+            ];
+
             $updateData = [
                 'gateway_provider' => 'xendit',
-                'gateway_transaction_id' => $payload['id'] ?? $payment->gateway_transaction_id,
+                'gateway_transaction_id' => $transactionId ?? $payment->gateway_transaction_id,
                 'gateway_payload' => $payload,
             ];
 
-            if (!empty($payload['expiry_date'])) {
-                $updateData['expired_at'] = Carbon::parse($payload['expiry_date']);
+            if (!empty($expiryDateRaw)) {
+                $updateData['expired_at'] = Carbon::parse($expiryDateRaw);
             }
 
-            switch ($invoiceStatus) {
+            switch ($incomingStatus) {
                 case 'PAID':
                 case 'SETTLED':
                     $updateData['status'] = 'paid';
-                    $updateData['paid_at'] = !empty($payload['paid_at'])
-                        ? Carbon::parse($payload['paid_at'])
+                    $updateData['paid_at'] = !empty($paidAtRaw)
+                        ? Carbon::parse($paidAtRaw)
                         : now();
                     $updateData['payment_date'] = $payment->payment_date ?? now();
                     break;
@@ -124,32 +170,62 @@ class XenditWebhookController extends Controller
                     'success' => false,
                     'stage' => 'payment_update',
                     'message' => 'Payment update returned false.',
-                    'debug' => [
-                        'payment_id' => $payment->id,
-                        'invoice_number' => $payment->invoice_number,
+                    'debug' => array_merge($debug, [
+                        'lookup' => [
+                            'matched' => true,
+                            'payment_id' => $payment->id,
+                        ],
+                        'before' => $before,
                         'update_data' => $this->normalizeForDebug($updateData),
-                    ],
+                    ]),
                 ], 500);
             }
 
             $freshPayment = $payment->fresh();
 
-            $this->syncRelatedStatuses($freshPayment);
+            $scheduleDebug = null;
+            $orderDebug = null;
+
+            if ($freshPayment->payment_schedule_id) {
+                $paymentSchedule = PaymentSchedule::find($freshPayment->payment_schedule_id);
+
+                if ($paymentSchedule) {
+                    $scheduleDebug = $this->refreshScheduleStatus($paymentSchedule);
+                }
+            }
+
+            $order = Order::find($freshPayment->order_id);
+
+            if ($order) {
+                $orderDebug = $this->refreshOrderStatus($order);
+            }
 
             return response()->json([
                 'success' => true,
                 'stage' => 'completed',
                 'message' => 'Webhook processed successfully.',
-                'debug' => [
-                    'payment_id' => $freshPayment?->id,
-                    'invoice_number' => $freshPayment?->invoice_number,
-                    'incoming_status' => $invoiceStatus,
-                    'final_payment_status' => $freshPayment?->status,
-                    'gateway_transaction_id' => $freshPayment?->gateway_transaction_id,
-                    'paid_at' => optional($freshPayment?->paid_at)->format('Y-m-d H:i:s'),
-                    'expired_at' => optional($freshPayment?->expired_at)->format('Y-m-d H:i:s'),
-                    'payload' => $payload,
-                ],
+                'debug' => array_merge($debug, [
+                    'lookup' => [
+                        'matched' => true,
+                        'payment_id' => $freshPayment->id,
+                    ],
+                    'before' => $before,
+                    'update_data' => $this->normalizeForDebug($updateData),
+                    'after' => [
+                        'id' => $freshPayment->id,
+                        'invoice_number' => $freshPayment->invoice_number,
+                        'status' => $freshPayment->status,
+                        'paid_at' => optional($freshPayment->paid_at)->format('Y-m-d H:i:s'),
+                        'payment_date' => optional($freshPayment->payment_date)->format('Y-m-d'),
+                        'expired_at' => optional($freshPayment->expired_at)->format('Y-m-d H:i:s'),
+                        'gateway_transaction_id' => $freshPayment->gateway_transaction_id,
+                        'gateway_provider' => $freshPayment->gateway_provider,
+                    ],
+                    'related_updates' => [
+                        'payment_schedule' => $scheduleDebug,
+                        'order' => $orderDebug,
+                    ],
+                ]),
             ]);
         } catch (Throwable $e) {
             return response()->json([
@@ -175,25 +251,10 @@ class XenditWebhookController extends Controller
         }
     }
 
-    private function syncRelatedStatuses(Payment $payment): void
+    private function refreshScheduleStatus(PaymentSchedule $paymentSchedule): array
     {
-        if ($payment->payment_schedule_id) {
-            $paymentSchedule = PaymentSchedule::find($payment->payment_schedule_id);
+        $beforeStatus = $paymentSchedule->status;
 
-            if ($paymentSchedule) {
-                $this->refreshScheduleStatus($paymentSchedule);
-            }
-        }
-
-        $order = Order::find($payment->order_id);
-
-        if ($order) {
-            $this->refreshOrderStatus($order);
-        }
-    }
-
-    private function refreshScheduleStatus(PaymentSchedule $paymentSchedule): void
-    {
         $paidAmount = Payment::where('payment_schedule_id', $paymentSchedule->id)
             ->where('status', 'paid')
             ->sum('amount');
@@ -216,10 +277,20 @@ class XenditWebhookController extends Controller
         if (!$updated) {
             throw new \RuntimeException('Failed to update payment schedule status.');
         }
+
+        return [
+            'id' => $paymentSchedule->id,
+            'before_status' => $beforeStatus,
+            'after_status' => $paymentSchedule->fresh()?->status,
+            'paid_amount' => (float) $paidAmount,
+            'schedule_amount' => (float) $paymentSchedule->amount,
+        ];
     }
 
-    private function refreshOrderStatus(Order $order): void
+    private function refreshOrderStatus(Order $order): array
     {
+        $beforeStatus = $order->status;
+
         $paidAmount = Payment::where('order_id', $order->id)
             ->where('status', 'paid')
             ->sum('amount');
@@ -241,6 +312,14 @@ class XenditWebhookController extends Controller
         if (!$updated) {
             throw new \RuntimeException('Failed to update order status.');
         }
+
+        return [
+            'id' => $order->id,
+            'before_status' => $beforeStatus,
+            'after_status' => $order->fresh()?->status,
+            'paid_amount' => (float) $paidAmount,
+            'final_price' => (float) $finalPrice,
+        ];
     }
 
     private function normalizeForDebug(array $data): array
