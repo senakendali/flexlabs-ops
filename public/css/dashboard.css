@@ -963,6 +963,9 @@ img {
     }
 }
 
+/* ========================================
+   SALES REPORT PAGE
+======================================== */
 .sales-report-page .page-header {
     display: flex;
     justify-content: space-between;
@@ -972,24 +975,24 @@ img {
 }
 
 .sales-report-page .page-title {
+    margin-bottom: 6px;
     font-size: 28px;
     font-weight: 700;
     color: #1f172b;
-    margin-bottom: 6px;
 }
 
 .sales-report-page .page-subtitle {
+    max-width: 760px;
     color: #6b7280;
     font-size: 14px;
-    max-width: 760px;
 }
 
 .sales-report-page .content-card {
-    background: #ffffff;
-    border-radius: 16px;
     padding: 24px;
-    box-shadow: 0 10px 30px rgba(31, 23, 43, 0.06);
     border: 1px solid #eee7f8;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(31, 23, 43, 0.06);
 }
 
 .sales-report-page .filter-card,
@@ -1016,12 +1019,12 @@ img {
 }
 
 .sales-report-page .custom-table thead th {
+    padding: 14px 16px;
+    border-bottom: 1px solid #eee7f8;
     background: #faf7ff;
     color: #5b3e8e;
     font-size: 13px;
     font-weight: 700;
-    border-bottom: 1px solid #eee7f8;
-    padding: 14px 16px;
     white-space: nowrap;
 }
 
@@ -1045,24 +1048,24 @@ img {
 }
 
 .sales-report-page .empty-state-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: #f3ecff;
-    color: #5b3e8e;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    width: 64px;
+    height: 64px;
     margin-bottom: 14px;
+    border-radius: 50%;
+    background: #f3ecff;
+    color: #5b3e8e;
+    font-size: 24px;
 }
 
 .sales-report-page .white-stat-card {
-    background: #ffffff;
+    height: 100%;
+    padding: 20px;
     border: 1px solid #eee7f8;
     border-radius: 16px;
-    padding: 20px;
-    height: 100%;
+    background: #ffffff;
     box-shadow: 0 10px 30px rgba(31, 23, 43, 0.06);
 }
 
@@ -1074,22 +1077,22 @@ img {
 }
 
 .sales-report-page .stat-icon-wrap {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    background: #e8dbff;
-    color: #5b3e8e;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    width: 48px;
+    height: 48px;
     flex-shrink: 0;
+    border-radius: 14px;
+    background: #e8dbff;
+    color: #5b3e8e;
+    font-size: 20px;
 }
 
 .sales-report-page .stat-label {
-    font-size: 14px;
-    color: #6b7280;
     margin-bottom: 4px;
+    color: #6b7280;
+    font-size: 14px;
 }
 
 .sales-report-page .stat-value {
@@ -1100,9 +1103,9 @@ img {
 }
 
 .sales-report-page .stat-caption {
-    font-size: 13px;
-    color: #7b8090;
     margin-top: 8px;
+    color: #7b8090;
+    font-size: 13px;
 }
 
 .sales-report-page .detail-grid {
@@ -1112,26 +1115,26 @@ img {
 }
 
 .sales-report-page .detail-item {
-    background: #faf7ff;
+    padding: 16px;
     border: 1px solid #eee7f8;
     border-radius: 14px;
-    padding: 16px;
+    background: #faf7ff;
 }
 
 .sales-report-page .detail-label {
     display: block;
+    margin-bottom: 6px;
+    color: #7b8090;
     font-size: 12px;
     font-weight: 600;
-    color: #7b8090;
-    margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
 
 .sales-report-page .report-richtext {
-    line-height: 1.8;
     color: #374151;
     font-size: 15px;
+    line-height: 1.8;
 }
 
 .sales-report-page .form-action-bar {
@@ -1146,9 +1149,9 @@ img {
 }
 
 .sales-report-page .sales-badge-warning {
+    border: 1px solid #ffe7a3;
     background: #fff6d8 !important;
     color: #946200 !important;
-    border: 1px solid #ffe7a3;
 }
 
 @media (max-width: 991.98px) {
@@ -1189,138 +1192,383 @@ img {
     }
 }
 
-#exportWrapper {
-        padding: 40px;
-        background: #f4f2f8;
-        border-radius: 24px;
+/* ========================================
+   SALES DAILY REPORT DETAIL
+======================================== */
+.sales-report-detail-page {
+    width: 100%;
+}
+
+.sales-report-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.sales-report-detail-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sales-report-detail-heading h3 {
+    color: #1f172b;
+}
+
+.sales-report-detail-heading p {
+    max-width: 760px;
+}
+
+.sales-report-detail-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.sales-report-export-wrapper {
+    padding: 28px;
+    /*border: 1px solid #e4d9f7;*/
+    border-radius: 24px;
+    /*background: linear-gradient(180deg, #efe8fb 0%, #f6f2fc 100%);*/
+}
+
+.sales-report-capture-area {
+    padding: 28px;
+    border: 1px solid #ebe3f8;
+    border-radius: 24px;
+    background: #fcfbff;
+    box-shadow: 0 20px 50px rgba(31, 23, 43, 0.08);
+}
+
+.export-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ebe7f3;
+}
+
+.export-eyebrow {
+    display: inline-block;
+    margin-bottom: 8px;
+    color: #5b3e8e;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.export-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1f172b;
+}
+
+.export-subtitle {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.export-stat-card,
+.export-section-card {
+    border: 1px solid #e5dbf6 !important;
+    border-radius: 18px;
+    background: #ffffff !important;
+    box-shadow: 0 10px 28px rgba(91, 62, 142, 0.10) !important;
+}
+
+.export-stat-card:hover,
+.export-section-card:hover {
+    box-shadow: 0 16px 36px rgba(91, 62, 142, 0.14) !important;
+}
+
+.export-stat-card .card-body {
+    padding: 20px;
+    background: #ffffff;
+}
+
+.export-section-card .card-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid #eadff8 !important;
+    background: linear-gradient(180deg, #faf7ff 0%, #f6f1ff 100%) !important;
+}
+
+.export-section-card .card-body {
+    padding: 20px;
+    background: #ffffff;
+}
+
+.sales-report-stat-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.sales-report-detail-page .stat-copy {
+    min-width: 0;
+    flex: 1;
+}
+
+.sales-report-detail-page .dashboard-stat-card .text-muted.small {
+    color: #6d6480 !important;
+}
+
+.sales-report-detail-page .dashboard-stat-card h4 {
+    color: #1f172b;
+    font-size: 28px;
+}
+
+.sales-report-detail-page .dashboard-stat-card small {
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.sales-report-detail-page .report-richtext {
+    color: #374151;
+    font-size: 15px;
+    line-height: 1.85;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.sales-report-detail-page .report-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sales-report-detail-page .report-info-linklike {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid #e3d8f4;
+    border-radius: 18px;
+    background: #fcfbff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease;
+}
+
+.sales-report-detail-page .report-info-linklike.active {
+    border-color: #cdb7ff;
+    background: linear-gradient(180deg, #faf7ff 0%, #f4edff 100%);
+    box-shadow: 0 8px 20px rgba(91, 62, 142, 0.08);
+}
+
+.sales-report-detail-page .report-info-left {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.sales-report-detail-page .report-info-left i {
+    flex-shrink: 0;
+}
+
+.sales-report-detail-page .report-info-right {
+    color: #374151;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+
+.sales-report-detail-page .report-info-linklike.active .report-info-left,
+.sales-report-detail-page .report-info-linklike.active .report-info-right {
+    color: #5b3e8e;
+}
+
+@media (max-width: 991.98px) {
+    .sales-report-detail-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    #reportCaptureArea {
-        background: #ffffff;
-        border-radius: 24px;
-        padding: 28px;
-        box-shadow: 0 20px 50px rgba(31, 23, 43, 0.08);
+    .sales-report-detail-actions {
+        justify-content: flex-end;
+        width: 100%;
+        margin-left: 0;
     }
 
-    .export-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #ebe7f3;
+    .sales-report-export-wrapper {
+        padding: 20px;
+        border-radius: 20px;
     }
 
-    .export-eyebrow {
-        display: inline-block;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #5b3e8e;
-        margin-bottom: 8px;
+    .sales-report-capture-area {
+        padding: 22px;
+        border-radius: 20px;
     }
 
     .export-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: #1f172b;
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .dashboard-layout {
+        padding: 0;
+    }
+
+    .dashboard-topbar .container-fluid,
+    .dashboard-body .container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .dashboard-body .container-fluid {
+        padding-bottom: 12px;
+    }
+
+    .dashboard-content-shell {
+        min-height: auto;
+        padding: 14px;
+        border-radius: 16px;
+    }
+
+    .dashboard-content-shell .card {
+        border-radius: 18px;
+    }
+
+    .dashboard-content-shell .card-header,
+    .dashboard-content-shell .card-body {
+        padding: 16px;
+    }
+
+    .sales-report-detail-heading p br {
+        display: none;
+    }
+
+    .sales-report-detail-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .sales-report-detail-actions .btn,
+    .sales-report-detail-actions a.btn {
+        width: 100%;
+    }
+
+    .sales-report-export-wrapper {
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .sales-report-capture-area {
+        padding: 14px;
+        border-radius: 16px;
+        box-shadow: 0 12px 32px rgba(31, 23, 43, 0.08);
+    }
+
+    .export-header {
+        gap: 10px;
+        margin-bottom: 18px !important;
+        padding-bottom: 12px;
+    }
+
+    .export-title {
+        font-size: 20px;
+        line-height: 1.25;
     }
 
     .export-subtitle {
-        font-size: 14px;
-        color: #6b7280;
+        font-size: 13px;
     }
 
-    .export-stat-card,
-    .export-section-card {
-        border-radius: 18px;
+    .export-stat-card .card-body,
+    .export-section-card .card-header,
+    .export-section-card .card-body {
+        padding: 16px;
     }
 
-    .report-richtext {
-        line-height: 1.85;
-        color: #374151;
-        font-size: 15px;
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    .report-info-list {
-        display: flex;
-        flex-direction: column;
+    .sales-report-stat-top {
         gap: 12px;
     }
 
-    .report-info-linklike {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 16px 18px;
-        border: 1px solid #e6e0f0;
-        border-radius: 18px;
-        background: #ffffff;
-        transition: all 0.2s ease;
+    .sales-report-detail-page .stat-icon {
+        width: 46px;
+        height: 46px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        font-size: 1.2rem;
     }
 
-    .report-info-linklike.active {
-        border-color: #cdb7ff;
-        background: #faf7ff;
-        color: #5b3e8e;
+    .sales-report-detail-page .dashboard-stat-card h4 {
+        font-size: 24px;
     }
 
-    .report-info-left {
-        display: inline-flex;
-        align-items: center;
-        font-size: 15px;
-        font-weight: 500;
-        color: #1f2937;
+    .sales-report-detail-page .dashboard-stat-card small {
+        font-size: 12px;
+        line-height: 1.45;
     }
 
-    .report-info-linklike.active .report-info-left,
-    .report-info-linklike.active .report-info-right {
-        color: #5b3e8e;
-    }
-
-    .report-info-right {
+    .sales-report-detail-page .report-richtext {
         font-size: 14px;
-        font-weight: 600;
-        color: #374151;
-        text-align: right;
+        line-height: 1.75;
     }
 
-    @media (max-width: 991.98px) {
-        #exportWrapper {
-            padding: 24px;
-        }
-
-        #reportCaptureArea {
-            padding: 22px;
-        }
+    .sales-report-detail-page .report-info-linklike {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 14px 16px;
     }
 
-    @media (max-width: 767.98px) {
-        #exportWrapper {
-            padding: 16px;
-            border-radius: 18px;
-        }
-
-        #reportCaptureArea {
-            padding: 18px;
-            border-radius: 18px;
-        }
-
-        .export-title {
-            font-size: 22px;
-        }
-
-        .report-info-linklike {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 6px;
-        }
-
-        .report-info-right {
-            text-align: left;
-        }
+    .sales-report-detail-page .report-info-right {
+        font-size: 13px;
+        text-align: left;
     }
+}
+
+@media (max-width: 575.98px) {
+    .dashboard-topbar .container-fluid,
+    .dashboard-body .container-fluid {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .dashboard-content-shell {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .sales-report-detail-heading h3 {
+        font-size: 1.2rem;
+    }
+
+    .sales-report-detail-heading p {
+        font-size: 13px;
+    }
+
+    .sales-report-export-wrapper {
+        padding: 10px;
+        border-radius: 14px;
+    }
+
+    .sales-report-capture-area {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .export-title {
+        font-size: 18px;
+    }
+
+    .sales-report-detail-page .dashboard-stat-card h4 {
+        font-size: 22px;
+    }
+}

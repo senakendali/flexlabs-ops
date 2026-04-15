@@ -3,17 +3,18 @@
 @section('title', 'Sales Daily Report Detail')
 
 @section('content')
-<div class="dashboard-content">
+<div class="dashboard-content sales-report-page sales-report-detail-page">
     <div class="container-fluid py-4">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-            <div>
+        <div class="sales-report-detail-header mb-4">
+            <div class="sales-report-detail-heading">
                 <h3 class="fw-bold mb-1">Sales Daily Report Detail</h3>
                 <p class="text-muted mb-0">
-                    Tinjau ringkasan performa harian sales untuk membaca volume leads, kualitas interaksi, <br>dan peluang konsultasi dengan lebih jelas.
+                    Tinjau ringkasan performa harian sales untuk membaca volume leads, kualitas interaksi,
+                    <br class="d-none d-lg-block">dan peluang konsultasi dengan lebih jelas.
                 </p>
             </div>
 
-            <div class="d-flex flex-wrap gap-2">
+            <div class="sales-report-detail-actions">
                 <button type="button" class="btn btn-outline-dark" id="downloadPngBtn">
                     <span class="default-text">
                         <i class="bi bi-download me-1"></i> Download
@@ -34,8 +35,8 @@
             </div>
         </div>
 
-        <div id="exportWrapper">
-            <div id="reportCaptureArea">
+        <div id="exportWrapper" class="sales-report-export-wrapper">
+            <div id="reportCaptureArea" class="sales-report-capture-area">
                 <div class="export-header mb-4">
                     <div>
                         <div class="export-eyebrow">FlexLabs Ops</div>
@@ -50,20 +51,20 @@
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card dashboard-stat-card h-100 export-stat-card">
                             <div class="card-body d-flex flex-column">
-                                <div class="d-flex align-items-start gap-3">
+                                <div class="stat-card-top">
                                     <div class="stat-icon">
                                         <i class="bi bi-people"></i>
                                     </div>
 
-                                    <div>
+                                    <div class="stat-copy">
                                         <div class="text-muted small">Total Leads</div>
                                         <h4 class="fw-bold mb-0">{{ $report->total_leads }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-secondary-emphasis">
-                                        <i class="bi bi-bar-chart-line"></i> Total leads yang tercatat pada hari ini
+                                    <small class="text-secondary-emphasis d-block">
+                                        <i class="bi bi-bar-chart-line me-1"></i> Total leads yang tercatat pada hari ini
                                     </small>
                                 </div>
                             </div>
@@ -73,20 +74,20 @@
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card dashboard-stat-card h-100 export-stat-card">
                             <div class="card-body d-flex flex-column">
-                                <div class="d-flex align-items-start gap-3">
+                                <div class="stat-card-top">
                                     <div class="stat-icon">
                                         <i class="bi bi-chat-left-text"></i>
                                     </div>
 
-                                    <div>
+                                    <div class="stat-copy">
                                         <div class="text-muted small">Interacted</div>
                                         <h4 class="fw-bold mb-0">{{ $report->interacted }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-info-emphasis">
-                                        <i class="bi bi-arrow-up-right-circle"></i> Leads yang berhasil masuk tahap interaksi
+                                    <small class="text-info-emphasis d-block">
+                                        <i class="bi bi-arrow-up-right-circle me-1"></i> Leads yang berhasil masuk tahap interaksi
                                     </small>
                                 </div>
                             </div>
@@ -96,20 +97,20 @@
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card dashboard-stat-card h-100 export-stat-card">
                             <div class="card-body d-flex flex-column">
-                                <div class="d-flex align-items-start gap-3">
+                                <div class="stat-card-top">
                                     <div class="stat-icon">
                                         <i class="bi bi-fire"></i>
                                     </div>
 
-                                    <div>
+                                    <div class="stat-copy">
                                         <div class="text-muted small">Hot Leads</div>
                                         <h4 class="fw-bold mb-0">{{ $report->hot_leads }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-warning-emphasis">
-                                        <i class="bi bi-stars"></i> Leads prioritas tinggi yang perlu difollow up
+                                    <small class="text-warning-emphasis d-block">
+                                        <i class="bi bi-stars me-1"></i> Leads prioritas tinggi yang perlu difollow up
                                     </small>
                                 </div>
                             </div>
@@ -119,20 +120,20 @@
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card dashboard-stat-card h-100 export-stat-card">
                             <div class="card-body d-flex flex-column">
-                                <div class="d-flex align-items-start gap-3">
+                                <div class="stat-card-top">
                                     <div class="stat-icon">
                                         <i class="bi bi-telephone"></i>
                                     </div>
 
-                                    <div>
+                                    <div class="stat-copy">
                                         <div class="text-muted small">Consultation</div>
                                         <h4 class="fw-bold mb-0">{{ $report->consultation }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-primary-emphasis">
-                                        <i class="bi bi-headset"></i> Leads yang lanjut ke tahap konsultasi
+                                    <small class="text-primary-emphasis d-block">
+                                        <i class="bi bi-headset me-1"></i> Leads yang lanjut ke tahap konsultasi
                                     </small>
                                 </div>
                             </div>
@@ -141,7 +142,7 @@
                 </div>
 
                 <div class="row g-3 mb-4">
-                    <div class="col-lg-8">
+                    <div class="col-12 col-lg-8">
                         <div class="card h-100 shadow-sm border-0 export-section-card">
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Leads Summary for Today</h5>
@@ -158,12 +159,12 @@
                         </div>
                     </div>
 
-                    <div class="col-lg-4">
+                    <div class="col-12 col-lg-4">
                         <div class="card h-100 shadow-sm border-0 export-section-card">
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Report Information</h5>
                                 <p class="text-muted small mb-0">
-                                   Gambaran singkat performa harian untuk membaca tren leads, interaksi, dan peluang konsultasi.
+                                    Gambaran singkat performa harian untuk membaca tren leads, interaksi, dan peluang konsultasi.
                                 </p>
                             </div>
 
@@ -227,7 +228,7 @@
                 </div>
 
                 <div class="row g-3">
-                    <div class="col-lg-6">
+                    <div class="col-12 col-lg-6">
                         <div class="card h-100 shadow-sm border-0 export-section-card">
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Hot Lead Highlight</h5>
@@ -244,7 +245,7 @@
                         </div>
                     </div>
 
-                    <div class="col-lg-6">
+                    <div class="col-12 col-lg-6">
                         <div class="card h-100 shadow-sm border-0 export-section-card">
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Additional Notes</h5>
@@ -267,146 +268,6 @@
 </div>
 @endsection
 
-@push('styles')
-<style>
-    #exportWrapper {
-        padding: 40px;
-        background: #f4f2f8;
-        border-radius: 24px;
-    }
-
-    #reportCaptureArea {
-        background: #ffffff;
-        border-radius: 24px;
-        padding: 28px;
-        box-shadow: 0 20px 50px rgba(31, 23, 43, 0.08);
-    }
-
-    .export-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #ebe7f3;
-    }
-
-    .export-eyebrow {
-        display: inline-block;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #5b3e8e;
-        margin-bottom: 8px;
-    }
-
-    .export-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: #1f172b;
-    }
-
-    .export-subtitle {
-        font-size: 14px;
-        color: #6b7280;
-    }
-
-    .export-stat-card,
-    .export-section-card {
-        border-radius: 18px;
-    }
-
-    .report-richtext {
-        line-height: 1.85;
-        color: #374151;
-        font-size: 15px;
-        white-space: normal;
-        word-break: break-word;
-    }
-
-    .report-info-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .report-info-linklike {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 16px 18px;
-        border: 1px solid #e6e0f0;
-        border-radius: 18px;
-        background: #ffffff;
-        transition: all 0.2s ease;
-    }
-
-    .report-info-linklike.active {
-        border-color: #cdb7ff;
-        background: #faf7ff;
-        color: #5b3e8e;
-    }
-
-    .report-info-left {
-        display: inline-flex;
-        align-items: center;
-        font-size: 15px;
-        font-weight: 500;
-        color: #1f2937;
-    }
-
-    .report-info-linklike.active .report-info-left,
-    .report-info-linklike.active .report-info-right {
-        color: #5b3e8e;
-    }
-
-    .report-info-right {
-        font-size: 14px;
-        font-weight: 600;
-        color: #374151;
-        text-align: right;
-    }
-
-    @media (max-width: 991.98px) {
-        #exportWrapper {
-            padding: 24px;
-        }
-
-        #reportCaptureArea {
-            padding: 22px;
-        }
-    }
-
-    @media (max-width: 767.98px) {
-        #exportWrapper {
-            padding: 16px;
-            border-radius: 18px;
-        }
-
-        #reportCaptureArea {
-            padding: 18px;
-            border-radius: 18px;
-        }
-
-        .export-title {
-            font-size: 22px;
-        }
-
-        .report-info-linklike {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 6px;
-        }
-
-        .report-info-right {
-            text-align: left;
-        }
-    }
-</style>
-@endpush
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
@@ -414,20 +275,25 @@
     const exportWrapper = document.getElementById('exportWrapper');
 
     function setDownloadLoading(isLoading) {
+        if (!downloadPngBtn) return;
+
         downloadPngBtn.disabled = isLoading;
-        downloadPngBtn.querySelector('.default-text').classList.toggle('d-none', isLoading);
-        downloadPngBtn.querySelector('.loading-text').classList.toggle('d-none', !isLoading);
+        downloadPngBtn.querySelector('.default-text')?.classList.toggle('d-none', isLoading);
+        downloadPngBtn.querySelector('.loading-text')?.classList.toggle('d-none', !isLoading);
     }
 
     async function downloadDashboardAsPng() {
+        if (!exportWrapper) return;
+
         setDownloadLoading(true);
 
         try {
             const canvas = await html2canvas(exportWrapper, {
-                scale: 2,
+                scale: window.innerWidth < 768 ? 1.6 : 2,
                 useCORS: true,
                 backgroundColor: null,
-                logging: false
+                logging: false,
+                windowWidth: document.documentElement.scrollWidth
             });
 
             const link = document.createElement('a');
@@ -442,6 +308,6 @@
         }
     }
 
-    downloadPngBtn.addEventListener('click', downloadDashboardAsPng);
+    downloadPngBtn?.addEventListener('click', downloadDashboardAsPng);
 </script>
 @endpush
