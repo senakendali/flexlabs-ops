@@ -32,17 +32,18 @@
                                 <span>Dashboard</span>
                             </a>
 
-                            <!-- ACADEMIC -->
+                           <!-- ACADEMIC -->
                             <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{
                                         request()->routeIs('programs.*')
                                         || request()->routeIs('instructors.*')
+                                        || request()->routeIs('batches.*')
+                                        || request()->routeIs('students.*')
+                                        || request()->routeIs('instructor-tracking.*')
                                         || request()->routeIs('trial-themes.*')
                                         || request()->routeIs('trial-schedules.*')
                                         || request()->routeIs('trial-participants.*')
-                                        || request()->routeIs('batches.*')
-                                        || request()->routeIs('students.*')
                                             ? 'active' : ''
                                     }}"
                                     type="button"
@@ -53,15 +54,68 @@
                                 </button>
 
                                 <ul class="dropdown-menu shadow-sm">
-                                    <li><a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}" href="{{ route('programs.index') }}">Programs</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}" href="{{ route('instructors.index') }}">Instructors</a></li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
+                                        href="{{ route('programs.index') }}">
+                                            Programs
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
+                                        href="{{ route('instructors.index') }}">
+                                            Instructors
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
+                                        href="{{ route('batches.index') }}">
+                                            Batches
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('students.*') ? 'active' : '' }}"
+                                        href="{{ route('students.index') }}">
+                                            Students
+                                        </a>
+                                    </li>
+
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('trial-themes.*') ? 'active' : '' }}" href="{{ route('trial-themes.index') }}">Trial Themes</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('trial-schedules.*') ? 'active' : '' }}" href="{{ route('trial-schedules.index') }}">Trial Schedules</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('trial-participants.*') ? 'active' : '' }}" href="{{ route('trial-participants.index') }}">Trial Participants</a></li>
+
+                                    
+
+                                   <li>
+                                        <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
+                                        href="{{ route('curriculum.index') }}">
+                                            Manage Curriculum
+                                        </a>
+                                    </li>
+
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('instructor-tracking.*') ? 'active' : '' }}"
+                                        href="{{ route('instructor-tracking.index') }}">
+                                            Instructor Tracking
+                                        </a>
+                                    </li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}" href="{{ route('batches.index') }}">Batches</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('students.*') ? 'active' : '' }}" href="{{ route('students.index') }}">Students</a></li>
+
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('trial-themes.*') ? 'active' : '' }}"
+                                        href="{{ route('trial-themes.index') }}">
+                                            Trial Themes
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('trial-schedules.*') ? 'active' : '' }}"
+                                        href="{{ route('trial-schedules.index') }}">
+                                            Trial Schedules
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('trial-participants.*') ? 'active' : '' }}"
+                                        href="{{ route('trial-participants.index') }}">
+                                            Trial Participants
+                                        </a>
+                                    </li>
                                 </ul>
                             </div>
 

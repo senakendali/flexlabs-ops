@@ -25,6 +25,8 @@ use App\Http\Controllers\Payment\PublicPaymentController;
 use App\Http\Controllers\Payment\XenditWebhookController;
 use App\Http\Controllers\Sales\SalesDailyReportController;
 use App\Http\Controllers\Sales\SalesPerformanceController;
+use App\Http\Controllers\Academic\CurriculumController;
+use App\Http\Controllers\Academic\InstructorTrackingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -330,6 +332,48 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('settings')->group(function () {
         Route::get('/', fn () => view('settings.index'))->name('settings.index');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Curriculum
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('curriculum')->name('curriculum.')->group(function () {
+        Route::get('/', [CurriculumController::class, 'index'])->name('index');
+
+        // optional (next phase)
+        Route::post('/modules', [CurriculumController::class, 'storeModule'])->name('modules.store');
+        Route::post('/topics', [CurriculumController::class, 'storeTopic'])->name('topics.store');
+        Route::post('/sub-topics', [CurriculumController::class, 'storeSubTopic'])->name('sub-topics.store');
+
+        Route::put('/modules/{module}', [CurriculumController::class, 'updateModule'])->name('modules.update');
+        Route::put('/topics/{topic}', [CurriculumController::class, 'updateTopic'])->name('topics.update');
+        Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->name('sub-topics.update');
+
+        Route::delete('/modules/{module}', [CurriculumController::class, 'destroyModule'])->name('modules.destroy');
+        Route::delete('/topics/{topic}', [CurriculumController::class, 'destroyTopic'])->name('topics.destroy');
+        Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Instructor Tracking
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('instructor-tracking')->name('instructor-tracking.')->group(function () {
+        Route::get('/', [InstructorTrackingController::class, 'index'])->name('index');
+
+        // session flow
+        Route::post('/start', [InstructorTrackingController::class, 'startSession'])->name('start');
+        Route::post('/{session}/end', [InstructorTrackingController::class, 'endSession'])->name('end');
+
+        // checklist sub topic
+        Route::post('/{session}/checklist', [InstructorTrackingController::class, 'updateChecklist'])->name('checklist');
+
+        // logs
+        Route::post('/{session}/logs', [InstructorTrackingController::class, 'storeLog'])->name('logs.store');
     });
     
 
