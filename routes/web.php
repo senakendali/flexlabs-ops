@@ -331,6 +331,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('settings')->group(function () {
         Route::get('/', fn () => view('settings.index'))->name('settings.index');
     });
+    
 
 
     /*

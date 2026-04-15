@@ -180,7 +180,7 @@
 
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item d-flex align-items-center gap-2" href="#">
+                                        <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('profile.edit') }}">
                                             <i class="bi bi-person-circle"></i>
                                             <span>Profile</span>
                                         </a>
