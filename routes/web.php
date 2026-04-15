@@ -23,6 +23,8 @@ use App\Http\Controllers\Payment\PaymentScheduleController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\PublicPaymentController;
 use App\Http\Controllers\Payment\XenditWebhookController;
+use App\Http\Controllers\Sales\SalesDailyReportController;
+use App\Http\Controllers\Sales\SalesPerformanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -194,6 +196,41 @@ Route::middleware('auth')->group(function () {
         Route::get('/{payment}', [PaymentController::class, 'show'])->whereNumber('payment')->name('payments.show');
         Route::put('/{payment}', [PaymentController::class, 'update'])->whereNumber('payment')->name('payments.update');
         Route::delete('/{payment}', [PaymentController::class, 'destroy'])->whereNumber('payment')->name('payments.destroy');
+    });
+
+   
+    /*
+    |--------------------------------------------------------------------------
+    | Sales Tools (Reporting Only)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('sales-tools')->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Daily Reports
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('daily-reports')->name('sales-daily-reports.')->group(function () {
+            Route::get('/', [SalesDailyReportController::class, 'index'])->name('index');
+            Route::get('/create', [SalesDailyReportController::class, 'create'])->name('create');
+            Route::post('/', [SalesDailyReportController::class, 'store'])->name('store');
+            Route::get('/{salesDailyReport}', [SalesDailyReportController::class, 'show'])->name('show');
+            Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->name('edit');
+            Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->name('update');
+            Route::delete('/{salesDailyReport}', [SalesDailyReportController::class, 'destroy'])->name('destroy');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Performance Dashboard
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('performance')->name('sales-performance.')->group(function () {
+            Route::get('/', [SalesPerformanceController::class, 'index'])->name('index');
+            Route::get('/chart-data', [SalesPerformanceController::class, 'chartData'])->name('chart-data');
+        });
+
     });
 
 

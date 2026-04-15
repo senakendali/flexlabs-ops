@@ -168,6 +168,34 @@
                                 </ul>
                             </div>
 
+                            <!-- SALES TOOLS -->
+                            <div class="dropdown">
+                                <button
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('sales-daily-reports.*') || request()->routeIs('sales-performance.*') ? 'active' : '' }}"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                >
+                                    <i class="bi bi-graph-up-arrow"></i>
+                                    <span>Sales Tools</span>
+                                </button>
+
+                                <ul class="dropdown-menu shadow-sm">
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}"
+                                        href="{{ route('sales-daily-reports.index') }}">
+                                            Daily Reports
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}"
+                                        href="{{ route('sales-performance.index') }}">
+                                            Performance Dashboard
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+
                             <!-- 🔥 NEW: OPERATIONS -->
                             <div class="dropdown">
                                 <button
