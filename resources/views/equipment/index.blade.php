@@ -62,9 +62,6 @@
                     @forelse ($equipments as $equipment)
                         @php
                             $activeBorrowing = $equipment->activeBorrowing;
-                            $currentHolder = $equipment->type === 'assigned'
-                                ? $equipment->assignedUser
-                                : ($activeBorrowing?->user);
                         @endphp
                         <tr>
                             <td>
@@ -264,7 +261,7 @@
                             <div class="invalid-feedback" id="error_type"></div>
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-md-4" id="assignedUserWrapper">
                             <label for="assigned_user_id" class="form-label">Assigned User</label>
                             <select id="assigned_user_id" class="form-select">
                                 <option value="">Select User</option>
@@ -274,7 +271,7 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <div class="form-text">Used for assigned asset type.</div>
+                            <div class="form-text">Used only for assigned asset type.</div>
                             <div class="invalid-feedback" id="error_assigned_user_id"></div>
                         </div>
 
@@ -730,7 +727,7 @@
 
     function toggleAssignedField() {
         const type = fields.type.value;
-        const assignedWrapper = fields.assigned_user_id.closest('.col-md-4');
+        const assignedWrapper = document.getElementById('assignedUserWrapper');
 
         if (type === 'assigned') {
             assignedWrapper.classList.remove('d-none');
@@ -904,24 +901,23 @@
             } else {
                 html += `<h6 class="mb-3">Assignment History</h6>`;
 
-                if (data.assigned_user) {
-                    html += `
-                        <div class="list-group">
-                            <div class="list-group-item">
-                                <div class="fw-semibold">${data.assigned_user.name}</div>
-                                <small class="text-muted d-block">Current Assigned User</small>
-                                ${data.location ? `<small class="text-muted d-block">Location: ${data.location}</small>` : ''}
-                            </div>
-                        </div>
-                    `;
-
-                    html += `
-                        <div class="alert alert-light border mt-3 mb-0">
-                            Assignment history detail can be expanded later when assignment history table is added.
-                        </div>
-                    `;
+                if (!data.assignments || data.assignments.length === 0) {
+                    html += `<div class="text-muted">No assignment history found.</div>`;
                 } else {
-                    html += `<div class="text-muted">No assigned user found.</div>`;
+                    html += `<div class="list-group">`;
+
+                    data.assignments.forEach(item => {
+                        html += `
+                            <div class="list-group-item">
+                                <div class="fw-semibold">${item.user?.name ?? '-'}</div>
+                                <small class="text-muted d-block">Assigned: ${formatDateTime(item.assigned_at)}</small>
+                                <small class="text-muted d-block">Released: ${item.unassigned_at ? formatDateTime(item.unassigned_at) : 'Current Holder'}</small>
+                                ${item.notes ? `<div class="small mt-2">Notes: ${item.notes}</div>` : ''}
+                            </div>
+                        `;
+                    });
+
+                    html += `</div>`;
                 }
             }
 

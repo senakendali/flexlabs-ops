@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class Equipment extends Model
@@ -22,22 +22,17 @@ class Equipment extends Model
         'description',
         'condition',
         'status',
-
-        // NEW
         'type',
         'assigned_user_id',
         'location',
         'purchase_date',
         'purchase_price',
         'last_maintenance_at',
-
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-
-        // NEW
         'purchase_date' => 'date',
         'purchase_price' => 'decimal:2',
         'last_maintenance_at' => 'datetime',
@@ -66,9 +61,21 @@ class Equipment extends Model
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(EquipmentAssignment::class);
+    }
+
+    public function activeAssignment(): HasOne
+    {
+        return $this->hasOne(EquipmentAssignment::class)
+            ->whereNull('unassigned_at')
+            ->latestOfMany('assigned_at');
+    }
+
     /*
     |--------------------------------------------------------------------------
-    | SCOPES (OPTIONAL BUT USEFUL)
+    | SCOPES
     |--------------------------------------------------------------------------
     */
 
@@ -89,18 +96,18 @@ class Equipment extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | HELPERS (VERY USEFUL FOR UI & CONTROLLER)
+    | HELPERS
     |--------------------------------------------------------------------------
     */
 
     public function isAssigned(): bool
     {
-        return $this->type === 'assigned';
+        return ($this->type ?? 'borrowable') === 'assigned';
     }
 
     public function isBorrowable(): bool
     {
-        return $this->type === 'borrowable';
+        return ($this->type ?? 'borrowable') === 'borrowable';
     }
 
     public function isAvailable(): bool
@@ -127,27 +134,21 @@ class Equipment extends Model
     protected static function booted(): void
     {
         static::creating(function (self $equipment) {
-            // Auto slug
             if (blank($equipment->slug) && filled($equipment->name)) {
                 $equipment->slug = Str::slug($equipment->name);
             }
 
-            // Default type
             if (blank($equipment->type)) {
                 $equipment->type = 'borrowable';
             }
         });
 
         static::saving(function (self $equipment) {
-            // Kalau assigned → ga boleh status borrowed
-            if ($equipment->type === 'assigned') {
-                if ($equipment->status === 'borrowed') {
-                    $equipment->status = 'available';
-                }
+            if (($equipment->type ?? 'borrowable') === 'assigned' && $equipment->status === 'borrowed') {
+                $equipment->status = 'available';
             }
 
-            // Kalau borrowable → ga boleh punya assigned user
-            if ($equipment->type === 'borrowable') {
+            if (($equipment->type ?? 'borrowable') === 'borrowable') {
                 $equipment->assigned_user_id = null;
             }
         });
