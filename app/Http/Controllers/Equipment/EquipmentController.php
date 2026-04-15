@@ -24,6 +24,7 @@ class EquipmentController extends Controller
         $equipments = Equipment::query()
             ->with([
                 'activeBorrowing.user',
+                'assignedUser',
             ])
             ->latest()
             ->paginate($perPage)
@@ -39,13 +40,59 @@ class EquipmentController extends Controller
     public function show(Equipment $equipment): JsonResponse
     {
         $equipment->load([
-            'borrowings' => fn ($query) => $query->latest()->with('user'),
+            'borrowings' => fn ($query) => $query
+                ->latest()
+                ->with('user'),
             'activeBorrowing.user',
+            'assignedUser',
         ]);
 
         return response()->json([
             'success' => true,
-            'data' => $equipment,
+            'data' => [
+                'id' => $equipment->id,
+                'name' => $equipment->name,
+                'code' => $equipment->code,
+                'type' => $equipment->type ?? 'borrowable',
+                'status' => $equipment->status,
+                'condition' => $equipment->condition,
+                'location' => $equipment->location,
+
+                // 🔹 Assigned (current)
+                'assigned_user' => $equipment->assignedUser ? [
+                    'id' => $equipment->assignedUser->id,
+                    'name' => $equipment->assignedUser->name,
+                    'email' => $equipment->assignedUser->email,
+                ] : null,
+
+                // 🔹 Active Borrowing
+                'active_borrowing' => $equipment->activeBorrowing ? [
+                    'id' => $equipment->activeBorrowing->id,
+                    'borrowed_at' => $equipment->activeBorrowing->borrowed_at,
+                    'expected_return_at' => $equipment->activeBorrowing->expected_return_at,
+                    'user' => $equipment->activeBorrowing->user ? [
+                        'id' => $equipment->activeBorrowing->user->id,
+                        'name' => $equipment->activeBorrowing->user->name,
+                    ] : null,
+                ] : null,
+
+                // 🔥 Borrowing History (clean)
+                'borrowings' => $equipment->borrowings->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'borrowed_at' => $item->borrowed_at,
+                        'expected_return_at' => $item->expected_return_at,
+                        'returned_at' => $item->returned_at,
+                        'status' => $item->status,
+                        'notes' => $item->notes,
+                        'return_notes' => $item->return_notes,
+                        'user' => $item->user ? [
+                            'id' => $item->user->id,
+                            'name' => $item->user->name,
+                        ] : null,
+                    ];
+                })->values(),
+            ],
         ]);
     }
 
@@ -60,6 +107,15 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'condition' => ['required', Rule::in(['good', 'minor_damage', 'damaged'])],
             'status' => ['required', Rule::in(['available', 'borrowed', 'maintenance'])],
+
+            // new asset fields
+            'type' => ['nullable', Rule::in(['assigned', 'borrowable'])],
+            'assigned_user_id' => ['nullable', 'exists:users,id'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'purchase_date' => ['nullable', 'date'],
+            'purchase_price' => ['nullable', 'numeric', 'min:0'],
+            'last_maintenance_at' => ['nullable', 'date'],
+
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -70,13 +126,16 @@ class EquipmentController extends Controller
 
         $validated['code'] = $this->generateUniqueCode();
         $validated['is_active'] = (bool) ($validated['is_active'] ?? true);
+        $validated['type'] = $validated['type'] ?? 'borrowable';
+
+        $validated = $this->normalizeAssetPayload($validated);
 
         $equipment = Equipment::create($validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Equipment berhasil ditambahkan.',
-            'data' => $equipment,
+            'data' => $equipment->load(['assignedUser', 'activeBorrowing.user']),
         ]);
     }
 
@@ -101,6 +160,15 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'condition' => ['required', Rule::in(['good', 'minor_damage', 'damaged'])],
             'status' => ['required', Rule::in(['available', 'borrowed', 'maintenance'])],
+
+            // new asset fields
+            'type' => ['nullable', Rule::in(['assigned', 'borrowable'])],
+            'assigned_user_id' => ['nullable', 'exists:users,id'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'purchase_date' => ['nullable', 'date'],
+            'purchase_price' => ['nullable', 'numeric', 'min:0'],
+            'last_maintenance_at' => ['nullable', 'date'],
+
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -111,13 +179,16 @@ class EquipmentController extends Controller
         );
 
         $validated['is_active'] = (bool) ($validated['is_active'] ?? true);
+        $validated['type'] = $validated['type'] ?? ($equipment->type ?? 'borrowable');
+
+        $validated = $this->normalizeAssetPayload($validated, $equipment);
 
         $equipment->update($validated);
 
         return response()->json([
             'success' => true,
             'message' => 'Equipment berhasil diperbarui.',
-            'data' => $equipment->fresh(),
+            'data' => $equipment->fresh()->load(['assignedUser', 'activeBorrowing.user']),
         ]);
     }
 
@@ -140,6 +211,42 @@ class EquipmentController extends Controller
             'success' => true,
             'message' => 'Equipment berhasil dihapus.',
         ]);
+    }
+
+    private function normalizeAssetPayload(array $validated, ?Equipment $equipment = null): array
+    {
+        $type = $validated['type'] ?? 'borrowable';
+
+        if ($type === 'assigned') {
+            // assigned asset tidak boleh pakai status borrowed
+            if (($validated['status'] ?? null) === 'borrowed') {
+                $validated['status'] = 'available';
+            }
+        }
+
+        if ($type === 'borrowable') {
+            // borrowable asset tidak punya assigned user
+            $validated['assigned_user_id'] = null;
+        }
+
+        // optional normalization
+        $validated['location'] = filled($validated['location'] ?? null)
+            ? trim((string) $validated['location'])
+            : null;
+
+        $validated['brand'] = filled($validated['brand'] ?? null)
+            ? trim((string) $validated['brand'])
+            : null;
+
+        $validated['model'] = filled($validated['model'] ?? null)
+            ? trim((string) $validated['model'])
+            : null;
+
+        $validated['serial_number'] = filled($validated['serial_number'] ?? null)
+            ? trim((string) $validated['serial_number'])
+            : null;
+
+        return $validated;
     }
 
     private function generateUniqueSlug(?string $slug, string $name, ?int $ignoreId = null): string

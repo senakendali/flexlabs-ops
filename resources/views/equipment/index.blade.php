@@ -7,7 +7,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
             <h4 class="mb-1">Equipment</h4>
-            <small class="text-muted">Manage equipment master data and borrowings</small>
+            <small class="text-muted">Manage equipment master data, assignments, and borrowings</small>
         </div>
 
         <button type="button" class="btn btn-primary" onclick="openCreateModal()">
@@ -49,35 +49,56 @@
                         <th style="width: 80px;">No</th>
                         <th>Name</th>
                         <th>Code</th>
+                        <th>Type</th>
                         <th>Serial Number</th>
                         <th>Brand / Model</th>
                         <th>Condition</th>
                         <th>Status</th>
-                        <th>Borrower</th>
-                        <th style="width: 170px;" class="text-center">Action</th>
+                        <th>Holder</th>
+                        <th style="width: 210px;" class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($equipments as $equipment)
                         @php
                             $activeBorrowing = $equipment->activeBorrowing;
+                            $currentHolder = $equipment->type === 'assigned'
+                                ? $equipment->assignedUser
+                                : ($activeBorrowing?->user);
                         @endphp
                         <tr>
                             <td>
                                 {{ ($equipments->currentPage() - 1) * $equipments->perPage() + $loop->iteration }}
                             </td>
+
                             <td>
                                 <div class="fw-semibold">{{ $equipment->name }}</div>
                                 @if ($equipment->description)
                                     <small class="text-muted">{{ \Illuminate\Support\Str::limit($equipment->description, 50) }}</small>
                                 @endif
                             </td>
+
                             <td><code>{{ $equipment->code }}</code></td>
+
+                            <td>
+                                @if (($equipment->type ?? 'borrowable') === 'assigned')
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">
+                                        Assigned
+                                    </span>
+                                @else
+                                    <span class="badge bg-dark-subtle text-dark border border-dark-subtle">
+                                        Borrowable
+                                    </span>
+                                @endif
+                            </td>
+
                             <td>{{ $equipment->serial_number ?: '-' }}</td>
+
                             <td>
                                 <div>{{ $equipment->brand ?: '-' }}</div>
                                 <small class="text-muted">{{ $equipment->model ?: '-' }}</small>
                             </td>
+
                             <td>
                                 @if ($equipment->condition === 'good')
                                     <span class="badge bg-success-subtle text-success border border-success-subtle">
@@ -93,6 +114,7 @@
                                     </span>
                                 @endif
                             </td>
+
                             <td>
                                 @if ($equipment->status === 'available')
                                     <span class="badge bg-success">Available</span>
@@ -102,41 +124,64 @@
                                     <span class="badge bg-secondary">Maintenance</span>
                                 @endif
                             </td>
+
                             <td>
-                                @if ($activeBorrowing && $activeBorrowing->user)
-                                    <div class="fw-semibold">{{ $activeBorrowing->user->name }}</div>
-                                    <small class="text-muted">
-                                        {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
-                                    </small>
+                                @if (($equipment->type ?? 'borrowable') === 'assigned')
+                                    @if ($equipment->assignedUser)
+                                        <div class="fw-semibold">{{ $equipment->assignedUser->name }}</div>
+                                        <small class="text-muted">Assigned User</small>
+                                    @else
+                                        <span class="text-muted">Not Assigned</span>
+                                    @endif
                                 @else
-                                    <span class="text-muted">-</span>
+                                    @if ($activeBorrowing && $activeBorrowing->user)
+                                        <div class="fw-semibold">{{ $activeBorrowing->user->name }}</div>
+                                        <small class="text-muted">
+                                            {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
+                                        </small>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
                                 @endif
                             </td>
+
                             <td class="text-center">
-                                <div class="d-inline-flex gap-2">
+                                <div class="d-inline-flex gap-2 flex-wrap justify-content-center">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        onclick="openHistoryModal({{ $equipment->id }})"
+                                        title="View History"
+                                    >
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-primary"
                                         onclick="editEquipment({{ $equipment->id }})"
+                                        title="Edit Equipment"
                                     >
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
-                                    @if ($equipment->status === 'available')
+                                    @if (($equipment->type ?? 'borrowable') === 'borrowable' && $equipment->status === 'available')
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-outline-success"
                                             onclick="openBorrowModal({{ $equipment->id }}, @js($equipment->name))"
+                                            title="Borrow Equipment"
                                         >
                                             <i class="bi bi-box-arrow-right"></i>
                                         </button>
                                     @endif
 
-                                    @if ($equipment->status === 'borrowed' && $activeBorrowing)
+                                    @if (($equipment->type ?? 'borrowable') === 'borrowable' && $equipment->status === 'borrowed' && $activeBorrowing)
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-outline-warning"
                                             onclick="openReturnModal({{ $activeBorrowing->id }}, @js($equipment->name), @js($equipment->condition))"
+                                            title="Return Equipment"
                                         >
                                             <i class="bi bi-box-arrow-in-left"></i>
                                         </button>
@@ -146,6 +191,7 @@
                                         type="button"
                                         class="btn btn-sm btn-outline-danger"
                                         onclick="openDeleteModal({{ $equipment->id }}, @js($equipment->name))"
+                                        title="Delete Equipment"
                                     >
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -154,7 +200,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center py-4 text-muted">
+                            <td colspan="10" class="text-center py-4 text-muted">
                                 No equipment found.
                             </td>
                         </tr>
@@ -173,7 +219,7 @@
 
 {{-- Equipment Form Modal --}}
 <div class="modal fade" id="equipmentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <form id="equipmentForm">
             @csrf
             <input type="hidden" id="equipment_id">
@@ -203,16 +249,45 @@
                             <div class="invalid-feedback" id="error_slug"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="code_preview" class="form-label">Code</label>
                             <input type="text" id="code_preview" class="form-control" readonly>
                             <div class="form-text">Auto-generated by system.</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="type" class="form-label">Asset Type</label>
+                            <select id="type" class="form-select">
+                                <option value="borrowable">Borrowable</option>
+                                <option value="assigned">Assigned</option>
+                            </select>
+                            <div class="invalid-feedback" id="error_type"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="assigned_user_id" class="form-label">Assigned User</label>
+                            <select id="assigned_user_id" class="form-select">
+                                <option value="">Select User</option>
+                                @foreach ($users as $user)
+                                    <option value="{{ $user->id }}">
+                                        {{ $user->name }}{{ $user->email ? ' - ' . $user->email : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Used for assigned asset type.</div>
+                            <div class="invalid-feedback" id="error_assigned_user_id"></div>
                         </div>
 
                         <div class="col-md-6">
                             <label for="serial_number" class="form-label">Serial Number</label>
                             <input type="text" id="serial_number" class="form-control">
                             <div class="invalid-feedback" id="error_serial_number"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" id="location" class="form-control" placeholder="e.g. Office Jakarta / Studio A">
+                            <div class="invalid-feedback" id="error_location"></div>
                         </div>
 
                         <div class="col-md-6">
@@ -227,7 +302,7 @@
                             <div class="invalid-feedback" id="error_model"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="condition" class="form-label">Condition</label>
                             <select id="condition" class="form-select">
                                 <option value="good">Good</option>
@@ -237,7 +312,7 @@
                             <div class="invalid-feedback" id="error_condition"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="status" class="form-label">Status</label>
                             <select id="status" class="form-select">
                                 <option value="available">Available</option>
@@ -247,13 +322,31 @@
                             <div class="invalid-feedback" id="error_status"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="is_active" class="form-label">Status Active</label>
                             <select id="is_active" class="form-select">
                                 <option value="1">Active</option>
                                 <option value="0">Inactive</option>
                             </select>
                             <div class="invalid-feedback" id="error_is_active"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="purchase_date" class="form-label">Purchase Date</label>
+                            <input type="date" id="purchase_date" class="form-control">
+                            <div class="invalid-feedback" id="error_purchase_date"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="purchase_price" class="form-label">Purchase Price</label>
+                            <input type="number" min="0" step="0.01" id="purchase_price" class="form-control">
+                            <div class="invalid-feedback" id="error_purchase_price"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="last_maintenance_at" class="form-label">Last Maintenance</label>
+                            <input type="datetime-local" id="last_maintenance_at" class="form-control">
+                            <div class="invalid-feedback" id="error_last_maintenance_at"></div>
                         </div>
 
                         <div class="col-12">
@@ -409,6 +502,24 @@
     </div>
 </div>
 
+{{-- History Modal --}}
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title">Equipment History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="historyContent">
+                    <div class="text-center text-muted py-4">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Delete Modal --}}
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -460,6 +571,9 @@
     const returnFormAlert = document.getElementById('returnFormAlert');
     const returnSubmitBtn = document.getElementById('returnSubmitBtn');
 
+    const historyModalEl = document.getElementById('historyModal');
+    const historyModal = new bootstrap.Modal(historyModalEl);
+
     const deleteModalEl = document.getElementById('deleteModal');
     const deleteModal = new bootstrap.Modal(deleteModalEl);
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
@@ -476,6 +590,12 @@
         description: document.getElementById('description'),
         condition: document.getElementById('condition'),
         status: document.getElementById('status'),
+        type: document.getElementById('type'),
+        assigned_user_id: document.getElementById('assigned_user_id'),
+        location: document.getElementById('location'),
+        purchase_date: document.getElementById('purchase_date'),
+        purchase_price: document.getElementById('purchase_price'),
+        last_maintenance_at: document.getElementById('last_maintenance_at'),
         is_active: document.getElementById('is_active'),
     };
 
@@ -547,6 +667,21 @@
         return localDate.toISOString().slice(0, 16);
     }
 
+    function formatDateTime(value) {
+        if (!value) return '-';
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+
+        return new Intl.DateTimeFormat('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(date);
+    }
+
     function clearValidationErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
         document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
@@ -593,25 +728,46 @@
         confirmDeleteBtn.querySelector('.loading-delete-text').classList.toggle('d-none', !isLoading);
     }
 
+    function toggleAssignedField() {
+        const type = fields.type.value;
+        const assignedWrapper = fields.assigned_user_id.closest('.col-md-4');
+
+        if (type === 'assigned') {
+            assignedWrapper.classList.remove('d-none');
+        } else {
+            assignedWrapper.classList.add('d-none');
+            fields.assigned_user_id.value = '';
+        }
+    }
+
     function resetForm() {
         equipmentForm.reset();
         fields.id.value = '';
         fields.code_preview.value = 'Auto generated';
         fields.condition.value = 'good';
         fields.status.value = 'available';
+        fields.type.value = 'borrowable';
+        fields.assigned_user_id.value = '';
+        fields.location.value = '';
+        fields.purchase_date.value = '';
+        fields.purchase_price.value = '';
+        fields.last_maintenance_at.value = '';
         fields.is_active.value = '1';
         formAlert.classList.add('d-none');
         formAlert.innerHTML = '';
         clearValidationErrors();
         setSubmitLoading(false);
         autoSlug = true;
+        toggleAssignedField();
     }
 
     function resetBorrowForm() {
         borrowForm.reset();
         document.getElementById('borrow_equipment_id').value = '';
         document.getElementById('borrow_equipment_name').value = '';
+        document.getElementById('borrow_user_id').value = '';
         document.getElementById('borrowed_at').value = toDatetimeLocalValue();
+        document.getElementById('due_at').value = '';
         borrowFormAlert.classList.add('d-none');
         borrowFormAlert.innerHTML = '';
         clearValidationErrors();
@@ -669,14 +825,109 @@
             fields.description.value = data.description ?? '';
             fields.condition.value = data.condition ?? 'good';
             fields.status.value = data.status ?? 'available';
+            fields.type.value = data.type ?? 'borrowable';
+            fields.assigned_user_id.value = data.assigned_user_id ?? '';
+            fields.location.value = data.location ?? '';
+            fields.purchase_date.value = data.purchase_date ?? '';
+            fields.purchase_price.value = data.purchase_price ?? '';
+            fields.last_maintenance_at.value = data.last_maintenance_at
+                ? toDatetimeLocalValue(new Date(data.last_maintenance_at))
+                : '';
             fields.is_active.value = data.is_active ? '1' : '0';
 
             autoSlug = false;
+            toggleAssignedField();
             equipmentModal.show();
         } catch (error) {
             formAlert.classList.remove('d-none');
             formAlert.innerHTML = error.message || 'Failed to load equipment data.';
             equipmentModal.show();
+        }
+    }
+
+    async function openHistoryModal(id) {
+        const container = document.getElementById('historyContent');
+        container.innerHTML = '<div class="text-center text-muted py-4">Loading...</div>';
+        historyModal.show();
+
+        try {
+            const response = await fetch(`/equipment/${id}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Failed to fetch equipment history.');
+            }
+
+            const data = result.data;
+            let html = '';
+
+            html += `
+                <div class="mb-3">
+                    <div class="fw-semibold fs-6">${data.name ?? '-'}</div>
+                    <small class="text-muted">
+                        ${data.code ?? '-'} · ${(data.type ?? 'borrowable') === 'assigned' ? 'Assigned Asset' : 'Borrowable Asset'}
+                    </small>
+                </div>
+            `;
+
+            if ((data.type ?? 'borrowable') === 'borrowable') {
+                html += `<h6 class="mb-3">Borrowing History</h6>`;
+
+                if (!data.borrowings || data.borrowings.length === 0) {
+                    html += `<div class="text-muted">No borrowing history found.</div>`;
+                } else {
+                    html += `<div class="list-group">`;
+
+                    data.borrowings.forEach(item => {
+                        html += `
+                            <div class="list-group-item">
+                                <div class="fw-semibold">${item.user?.name ?? '-'}</div>
+                                <small class="text-muted d-block">Borrowed: ${formatDateTime(item.borrowed_at)}</small>
+                                <small class="text-muted d-block">Expected Return: ${formatDateTime(item.expected_return_at)}</small>
+                                <small class="text-muted d-block">Returned: ${formatDateTime(item.returned_at)}</small>
+                                <small class="text-muted d-block">Status: ${item.status ?? '-'}</small>
+                                ${item.notes ? `<div class="small mt-2">Notes: ${item.notes}</div>` : ''}
+                                ${item.return_notes ? `<div class="small">Return Notes: ${item.return_notes}</div>` : ''}
+                            </div>
+                        `;
+                    });
+
+                    html += `</div>`;
+                }
+            } else {
+                html += `<h6 class="mb-3">Assignment History</h6>`;
+
+                if (data.assigned_user) {
+                    html += `
+                        <div class="list-group">
+                            <div class="list-group-item">
+                                <div class="fw-semibold">${data.assigned_user.name}</div>
+                                <small class="text-muted d-block">Current Assigned User</small>
+                                ${data.location ? `<small class="text-muted d-block">Location: ${data.location}</small>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    html += `
+                        <div class="alert alert-light border mt-3 mb-0">
+                            Assignment history detail can be expanded later when assignment history table is added.
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="text-muted">No assigned user found.</div>`;
+                }
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<div class="text-danger">${error.message || 'Failed to load history.'}</div>`;
         }
     }
 
@@ -712,6 +963,8 @@
         autoSlug = this.value.trim() === '';
     });
 
+    fields.type.addEventListener('change', toggleAssignedField);
+
     equipmentForm.addEventListener('submit', async function (e) {
         e.preventDefault();
 
@@ -731,6 +984,12 @@
             description: fields.description.value.trim(),
             condition: fields.condition.value,
             status: fields.status.value,
+            type: fields.type.value,
+            assigned_user_id: fields.assigned_user_id.value || null,
+            location: fields.location.value.trim(),
+            purchase_date: fields.purchase_date.value || null,
+            purchase_price: fields.purchase_price.value || null,
+            last_maintenance_at: fields.last_maintenance_at.value || null,
             is_active: fields.is_active.value === '1' ? 1 : 0,
         };
 
@@ -928,5 +1187,7 @@
         deleteEquipmentNameEl.textContent = '';
         setDeleteLoading(false);
     });
+
+    toggleAssignedField();
 </script>
 @endpush
