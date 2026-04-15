@@ -29,6 +29,8 @@ class SalesPerformanceController extends Controller
             'warm_leads' => (int) $reports->sum('warm_leads'),
             'hot_leads' => (int) $reports->sum('hot_leads'),
             'consultation' => (int) $reports->sum('consultation'),
+            'closed_deal' => (int) $reports->sum('closed_deal'),
+            'revenue' => (float) $reports->sum('revenue'),
         ];
 
         $interactionRate = $totals['total_leads'] > 0
@@ -43,6 +45,18 @@ class SalesPerformanceController extends Controller
             ? round(($totals['hot_leads'] / $totals['total_leads']) * 100, 1)
             : 0;
 
+        $dealRate = $totals['total_leads'] > 0
+            ? round(($totals['closed_deal'] / $totals['total_leads']) * 100, 1)
+            : 0;
+
+        $consultationToDealRate = $totals['consultation'] > 0
+            ? round(($totals['closed_deal'] / $totals['consultation']) * 100, 1)
+            : 0;
+
+        $averageDealValue = $totals['closed_deal'] > 0
+            ? round($totals['revenue'] / $totals['closed_deal'], 2)
+            : 0;
+
         return view('sales.performance.index', [
             'totals' => $totals,
             'reports' => $reports,
@@ -54,6 +68,9 @@ class SalesPerformanceController extends Controller
                 'interaction_rate' => $interactionRate,
                 'consultation_rate' => $consultationRate,
                 'hot_lead_rate' => $hotLeadRate,
+                'deal_rate' => $dealRate,
+                'consultation_to_deal_rate' => $consultationToDealRate,
+                'average_deal_value' => $averageDealValue,
             ],
         ]);
     }
@@ -76,6 +93,8 @@ class SalesPerformanceController extends Controller
                 'ignored' => $reports->pluck('ignored')->values(),
                 'consultation' => $reports->pluck('consultation')->values(),
                 'hot_leads' => $reports->pluck('hot_leads')->values(),
+                'closed_deal' => $reports->pluck('closed_deal')->values(),
+                'revenue' => $reports->map(fn ($report) => (float) $report->revenue)->values(),
             ],
             'summary' => [
                 'total_leads' => (int) $reports->sum('total_leads'),
@@ -83,6 +102,8 @@ class SalesPerformanceController extends Controller
                 'ignored' => (int) $reports->sum('ignored'),
                 'consultation' => (int) $reports->sum('consultation'),
                 'hot_leads' => (int) $reports->sum('hot_leads'),
+                'closed_deal' => (int) $reports->sum('closed_deal'),
+                'revenue' => (float) $reports->sum('revenue'),
             ],
         ]);
     }

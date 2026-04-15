@@ -63,8 +63,6 @@
                     </div>
                 </div>
 
-                
-
                 <div class="mb-4">
                     <h5 class="fw-bold mb-1">Lead Metrics</h5>
                     <p class="text-muted small mb-0">
@@ -75,59 +73,169 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-3">
                         <label for="total_leads" class="form-label">Total Leads <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="total_leads" name="total_leads" class="form-control @error('total_leads') is-invalid @enderror" value="{{ old('total_leads', $report->total_leads ?? 0) }}">
-                        <div class="invalid-feedback" id="error_total_leads">@error('total_leads') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="total_leads"
+                            name="total_leads"
+                            class="form-control @error('total_leads') is-invalid @enderror"
+                            value="{{ old('total_leads', $report->total_leads ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_total_leads">
+                            @error('total_leads') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="interacted" class="form-label">Interacted <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="interacted" name="interacted" class="form-control @error('interacted') is-invalid @enderror" value="{{ old('interacted', $report->interacted ?? 0) }}">
-                        <div class="invalid-feedback" id="error_interacted">@error('interacted') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="interacted"
+                            name="interacted"
+                            class="form-control @error('interacted') is-invalid @enderror"
+                            value="{{ old('interacted', $report->interacted ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_interacted">
+                            @error('interacted') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="ignored" class="form-label">Ignored <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="ignored" name="ignored" class="form-control @error('ignored') is-invalid @enderror" value="{{ old('ignored', $report->ignored ?? 0) }}">
-                        <div class="invalid-feedback" id="error_ignored">@error('ignored') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="ignored"
+                            name="ignored"
+                            class="form-control @error('ignored') is-invalid @enderror"
+                            value="{{ old('ignored', $report->ignored ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_ignored">
+                            @error('ignored') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="closed_lost" class="form-label">Closed Lost <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="closed_lost" name="closed_lost" class="form-control @error('closed_lost') is-invalid @enderror" value="{{ old('closed_lost', $report->closed_lost ?? 0) }}">
-                        <div class="invalid-feedback" id="error_closed_lost">@error('closed_lost') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="closed_lost"
+                            name="closed_lost"
+                            class="form-control @error('closed_lost') is-invalid @enderror"
+                            value="{{ old('closed_lost', $report->closed_lost ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_closed_lost">
+                            @error('closed_lost') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="not_related" class="form-label">Not Related <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="not_related" name="not_related" class="form-control @error('not_related') is-invalid @enderror" value="{{ old('not_related', $report->not_related ?? 0) }}">
-                        <div class="invalid-feedback" id="error_not_related">@error('not_related') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="not_related"
+                            name="not_related"
+                            class="form-control @error('not_related') is-invalid @enderror"
+                            value="{{ old('not_related', $report->not_related ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_not_related">
+                            @error('not_related') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="warm_leads" class="form-label">Warm Leads <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="warm_leads" name="warm_leads" class="form-control @error('warm_leads') is-invalid @enderror" value="{{ old('warm_leads', $report->warm_leads ?? 0) }}">
-                        <div class="invalid-feedback" id="error_warm_leads">@error('warm_leads') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="warm_leads"
+                            name="warm_leads"
+                            class="form-control @error('warm_leads') is-invalid @enderror"
+                            value="{{ old('warm_leads', $report->warm_leads ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_warm_leads">
+                            @error('warm_leads') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="hot_leads" class="form-label">Hot Leads <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="hot_leads" name="hot_leads" class="form-control @error('hot_leads') is-invalid @enderror" value="{{ old('hot_leads', $report->hot_leads ?? 0) }}">
-                        <div class="invalid-feedback" id="error_hot_leads">@error('hot_leads') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="hot_leads"
+                            name="hot_leads"
+                            class="form-control @error('hot_leads') is-invalid @enderror"
+                            value="{{ old('hot_leads', $report->hot_leads ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_hot_leads">
+                            @error('hot_leads') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label for="consultation" class="form-label">Consultation <span class="text-danger">*</span></label>
-                        <input type="number" min="0" id="consultation" name="consultation" class="form-control @error('consultation') is-invalid @enderror" value="{{ old('consultation', $report->consultation ?? 0) }}">
-                        <div class="invalid-feedback" id="error_consultation">@error('consultation') {{ $message }} @enderror</div>
+                        <input
+                            type="number"
+                            min="0"
+                            id="consultation"
+                            name="consultation"
+                            class="form-control @error('consultation') is-invalid @enderror"
+                            value="{{ old('consultation', $report->consultation ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_consultation">
+                            @error('consultation') {{ $message }} @enderror
+                        </div>
                     </div>
                 </div>
 
-                
+                <div class="mb-4">
+                    <h5 class="fw-bold mb-1">Sales Outcome</h5>
+                    <p class="text-muted small mb-0">
+                        Hasil akhir dari aktivitas sales hari ini. Bagian ini membantu management melihat performa nyata dalam bentuk deal dan revenue.
+                    </p>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label for="closed_deal" class="form-label">Closed Deal <span class="text-danger">*</span></label>
+                        <input
+                            type="number"
+                            min="0"
+                            id="closed_deal"
+                            name="closed_deal"
+                            class="form-control @error('closed_deal') is-invalid @enderror"
+                            value="{{ old('closed_deal', $report->closed_deal ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_closed_deal">
+                            @error('closed_deal') {{ $message }} @enderror
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="revenue" class="form-label">Revenue (Rp) <span class="text-danger">*</span></label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            id="revenue"
+                            name="revenue"
+                            class="form-control @error('revenue') is-invalid @enderror"
+                            value="{{ old('revenue', $report->revenue ?? 0) }}"
+                        >
+                        <div class="invalid-feedback" id="error_revenue">
+                            @error('revenue') {{ $message }} @enderror
+                        </div>
+                    </div>
+                </div>
 
                 <div class="mb-4">
                     <h5 class="fw-bold mb-1">Narrative Insight</h5>
                     <p class="text-muted small mb-0">
-                        Tambahkan narasi penting agar management tidak hanya melihat angka, tapi juga memahami konteks di balik performa hari itu.
+                        Tambahkan insight penting agar tidak hanya angka yang terlihat, tapi juga apa yang sebenarnya terjadi di lapangan hari ini.
                     </p>
                 </div>
 
@@ -141,7 +249,9 @@
                             class="form-control @error('summary') is-invalid @enderror"
                             placeholder="Contoh: High lead volume for today, with half of the leads moving into interaction stage and 4 leads proceeding to consultation."
                         >{{ old('summary', $report->summary) }}</textarea>
-                        <div class="invalid-feedback" id="error_summary">@error('summary') {{ $message }} @enderror</div>
+                        <div class="invalid-feedback" id="error_summary">
+                            @error('summary') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-12">
@@ -153,7 +263,9 @@
                             class="form-control @error('highlight') is-invalid @enderror"
                             placeholder="Contoh: 1 hot lead for Core SE already joined a 15-minute consultation with the parent and showed strong interest in the online class option."
                         >{{ old('highlight', $report->highlight) }}</textarea>
-                        <div class="invalid-feedback" id="error_highlight">@error('highlight') {{ $message }} @enderror</div>
+                        <div class="invalid-feedback" id="error_highlight">
+                            @error('highlight') {{ $message }} @enderror
+                        </div>
                     </div>
 
                     <div class="col-12">
@@ -165,7 +277,9 @@
                             class="form-control @error('notes') is-invalid @enderror"
                             placeholder="Tambahkan catatan tambahan jika ada hambatan, insight, atau next action penting."
                         >{{ old('notes', $report->notes) }}</textarea>
-                        <div class="invalid-feedback" id="error_notes">@error('notes') {{ $message }} @enderror</div>
+                        <div class="invalid-feedback" id="error_notes">
+                            @error('notes') {{ $message }} @enderror
+                        </div>
                     </div>
                 </div>
 
@@ -206,6 +320,8 @@
         warm_leads: document.getElementById('warm_leads'),
         hot_leads: document.getElementById('hot_leads'),
         consultation: document.getElementById('consultation'),
+        closed_deal: document.getElementById('closed_deal'),
+        revenue: document.getElementById('revenue'),
         summary: document.getElementById('summary'),
         highlight: document.getElementById('highlight'),
         notes: document.getElementById('notes'),
@@ -297,6 +413,8 @@
             warm_leads: fields.warm_leads.value || 0,
             hot_leads: fields.hot_leads.value || 0,
             consultation: fields.consultation.value || 0,
+            closed_deal: fields.closed_deal.value || 0,
+            revenue: fields.revenue.value || 0,
             summary: fields.summary.value.trim(),
             highlight: fields.highlight.value.trim(),
             notes: fields.notes.value.trim(),

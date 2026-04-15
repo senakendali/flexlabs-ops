@@ -9,8 +9,8 @@
             <div class="sales-report-detail-heading">
                 <h3 class="fw-bold mb-1">Sales Daily Report Detail</h3>
                 <p class="text-muted mb-0">
-                    Tinjau ringkasan performa harian sales untuk membaca volume leads, kualitas interaksi,
-                    <br class="d-none d-lg-block">dan peluang konsultasi dengan lebih jelas.
+                    Tinjau ringkasan performa harian sales untuk membaca perkembangan leads, kualitas interaksi,
+                    <br class="d-none d-lg-block">serta hasil akhir dalam bentuk deal dan revenue dengan lebih jelas.
                 </p>
             </div>
 
@@ -99,18 +99,18 @@
                             <div class="card-body d-flex flex-column">
                                 <div class="stat-card-top">
                                     <div class="stat-icon">
-                                        <i class="bi bi-fire"></i>
+                                        <i class="bi bi-check2-circle"></i>
                                     </div>
 
                                     <div class="stat-copy">
-                                        <div class="text-muted small">Hot Leads</div>
-                                        <h4 class="fw-bold mb-0">{{ $report->hot_leads }}</h4>
+                                        <div class="text-muted small">Closed Deal</div>
+                                        <h4 class="fw-bold mb-0">{{ $report->closed_deal ?? 0 }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-warning-emphasis d-block">
-                                        <i class="bi bi-stars me-1"></i> Leads prioritas tinggi yang perlu difollow up
+                                    <small class="text-success-emphasis d-block">
+                                        <i class="bi bi-trophy me-1"></i> Leads yang berhasil dikonversi menjadi deal
                                     </small>
                                 </div>
                             </div>
@@ -122,18 +122,18 @@
                             <div class="card-body d-flex flex-column">
                                 <div class="stat-card-top">
                                     <div class="stat-icon">
-                                        <i class="bi bi-telephone"></i>
+                                        <i class="bi bi-cash-stack"></i>
                                     </div>
 
                                     <div class="stat-copy">
-                                        <div class="text-muted small">Consultation</div>
-                                        <h4 class="fw-bold mb-0">{{ $report->consultation }}</h4>
+                                        <div class="text-muted small">Revenue</div>
+                                        <h4 class="fw-bold mb-0">Rp {{ number_format((float) ($report->revenue ?? 0), 0, ',', '.') }}</h4>
                                     </div>
                                 </div>
 
                                 <div class="mt-auto pt-2">
-                                    <small class="text-primary-emphasis d-block">
-                                        <i class="bi bi-headset me-1"></i> Leads yang lanjut ke tahap konsultasi
+                                    <small class="text-success-emphasis d-block">
+                                        <i class="bi bi-graph-up-arrow me-1"></i> Nilai revenue yang dihasilkan hari ini
                                     </small>
                                 </div>
                             </div>
@@ -147,7 +147,7 @@
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Leads Summary for Today</h5>
                                 <p class="text-muted small mb-0">
-                                    Ringkasan performa harian untuk memberikan gambaran jelas mengenai aktivitas dan kualitas leads pada hari ini.
+                                    Berikan insight singkat agar management dapat memahami cerita di balik angka dan performa hari ini.
                                 </p>
                             </div>
 
@@ -164,7 +164,7 @@
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Report Information</h5>
                                 <p class="text-muted small mb-0">
-                                    Gambaran singkat performa harian untuk membaca tren leads, interaksi, dan peluang konsultasi.
+                                    Ringkasan angka utama untuk melihat funnel, outcome, dan pemilik laporan.
                                 </p>
                             </div>
 
@@ -188,6 +188,22 @@
                                         <span class="report-info-right">
                                             {{ $report->creator?->name ?? '-' }}
                                         </span>
+                                    </div>
+
+                                    <div class="report-info-linklike">
+                                        <span class="report-info-left">
+                                            <i class="bi bi-fire me-2"></i>
+                                            Hot Leads
+                                        </span>
+                                        <span class="report-info-right">{{ $report->hot_leads }}</span>
+                                    </div>
+
+                                    <div class="report-info-linklike">
+                                        <span class="report-info-left">
+                                            <i class="bi bi-telephone me-2"></i>
+                                            Consultation
+                                        </span>
+                                        <span class="report-info-right">{{ $report->consultation }}</span>
                                     </div>
 
                                     <div class="report-info-linklike">
@@ -220,6 +236,24 @@
                                             Warm Leads
                                         </span>
                                         <span class="report-info-right">{{ $report->warm_leads }}</span>
+                                    </div>
+
+                                    <div class="report-info-linklike">
+                                        <span class="report-info-left">
+                                            <i class="bi bi-check2-circle me-2"></i>
+                                            Closed Deal
+                                        </span>
+                                        <span class="report-info-right">{{ $report->closed_deal ?? 0 }}</span>
+                                    </div>
+
+                                    <div class="report-info-linklike">
+                                        <span class="report-info-left">
+                                            <i class="bi bi-cash-stack me-2"></i>
+                                            Revenue
+                                        </span>
+                                        <span class="report-info-right">
+                                            Rp {{ number_format((float) ($report->revenue ?? 0), 0, ',', '.') }}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

@@ -8,7 +8,7 @@
         <div>
             <h4 class="mb-1">Sales Daily Reports</h4>
             <small class="text-muted">
-                Monitor laporan harian sales untuk melihat volume leads, progress interaksi, dan peluang konsultasi secara lebih terstruktur.
+                Monitor laporan harian sales untuk melihat perkembangan leads, aktivitas follow up, dan hasil akhir dalam bentuk deal serta revenue.
             </small>
         </div>
 
@@ -84,9 +84,10 @@
                         <th>Date</th>
                         <th>Total Leads</th>
                         <th>Interacted</th>
-                        <th>Ignored</th>
                         <th>Hot Leads</th>
                         <th>Consultation</th>
+                        <th>Closed Deal</th>
+                        <th>Revenue</th>
                         <th>Created By</th>
                         <th style="width: 220px;" class="text-center">Action</th>
                     </tr>
@@ -112,11 +113,6 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge bg-secondary-subtle text-secondary-emphasis">
-                                    {{ $report->ignored }}
-                                </span>
-                            </td>
-                            <td>
                                 <span class="badge bg-warning-subtle text-warning-emphasis">
                                     {{ $report->hot_leads }}
                                 </span>
@@ -125,6 +121,17 @@
                                 <span class="badge bg-primary-subtle text-primary">
                                     {{ $report->consultation }}
                                 </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success-subtle text-success-emphasis">
+                                    {{ $report->closed_deal ?? 0 }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-success">
+                                    Rp {{ number_format((float) ($report->revenue ?? 0), 0, ',', '.') }}
+                                </div>
+                                <div class="small text-muted">Daily revenue</div>
                             </td>
                             <td>
                                 <div class="fw-semibold">{{ $report->creator?->name ?? '-' }}</div>
@@ -164,7 +171,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center py-4 text-muted">
+                            <td colspan="10" class="text-center py-4 text-muted">
                                 No sales daily reports found.
                             </td>
                         </tr>

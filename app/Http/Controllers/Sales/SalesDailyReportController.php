@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Models\SalesDailyReport;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,11 +18,11 @@ class SalesDailyReportController extends Controller
             ->latest('id');
 
         if ($request->filled('date_from')) {
-            $query->whereDate('report_date', '>=', $request->string('date_from'));
+            $query->whereDate('report_date', '>=', $request->string('date_from')->toString());
         }
 
         if ($request->filled('date_to')) {
-            $query->whereDate('report_date', '<=', $request->string('date_to'));
+            $query->whereDate('report_date', '<=', $request->string('date_to')->toString());
         }
 
         $reports = $query->paginate(10)->withQueryString();
@@ -40,12 +41,22 @@ class SalesDailyReportController extends Controller
         return view('sales.daily-reports.form', [
             'report' => new SalesDailyReport([
                 'report_date' => now()->toDateString(),
+                'total_leads' => 0,
+                'interacted' => 0,
+                'ignored' => 0,
+                'closed_lost' => 0,
+                'not_related' => 0,
+                'warm_leads' => 0,
+                'hot_leads' => 0,
+                'consultation' => 0,
+                'closed_deal' => 0,
+                'revenue' => 0,
             ]),
             'isEdit' => false,
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $this->validateRequest($request);
         $validated['created_by'] = auth()->id();
@@ -56,7 +67,7 @@ class SalesDailyReportController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Sales daily report berhasil dibuat.',
-                'data' => $report,
+                'data' => $report->load('creator'),
             ]);
         }
 
@@ -82,8 +93,8 @@ class SalesDailyReportController extends Controller
         ]);
     }
 
-    public function update(Request $request, SalesDailyReport $salesDailyReport)
-    {   
+    public function update(Request $request, SalesDailyReport $salesDailyReport): JsonResponse|RedirectResponse
+    {
         $validated = $this->validateRequest($request);
 
         $salesDailyReport->update($validated);
@@ -92,7 +103,7 @@ class SalesDailyReportController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Sales daily report berhasil diperbarui.',
-                'data' => $salesDailyReport->fresh(),
+                'data' => $salesDailyReport->fresh()->load('creator'),
             ]);
         }
 
@@ -101,7 +112,7 @@ class SalesDailyReportController extends Controller
             ->with('success', 'Sales daily report berhasil diperbarui.');
     }
 
-    public function destroy(Request $request, SalesDailyReport $salesDailyReport)
+    public function destroy(Request $request, SalesDailyReport $salesDailyReport): JsonResponse|RedirectResponse
     {
         $salesDailyReport->delete();
 
@@ -130,6 +141,8 @@ class SalesDailyReportController extends Controller
             'warm_leads' => ['required', 'integer', 'min:0'],
             'hot_leads' => ['required', 'integer', 'min:0'],
             'consultation' => ['required', 'integer', 'min:0'],
+            'closed_deal' => ['required', 'integer', 'min:0'],
+            'revenue' => ['required', 'numeric', 'min:0'],
 
             'summary' => ['nullable', 'string'],
             'highlight' => ['nullable', 'string'],

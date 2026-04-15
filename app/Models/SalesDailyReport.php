@@ -17,6 +17,11 @@ class SalesDailyReport extends Model
         'warm_leads',
         'hot_leads',
         'consultation',
+
+        // NEW
+        'closed_deal',
+        'revenue',
+
         'summary',
         'highlight',
         'notes',
@@ -25,6 +30,7 @@ class SalesDailyReport extends Model
 
     protected $casts = [
         'report_date' => 'date',
+
         'total_leads' => 'integer',
         'interacted' => 'integer',
         'ignored' => 'integer',
@@ -33,10 +39,42 @@ class SalesDailyReport extends Model
         'warm_leads' => 'integer',
         'hot_leads' => 'integer',
         'consultation' => 'integer',
+
+        // NEW
+        'closed_deal' => 'integer',
+        'revenue' => 'decimal:2',
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELATIONS
+    |--------------------------------------------------------------------------
+    */
 
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACCESSORS (OPTIONAL BUT POWERFUL)
+    |--------------------------------------------------------------------------
+    */
+
+    // Conversion Rate (biar nanti gampang dipakai di dashboard)
+    public function getConversionRateAttribute(): float
+    {
+        if (!$this->total_leads) {
+            return 0;
+        }
+
+        return round(($this->closed_deal / $this->total_leads) * 100, 2);
+    }
+
+    // Format revenue biar langsung siap pakai
+    public function getRevenueFormattedAttribute(): string
+    {
+        return 'Rp ' . number_format((float) $this->revenue, 0, ',', '.');
     }
 }
