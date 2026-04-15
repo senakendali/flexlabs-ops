@@ -146,7 +146,7 @@
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Leads Summary for Today</h5>
                                 <p class="text-muted small mb-0">
-                                    Ringkasan utama untuk membantu management memahami konteks performa harian sales.
+                                    Ringkasan performa harian untuk memberikan gambaran jelas mengenai aktivitas dan kualitas leads pada hari ini.
                                 </p>
                             </div>
 
@@ -163,7 +163,7 @@
                             <div class="card-header">
                                 <h5 class="fw-bold mb-1">Report Information</h5>
                                 <p class="text-muted small mb-0">
-                                    Detail ringkas untuk mendukung pembacaan laporan hari ini.
+                                   Gambaran singkat performa harian untuk membaca tren leads, interaksi, dan peluang konsultasi.
                                 </p>
                             </div>
 
