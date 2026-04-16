@@ -57,6 +57,13 @@
                                         Programs
                                     </a>
 
+                                    <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
+                                    href="{{ route('batches.index') }}">
+                                        Batches
+                                    </a>
+
+                                    
+
                                     <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
                                     href="{{ route('curriculum.index') }}">
                                         Curriculum

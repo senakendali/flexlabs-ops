@@ -97,6 +97,29 @@
         </div>
     </div>
 
+    {{-- Sales Performance Chart --}}
+    <div class="content-card mb-4">
+        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <h5 class="content-card-title mb-1">Sales Performance Overview</h5>
+                <p class="content-card-subtitle mb-0">
+                    Perkembangan leads, interaction, consultation, hot leads, dan closed deal untuk membaca performa sales secara cepat.
+                </p>
+            </div>
+
+            <div class="revenue-total-box sales-chart-summary-box">
+                <div class="revenue-total-label">Closed Deal</div>
+                <div class="revenue-total-value" id="salesPerformanceClosedDealValue">{{ number_format($salesInsight['paid'] ?? 0) }}</div>
+            </div>
+        </div>
+
+        <div class="content-card-body">
+            <div class="chart-wrap" style="height: 360px;">
+                <canvas id="salesPerformanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     {{-- Academic Main Stats --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
@@ -500,70 +523,172 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const ctx = document.getElementById('monthlyRevenueChart');
-    if (!ctx) return;
+document.addEventListener('DOMContentLoaded', async function () {
+    const monthlyRevenueCtx = document.getElementById('monthlyRevenueChart');
+    const salesPerformanceCtx = document.getElementById('salesPerformanceChart');
 
-    const labels = @json($revenueChart['labels'] ?? []);
-    const values = @json($revenueChart['data'] ?? []);
+    if (monthlyRevenueCtx) {
+        const labels = @json($revenueChart['labels'] ?? []);
+        const values = @json($revenueChart['data'] ?? []);
 
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Pendapatan',
-                data: values,
-                borderRadius: 8,
-                maxBarThickness: 42,
-                backgroundColor: 'rgba(91, 62, 142, 0.82)',
-                borderColor: 'rgba(91, 62, 142, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
+        new Chart(monthlyRevenueCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Pendapatan',
+                    data: values,
+                    borderRadius: 8,
+                    maxBarThickness: 42,
+                    backgroundColor: 'rgba(91, 62, 142, 0.82)',
+                    borderColor: 'rgba(91, 62, 142, 1)',
+                    borderWidth: 1
+                }]
             },
-            plugins: {
-                legend: {
-                    display: false
+            options: {
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
                 },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const value = Number(context.raw || 0);
-                            return ' Rp ' + value.toLocaleString('id-ID');
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
+                plugins: {
+                    legend: {
                         display: false
                     },
-                    ticks: {
-                        color: '#6b7280'
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = Number(context.raw || 0);
+                                return ' Rp ' + value.toLocaleString('id-ID');
+                            }
+                        }
                     }
                 },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        color: '#6b7280',
-                        callback: function(value) {
-                            return 'Rp ' + Number(value).toLocaleString('id-ID');
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#6b7280'
                         }
                     },
-                    grid: {
-                        color: 'rgba(107, 114, 128, 0.08)'
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#6b7280',
+                            callback: function(value) {
+                                return 'Rp ' + Number(value).toLocaleString('id-ID');
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(107, 114, 128, 0.08)'
+                        }
                     }
                 }
             }
+        });
+    }
+
+    if (salesPerformanceCtx) {
+        try {
+            const response = await fetch(@json(route('sales-performance.chart-data')), {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load sales performance data.');
+            }
+
+            const result = await response.json();
+
+            const summaryValue = document.getElementById('salesPerformanceClosedDealValue');
+            if (summaryValue && result?.summary?.closed_deal !== undefined) {
+                summaryValue.textContent = Number(result.summary.closed_deal || 0).toLocaleString('id-ID');
+            }
+
+            new Chart(salesPerformanceCtx, {
+                type: 'line',
+                data: {
+                    labels: result.labels || [],
+                    datasets: [
+                        {
+                            label: 'Total Leads',
+                            data: result.datasets?.total_leads || [],
+                            tension: 0.35,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Interacted',
+                            data: result.datasets?.interacted || [],
+                            tension: 0.35,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Consultation',
+                            data: result.datasets?.consultation || [],
+                            tension: 0.35,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Hot Leads',
+                            data: result.datasets?.hot_leads || [],
+                            tension: 0.35,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Closed Deal',
+                            data: result.datasets?.closed_deal || [],
+                            tension: 0.35,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 10,
+                                color: '#6b7280'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#6b7280'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                color: '#6b7280'
+                            },
+                            grid: {
+                                color: 'rgba(107, 114, 128, 0.08)'
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error(error);
         }
-    });
+    }
 });
 </script>
 @endpush
