@@ -342,18 +342,23 @@ Route::middleware('auth')->group(function () {
     Route::prefix('curriculum')->name('curriculum.')->group(function () {
         Route::get('/', [CurriculumController::class, 'index'])->name('index');
 
-        // optional (next phase)
+        Route::post('/stages', [CurriculumController::class, 'storeStage'])->name('stages.store');
+        Route::put('/stages/{stage}', [CurriculumController::class, 'updateStage'])->name('stages.update');
+        Route::delete('/stages/{stage}', [CurriculumController::class, 'destroyStage'])->name('stages.destroy');
+
         Route::post('/modules', [CurriculumController::class, 'storeModule'])->name('modules.store');
-        Route::post('/topics', [CurriculumController::class, 'storeTopic'])->name('topics.store');
-        Route::post('/sub-topics', [CurriculumController::class, 'storeSubTopic'])->name('sub-topics.store');
-
         Route::put('/modules/{module}', [CurriculumController::class, 'updateModule'])->name('modules.update');
-        Route::put('/topics/{topic}', [CurriculumController::class, 'updateTopic'])->name('topics.update');
-        Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->name('sub-topics.update');
-
         Route::delete('/modules/{module}', [CurriculumController::class, 'destroyModule'])->name('modules.destroy');
+
+        Route::post('/topics', [CurriculumController::class, 'storeTopic'])->name('topics.store');
+        Route::put('/topics/{topic}', [CurriculumController::class, 'updateTopic'])->name('topics.update');
         Route::delete('/topics/{topic}', [CurriculumController::class, 'destroyTopic'])->name('topics.destroy');
+
+        Route::post('/sub-topics', [CurriculumController::class, 'storeSubTopic'])->name('sub-topics.store');
+        Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->name('sub-topics.update');
         Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
+
+        
     });
 
 

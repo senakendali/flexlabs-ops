@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\TrialTheme;
+use App\Models\TrialSchedule;
+use App\Models\ProgramStage;
 
 class Program extends Model
 {
@@ -35,4 +37,13 @@ class Program extends Model
             ->orderBy('day_name')
             ->orderBy('start_time');
     }
+
+    public function stages(): HasMany
+    {
+        return $this->hasMany(ProgramStage::class)
+            ->orderBy('sort_order')
+            ->orderBy('name');
+    }
+
+    
 }
