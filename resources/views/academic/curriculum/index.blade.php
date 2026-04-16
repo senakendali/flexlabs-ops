@@ -254,16 +254,16 @@
                                                 <div class="accordion curriculum-accordion" id="stageAccordion{{ $stage->id }}">
                                                     @foreach($stage->modules as $module)
                                                         <div class="accordion-item curriculum-module-item">
-                                                            <h2 class="accordion-header" id="moduleHeading{{ $module->id }}">
-                                                                <button
-                                                                    class="accordion-button {{ $loop->first ? '' : 'collapsed' }}"
-                                                                    type="button"
-                                                                    data-bs-toggle="collapse"
-                                                                    data-bs-target="#moduleCollapse{{ $module->id }}"
-                                                                    aria-expanded="{{ $loop->first ? 'true' : 'false' }}"
-                                                                    aria-controls="moduleCollapse{{ $module->id }}"
-                                                                >
-                                                                    <div class="module-row">
+                                                            <div class="accordion-header custom-module-header" id="moduleHeading{{ $module->id }}">
+                                                                <div class="module-row">
+                                                                    <button
+                                                                        class="accordion-button module-toggle {{ $loop->first ? '' : 'collapsed' }}"
+                                                                        type="button"
+                                                                        data-bs-toggle="collapse"
+                                                                        data-bs-target="#moduleCollapse{{ $module->id }}"
+                                                                        aria-expanded="{{ $loop->first ? 'true' : 'false' }}"
+                                                                        aria-controls="moduleCollapse{{ $module->id }}"
+                                                                    >
                                                                         <div class="module-main">
                                                                             <div class="module-title">
                                                                                 <span class="level-badge">Module</span>
@@ -273,39 +273,39 @@
                                                                                 {{ $module->topics_count ?? $module->topics->count() }} Topics
                                                                             </div>
                                                                         </div>
+                                                                    </button>
 
-                                                                        <div class="module-actions">
-                                                                            <button
-                                                                                type="button"
-                                                                                class="btn btn-outline-secondary btn-sm"
-                                                                                data-bs-toggle="modal"
-                                                                                data-bs-target="#moduleModal"
-                                                                                data-mode="edit"
-                                                                                data-id="{{ $module->id }}"
-                                                                                data-program-stage-id="{{ $module->program_stage_id }}"
-                                                                                data-name="{{ $module->name }}"
-                                                                                data-sort-order="{{ $module->sort_order }}"
-                                                                                data-description="{{ $module->description }}"
-                                                                                data-is-active="{{ (int) $module->is_active }}"
-                                                                            >
-                                                                                <i class="bi bi-pencil-square me-1"></i>Edit
-                                                                            </button>
+                                                                    <div class="module-actions">
+                                                                        <button
+                                                                            type="button"
+                                                                            class="btn btn-outline-secondary btn-sm"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#moduleModal"
+                                                                            data-mode="edit"
+                                                                            data-id="{{ $module->id }}"
+                                                                            data-program-stage-id="{{ $module->program_stage_id }}"
+                                                                            data-name="{{ $module->name }}"
+                                                                            data-sort-order="{{ $module->sort_order }}"
+                                                                            data-description="{{ $module->description }}"
+                                                                            data-is-active="{{ (int) $module->is_active }}"
+                                                                        >
+                                                                            <i class="bi bi-pencil-square me-1"></i>Edit
+                                                                        </button>
 
-                                                                            <button
-                                                                                type="button"
-                                                                                class="btn btn-outline-primary btn-sm"
-                                                                                data-bs-toggle="modal"
-                                                                                data-bs-target="#topicModal"
-                                                                                data-mode="create"
-                                                                                data-module-id="{{ $module->id }}"
-                                                                                data-module-name="{{ $module->name }}"
-                                                                            >
-                                                                                <i class="bi bi-plus-circle me-1"></i>Add Topic
-                                                                            </button>
-                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="btn btn-outline-primary btn-sm"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#topicModal"
+                                                                            data-mode="create"
+                                                                            data-module-id="{{ $module->id }}"
+                                                                            data-module-name="{{ $module->name }}"
+                                                                        >
+                                                                            <i class="bi bi-plus-circle me-1"></i>Add Topic
+                                                                        </button>
                                                                     </div>
-                                                                </button>
-                                                            </h2>
+                                                                </div>
+                                                            </div>
 
                                                             <div
                                                                 id="moduleCollapse{{ $module->id }}"
@@ -720,6 +720,12 @@
     </div>
 </div>
 @endsection
+
+@push('styles')
+<style>
+    
+</style>
+@endpush
 
 @push('scripts')
 <script>
