@@ -1001,11 +1001,33 @@ img {
 .empty-state-box,
 .empty-program-state,
 .empty-nested-state {
+    margin: 1rem;
+    padding: 1rem 1.25rem;
     border: 1px dashed #d9cffa;
-    border-radius: 18px;
-    background: #faf8ff;
-    text-align: center;
+    border-radius: 14px;
+    background: #f9f7ff;
     color: #6b7280;
+    font-size: .92rem;
+}
+
+.empty-program-state {
+    margin: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed #d9cffa;
+    border-radius: 14px;
+    background: #f9f7ff;
+    color: #6b7280;
+    font-size: .92rem;
+}
+
+.empty-nested-state {
+    margin-top: .5rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed #d9cffa;
+    border-radius: 14px;
+    background: #f9f7ff;
+    color: #6b7280;
+    font-size: .92rem;
 }
 
 .empty-state-box {

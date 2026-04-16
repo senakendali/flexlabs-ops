@@ -90,14 +90,14 @@
             <div class="stat-card">
                 <div class="stat-card-top">
                     <div class="stat-icon-wrap">
-                        <i class="bi bi-check2-square"></i>
+                        <i class="bi bi-list-check"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Sub Topics</div>
-                        <div class="stat-value">{{ $stats['sub_topics'] ?? 0 }}</div>
+                        <div class="stat-title">Topics</div>
+                        <div class="stat-value">{{ $stats['topics'] ?? 0 }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Unit bahasan terkecil yang nanti di-checklist instructor.</div>
+                <div class="stat-description">Jumlah topik pembelajaran di seluruh module.</div>
             </div>
         </div>
     </div>
