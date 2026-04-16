@@ -361,6 +361,39 @@ Route::middleware('auth')->group(function () {
         
     });
 
+     /*
+    |--------------------------------------------------------------------------
+    | Operations - General Affairs
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('operations')->group(function () {
+
+        // Internal Memo
+        Route::resource('internal-memos', InternalMemoController::class);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Operations - Inventory
+        |--------------------------------------------------------------------------
+        */
+
+        // Equipment (Master)
+        Route::resource('equipments', EquipmentController::class);
+
+        // Borrowing (Pinjam Barang)
+        Route::resource('borrowings', BorrowingController::class);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Operations - Requests
+        |--------------------------------------------------------------------------
+        */
+
+        // ATK Request
+        Route::resource('atk-requests', AtkRequestController::class);
+    });
+
 
     /*
     |--------------------------------------------------------------------------

@@ -28,185 +28,225 @@
                        <nav class="dashboard-nav">
                             <a href="{{ route('dashboard') }}"
                             class="nav-btn {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                                <i class="bi bi-house-door"></i>
+                                <i class="bi bi-grid-1x2-fill"></i>
                                 <span>Dashboard</span>
                             </a>
 
-                           <!-- ACADEMIC -->
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{
-                                        request()->routeIs('programs.*')
-                                        || request()->routeIs('instructors.*')
-                                        || request()->routeIs('batches.*')
-                                        || request()->routeIs('students.*')
-                                        || request()->routeIs('instructor-tracking.*')
-                                        || request()->routeIs('trial-themes.*')
-                                        || request()->routeIs('trial-schedules.*')
-                                        || request()->routeIs('trial-participants.*')
-                                            ? 'active' : ''
-                                    }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'programs.*',
+                                        'curriculum.*',
+                                        'instructors.*',
+                                        'instructor-tracking.*',
+                                        'trial-themes.*',
+                                        'trial-schedules.*',
+                                        'trial-participants.*'
+                                    ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
+                                    aria-expanded="false"
                                 >
-                                    <i class="bi bi-mortarboard"></i>
+                                    <i class="bi bi-mortarboard-fill"></i>
                                     <span>Academic</span>
                                 </button>
 
-                                <ul class="dropdown-menu shadow-sm">
-                                    <li>
-                                        <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
-                                        href="{{ route('programs.index') }}">
-                                            Programs
-                                        </a>
-                                    </li>
-                                    <li>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
+                                    href="{{ route('programs.index') }}">
+                                        Programs
+                                    </a>
+
+                                    <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
+                                    href="{{ route('curriculum.index') }}">
+                                        Curriculum
+                                    </a>
+
+                                    @if (Route::has('instructors.index'))
                                         <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
                                         href="{{ route('instructors.index') }}">
                                             Instructors
                                         </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
-                                        href="{{ route('batches.index') }}">
-                                            Batches
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item {{ request()->routeIs('students.*') ? 'active' : '' }}"
-                                        href="{{ route('students.index') }}">
-                                            Students
-                                        </a>
-                                    </li>
+                                    @endif
 
-                                    <li><hr class="dropdown-divider"></li>
-
-                                    
-
-                                   <li>
-                                        <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
-                                        href="{{ route('curriculum.index') }}">
-                                            Manage Curriculum
-                                        </a>
-                                    </li>
-
-                                    <li>
+                                    @if (Route::has('instructor-tracking.index'))
                                         <a class="dropdown-item {{ request()->routeIs('instructor-tracking.*') ? 'active' : '' }}"
                                         href="{{ route('instructor-tracking.index') }}">
                                             Instructor Tracking
                                         </a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
+                                    @endif
 
-                                    <li>
+                                    @if (Route::has('trial-themes.index'))
                                         <a class="dropdown-item {{ request()->routeIs('trial-themes.*') ? 'active' : '' }}"
                                         href="{{ route('trial-themes.index') }}">
                                             Trial Themes
                                         </a>
-                                    </li>
-                                    <li>
+                                    @endif
+
+                                    @if (Route::has('trial-schedules.index'))
                                         <a class="dropdown-item {{ request()->routeIs('trial-schedules.*') ? 'active' : '' }}"
                                         href="{{ route('trial-schedules.index') }}">
                                             Trial Schedules
                                         </a>
-                                    </li>
-                                    <li>
+                                    @endif
+
+                                    @if (Route::has('trial-participants.index'))
                                         <a class="dropdown-item {{ request()->routeIs('trial-participants.*') ? 'active' : '' }}"
                                         href="{{ route('trial-participants.index') }}">
                                             Trial Participants
                                         </a>
-                                    </li>
-                                </ul>
+                                    @endif
+                                </div>
                             </div>
 
-                            <!-- FINANCE -->
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{
-                                        request()->routeIs('orders.*')
-                                        || request()->routeIs('payment-schedules.*')
-                                        || request()->routeIs('payments.*')
-                                            ? 'active' : ''
-                                    }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'sales.*',
+                                        'sales-daily-reports.*',
+                                        'sales-performance.*'
+                                    ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
-                                >
-                                    <i class="bi bi-wallet2"></i>
-                                    <span>Finance</span>
-                                </button>
-
-                                <ul class="dropdown-menu shadow-sm">
-                                    <li><a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}">Orders</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('payment-schedules.*') ? 'active' : '' }}" href="{{ route('payment-schedules.index') }}">Payment Schedules</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('payments.*') ? 'active' : '' }}" href="{{ route('payments.index') }}">Payments</a></li>
-                                </ul>
-                            </div>
-
-                            <!-- SALES -->
-                            <div class="dropdown">
-                                <button
-                                    class="dropdown-toggle nav-btn no-arrow {{
-                                        request()->routeIs('sales-daily-reports.*')
-                                        || request()->routeIs('sales-performance.*')
-                                            ? 'active' : ''
-                                    }}"
-                                    type="button"
-                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
                                 >
                                     <i class="bi bi-graph-up-arrow"></i>
                                     <span>Sales</span>
                                 </button>
 
-                                <ul class="dropdown-menu shadow-sm">
-                                    <li><a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}" href="{{ route('sales-daily-reports.index') }}">Daily Reports</a></li>
-                                    <li><a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}" href="{{ route('sales-performance.index') }}">Performance Dashboard</a></li>
-                                </ul>
+                                <div class="dropdown-menu">
+                                    @if (Route::has('sales-daily-reports.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}"
+                                        href="{{ route('sales-daily-reports.index') }}">
+                                            Daily Report
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('sales-performance.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}"
+                                        href="{{ route('sales-performance.index') }}">
+                                            Performance
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
 
-                            <!-- MARKETING -->
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('marketing.*') ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
+                                    aria-expanded="false"
                                 >
-                                    <i class="bi bi-megaphone"></i>
+                                    <i class="bi bi-megaphone-fill"></i>
                                     <span>Marketing</span>
                                 </button>
 
-                                <ul class="dropdown-menu shadow-sm">
-                                    <li><a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}" href="{{ route('quiz.index') }}">Quiz Management</a></li>
-                                </ul>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
+                                    href="{{ route('quiz.index') }}">
+                                        Quiz Management
+                                    </a>
+                                </div>
                             </div>
 
-                            <!-- INVENTORY -->
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('equipment.*') ? 'active' : '' }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'finance.*',
+                                        'payments.*',
+                                        'invoices.*'
+                                    ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
+                                    aria-expanded="false"
                                 >
-                                    <i class="bi bi-box-seam"></i>
-                                    <span>Inventory</span>
+                                    <i class="bi bi-wallet2"></i>
+                                    <span>Finance</span>
                                 </button>
 
-                                <ul class="dropdown-menu shadow-sm">
-                                    <li>
-                                        <a class="dropdown-item {{ request()->routeIs('equipment.*') ? 'active' : '' }}"
-                                        href="{{ route('equipment.index') }}">
-                                            Master Equipment
+                                <div class="dropdown-menu">
+                                    @if (Route::has('payments.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('payments.*') ? 'active' : '' }}"
+                                        href="{{ route('payments.index') }}">
+                                            Payments
                                         </a>
-                                    </li>
-                                </ul>
+                                    @endif
+
+                                    @if (Route::has('invoices.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('invoices.*') ? 'active' : '' }}"
+                                        href="{{ route('invoices.index') }}">
+                                            Invoices
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
 
-                            <!-- 🔥 BORROW (STANDALONE) -->
-                            <a href="{{ route('borrowings.index') }}"
-                            class="nav-btn {{ request()->routeIs('borrowings.*') ? 'active' : '' }}">
-                                <i class="bi bi-arrow-left-right"></i>
-                                <span>Borrow Equipment</span>
-                            </a>
+                            <div class="dropdown">
+                                <button
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'internal-memos.*',
+                                        'equipment.*',
+                                        'atk-requests.*'
+                                    ) ? 'active' : '' }}"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                >
+                                    <i class="bi bi-building-gear"></i>
+                                    <span>Operations</span>
+                                </button>
 
+                                <div class="dropdown-menu dropdown-menu-operations">
+                                    <div class="dropdown-section-title">General Affairs</div>
+
+                                    @if (Route::has('internal-memos.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('internal-memos.*') ? 'active' : '' }}"
+                                        href="{{ route('internal-memos.index') }}">
+                                            <i class="bi bi-journal-text me-2"></i>Internal Memo
+                                        </a>
+                                    @else
+                                        <span class="dropdown-item-text text-muted small px-3 py-2">
+                                            Internal Memo belum tersedia
+                                        </span>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Inventory</div>
+
+                                    @if (Route::has('equipment.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('equipment.*') ? 'active' : '' }}"
+                                        href="{{ route('equipment.index') }}">
+                                            <i class="bi bi-pc-display-horizontal me-2"></i>Equipment
+                                        </a>
+
+                                        <a class="dropdown-item {{ request()->routeIs('borrowings.*') ? 'active' : '' }}"
+                                        href="{{ route('borrowings.index') }}">
+                                            <i class="bi bi-box-arrow-up-right me-2"></i>Borrow Equipment
+                                        </a>
+                                    @else
+                                        <span class="dropdown-item-text text-muted small px-3 py-2">
+                                            Equipment belum tersedia
+                                        </span>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Requests</div>
+
+                                    @if (Route::has('atk-requests.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('atk-requests.*') ? 'active' : '' }}"
+                                        href="{{ route('atk-requests.index') }}">
+                                            <i class="bi bi-pencil-square me-2"></i>ATK Request
+                                        </a>
+                                    @else
+                                        <span class="dropdown-item-text text-muted small px-3 py-2">
+                                            ATK Request belum tersedia
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
                         </nav>
                     </div>
 
