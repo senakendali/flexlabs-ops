@@ -46,4 +46,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function atkRequests()
+    {
+        return $this->hasMany(\App\Models\AtkRequest::class, 'user_id');
+    }
+
+    public function approvedAtkRequests()
+    {
+        return $this->hasMany(\App\Models\AtkRequest::class, 'approved_by');
+    }
 }

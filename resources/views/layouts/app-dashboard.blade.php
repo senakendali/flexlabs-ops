@@ -133,7 +133,10 @@
 
                             <div class="dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs('marketing.*') ? 'active' : '' }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'marketing.*',
+                                        'quiz.*'
+                                    ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
@@ -143,10 +146,12 @@
                                 </button>
 
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
-                                    href="{{ route('quiz.index') }}">
-                                        Quiz Management
-                                    </a>
+                                    @if (Route::has('quiz.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
+                                        href="{{ route('quiz.index') }}">
+                                            Quiz Management
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
 
@@ -187,7 +192,11 @@
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
                                         'internal-memos.*',
                                         'equipment.*',
-                                        'atk-requests.*'
+                                        'borrowings.*',
+                                        'atk-items.*',
+                                        'atk-requests.*',
+                                        'inventory.atk-items.*',
+                                        'inventory.atk-requests.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -198,10 +207,10 @@
                                 </button>
 
                                 <div class="dropdown-menu dropdown-menu-operations">
-                                    <div class="dropdown-section-title">General Affairs</div>
+                                    <!--div class="dropdown-section-title">General Affairs</div>
 
                                     @if (Route::has('internal-memos.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('internal-memos.*') ? 'active' : '' }}"
+                                        <!--a class="dropdown-item {{ request()->routeIs('internal-memos.*') ? 'active' : '' }}"
                                         href="{{ route('internal-memos.index') }}">
                                             <i class="bi bi-journal-text me-2"></i>Internal Memo
                                         </a>
@@ -211,7 +220,7 @@
                                         </span>
                                     @endif
 
-                                    <div class="dropdown-divider"></div>
+                                    <div class="dropdown-divider"></div-->
 
                                     <div class="dropdown-section-title">Inventory</div>
 
@@ -220,14 +229,32 @@
                                         href="{{ route('equipment.index') }}">
                                             <i class="bi bi-pc-display-horizontal me-2"></i>Equipment
                                         </a>
+                                    @else
+                                        <span class="dropdown-item-text text-muted small px-3 py-2">
+                                            Equipment belum tersedia
+                                        </span>
+                                    @endif
 
+                                    @if (Route::has('borrowings.index'))
                                         <a class="dropdown-item {{ request()->routeIs('borrowings.*') ? 'active' : '' }}"
                                         href="{{ route('borrowings.index') }}">
                                             <i class="bi bi-box-arrow-up-right me-2"></i>Borrow Equipment
                                         </a>
+                                    @endif
+
+                                    @if (Route::has('inventory.atk-items.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('inventory.atk-items.*', 'atk-items.*') ? 'active' : '' }}"
+                                        href="{{ route('inventory.atk-items.index') }}">
+                                            <i class="bi bi-box-seam me-2"></i>Master ATK
+                                        </a>
+                                    @elseif (Route::has('atk-items.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('atk-items.*') ? 'active' : '' }}"
+                                        href="{{ route('atk-items.index') }}">
+                                            <i class="bi bi-box-seam me-2"></i>Master ATK
+                                        </a>
                                     @else
                                         <span class="dropdown-item-text text-muted small px-3 py-2">
-                                            Equipment belum tersedia
+                                            Master ATK belum tersedia
                                         </span>
                                     @endif
 
@@ -235,7 +262,12 @@
 
                                     <div class="dropdown-section-title">Requests</div>
 
-                                    @if (Route::has('atk-requests.index'))
+                                    @if (Route::has('inventory.atk-requests.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('inventory.atk-requests.*', 'atk-requests.*') ? 'active' : '' }}"
+                                        href="{{ route('inventory.atk-requests.index') }}">
+                                            <i class="bi bi-pencil-square me-2"></i>ATK Request
+                                        </a>
+                                    @elseif (Route::has('atk-requests.index'))
                                         <a class="dropdown-item {{ request()->routeIs('atk-requests.*') ? 'active' : '' }}"
                                         href="{{ route('atk-requests.index') }}">
                                             <i class="bi bi-pencil-square me-2"></i>ATK Request

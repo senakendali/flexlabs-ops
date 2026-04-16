@@ -27,6 +27,8 @@ use App\Http\Controllers\Sales\SalesDailyReportController;
 use App\Http\Controllers\Sales\SalesPerformanceController;
 use App\Http\Controllers\Academic\CurriculumController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
+use App\Http\Controllers\Inventory\AtkItemController;
+use App\Http\Controllers\Inventory\AtkRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -310,6 +312,24 @@ Route::middleware('auth')->group(function () {
             Route::get('/{quiz}/leaderboard', [QuizLeaderboardController::class, 'index'])->name('leaderboard');
             
         });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory - ATK
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::get('/atk-items', [AtkItemController::class, 'index'])->name('atk-items.index');
+        Route::post('/atk-items', [AtkItemController::class, 'store'])->name('atk-items.store');
+        Route::put('/atk-items/{atkItem}', [AtkItemController::class, 'update'])->name('atk-items.update');
+        Route::delete('/atk-items/{atkItem}', [AtkItemController::class, 'destroy'])->name('atk-items.destroy');
+
+        Route::get('/atk-requests', [AtkRequestController::class, 'index'])->name('atk-requests.index');
+        Route::post('/atk-requests', [AtkRequestController::class, 'store'])->name('atk-requests.store');
+        Route::post('/atk-requests/{atkRequest}/approve', [AtkRequestController::class, 'approve'])->name('atk-requests.approve');
+        Route::post('/atk-requests/{atkRequest}/reject', [AtkRequestController::class, 'reject'])->name('atk-requests.reject');
+        Route::post('/atk-requests/{atkRequest}/cancel', [AtkRequestController::class, 'cancel'])->name('atk-requests.cancel');
     });
 
     //Route::get('/play-quiz/{quiz}', [QuizPlayController::class, 'show'])->name('quiz.play');
