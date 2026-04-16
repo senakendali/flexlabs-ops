@@ -144,7 +144,6 @@ class CurriculumController extends Controller
             'stages' => ProgramStage::count(),
             'modules' => Module::count(),
             'topics' => Topic::count(),
-            'sub_topics' => SubTopic::count(),
         ];
 
         $curriculumPrograms->each(function ($program) {
@@ -199,7 +198,7 @@ class CurriculumController extends Controller
             $stage = ProgramStage::create([
                 'program_id' => $validated['program_id'],
                 'name' => $validated['name'],
-                'slug' => Str::slug($validated['name']),
+                'slug' => $this->generateUniqueStageSlug($validated['name']),
                 'description' => $validated['description'] ?? null,
                 'sort_order' => $validated['sort_order'] ?? 1,
                 'is_active' => (bool) $validated['is_active'],
@@ -217,8 +216,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal menambahkan stage.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -237,9 +237,9 @@ class CurriculumController extends Controller
             $stage->update([
                 'program_id' => $validated['program_id'],
                 'name' => $validated['name'],
-                'slug' => Str::slug($validated['name']),
+                'slug' => $this->generateUniqueStageSlug($validated['name'], $stage->id),
                 'description' => $validated['description'] ?? null,
-                'sort_order' => $validated['sort_order'] ?? $stage->sort_order,
+                'sort_order' => $validated['sort_order'] ?? $stage->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
@@ -255,25 +255,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal memperbarui stage.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function destroyStage(ProgramStage $stage): JsonResponse
-    {
-        try {
-            $stage->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Stage berhasil dihapus.',
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus stage.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -309,8 +293,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal menambahkan module.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -330,7 +315,7 @@ class CurriculumController extends Controller
                 'program_stage_id' => $validated['program_stage_id'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
-                'sort_order' => $validated['sort_order'] ?? $module->sort_order,
+                'sort_order' => $validated['sort_order'] ?? $module->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
@@ -346,25 +331,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal memperbarui module.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function destroyModule(Module $module): JsonResponse
-    {
-        try {
-            $module->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Module berhasil dihapus.',
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus module.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -400,8 +369,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal menambahkan topic.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -421,7 +391,7 @@ class CurriculumController extends Controller
                 'module_id' => $validated['module_id'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
-                'sort_order' => $validated['sort_order'] ?? $topic->sort_order,
+                'sort_order' => $validated['sort_order'] ?? $topic->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
@@ -437,25 +407,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal memperbarui topic.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function destroyTopic(Topic $topic): JsonResponse
-    {
-        try {
-            $topic->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Topic berhasil dihapus.',
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus topic.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -491,8 +445,9 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal menambahkan sub topic.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -512,7 +467,7 @@ class CurriculumController extends Controller
                 'topic_id' => $validated['topic_id'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
-                'sort_order' => $validated['sort_order'] ?? $subTopic->sort_order,
+                'sort_order' => $validated['sort_order'] ?? $subTopic->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
@@ -528,26 +483,30 @@ class CurriculumController extends Controller
             throw $e;
         } catch (Throwable $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Gagal memperbarui sub topic.',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
 
-    public function destroySubTopic(SubTopic $subTopic): JsonResponse
+    private function generateUniqueStageSlug(string $name, ?int $ignoreId = null): string
     {
-        try {
-            $subTopic->delete();
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug !== '' ? $baseSlug : 'stage';
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sub topic berhasil dihapus.',
-            ]);
-        } catch (Throwable $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus sub topic.',
-                'error' => $e->getMessage(),
-            ], 500);
+        $counter = 1;
+
+        while (
+            ProgramStage::query()
+                ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
+                ->where('slug', $slug)
+                ->exists()
+        ) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
         }
+
+        return $slug;
     }
 }

@@ -723,7 +723,421 @@
 
 @push('styles')
 <style>
-    
+    .program-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .program-block {
+        border: 1px solid #ece7f7;
+        border-radius: 20px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    .program-block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem 1.25rem 1rem;
+        border-bottom: 1px solid #f1ecf8;
+        background: linear-gradient(180deg, #fcfbff 0%, #ffffff 100%);
+    }
+
+    .program-block-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .program-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe8ff;
+        color: #5B3E8E;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .program-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .program-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .45rem;
+        font-size: .875rem;
+        color: #6b7280;
+    }
+
+    .stage-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.25rem;
+    }
+
+    .stage-card {
+        border: 1px solid #ece7f7;
+        border-radius: 18px;
+        background: #fbfaff;
+        overflow: hidden;
+    }
+
+    .stage-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem 1rem 0;
+    }
+
+    .stage-title,
+    .module-title,
+    .topic-title,
+    .subtopic-title {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .stage-meta,
+    .module-meta,
+    .topic-meta {
+        margin-top: .35rem;
+        font-size: .875rem;
+        color: #6b7280;
+    }
+
+    .level-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .25rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1;
+        background: #ebe5ff;
+        color: #5B3E8E;
+        border: 1px solid #dfd2ff;
+        white-space: nowrap;
+    }
+
+    .level-stage {
+        background: #fff3d9;
+        color: #b7791f;
+        border-color: #f6ddab;
+    }
+
+    .level-topic {
+        background: #e8f4ff;
+        color: #1d4ed8;
+        border-color: #cfe3ff;
+    }
+
+    .level-subtopic {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #ccf2da;
+    }
+
+    .curriculum-accordion {
+        padding: 1rem;
+    }
+
+    .curriculum-module-item {
+        border: 1px solid #ece7f7 !important;
+        border-radius: 16px !important;
+        overflow: hidden;
+        margin-bottom: 1rem;
+        background: #ffffff;
+    }
+
+    .curriculum-module-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .custom-module-header {
+        padding: 0;
+        border: 0;
+        background: #fff;
+    }
+
+    .module-row {
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .module-toggle {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        padding: 1rem 1.1rem;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+
+    .module-toggle:not(.collapsed) {
+        box-shadow: none !important;
+        color: inherit;
+    }
+
+    .module-toggle::after {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .module-main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .module-actions {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: 1rem 1rem 1rem 0;
+        flex-shrink: 0;
+    }
+
+    .stage-actions,
+    .topic-actions,
+    .subtopic-actions {
+        display: flex;
+        gap: .5rem;
+        align-items: center;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+
+    .module-actions .btn,
+    .stage-actions .btn,
+    .topic-actions .btn,
+    .subtopic-actions .btn,
+    .program-block-actions .btn {
+        white-space: nowrap;
+    }
+
+    .topic-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .topic-card {
+        border: 1px solid #ece7f7;
+        border-radius: 16px;
+        background: #fcfcff;
+        padding: 1rem;
+    }
+
+    .topic-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .subtopic-list {
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    .subtopic-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: .875rem 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #fff;
+    }
+
+    .subtopic-left {
+        display: flex;
+        align-items: flex-start;
+        gap: .85rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .subtopic-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #5B3E8E;
+        margin-top: .5rem;
+        flex-shrink: 0;
+    }
+
+    .subtopic-description {
+        margin-top: .35rem;
+        color: #6b7280;
+        font-size: .9rem;
+        line-height: 1.5;
+    }
+
+    .empty-program-state,
+    .empty-nested-state {
+        margin: 1rem;
+        padding: 1rem 1.25rem;
+        border: 1px dashed #d9cffa;
+        border-radius: 14px;
+        background: #f9f7ff;
+        color: #6b7280;
+        font-size: .92rem;
+    }
+
+    .empty-state-box {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        border: 1px dashed #d9cffa;
+        border-radius: 18px;
+        background: #faf8ff;
+    }
+
+    .empty-state-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: #efe8ff;
+        color: #5B3E8E;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .empty-state-text {
+        max-width: 620px;
+        margin: 0 auto;
+        color: #6b7280;
+    }
+
+    .form-alert {
+        border-radius: 14px;
+        font-size: .92rem;
+    }
+
+    .custom-modal {
+        border: 0;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+    .toast.bg-success {
+        background-color: #5B3E8E !important;
+    }
+
+    .toast.bg-danger {
+        background-color: #dc3545 !important;
+    }
+
+    @media (max-width: 991.98px) {
+        .program-block-header,
+        .stage-card-header,
+        .topic-card-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .page-header-content {
+            flex-direction: column;
+            align-items: flex-start !important;
+        }
+
+        .page-header-actions {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+        }
+
+        .program-block-actions,
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions {
+            width: 100%;
+        }
+
+        .module-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+        }
+
+        .module-toggle {
+            width: 100%;
+            padding-bottom: .75rem;
+        }
+
+        .module-actions {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            padding: 0 1rem 1rem 1rem;
+        }
+
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .page-header-actions,
+        .program-block-actions,
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions,
+        .module-actions {
+            width: 100%;
+        }
+
+        .page-header-actions .btn,
+        .program-block-actions .btn,
+        .topic-actions .btn,
+        .stage-actions .btn,
+        .subtopic-actions .btn,
+        .module-actions .btn {
+            width: 100%;
+        }
+
+        .subtopic-item {
+            flex-direction: column;
+        }
+    }
 </style>
 @endpush
 
@@ -731,6 +1145,28 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    function showToast(message, type = 'success') {
+        const toastEl = document.getElementById('appToast');
+        if (!toastEl) return;
+
+        const toastBody = toastEl.querySelector('.toast-body');
+        toastBody.innerHTML = message;
+
+        toastEl.classList.remove('bg-success', 'bg-danger', 'text-white');
+
+        if (type === 'success') {
+            toastEl.classList.add('bg-success', 'text-white');
+        } else {
+            toastEl.classList.add('bg-danger', 'text-white');
+        }
+
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
+            delay: 2500
+        });
+
+        toast.show();
+    }
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -793,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', function () {
         alertBox.classList.remove('d-none');
     }
 
-    async function bindAsyncForm(form, updateUrlBuilder) {
+    async function bindAsyncForm(form, modalId, updateUrlBuilder) {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
 
@@ -837,8 +1273,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!response.ok) {
                     if (response.status === 422) {
                         showErrors(form, data.errors || {});
+                        showToast('Mohon cek kembali input yang wajib diisi.', 'error');
                     } else {
                         showErrors(form, { general: [data.message || 'Terjadi kesalahan pada server.'] });
+                        showToast(data.message || 'Gagal menyimpan data.', 'error');
                     }
 
                     if (submitBtn) {
@@ -849,9 +1287,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
 
-                window.location.reload();
+                const modalEl = document.getElementById(modalId);
+                if (modalEl) {
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    }
+                }
+
+                showToast(data.message || 'Data berhasil disimpan.', 'success');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 900);
             } catch (error) {
                 showErrors(form, { general: ['Gagal menghubungi server.'] });
+                showToast('Gagal menghubungi server.', 'error');
 
                 if (submitBtn) {
                     submitBtn.disabled = false;
@@ -902,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        bindAsyncForm(form, function (id) {
+        bindAsyncForm(form, 'stageModal', function (id) {
             return `{{ route('curriculum.stages.update', ['stage' => '__ID__']) }}`.replace('__ID__', id);
         });
     }
@@ -948,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        bindAsyncForm(form, function (id) {
+        bindAsyncForm(form, 'moduleModal', function (id) {
             return `{{ route('curriculum.modules.update', ['module' => '__ID__']) }}`.replace('__ID__', id);
         });
     }
@@ -994,7 +1445,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        bindAsyncForm(form, function (id) {
+        bindAsyncForm(form, 'topicModal', function (id) {
             return `{{ route('curriculum.topics.update', ['topic' => '__ID__']) }}`.replace('__ID__', id);
         });
     }
@@ -1040,7 +1491,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        bindAsyncForm(form, function (id) {
+        bindAsyncForm(form, 'subTopicModal', function (id) {
             return `{{ route('curriculum.sub-topics.update', ['subTopic' => '__ID__']) }}`.replace('__ID__', id);
         });
     }
