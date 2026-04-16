@@ -18,10 +18,17 @@
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <a href="{{ route('curriculum.index') }}" class="btn btn-light btn-modern">
-                    <i class="bi bi-journal-richtext me-2"></i>Manage Curriculum
+                    <i class="bi bi-gear-fill"></i> Manage Curriculum
                 </a>
             </div>
         </div>
+    </div>
+
+
+    <div class="dashboard-section-label mb-3">
+        <div class="dashboard-section-eyebrow">Sales Overview</div>
+        <h4 class="dashboard-section-title mb-1">Demand & Conversion Funnel</h4>
+        <p class="dashboard-section-subtitle mb-0">Monitoring demand dan performa conversion funnel. Mulai dari leads, trial, dan join program.</p>
     </div>
 
     {{-- Sales Funnel --}}
@@ -118,6 +125,12 @@
                 <canvas id="salesPerformanceChart"></canvas>
             </div>
         </div>
+    </div>
+
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Academic Overview</div>
+        <h4 class="dashboard-section-title mb-1">Capacity, Delivery & Readiness</h4>
+        <p class="dashboard-section-subtitle mb-0">Evaluasi kapasitas dan kesiapan delivery program yang terdiri dari kapasitas, delivery, dan readiness.</p>
     </div>
 
     {{-- Academic Main Stats --}}
@@ -294,6 +307,12 @@
                 <div class="stat-description">Peserta trial baru di bulan ini.</div>
             </div>
         </div>
+    </div>
+
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Finance Overview</div>
+        <h4 class="dashboard-section-title mb-1">Revenue & Business Result</h4>
+        <p class="dashboard-section-subtitle mb-0">Analisis hasil finansial dari aktivitas operasional.</p>
     </div>
 
     {{-- Monthly Revenue Chart --}}
@@ -516,7 +535,9 @@
 
 @push('styles')
 <style>
-    
+
+
+
 </style>
 @endpush
 
