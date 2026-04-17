@@ -153,12 +153,73 @@
                                 </button>
 
                                 <div class="dropdown-menu">
+
+                                    {{-- Dashboard --}}
+                                    @if (Route::has('marketing.dashboard'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.dashboard') ? 'active' : '' }}"
+                                        href="{{ route('marketing.dashboard') }}">
+                                            Dashboard
+                                        </a>
+                                    @endif
+
+                                    {{-- Activities --}}
+                                    @if (Route::has('marketing.activities.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.activities.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.activities.index') }}">
+                                            Activities
+                                        </a>
+                                    @endif
+
+                                    {{-- Campaigns --}}
+                                    @if (Route::has('marketing.campaigns.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.campaigns.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.campaigns.index') }}">
+                                            Campaigns
+                                        </a>
+                                    @endif
+
+                                    {{-- Ads --}}
+                                    @if (Route::has('marketing.ads.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.ads.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.ads.index') }}">
+                                            Ads
+                                        </a>
+                                    @endif
+
+                                    {{-- Events --}}
+                                    @if (Route::has('marketing.events.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.events.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.events.index') }}">
+                                            Events
+                                        </a>
+                                    @endif
+
+                                    {{-- Lead Sources --}}
+                                    @if (Route::has('marketing.leads.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.leads.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.leads.index') }}">
+                                            Lead Sources
+                                        </a>
+                                    @endif
+
+                                    {{-- Plans --}}
+                                    @if (Route::has('marketing.plans.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.plans.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.plans.index') }}">
+                                            Plans
+                                        </a>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    {{-- Existing Quiz --}}
                                     @if (Route::has('quiz.index'))
                                         <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
                                         href="{{ route('quiz.index') }}">
                                             Quiz Management
                                         </a>
                                     @endif
+
                                 </div>
                             </div>
 

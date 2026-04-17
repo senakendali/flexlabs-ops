@@ -29,6 +29,14 @@ use App\Http\Controllers\Academic\CurriculumController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
+use App\Http\Controllers\Marketing\MarketingDashboardController;
+use App\Http\Controllers\Marketing\MarketingPlanController;
+use App\Http\Controllers\Marketing\MarketingCampaignController;
+use App\Http\Controllers\Marketing\MarketingActivityController;
+use App\Http\Controllers\Marketing\MarketingAdController;
+use App\Http\Controllers\Marketing\MarketingEventController;
+use App\Http\Controllers\Marketing\MarketingLeadSourceController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -314,6 +322,17 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    Route::prefix('marketing')->name('marketing.')->group(function () {
+    Route::get('/dashboard', fn() => view('marketing.dashboard'))->name('dashboard');
+
+    Route::resource('activities', MarketingActivityController::class);
+    Route::resource('campaigns', MarketingCampaignController::class);
+    Route::resource('ads', MarketingAdController::class);
+    Route::resource('events', MarketingEventController::class);
+    Route::resource('leads', MarketingLeadController::class);
+    Route::resource('plans', MarketingPlanController::class);
+});
+
     /*
     |--------------------------------------------------------------------------
     | Inventory - ATK
@@ -432,6 +451,57 @@ Route::middleware('auth')->group(function () {
 
         // logs
         Route::post('/{session}/logs', [InstructorTrackingController::class, 'storeLog'])->name('logs.store');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Marketing
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('marketing')->name('marketing.')->group(function () {
+        Route::get('/dashboard', [MarketingDashboardController::class, 'index'])->name('dashboard');
+
+        Route::prefix('plans')->name('plans.')->group(function () {
+            Route::get('/', [MarketingPlanController::class, 'index'])->name('index');
+            Route::post('/', [MarketingPlanController::class, 'store'])->name('store');
+            Route::put('/{marketingPlan}', [MarketingPlanController::class, 'update'])->name('update');
+            Route::delete('/{marketingPlan}', [MarketingPlanController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('campaigns')->name('campaigns.')->group(function () {
+            Route::get('/', [MarketingCampaignController::class, 'index'])->name('index');
+            Route::post('/', [MarketingCampaignController::class, 'store'])->name('store');
+            Route::put('/{marketingCampaign}', [MarketingCampaignController::class, 'update'])->name('update');
+            Route::delete('/{marketingCampaign}', [MarketingCampaignController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('activities')->name('activities.')->group(function () {
+            Route::get('/', [MarketingActivityController::class, 'index'])->name('index');
+            Route::post('/', [MarketingActivityController::class, 'store'])->name('store');
+            Route::put('/{marketingActivity}', [MarketingActivityController::class, 'update'])->name('update');
+            Route::delete('/{marketingActivity}', [MarketingActivityController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('ads')->name('ads.')->group(function () {
+            Route::get('/', [MarketingAdController::class, 'index'])->name('index');
+            Route::post('/', [MarketingAdController::class, 'store'])->name('store');
+            Route::put('/{marketingAd}', [MarketingAdController::class, 'update'])->name('update');
+            Route::delete('/{marketingAd}', [MarketingAdController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('events')->name('events.')->group(function () {
+            Route::get('/', [MarketingEventController::class, 'index'])->name('index');
+            Route::post('/', [MarketingEventController::class, 'store'])->name('store');
+            Route::put('/{marketingEvent}', [MarketingEventController::class, 'update'])->name('update');
+            Route::delete('/{marketingEvent}', [MarketingEventController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('leads')->name('leads.')->group(function () {
+            Route::get('/', [MarketingLeadSourceController::class, 'index'])->name('index');
+            Route::post('/', [MarketingLeadSourceController::class, 'store'])->name('store');
+            Route::put('/{marketingLeadSource}', [MarketingLeadSourceController::class, 'update'])->name('update');
+            Route::delete('/{marketingLeadSource}', [MarketingLeadSourceController::class, 'destroy'])->name('destroy');
+        });
     });
     
 
