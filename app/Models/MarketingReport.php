@@ -3,29 +3,44 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class MarketingReport extends Model
 {
-    protected $table = 'marketing_reports';
+    use HasFactory;
 
     protected $fillable = [
         'title',
         'slug',
+        'report_no',
         'period_type',
         'start_date',
         'end_date',
+
+        'total_budget',
+        'total_actual_spend',
+
         'total_leads',
-        'qualified_leads',
+        'total_registrants',
+        'total_attendees',
         'total_conversions',
         'total_revenue',
-        'budget',
-        'actual_spend',
+
         'summary',
         'key_insight',
         'next_action',
         'notes',
+
+        'is_overview_completed',
+        'is_campaign_completed',
+        'is_ads_completed',
+        'is_events_completed',
+        'is_snapshot_completed',
+        'is_insight_completed',
+
         'status',
         'is_active',
         'created_by',
@@ -35,14 +50,67 @@ class MarketingReport extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
-        'total_leads' => 'integer',
-        'qualified_leads' => 'integer',
-        'total_conversions' => 'integer',
+
+        'total_budget' => 'decimal:2',
+        'total_actual_spend' => 'decimal:2',
         'total_revenue' => 'decimal:2',
-        'budget' => 'decimal:2',
-        'actual_spend' => 'decimal:2',
+
+        'total_leads' => 'integer',
+        'total_registrants' => 'integer',
+        'total_attendees' => 'integer',
+        'total_conversions' => 'integer',
+
+        'is_overview_completed' => 'boolean',
+        'is_campaign_completed' => 'boolean',
+        'is_ads_completed' => 'boolean',
+        'is_events_completed' => 'boolean',
+        'is_snapshot_completed' => 'boolean',
+        'is_insight_completed' => 'boolean',
         'is_active' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (MarketingReport $report) {
+            if (blank($report->slug) && filled($report->title)) {
+                $report->slug = \Illuminate\Support\Str::slug($report->title);
+            }
+        });
+
+        static::updating(function (MarketingReport $report) {
+            if (blank($report->slug) && filled($report->title)) {
+                $report->slug = \Illuminate\Support\Str::slug($report->title);
+            }
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
+
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(MarketingReportCampaign::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function ads(): HasMany
+    {
+        return $this->hasMany(MarketingReportAd::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(MarketingReportEvent::class)
+            ->orderBy('sort_order')
+            ->orderBy('event_date')
+            ->orderBy('id');
+    }
 
     public function creator(): BelongsTo
     {
@@ -54,75 +122,35 @@ class MarketingReport extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    public function getPeriodLabelAttribute(): string
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function getIsCompletedAttribute(): bool
     {
-        if ($this->start_date && $this->end_date) {
-            return $this->start_date->format('d M Y') . ' - ' . $this->end_date->format('d M Y');
-        }
-
-        if ($this->start_date) {
-            return $this->start_date->format('d M Y');
-        }
-
-        if ($this->end_date) {
-            return $this->end_date->format('d M Y');
-        }
-
-        return '-';
+        return $this->is_overview_completed
+            && $this->is_campaign_completed
+            && $this->is_ads_completed
+            && $this->is_events_completed
+            && $this->is_snapshot_completed
+            && $this->is_insight_completed;
     }
 
-    public function getConversionRateAttribute(): float
+    public function recalculateTotals(): void
     {
-        if (($this->total_leads ?? 0) <= 0) {
-            return 0;
-        }
+        $this->total_budget = (
+            $this->campaigns()->sum('budget') +
+            $this->ads()->sum('budget') +
+            $this->events()->sum('budget')
+        );
 
-        return round((($this->total_conversions ?? 0) / $this->total_leads) * 100, 2);
-    }
+        $this->total_actual_spend = (
+            $this->campaigns()->sum('actual_spend') +
+            $this->ads()->sum('actual_spend')
+        );
 
-    public function getQualifiedRateAttribute(): float
-    {
-        if (($this->total_leads ?? 0) <= 0) {
-            return 0;
-        }
-
-        return round((($this->qualified_leads ?? 0) / $this->total_leads) * 100, 2);
-    }
-
-    public function getCplAttribute(): float
-    {
-        if (($this->total_leads ?? 0) <= 0) {
-            return 0;
-        }
-
-        return round((float) $this->actual_spend / $this->total_leads, 2);
-    }
-
-    public function getCacAttribute(): float
-    {
-        if (($this->total_conversions ?? 0) <= 0) {
-            return 0;
-        }
-
-        return round((float) $this->actual_spend / $this->total_conversions, 2);
-    }
-
-    public static function generateUniqueSlug(string $title, ?int $ignoreId = null): string
-    {
-        $baseSlug = Str::slug($title);
-        $slug = $baseSlug;
-        $counter = 1;
-
-        while (
-            static::query()
-                ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
-                ->where('slug', $slug)
-                ->exists()
-        ) {
-            $slug = $baseSlug . '-' . $counter;
-            $counter++;
-        }
-
-        return $slug;
+        $this->save();
     }
 }

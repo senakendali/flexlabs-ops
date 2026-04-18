@@ -137,6 +137,8 @@
                                         </a>
                                     @endif
 
+                                   
+
                                     @if (Route::has('orders.index'))
                                         <a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}"
                                         href="{{ route('orders.index') }}">

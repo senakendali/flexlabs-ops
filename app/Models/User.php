@@ -56,4 +56,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\AtkRequest::class, 'approved_by');
     }
+
+    public function createdMarketingReports(): HasMany
+    {
+        return $this->hasMany(MarketingReport::class, 'created_by');
+    }
+
+    public function updatedMarketingReports(): HasMany
+    {
+        return $this->hasMany(MarketingReport::class, 'updated_by');
+    }
 }

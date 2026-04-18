@@ -3,707 +3,535 @@
 @section('title', 'Marketing Reports')
 
 @section('content')
-<div class="container-fluid px-4 py-4">
+<div class="container-fluid px-4 py-4 marketing-report-index-page">
 
-    {{-- Page Header --}}
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-                <div class="page-eyebrow">Management Reporting</div>
-                <h1 class="page-title mb-2">Marketing Reports</h1>
+                <div class="page-eyebrow">Marketing Reports</div>
+                <h1 class="page-title mb-2">Marketing Report List</h1>
                 <p class="page-subtitle mb-0">
-                    Kelola laporan marketing mingguan atau bulanan yang menjadi sumber data utama
-                    untuk dashboard management.
+                    Daftar report marketing berdasarkan periode pelaporan, status, progres pengisian, dan ringkasan hasil utama.
                 </p>
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                <a href="{{ route('marketing.dashboard') }}" class="btn btn-light border">
+                    <i class="bi bi-bar-chart-line me-1"></i> Dashboard
+                </a>
+                <a href="{{ route('marketing.reports.create') }}" class="btn btn-primary">
                     <i class="bi bi-plus-circle me-1"></i> Add Report
-                </button>
+                </a>
             </div>
         </div>
     </div>
 
-    <div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;"></div>
+    @php
+        $summaryDraft = $reports->where('status', 'draft')->count();
+        $summaryPublished = $reports->where('status', 'published')->count();
+        $summaryArchived = $reports->where('status', 'archived')->count();
+        $summaryActive = $reports->where('is_active', true)->count();
+    @endphp
 
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-folder2-open"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Total Reports</div>
+                        <div class="stat-value">{{ $reports->total() }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Jumlah seluruh report marketing yang tersedia dalam daftar.
+                </div>
+            </div>
         </div>
-    @endif
 
-    {{-- Filter --}}
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Draft Reports</div>
+                        <div class="stat-value">{{ $summaryDraft }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Report yang masih dalam proses pengisian atau penyempurnaan.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Published Reports</div>
+                        <div class="stat-value">{{ $summaryPublished }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Report yang telah dipublikasikan sebagai ringkasan periode berjalan.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-toggle-on"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Active Reports</div>
+                        <div class="stat-value">{{ $summaryActive }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Report aktif yang masih digunakan dalam monitoring dan evaluasi.
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="content-card mb-4">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Filter Reports</h5>
+                <p class="content-card-subtitle mb-0">
+                    Gunakan pencarian dan filter berikut untuk menelusuri report berdasarkan judul, status, dan periode pelaporan.
+                </p>
+            </div>
+        </div>
+
         <div class="content-card-body">
-            <form method="GET" action="{{ route('marketing.reports.index') }}" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label">Search</label>
-                    <input
-                        type="text"
-                        name="search"
-                        class="form-control form-control-modern"
-                        value="{{ $search ?? '' }}"
-                        placeholder="Search title, summary, insight..."
-                    >
-                </div>
+            <form method="GET" action="{{ route('marketing.reports.index') }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label">Search</label>
+                        <input type="text"
+                               name="search"
+                               class="form-control"
+                               value="{{ request('search') }}"
+                               placeholder="Search title, report no, or slug">
+                    </div>
 
-                <div class="col-md-2">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select form-control-modern">
-                        <option value="">All Status</option>
-                        @foreach (['draft', 'published', 'archived'] as $item)
-                            <option value="{{ $item }}" {{ ($status ?? '') === $item ? 'selected' : '' }}>
-                                {{ ucfirst($item) }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div class="col-lg-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Status</option>
+                            <option value="draft" @selected(request('status') === 'draft')>Draft</option>
+                            <option value="published" @selected(request('status') === 'published')>Published</option>
+                            <option value="archived" @selected(request('status') === 'archived')>Archived</option>
+                        </select>
+                    </div>
 
-                <div class="col-md-2">
-                    <label class="form-label">Period Type</label>
-                    <select name="period_type" class="form-select form-control-modern">
-                        <option value="">All Period</option>
-                        @foreach (['weekly', 'monthly'] as $item)
-                            <option value="{{ $item }}" {{ ($periodType ?? '') === $item ? 'selected' : '' }}>
-                                {{ ucfirst($item) }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                    <div class="col-lg-3">
+                        <label class="form-label">Period Type</label>
+                        <select name="period_type" class="form-select">
+                            <option value="">All Periods</option>
+                            <option value="weekly" @selected(request('period_type') === 'weekly')>Weekly</option>
+                            <option value="monthly" @selected(request('period_type') === 'monthly')>Monthly</option>
+                        </select>
+                    </div>
 
-                <div class="col-md-2">
-                    <label class="form-label">Per Page</label>
-                    <select name="per_page" class="form-select form-control-modern">
-                        @foreach ([10, 25, 50, 100] as $item)
-                            <option value="{{ $item }}" {{ (int) ($perPage ?? 10) === $item ? 'selected' : '' }}>
-                                {{ $item }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-modern w-100">
-                        <i class="bi bi-funnel-fill me-1"></i> Filter
-                    </button>
+                    <div class="col-lg-2">
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel me-1"></i> Apply
+                            </button>
+                            <a href="{{ route('marketing.reports.index') }}" class="btn btn-light border">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Reset
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
-    {{-- List --}}
     <div class="content-card">
-        <div class="content-card-header">
+        <div class="content-card-header d-flex justify-content-between align-items-center gap-3 flex-wrap">
             <div>
-                <h5 class="content-card-title mb-1">Report List</h5>
+                <h5 class="content-card-title mb-1">Marketing Reports</h5>
                 <p class="content-card-subtitle mb-0">
-                    Daftar laporan marketing yang sudah dibuat dan siap dibaca management.
+                    Setiap report menampilkan periode, status, progres section, serta ringkasan singkat hasil utama.
                 </p>
+            </div>
+
+            <div class="table-meta-info">
+                Total: <strong>{{ $reports->total() }}</strong> report
             </div>
         </div>
 
-        <div class="content-card-body">
+        <div class="content-card-body p-0">
             <div class="table-responsive">
                 <table class="table table-modern align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 70px;">#</th>
-                            <th>Title</th>
+                            <th class="ps-4">Report</th>
                             <th>Period</th>
-                            <th class="text-end">Leads</th>
-                            <th class="text-end">Conversions</th>
-                            <th class="text-end">Revenue</th>
                             <th>Status</th>
-                            <th>Active</th>
-                            <th class="text-end" style="width: 190px;">Action</th>
+                            <th>Sections</th>
+                            <th>Summary</th>
+                            <th>Updated By</th>
+                            <th class="text-end pe-4">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse ($reports as $index => $report)
+                        @forelse ($reports as $item)
                             @php
-                                $statusClass = match ($report->status) {
-                                    'draft' => 'bg-secondary-subtle text-secondary-emphasis',
+                                $completedSections = collect([
+                                    $item->is_overview_completed,
+                                    $item->is_campaign_completed,
+                                    $item->is_ads_completed,
+                                    $item->is_events_completed,
+                                    $item->is_snapshot_completed,
+                                    $item->is_insight_completed,
+                                ])->filter()->count();
+
+                                $totalSections = 6;
+                                $completionPercent = $totalSections > 0 ? round(($completedSections / $totalSections) * 100) : 0;
+
+                                $statusClass = match ($item->status) {
+                                    'draft' => 'bg-warning-subtle text-warning-emphasis',
                                     'published' => 'bg-success-subtle text-success-emphasis',
-                                    'archived' => 'bg-warning-subtle text-warning-emphasis',
+                                    'archived' => 'bg-secondary-subtle text-secondary-emphasis',
                                     default => 'bg-light text-dark',
                                 };
-                            @endphp
-                            <tr>
-                                <td>{{ $reports->firstItem() + $index }}</td>
 
-                                <td>
-                                    <div class="fw-semibold">{{ $report->title }}</div>
-                                    <div class="small text-muted">
-                                        {{ \Illuminate\Support\Str::limit($report->summary, 80) ?: '-' }}
+                                $periodLabel = match ($item->period_type) {
+                                    'weekly' => 'Weekly',
+                                    'monthly' => 'Monthly',
+                                    default => ucfirst($item->period_type),
+                                };
+                            @endphp
+
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="fw-semibold text-dark">{{ $item->title }}</div>
+
+                                    <div class="text-muted small mt-1">
+                                        {{ $item->report_no ?: 'No report number' }}
+                                        @if($item->slug)
+                                            · {{ $item->slug }}
+                                        @endif
+                                    </div>
+
+                                    <div class="text-muted small mt-1">
+                                        {{ \Illuminate\Support\Carbon::parse($item->start_date)->format('d M Y') }}
+                                        -
+                                        {{ \Illuminate\Support\Carbon::parse($item->end_date)->format('d M Y') }}
+                                    </div>
+
+                                    <div class="mt-2 d-flex flex-wrap gap-2">
+                                        <span class="badge rounded-pill bg-light text-dark border">
+                                            {{ $item->campaigns_count ?? 0 }} Campaigns
+                                        </span>
+                                        <span class="badge rounded-pill bg-light text-dark border">
+                                            {{ $item->ads_count ?? 0 }} Ads
+                                        </span>
+                                        <span class="badge rounded-pill bg-light text-dark border">
+                                            {{ $item->events_count ?? 0 }} Events
+                                        </span>
+                                        @if($item->is_active)
+                                            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">
+                                                Active
+                                            </span>
+                                        @endif
                                     </div>
                                 </td>
 
                                 <td>
-                                    <div class="fw-medium text-capitalize">{{ $report->period_type }}</div>
-                                    <div class="small text-muted">{{ $report->period_label }}</div>
+                                    <div class="fw-semibold">{{ $periodLabel }}</div>
+                                    <div class="text-muted small">
+                                        {{ \Illuminate\Support\Carbon::parse($item->start_date)->format('M Y') }}
+                                    </div>
                                 </td>
-
-                                <td class="text-end">{{ number_format($report->total_leads) }}</td>
-                                <td class="text-end">{{ number_format($report->total_conversions) }}</td>
-                                <td class="text-end">Rp{{ number_format((float) $report->total_revenue, 0, ',', '.') }}</td>
 
                                 <td>
                                     <span class="badge rounded-pill {{ $statusClass }}">
-                                        {{ ucfirst($report->status) }}
+                                        {{ ucfirst($item->status) }}
                                     </span>
                                 </td>
 
-                                <td>
-                                    @if ($report->is_active)
-                                        <span class="badge rounded-pill bg-success-subtle text-success-emphasis">Yes</span>
-                                    @else
-                                        <span class="badge rounded-pill bg-light text-dark">No</span>
-                                    @endif
+                                <td style="min-width: 220px;">
+                                    <div class="progress-summary-mini mb-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="small text-muted">Completion</span>
+                                            <span class="small fw-semibold">{{ $completedSections }}/{{ $totalSections }}</span>
+                                        </div>
+
+                                        <div class="progress progress-modern-sm">
+                                            <div class="progress-bar" style="width: {{ $completionPercent }}%"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="section-check-inline">
+                                        <span class="check-pill {{ $item->is_overview_completed ? 'completed' : '' }}">O</span>
+                                        <span class="check-pill {{ $item->is_campaign_completed ? 'completed' : '' }}">C</span>
+                                        <span class="check-pill {{ $item->is_ads_completed ? 'completed' : '' }}">A</span>
+                                        <span class="check-pill {{ $item->is_events_completed ? 'completed' : '' }}">E</span>
+                                        <span class="check-pill {{ $item->is_snapshot_completed ? 'completed' : '' }}">S</span>
+                                        <span class="check-pill {{ $item->is_insight_completed ? 'completed' : '' }}">I</span>
+                                    </div>
                                 </td>
 
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-2">
-                                        <a
-                                            href="{{ route('marketing.reports.show', $report) }}"
-                                            class="btn btn-sm btn-light border"
-                                            title="Open Report"
-                                        >
-                                            <i class="bi bi-box-arrow-up-right"></i>
-                                        </a>
+                                <td style="min-width: 250px;">
+                                    <div class="summary-metric-list">
+                                        <div class="summary-metric-item">
+                                            <span class="label">Leads</span>
+                                            <span class="value">{{ number_format($item->total_leads ?? 0) }}</span>
+                                        </div>
+                                        <div class="summary-metric-item">
+                                            <span class="label">Registrants</span>
+                                            <span class="value">{{ number_format($item->total_registrants ?? 0) }}</span>
+                                        </div>
+                                        <div class="summary-metric-item">
+                                            <span class="label">Attendees</span>
+                                            <span class="value">{{ number_format($item->total_attendees ?? 0) }}</span>
+                                        </div>
+                                        <div class="summary-metric-item">
+                                            <span class="label">Conversions</span>
+                                            <span class="value">{{ number_format($item->total_conversions ?? 0) }}</span>
+                                        </div>
+                                        <div class="summary-metric-item">
+                                            <span class="label">Revenue</span>
+                                            <span class="value">Rp{{ number_format((float) $item->total_revenue, 0, ',', '.') }}</span>
+                                        </div>
+                                    </div>
+                                </td>
 
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-light border text-danger"
-                                            title="Delete Report"
-                                            data-id="{{ $report->id }}"
-                                            data-title="{{ e($report->title) }}"
-                                            onclick="openDeleteModal(this)"
-                                        >
-                                            <i class="bi bi-trash"></i>
+                                <td>
+                                    <div class="fw-semibold text-dark">
+                                        {{ $item->updater?->name ?? '-' }}
+                                    </div>
+                                    <div class="text-muted small">
+                                        {{ optional($item->updated_at)->format('d M Y H:i') }}
+                                    </div>
+                                </td>
+
+                                <td class="text-end pe-4">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ route('marketing.reports.show', $item) }}" class="btn btn-light border">
+                                            View
+                                        </a>
+                                        <a href="{{ route('marketing.reports.edit', $item) }}" class="btn btn-light border">
+                                            Edit
+                                        </a>
+                                        <button type="button"
+                                                class="btn btn-light border text-danger delete-report-btn"
+                                                data-url="{{ route('marketing.reports.destroy', $item) }}"
+                                                data-title="{{ $item->title }}">
+                                            Delete
                                         </button>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">
-                                    No marketing report found.
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="empty-state-box mx-4 my-3">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-folder-x"></i>
+                                        </div>
+                                        <div class="empty-state-title">No marketing reports found</div>
+                                        <div class="empty-state-subtitle">
+                                            Belum ada report yang sesuai dengan filter saat ini.
+                                        </div>
+                                        <div class="mt-3">
+                                            <a href="{{ route('marketing.reports.create') }}" class="btn btn-primary">
+                                                <i class="bi bi-plus-circle me-1"></i> Create Report
+                                            </a>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            @if ($reports->hasPages())
-                <div class="mt-3">
-                    {{ $reports->links() }}
-                </div>
-            @endif
         </div>
-    </div>
 
-</div>
-
-{{-- Create Modal --}}
-<div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <form id="reportForm">
-            @csrf
-            <input type="hidden" id="report_id" name="report_id">
-            <input type="hidden" id="form_method" name="_method" value="POST">
-
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="reportModalTitle">Add Report</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-
-                <div class="modal-body">
-                    <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
-
-                    <div class="row g-3">
-                        <div class="col-md-8">
-                            <label for="title" class="form-label">
-                                Title <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="title" name="title" class="form-control">
-                            <div class="invalid-feedback" id="error_title"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="period_type" class="form-label">
-                                Period Type <span class="text-danger">*</span>
-                            </label>
-                            <select id="period_type" name="period_type" class="form-select">
-                                <option value="">Select period type</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_period_type"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="start_date" class="form-label">Start Date</label>
-                            <input type="date" id="start_date" name="start_date" class="form-control">
-                            <div class="invalid-feedback" id="error_start_date"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="end_date" class="form-label">End Date</label>
-                            <input type="date" id="end_date" name="end_date" class="form-control">
-                            <div class="invalid-feedback" id="error_end_date"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="total_leads" class="form-label">Total Leads</label>
-                            <input type="number" id="total_leads" name="total_leads" class="form-control" min="0" step="1">
-                            <div class="invalid-feedback" id="error_total_leads"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="qualified_leads" class="form-label">Qualified Leads</label>
-                            <input type="number" id="qualified_leads" name="qualified_leads" class="form-control" min="0" step="1">
-                            <div class="invalid-feedback" id="error_qualified_leads"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="total_conversions" class="form-label">Total Conversions</label>
-                            <input type="number" id="total_conversions" name="total_conversions" class="form-control" min="0" step="1">
-                            <div class="invalid-feedback" id="error_total_conversions"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="total_revenue" class="form-label">Total Revenue</label>
-                            <input type="number" id="total_revenue" name="total_revenue" class="form-control" min="0" step="0.01">
-                            <div class="invalid-feedback" id="error_total_revenue"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="budget" class="form-label">Budget</label>
-                            <input type="number" id="budget" name="budget" class="form-control" min="0" step="0.01">
-                            <div class="invalid-feedback" id="error_budget"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="actual_spend" class="form-label">Actual Spend</label>
-                            <input type="number" id="actual_spend" name="actual_spend" class="form-control" min="0" step="0.01">
-                            <div class="invalid-feedback" id="error_actual_spend"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="summary" class="form-label">Summary</label>
-                            <textarea id="summary" name="summary" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_summary"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="key_insight" class="form-label">Key Insight</label>
-                            <textarea id="key_insight" name="key_insight" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_key_insight"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="next_action" class="form-label">Next Action</label>
-                            <textarea id="next_action" name="next_action" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_next_action"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="notes" class="form-label">Notes</label>
-                            <textarea id="notes" name="notes" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_notes"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="status" class="form-label">
-                                Status <span class="text-danger">*</span>
-                            </label>
-                            <select id="status" name="status" class="form-select">
-                                <option value="">Select status</option>
-                                <option value="draft">Draft</option>
-                                <option value="published">Published</option>
-                                <option value="archived">Archived</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_status"></div>
-                        </div>
-
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" checked>
-                                <label class="form-check-label" for="is_active">
-                                    Active
-                                </label>
-                            </div>
-                            <div class="invalid-feedback d-block" id="error_is_active"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
-                    </button>
-                </div>
+        @if ($reports->hasPages())
+            <div class="content-card-footer">
+                {{ $reports->links() }}
             </div>
-        </form>
-    </div>
-</div>
-
-{{-- Delete Modal --}}
-<div class="modal fade" id="deleteReportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <form id="deleteReportForm">
-            @csrf
-            <input type="hidden" name="_method" value="DELETE">
-            <input type="hidden" id="delete_report_id">
-
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header">
-                    <h5 class="modal-title">Delete Report</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-
-                <div class="modal-body">
-                    <div id="deleteAlert" class="alert alert-danger d-none mb-3"></div>
-                    <p class="mb-0">
-                        Are you sure you want to delete
-                        <strong id="delete_report_title">this report</strong>?
-                    </p>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
-                    </button>
-                    <button type="submit" class="btn btn-danger" id="deleteSubmitBtn">
-                        <span class="default-text">Delete</span>
-                        <span class="loading-text d-none">Deleting...</span>
-                    </button>
-                </div>
-            </div>
-        </form>
+        @endif
     </div>
 </div>
 @endsection
 
 @push('styles')
 <style>
-    .form-control-modern {
-        min-width: 160px;
-        border-radius: 12px;
-        border: 1px solid rgba(91, 62, 142, 0.14);
-        box-shadow: none;
-    }
-
-    .btn-modern {
-        border-radius: 12px;
-        padding-inline: 16px;
-        font-weight: 600;
-    }
-
-    .table-modern thead th {
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: .03em;
+    .marketing-report-index-page .table-meta-info {
+        font-size: .88rem;
         color: #6b7280;
-        background: #f8fafc;
-        border-bottom: 1px solid #eef2f7;
-        padding-top: 14px;
-        padding-bottom: 14px;
     }
 
-    .table-modern tbody td {
-        padding-top: 14px;
-        padding-bottom: 14px;
-        border-color: #eef2f7;
-        vertical-align: middle;
+    .marketing-report-index-page .progress-modern-sm {
+        height: 8px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
     }
 
-    .table-modern tbody tr:hover {
-        background: rgba(91, 62, 142, 0.025);
+    .marketing-report-index-page .progress-modern-sm .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .marketing-report-index-page .section-check-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .marketing-report-index-page .check-pill {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: #9ca3af;
+        font-size: .75rem;
+        font-weight: 700;
+        border: 1px solid #e5e7eb;
+    }
+
+    .marketing-report-index-page .check-pill.completed {
+        background: #e8f8ee;
+        color: #15803d;
+        border-color: #c9ebd4;
+    }
+
+    .marketing-report-index-page .summary-metric-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .marketing-report-index-page .summary-metric-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: .84rem;
+    }
+
+    .marketing-report-index-page .summary-metric-item .label {
+        color: #6b7280;
+    }
+
+    .marketing-report-index-page .summary-metric-item .value {
+        color: #1f2937;
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .marketing-report-index-page .empty-state-box {
+        padding: 28px 20px;
+        border-radius: 18px;
+        border: 1px dashed #d7dce3;
+        text-align: center;
+        background: #fcfcfd;
+    }
+
+    .marketing-report-index-page .empty-state-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eee7fb;
+        color: #5B3E8E;
+        font-size: 1.4rem;
+    }
+
+    .marketing-report-index-page .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-index-page .empty-state-subtitle {
+        font-size: .85rem;
+        color: #6b7280;
+    }
+
+    .marketing-report-index-page .content-card-footer {
+        padding: 16px 20px;
+        border-top: 1px solid #eef2f7;
+        background: #fff;
     }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-    const reportStoreUrl = @json(route('marketing.reports.store'));
-    const reportDeleteUrlTemplate = @json(route('marketing.reports.destroy', ['marketingReport' => '__ID__']));
-    const csrfToken = @json(csrf_token());
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.delete-report-btn').forEach((button) => {
+        button.addEventListener('click', async function () {
+            const url = this.dataset.url;
+            const title = this.dataset.title || 'this report';
 
-    let reportModal;
-    let deleteReportModal;
+            const confirmed = confirm(`Delete "${title}"?`);
+            if (!confirmed) return;
 
-    document.addEventListener('DOMContentLoaded', function () {
-        const reportModalEl = document.getElementById('reportModal');
-        const deleteReportModalEl = document.getElementById('deleteReportModal');
+            this.disabled = true;
 
-        if (reportModalEl) {
-            reportModal = new bootstrap.Modal(reportModalEl);
-        }
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                    body: new URLSearchParams({
+                        _method: 'DELETE',
+                    }),
+                });
 
-        if (deleteReportModalEl) {
-            deleteReportModal = new bootstrap.Modal(deleteReportModalEl);
-        }
+                const data = await response.json();
 
-        document.getElementById('reportForm')?.addEventListener('submit', submitReportForm);
-        document.getElementById('deleteReportForm')?.addEventListener('submit', submitDeleteForm);
-    });
-
-    function openCreateModal() {
-        resetReportForm();
-        document.getElementById('reportModalTitle').textContent = 'Add Report';
-        document.getElementById('form_method').value = 'POST';
-        document.getElementById('is_active').checked = true;
-        reportModal.show();
-    }
-
-    function openDeleteModal(button) {
-        resetDeleteForm();
-        document.getElementById('delete_report_id').value = button.dataset.id || '';
-        document.getElementById('delete_report_title').textContent = button.dataset.title || 'this report';
-        deleteReportModal.show();
-    }
-
-    function resetReportForm() {
-        const form = document.getElementById('reportForm');
-        if (!form) return;
-
-        form.reset();
-        document.getElementById('report_id').value = '';
-        document.getElementById('form_method').value = 'POST';
-        document.getElementById('formAlert').classList.add('d-none');
-        document.getElementById('formAlert').textContent = '';
-
-        clearValidationErrors(form);
-    }
-
-    function resetDeleteForm() {
-        document.getElementById('delete_report_id').value = '';
-        document.getElementById('deleteAlert').classList.add('d-none');
-        document.getElementById('deleteAlert').textContent = '';
-    }
-
-    function clearValidationErrors(form) {
-        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-
-        [
-            'title',
-            'period_type',
-            'start_date',
-            'end_date',
-            'total_leads',
-            'qualified_leads',
-            'total_conversions',
-            'total_revenue',
-            'budget',
-            'actual_spend',
-            'summary',
-            'key_insight',
-            'next_action',
-            'notes',
-            'status',
-            'is_active'
-        ].forEach(field => {
-            const errorEl = document.getElementById(`error_${field}`);
-            if (errorEl) {
-                errorEl.textContent = '';
-            }
-        });
-    }
-
-    function setButtonLoading(buttonId, isLoading) {
-        const button = document.getElementById(buttonId);
-        if (!button) return;
-
-        const defaultText = button.querySelector('.default-text');
-        const loadingText = button.querySelector('.loading-text');
-
-        button.disabled = isLoading;
-
-        if (defaultText) {
-            defaultText.classList.toggle('d-none', isLoading);
-        }
-
-        if (loadingText) {
-            loadingText.classList.toggle('d-none', !isLoading);
-        }
-    }
-
-    async function parseJsonSafe(response) {
-        const text = await response.text();
-
-        try {
-            return text ? JSON.parse(text) : {};
-        } catch (e) {
-            return {
-                success: false,
-                message: text || 'Invalid server response.',
-            };
-        }
-    }
-
-    async function submitReportForm(event) {
-        event.preventDefault();
-
-        const form = document.getElementById('reportForm');
-
-        clearValidationErrors(form);
-        document.getElementById('formAlert').classList.add('d-none');
-        document.getElementById('formAlert').textContent = '';
-
-        const formData = new FormData(form);
-
-        if (!document.getElementById('is_active').checked) {
-            formData.delete('is_active');
-        }
-
-        setButtonLoading('submitBtn', true);
-
-        try {
-            const response = await fetch(reportStoreUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: formData,
-            });
-
-            const data = await parseJsonSafe(response);
-
-            if (!response.ok) {
-                if (response.status === 422 && data.errors) {
-                    Object.keys(data.errors).forEach(field => {
-                        const input = form.querySelector(`[name="${field}"]`);
-                        const errorEl = document.getElementById(`error_${field}`);
-
-                        if (input) {
-                            input.classList.add('is-invalid');
-                        }
-
-                        if (errorEl) {
-                            errorEl.textContent = data.errors[field][0];
-                        }
-                    });
-                } else {
-                    const alertEl = document.getElementById('formAlert');
-                    alertEl.classList.remove('d-none');
-                    alertEl.textContent = data.message || 'Failed to save marketing report.';
+                if (!response.ok) {
+                    if (window.showToast) {
+                        window.showToast(data.message || 'Failed to delete report.', 'danger');
+                    } else {
+                        alert(data.message || 'Failed to delete report.');
+                    }
+                    this.disabled = false;
+                    return;
                 }
 
-                return;
-            }
+                if (window.showToast) {
+                    window.showToast(data.message || 'Report deleted successfully.', 'success');
+                }
 
-            reportModal.hide();
-            showToast(data.message || 'Marketing report saved successfully.', 'success');
-
-            setTimeout(() => {
                 window.location.reload();
-            }, 500);
-        } catch (error) {
-            const alertEl = document.getElementById('formAlert');
-            alertEl.classList.remove('d-none');
-            alertEl.textContent = 'Network error. Please try again.';
-        } finally {
-            setButtonLoading('submitBtn', false);
-        }
-    }
-
-    async function submitDeleteForm(event) {
-        event.preventDefault();
-
-        const reportId = document.getElementById('delete_report_id').value;
-        const alertEl = document.getElementById('deleteAlert');
-
-        alertEl.classList.add('d-none');
-        alertEl.textContent = '';
-
-        if (!reportId) {
-            alertEl.classList.remove('d-none');
-            alertEl.textContent = 'Report ID not found.';
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('_token', csrfToken);
-        formData.append('_method', 'DELETE');
-
-        setButtonLoading('deleteSubmitBtn', true);
-
-        try {
-            const response = await fetch(reportDeleteUrlTemplate.replace('__ID__', reportId), {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: formData,
-            });
-
-            const data = await parseJsonSafe(response);
-
-            if (!response.ok) {
-                alertEl.classList.remove('d-none');
-                alertEl.textContent = data.message || 'Failed to delete marketing report.';
-                return;
+            } catch (error) {
+                if (window.showToast) {
+                    window.showToast('An error occurred while deleting the report.', 'danger');
+                } else {
+                    alert('An error occurred while deleting the report.');
+                }
+                this.disabled = false;
             }
-
-            deleteReportModal.hide();
-            showToast(data.message || 'Marketing report deleted successfully.', 'success');
-
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
-        } catch (error) {
-            alertEl.classList.remove('d-none');
-            alertEl.textContent = 'Network error. Please try again.';
-        } finally {
-            setButtonLoading('deleteSubmitBtn', false);
-        }
-    }
-
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-        if (!container) {
-            alert(message);
-            return;
-        }
-
-        const toastId = `toast-${Date.now()}`;
-        const bgClass = type === 'success' ? 'text-bg-success' : 'text-bg-danger';
-        const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill';
-
-        const toastHtml = `
-            <div id="${toastId}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        <i class="bi ${icon} me-2"></i>${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            </div>
-        `;
-
-        container.insertAdjacentHTML('beforeend', toastHtml);
-
-        const toastEl = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-
-        toast.show();
-
-        toastEl.addEventListener('hidden.bs.toast', function () {
-            toastEl.remove();
         });
-    }
+    });
+});
 </script>
 @endpush
