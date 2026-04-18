@@ -36,6 +36,7 @@ use App\Http\Controllers\Marketing\MarketingActivityController;
 use App\Http\Controllers\Marketing\MarketingAdController;
 use App\Http\Controllers\Marketing\MarketingEventController;
 use App\Http\Controllers\Marketing\MarketingLeadSourceController;
+use App\Http\Controllers\Marketing\MarketingReportController;
 
 
 /*
@@ -243,6 +244,21 @@ Route::middleware('auth')->group(function () {
             Route::get('/chart-data', [SalesPerformanceController::class, 'chartData'])->name('chart-data');
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Sales Orders
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('orders')->name('orders.')->group(function () {
+            Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::get('/create', [OrderController::class, 'create'])->name('create');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
+            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+            Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
+        });
+
     });
 
 
@@ -323,15 +339,76 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('marketing')->name('marketing.')->group(function () {
-    Route::get('/dashboard', fn() => view('marketing.dashboard'))->name('dashboard');
 
-    Route::resource('activities', MarketingActivityController::class);
-    Route::resource('campaigns', MarketingCampaignController::class);
-    Route::resource('ads', MarketingAdController::class);
-    Route::resource('events', MarketingEventController::class);
-    Route::resource('leads', MarketingLeadController::class);
-    Route::resource('plans', MarketingPlanController::class);
-});
+        /*
+        |--------------------------------------------------------------------------
+        | Dashboard
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/dashboard', fn () => view('marketing.dashboard'))->name('dashboard');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reports (MAIN DATA SOURCE)
+        |--------------------------------------------------------------------------
+        */
+        Route::resource('reports', MarketingReportController::class, [
+            'parameters' => ['reports' => 'marketingReport'],
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Plans (Execution)
+        |--------------------------------------------------------------------------
+        */
+        Route::resource('plans', MarketingPlanController::class, [
+            'parameters' => ['plans' => 'marketingPlan'],
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Events (Pipeline Activity)
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/events', [MarketingEventController::class, 'index'])->name('events.index');
+        Route::post('/events', [MarketingEventController::class, 'store'])->name('events.store');
+        Route::get('/events/{marketingEvent}', [MarketingEventController::class, 'show'])->name('events.show');
+        Route::put('/events/{marketingEvent}', [MarketingEventController::class, 'update'])->name('events.update');
+        Route::delete('/events/{marketingEvent}', [MarketingEventController::class, 'destroy'])->name('events.destroy');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | (OPTIONAL - HIDE FOR NOW / FUTURE USE)
+        |--------------------------------------------------------------------------
+        | Ini tetap ada, tapi secara konsep bukan prioritas untuk reporting
+        */
+        Route::resource('activities', MarketingActivityController::class);
+
+        Route::resource('campaigns', MarketingCampaignController::class)->only([
+            'index',
+            'store',
+            'show',
+            'update',
+            'destroy',
+        ]);
+
+        Route::get('/ads', [MarketingAdController::class, 'index'])->name('ads.index');
+        Route::post('/ads', [MarketingAdController::class, 'store'])->name('ads.store');
+        Route::get('/ads/{marketingAd}', [MarketingAdController::class, 'show'])->name('ads.show');
+        Route::put('/ads/{marketingAd}', [MarketingAdController::class, 'update'])->name('ads.update');
+        Route::delete('/ads/{marketingAd}', [MarketingAdController::class, 'destroy'])->name('ads.destroy');
+
+        Route::get('/leads', [MarketingLeadSourceController::class, 'index'])->name('leads.index');
+        Route::post('/leads', [MarketingLeadSourceController::class, 'store'])->name('leads.store');
+        Route::get('/leads/{marketingLeadSource}', [MarketingLeadSourceController::class, 'show'])->name('leads.show');
+        Route::put('/leads/{marketingLeadSource}', [MarketingLeadSourceController::class, 'update'])->name('leads.update');
+        Route::delete('/leads/{marketingLeadSource}', [MarketingLeadSourceController::class, 'destroy'])->name('leads.destroy');
+
+    });
 
     /*
     |--------------------------------------------------------------------------

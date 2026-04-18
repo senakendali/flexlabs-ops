@@ -38,6 +38,13 @@ class MarketingEvent extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = [
+        'attendance_rate',
+        'registration_rate',
+        'conversion_rate',
+        'event_type_label',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function ($event) {
@@ -46,6 +53,12 @@ class MarketingEvent extends Model
             }
         });
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELATIONS
+    |--------------------------------------------------------------------------
+    */
 
     public function campaign(): BelongsTo
     {
@@ -70,5 +83,61 @@ class MarketingEvent extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACCESSORS
+    |--------------------------------------------------------------------------
+    */
+
+    public function getAttendanceRateAttribute(): float
+    {
+        $targetParticipants = (int) ($this->target_participants ?? 0);
+        $attendees = (int) ($this->attendees ?? 0);
+
+        if ($targetParticipants <= 0) {
+            return 0;
+        }
+
+        return round(($attendees / $targetParticipants) * 100, 2);
+    }
+
+    public function getRegistrationRateAttribute(): float
+    {
+        $targetParticipants = (int) ($this->target_participants ?? 0);
+        $registrants = (int) ($this->registrants ?? 0);
+
+        if ($targetParticipants <= 0) {
+            return 0;
+        }
+
+        return round(($registrants / $targetParticipants) * 100, 2);
+    }
+
+    public function getConversionRateAttribute(): float
+    {
+        $leadsGenerated = (int) ($this->leads_generated ?? 0);
+        $conversions = (int) ($this->conversions ?? 0);
+
+        if ($leadsGenerated <= 0) {
+            return 0;
+        }
+
+        return round(($conversions / $leadsGenerated) * 100, 2);
+    }
+
+    public function getEventTypeLabelAttribute(): string
+    {
+        return match ($this->event_type) {
+            'workshop' => 'Workshop',
+            'webinar' => 'Webinar',
+            'expo' => 'Expo',
+            'school_visit' => 'School Visit',
+            'booth' => 'Booth',
+            'community_event' => 'Community Event',
+            'internal_event' => 'Internal Event',
+            default => ucwords(str_replace('_', ' ', (string) $this->event_type)),
+        };
     }
 }

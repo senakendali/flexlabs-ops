@@ -7,7 +7,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
             <h4 class="mb-1">Marketing Plans</h4>
-            <small class="text-muted">Manage strategic marketing plans by period, objective, and budget</small>
+            <small class="text-muted">Manage strategic marketing plans by period, objective, and budget.</small>
         </div>
 
         <button type="button" class="btn btn-primary" onclick="openCreateModal()">
@@ -15,11 +15,14 @@
         </button>
     </div>
 
-    <div
-        id="toastContainer"
-        class="toast-container position-fixed top-0 end-0 p-3"
-        style="z-index: 9999;"
-    ></div>
+    <div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;"></div>
+
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     <div class="card shadow-sm border-0">
         <div class="card-body border-bottom">
@@ -29,7 +32,7 @@
                         type="text"
                         name="search"
                         class="form-control form-control-sm"
-                        placeholder="Search title or objective..."
+                        placeholder="Search title, objective, strategy..."
                         value="{{ request('search') }}"
                     >
                 </div>
@@ -50,6 +53,7 @@
                         <option value="weekly" {{ request('period_type') === 'weekly' ? 'selected' : '' }}>Weekly</option>
                         <option value="monthly" {{ request('period_type') === 'monthly' ? 'selected' : '' }}>Monthly</option>
                         <option value="quarterly" {{ request('period_type') === 'quarterly' ? 'selected' : '' }}>Quarterly</option>
+                        <option value="yearly" {{ request('period_type') === 'yearly' ? 'selected' : '' }}>Yearly</option>
                     </select>
                 </div>
 
@@ -99,7 +103,7 @@
                         <th style="width: 140px;">Budget</th>
                         <th style="width: 120px;">Status</th>
                         <th style="width: 120px;">Active</th>
-                        <th style="width: 170px;" class="text-center">Action</th>
+                        <th style="width: 160px;" class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -112,20 +116,6 @@
                                 'cancelled' => 'danger',
                                 default => 'secondary',
                             };
-
-                            $planPayload = [
-                                'id' => $plan->id,
-                                'title' => $plan->title,
-                                'period_type' => $plan->period_type,
-                                'start_date' => optional($plan->start_date)->format('Y-m-d'),
-                                'end_date' => optional($plan->end_date)->format('Y-m-d'),
-                                'objective' => $plan->objective,
-                                'strategy' => $plan->strategy,
-                                'notes' => $plan->notes,
-                                'budget' => $plan->budget,
-                                'status' => $plan->status,
-                                'is_active' => (bool) $plan->is_active,
-                            ];
                         @endphp
 
                         <tr>
@@ -145,7 +135,7 @@
                             </td>
 
                             <td>
-                                {{ $plan->objective ?: '-' }}
+                                {{ $plan->objective ? \Illuminate\Support\Str::limit($plan->objective, 100) : '-' }}
                             </td>
 
                             <td class="text-muted small">
@@ -182,7 +172,17 @@
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-primary"
-                                        data-plan="{{ e(json_encode($planPayload)) }}"
+                                        data-id="{{ $plan->id }}"
+                                        data-title="{{ e($plan->title) }}"
+                                        data-period_type="{{ e($plan->period_type) }}"
+                                        data-start_date="{{ optional($plan->start_date)->format('Y-m-d') }}"
+                                        data-end_date="{{ optional($plan->end_date)->format('Y-m-d') }}"
+                                        data-objective="{{ e($plan->objective ?? '') }}"
+                                        data-strategy="{{ e($plan->strategy ?? '') }}"
+                                        data-notes="{{ e($plan->notes ?? '') }}"
+                                        data-budget="{{ $plan->budget }}"
+                                        data-status="{{ e($plan->status) }}"
+                                        data-is_active="{{ $plan->is_active ? 1 : 0 }}"
                                         onclick="editPlan(this)"
                                     >
                                         <i class="bi bi-pencil-square"></i>
@@ -191,7 +191,9 @@
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $plan->id }}, @js($plan->title))"
+                                        data-id="{{ $plan->id }}"
+                                        data-title="{{ e($plan->title) }}"
+                                        onclick="openDeleteModal(this)"
                                     >
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -217,11 +219,13 @@
     </div>
 </div>
 
+{{-- Form Modal --}}
 <div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="planForm">
             @csrf
-            <input type="hidden" id="plan_id">
+            <input type="hidden" id="plan_id" name="plan_id">
+            <input type="hidden" id="form_method" name="_method" value="POST">
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
@@ -237,7 +241,13 @@
                             <label for="title" class="form-label">
                                 Title <span class="text-danger">*</span>
                             </label>
-                            <input type="text" id="title" class="form-control">
+                            <input
+                                type="text"
+                                id="title"
+                                name="title"
+                                class="form-control"
+                                placeholder="Contoh: April Lead Generation Plan"
+                            >
                             <div class="invalid-feedback" id="error_title"></div>
                         </div>
 
@@ -245,35 +255,89 @@
                             <label for="period_type" class="form-label">
                                 Period Type <span class="text-danger">*</span>
                             </label>
-                            <select id="period_type" class="form-select">
+                            <select
+                                id="period_type"
+                                name="period_type"
+                                class="form-select"
+                            >
+                                <option value="">Select period type</option>
                                 <option value="weekly">Weekly</option>
                                 <option value="monthly">Monthly</option>
                                 <option value="quarterly">Quarterly</option>
+                                <option value="yearly">Yearly</option>
                             </select>
                             <div class="invalid-feedback" id="error_period_type"></div>
                         </div>
 
                         <div class="col-md-6">
                             <label for="start_date" class="form-label">Start Date</label>
-                            <input type="date" id="start_date" class="form-control">
+                            <input
+                                type="date"
+                                id="start_date"
+                                name="start_date"
+                                class="form-control"
+                            >
                             <div class="invalid-feedback" id="error_start_date"></div>
                         </div>
 
                         <div class="col-md-6">
                             <label for="end_date" class="form-label">End Date</label>
-                            <input type="date" id="end_date" class="form-control">
+                            <input
+                                type="date"
+                                id="end_date"
+                                name="end_date"
+                                class="form-control"
+                            >
                             <div class="invalid-feedback" id="error_end_date"></div>
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <label for="objective" class="form-label">Objective</label>
-                            <input type="text" id="objective" class="form-control" placeholder="Awareness / Leads / Conversion">
+                            <textarea
+                                id="objective"
+                                name="objective"
+                                rows="4"
+                                class="form-control"
+                                placeholder="Contoh: Generate 150 leads dan mencapai minimal 15 conversion dengan CPL di bawah Rp30.000."
+                            ></textarea>
                             <div class="invalid-feedback" id="error_objective"></div>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="strategy" class="form-label">Strategy</label>
+                            <textarea
+                                id="strategy"
+                                name="strategy"
+                                rows="4"
+                                class="form-control"
+                                placeholder="Contoh: Menggunakan kombinasi Meta Ads dan TikTok Ads untuk lead generation, webinar sebagai conversion booster, lalu retargeting pada minggu ke-3."
+                            ></textarea>
+                            <div class="invalid-feedback" id="error_strategy"></div>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="notes" class="form-label">Notes</label>
+                            <textarea
+                                id="notes"
+                                name="notes"
+                                rows="3"
+                                class="form-control"
+                                placeholder="Catatan tambahan untuk tim marketing atau sales"
+                            ></textarea>
+                            <div class="invalid-feedback" id="error_notes"></div>
                         </div>
 
                         <div class="col-md-6">
                             <label for="budget" class="form-label">Budget</label>
-                            <input type="number" id="budget" class="form-control" min="0" step="0.01">
+                            <input
+                                type="number"
+                                id="budget"
+                                name="budget"
+                                class="form-control"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                            >
                             <div class="invalid-feedback" id="error_budget"></div>
                         </div>
 
@@ -281,7 +345,12 @@
                             <label for="status" class="form-label">
                                 Status <span class="text-danger">*</span>
                             </label>
-                            <select id="status" class="form-select">
+                            <select
+                                id="status"
+                                name="status"
+                                class="form-select"
+                            >
+                                <option value="">Select status</option>
                                 <option value="draft">Draft</option>
                                 <option value="active">Active</option>
                                 <option value="completed">Completed</option>
@@ -290,26 +359,21 @@
                             <div class="invalid-feedback" id="error_status"></div>
                         </div>
 
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_active" checked>
+                        <div class="col-12">
+                            <div class="form-check mt-1">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="is_active"
+                                    name="is_active"
+                                    value="1"
+                                    checked
+                                >
                                 <label class="form-check-label" for="is_active">
                                     Active
                                 </label>
                             </div>
                             <div class="invalid-feedback d-block" id="error_is_active"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="strategy" class="form-label">Strategy</label>
-                            <textarea id="strategy" rows="4" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_strategy"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="notes" class="form-label">Notes</label>
-                            <textarea id="notes" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_notes"></div>
                         </div>
                     </div>
                 </div>
@@ -328,285 +392,309 @@
     </div>
 </div>
 
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+{{-- Delete Modal --}}
+<div class="modal fade" id="deletePlanModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title">Delete Marketing Plan</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+        <form id="deletePlanForm">
+            @csrf
+            <input type="hidden" name="_method" value="DELETE">
+            <input type="hidden" id="delete_plan_id">
 
-            <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deletePlanTitle"></strong>?
-                </p>
-            </div>
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Plan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
-                </button>
+                <div class="modal-body">
+                    <div id="deleteAlert" class="alert alert-danger d-none mb-3"></div>
+                    <p class="mb-0">
+                        Are you sure you want to delete
+                        <strong id="delete_plan_title">this plan</strong>?
+                    </p>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="deleteSubmitBtn">
+                        <span class="default-text">Delete</span>
+                        <span class="loading-text d-none">Deleting...</span>
+                    </button>
+                </div>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 @endsection
 
 @push('scripts')
 <script>
-    const planModalEl = document.getElementById('planModal');
-    const planModal = new bootstrap.Modal(planModalEl);
-    const planForm = document.getElementById('planForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const modalTitle = document.getElementById('planModalTitle');
-    const formAlert = document.getElementById('formAlert');
+    const storeUrl = @json(route('marketing.plans.store'));
+    const baseUrl = @json(url('/marketing/plans'));
+    const csrfToken = @json(csrf_token());
 
-    const deleteModalEl = document.getElementById('deleteModal');
-    const deleteModal = new bootstrap.Modal(deleteModalEl);
-    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-    const deletePlanTitleEl = document.getElementById('deletePlanTitle');
+    let planModal;
+    let deletePlanModal;
 
-    const fields = {
-        id: document.getElementById('plan_id'),
-        title: document.getElementById('title'),
-        period_type: document.getElementById('period_type'),
-        start_date: document.getElementById('start_date'),
-        end_date: document.getElementById('end_date'),
-        objective: document.getElementById('objective'),
-        strategy: document.getElementById('strategy'),
-        notes: document.getElementById('notes'),
-        budget: document.getElementById('budget'),
-        status: document.getElementById('status'),
-        is_active: document.getElementById('is_active'),
-    };
+    document.addEventListener('DOMContentLoaded', function () {
+        planModal = new bootstrap.Modal(document.getElementById('planModal'));
+        deletePlanModal = new bootstrap.Modal(document.getElementById('deletePlanModal'));
 
-    let isEditMode = false;
-    let deletePlanId = null;
-    let reloadTimeout = null;
+        document.getElementById('planForm').addEventListener('submit', submitPlanForm);
+        document.getElementById('deletePlanForm').addEventListener('submit', submitDeleteForm);
+    });
 
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-        const id = 'toast-' + Date.now();
-
-        const bgClass = {
-            success: 'bg-success',
-            danger: 'bg-danger',
-            warning: 'bg-warning text-dark',
-            info: 'bg-info text-dark'
-        }[type] || 'bg-success';
-
-        const html = `
-            <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            </div>
-        `;
-
-        container.insertAdjacentHTML('beforeend', html);
-
-        const toastEl = document.getElementById(id);
-        const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
-        toast.show();
-
-        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    function openCreateModal() {
+        resetPlanForm();
+        document.getElementById('planModalTitle').textContent = 'Add Plan';
+        document.getElementById('form_method').value = 'POST';
+        document.getElementById('is_active').checked = true;
+        planModal.show();
     }
 
-    function resetValidation() {
-        formAlert.classList.add('d-none');
-        formAlert.innerHTML = '';
+    function editPlan(button) {
+        resetPlanForm();
 
-        Object.keys(fields).forEach((key) => {
-            if (fields[key] && fields[key].classList) {
-                fields[key].classList.remove('is-invalid');
-            }
+        document.getElementById('planModalTitle').textContent = 'Edit Plan';
+        document.getElementById('form_method').value = 'PUT';
+        document.getElementById('plan_id').value = button.dataset.id || '';
 
-            const errorEl = document.getElementById(`error_${key}`);
+        document.getElementById('title').value = button.dataset.title || '';
+        document.getElementById('period_type').value = button.dataset.period_type || '';
+        document.getElementById('start_date').value = button.dataset.start_date || '';
+        document.getElementById('end_date').value = button.dataset.end_date || '';
+        document.getElementById('objective').value = button.dataset.objective || '';
+        document.getElementById('strategy').value = button.dataset.strategy || '';
+        document.getElementById('notes').value = button.dataset.notes || '';
+        document.getElementById('budget').value = button.dataset.budget || '';
+        document.getElementById('status').value = button.dataset.status || '';
+        document.getElementById('is_active').checked = String(button.dataset.is_active) === '1';
+
+        planModal.show();
+    }
+
+    function openDeleteModal(button) {
+        resetDeleteForm();
+
+        document.getElementById('delete_plan_id').value = button.dataset.id || '';
+        document.getElementById('delete_plan_title').textContent = button.dataset.title || 'this plan';
+
+        deletePlanModal.show();
+    }
+
+    function resetPlanForm() {
+        const form = document.getElementById('planForm');
+        form.reset();
+
+        document.getElementById('plan_id').value = '';
+        document.getElementById('form_method').value = 'POST';
+        document.getElementById('formAlert').classList.add('d-none');
+        document.getElementById('formAlert').textContent = '';
+
+        clearValidationErrors(form);
+    }
+
+    function resetDeleteForm() {
+        document.getElementById('delete_plan_id').value = '';
+        document.getElementById('deleteAlert').classList.add('d-none');
+        document.getElementById('deleteAlert').textContent = '';
+    }
+
+    function clearValidationErrors(form) {
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+
+        [
+            'title',
+            'period_type',
+            'start_date',
+            'end_date',
+            'objective',
+            'strategy',
+            'notes',
+            'budget',
+            'status',
+            'is_active'
+        ].forEach(field => {
+            const errorEl = document.getElementById(`error_${field}`);
             if (errorEl) {
                 errorEl.textContent = '';
             }
         });
     }
 
-    function resetForm() {
-        resetValidation();
+    function setButtonLoading(buttonId, isLoading) {
+        const button = document.getElementById(buttonId);
+        if (!button) return;
 
-        fields.id.value = '';
-        fields.title.value = '';
-        fields.period_type.value = 'monthly';
-        fields.start_date.value = '';
-        fields.end_date.value = '';
-        fields.objective.value = '';
-        fields.strategy.value = '';
-        fields.notes.value = '';
-        fields.budget.value = '';
-        fields.status.value = 'draft';
-        fields.is_active.checked = true;
-    }
+        const defaultText = button.querySelector('.default-text');
+        const loadingText = button.querySelector('.loading-text');
 
-    function setLoading(button, isLoading, defaultSelector, loadingSelector) {
         button.disabled = isLoading;
-        button.querySelector(defaultSelector).classList.toggle('d-none', isLoading);
-        button.querySelector(loadingSelector).classList.toggle('d-none', !isLoading);
+
+        if (defaultText) {
+            defaultText.classList.toggle('d-none', isLoading);
+        }
+
+        if (loadingText) {
+            loadingText.classList.toggle('d-none', !isLoading);
+        }
     }
 
-    function openCreateModal() {
-        isEditMode = false;
-        resetForm();
-        modalTitle.textContent = 'Add Plan';
-        planModal.show();
-    }
-
-    function editPlan(button) {
-        isEditMode = true;
-        resetForm();
-
-        const plan = JSON.parse(button.dataset.plan || '{}');
-
-        modalTitle.textContent = 'Edit Plan';
-        fields.id.value = plan.id ?? '';
-        fields.title.value = plan.title ?? '';
-        fields.period_type.value = plan.period_type ?? 'monthly';
-        fields.start_date.value = plan.start_date ?? '';
-        fields.end_date.value = plan.end_date ?? '';
-        fields.objective.value = plan.objective ?? '';
-        fields.strategy.value = plan.strategy ?? '';
-        fields.notes.value = plan.notes ?? '';
-        fields.budget.value = plan.budget ?? '';
-        fields.status.value = plan.status ?? 'draft';
-        fields.is_active.checked = !!plan.is_active;
-
-        planModal.show();
-    }
-
-    async function submitForm(event) {
+    async function submitPlanForm(event) {
         event.preventDefault();
-        resetValidation();
 
-        const id = fields.id.value;
-        const url = isEditMode
-            ? `{{ url('/marketing/plans') }}/${id}`
-            : `{{ route('marketing.plans.store') }}`;
+        const form = document.getElementById('planForm');
+        const planId = document.getElementById('plan_id').value;
+        const method = document.getElementById('form_method').value;
+        const url = method === 'PUT' && planId ? `${baseUrl}/${planId}` : storeUrl;
 
-        const formData = new FormData();
-        formData.append('_token', '{{ csrf_token() }}');
+        clearValidationErrors(form);
+        document.getElementById('formAlert').classList.add('d-none');
+        document.getElementById('formAlert').textContent = '';
 
-        if (isEditMode) {
-            formData.append('_method', 'PUT');
+        const formData = new FormData(form);
+
+        if (!document.getElementById('is_active').checked) {
+            formData.delete('is_active');
         }
 
-        formData.append('title', fields.title.value);
-        formData.append('period_type', fields.period_type.value);
-        formData.append('start_date', fields.start_date.value);
-        formData.append('end_date', fields.end_date.value);
-        formData.append('objective', fields.objective.value);
-        formData.append('strategy', fields.strategy.value);
-        formData.append('notes', fields.notes.value);
-        formData.append('budget', fields.budget.value);
-        formData.append('status', fields.status.value);
-
-        if (fields.is_active.checked) {
-            formData.append('is_active', '1');
-        }
-
-        setLoading(submitBtn, true, '.default-text', '.loading-text');
+        setButtonLoading('submitBtn', true);
 
         try {
             const response = await fetch(url, {
                 method: 'POST',
-                body: formData,
                 headers: {
+                    'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                 },
+                body: formData,
             });
 
             const data = await response.json();
 
             if (!response.ok) {
                 if (response.status === 422 && data.errors) {
-                    Object.entries(data.errors).forEach(([field, messages]) => {
-                        if (fields[field]) {
-                            fields[field].classList.add('is-invalid');
+                    Object.keys(data.errors).forEach(field => {
+                        const input = form.querySelector(`[name="${field}"]`);
+                        const errorEl = document.getElementById(`error_${field}`);
+
+                        if (input) {
+                            input.classList.add('is-invalid');
                         }
 
-                        const errorEl = document.getElementById(`error_${field}`);
                         if (errorEl) {
-                            errorEl.textContent = messages[0];
+                            errorEl.textContent = data.errors[field][0];
                         }
                     });
-
-                    formAlert.classList.remove('d-none');
-                    formAlert.textContent = data.message || 'Please check the form fields.';
-                    return;
+                } else {
+                    const alertEl = document.getElementById('formAlert');
+                    alertEl.classList.remove('d-none');
+                    alertEl.textContent = data.message || 'Failed to save marketing plan.';
                 }
 
-                throw new Error(data.message || 'Failed to save plan.');
+                return;
             }
 
             planModal.hide();
-            showToast(data.message || (isEditMode ? 'Plan updated successfully.' : 'Plan created successfully.'));
+            showToast(data.message || 'Marketing plan saved successfully.', 'success');
 
-            clearTimeout(reloadTimeout);
-            reloadTimeout = setTimeout(() => window.location.reload(), 700);
+            setTimeout(() => {
+                window.location.reload();
+            }, 700);
         } catch (error) {
-            formAlert.classList.remove('d-none');
-            formAlert.textContent = error.message || 'Something went wrong.';
+            const alertEl = document.getElementById('formAlert');
+            alertEl.classList.remove('d-none');
+            alertEl.textContent = 'Network error. Please try again.';
         } finally {
-            setLoading(submitBtn, false, '.default-text', '.loading-text');
+            setButtonLoading('submitBtn', false);
         }
     }
 
-    function openDeleteModal(id, title) {
-        deletePlanId = id;
-        deletePlanTitleEl.textContent = title;
-        deleteModal.show();
-    }
+    async function submitDeleteForm(event) {
+        event.preventDefault();
 
-    async function confirmDelete() {
-        if (!deletePlanId) return;
+        const planId = document.getElementById('delete_plan_id').value;
+        const alertEl = document.getElementById('deleteAlert');
 
-        setLoading(confirmDeleteBtn, true, '.default-delete-text', '.loading-delete-text');
+        alertEl.classList.add('d-none');
+        alertEl.textContent = '';
+
+        if (!planId) {
+            alertEl.classList.remove('d-none');
+            alertEl.textContent = 'Plan ID not found.';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('_token', csrfToken);
+        formData.append('_method', 'DELETE');
+
+        setButtonLoading('deleteSubmitBtn', true);
 
         try {
-            const response = await fetch(`{{ url('/marketing/plans') }}/${deletePlanId}`, {
+            const response = await fetch(`${baseUrl}/${planId}`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                 },
-                body: new URLSearchParams({
-                    _method: 'DELETE',
-                }),
+                body: formData,
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete plan.');
+                alertEl.classList.remove('d-none');
+                alertEl.textContent = data.message || 'Failed to delete marketing plan.';
+                return;
             }
 
-            deleteModal.hide();
-            showToast(data.message || 'Plan deleted successfully.');
+            deletePlanModal.hide();
+            showToast(data.message || 'Marketing plan deleted successfully.', 'success');
 
-            clearTimeout(reloadTimeout);
-            reloadTimeout = setTimeout(() => window.location.reload(), 700);
+            setTimeout(() => {
+                window.location.reload();
+            }, 700);
         } catch (error) {
-            showToast(error.message || 'Something went wrong.', 'danger');
+            alertEl.classList.remove('d-none');
+            alertEl.textContent = 'Network error. Please try again.';
         } finally {
-            setLoading(confirmDeleteBtn, false, '.default-delete-text', '.loading-delete-text');
+            setButtonLoading('deleteSubmitBtn', false);
         }
     }
 
-    planForm.addEventListener('submit', submitForm);
-    confirmDeleteBtn.addEventListener('click', confirmDelete);
-    planModalEl.addEventListener('hidden.bs.modal', resetForm);
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toastId = `toast-${Date.now()}`;
+
+        const bgClass = type === 'success' ? 'text-bg-success' : 'text-bg-danger';
+        const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi ${icon} me-2"></i>${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', toastHtml);
+
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+
+        toast.show();
+
+        toastEl.addEventListener('hidden.bs.toast', function () {
+            toastEl.remove();
+        });
+    }
 </script>
 @endpush

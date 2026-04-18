@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\MarketingCampaign;
 use App\Models\MarketingPlan;
 use App\Models\User;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 
 class MarketingCampaignController extends Controller
 {
@@ -17,29 +18,43 @@ class MarketingCampaignController extends Controller
     {
         $search = $request->input('search');
         $status = $request->input('status');
+        $marketingPlanId = $request->input('marketing_plan_id');
+        $perPage = (int) $request->input('per_page', 10);
 
         $campaigns = MarketingCampaign::query()
             ->with(['plan', 'pic'])
             ->when($search, function ($query) use ($search) {
-                $query->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('channel', 'like', '%' . $search . '%')
-                    ->orWhere('type', 'like', '%' . $search . '%');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('channel', 'like', '%' . $search . '%')
+                        ->orWhere('type', 'like', '%' . $search . '%')
+                        ->orWhere('description', 'like', '%' . $search . '%');
+                });
             })
-            ->when($status, fn($query) => $query->where('status', $status))
+            ->when($status, fn ($query) => $query->where('status', $status))
+            ->when($marketingPlanId, fn ($query) => $query->where('marketing_plan_id', $marketingPlanId))
             ->latest()
-            ->paginate(10)
+            ->paginate(in_array($perPage, [10, 25, 50, 100]) ? $perPage : 10)
             ->withQueryString();
 
         $plans = MarketingPlan::query()->orderBy('title')->get();
         $users = User::query()->orderBy('name')->get();
 
-        return view('marketing.campaigns.index', compact('campaigns', 'plans', 'users', 'search', 'status'));
+        return view('marketing.campaigns.index', compact(
+            'campaigns',
+            'plans',
+            'users',
+            'search',
+            'status',
+            'marketingPlanId',
+            'perPage'
+        ));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
-            'marketing_plan_id' => ['nullable', 'exists:marketing_plans,id'],
+            'marketing_plan_id' => ['required', 'exists:marketing_plans,id'],
             'name' => ['required', 'string', 'max:255'],
             'channel' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', 'string', 'max:100'],
@@ -69,15 +84,22 @@ class MarketingCampaignController extends Controller
 
         MarketingCampaign::create($validated);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Campaign berhasil ditambahkan.',
+            ]);
+        }
+
         return redirect()
             ->route('marketing.campaigns.index')
             ->with('success', 'Campaign berhasil ditambahkan.');
     }
 
-    public function update(Request $request, MarketingCampaign $marketingCampaign): RedirectResponse
+    public function update(Request $request, MarketingCampaign $marketingCampaign): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
-            'marketing_plan_id' => ['nullable', 'exists:marketing_plans,id'],
+            'marketing_plan_id' => ['required', 'exists:marketing_plans,id'],
             'name' => ['required', 'string', 'max:255'],
             'channel' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', 'string', 'max:100'],
@@ -109,14 +131,28 @@ class MarketingCampaignController extends Controller
 
         $marketingCampaign->update($validated);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Campaign berhasil diperbarui.',
+            ]);
+        }
+
         return redirect()
             ->route('marketing.campaigns.index')
             ->with('success', 'Campaign berhasil diperbarui.');
     }
 
-    public function destroy(MarketingCampaign $marketingCampaign): RedirectResponse
+    public function destroy(Request $request, MarketingCampaign $marketingCampaign): JsonResponse|RedirectResponse
     {
         $marketingCampaign->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Campaign berhasil dihapus.',
+            ]);
+        }
 
         return redirect()
             ->route('marketing.campaigns.index')
