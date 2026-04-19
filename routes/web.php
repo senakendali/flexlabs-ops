@@ -37,7 +37,8 @@ use App\Http\Controllers\Marketing\MarketingAdController;
 use App\Http\Controllers\Marketing\MarketingEventController;
 use App\Http\Controllers\Marketing\MarketingLeadSourceController;
 use App\Http\Controllers\Marketing\MarketingReportController;
-
+use App\Http\Controllers\Marketing\MarketingSetupCampaignController;
+use App\Http\Controllers\Marketing\MarketingSetupAdController;
 
 /*
 |--------------------------------------------------------------------------
@@ -347,6 +348,26 @@ Route::middleware('auth')->group(function () {
         Route::put('/{report}', [MarketingReportController::class, 'update'])->name('update');
         Route::delete('/{report}', [MarketingReportController::class, 'destroy'])->name('destroy');
     });
+
+    Route::prefix('marketing/setup')->name('marketing.setup.')->group(function () {
+        Route::prefix('campaigns')->name('campaigns.')->group(function () {
+            Route::get('/', [MarketingSetupCampaignController::class, 'index'])->name('index');
+            Route::post('/', [MarketingSetupCampaignController::class, 'store'])->name('store');
+            Route::put('/{campaign}', [MarketingSetupCampaignController::class, 'update'])->name('update');
+            Route::delete('/{campaign}', [MarketingSetupCampaignController::class, 'destroy'])->name('destroy');
+            Route::get('/options/by-period', [MarketingSetupCampaignController::class, 'options'])->name('options');
+        });
+
+        Route::prefix('ads')->name('ads.')->group(function () {
+            Route::get('/', [MarketingSetupAdController::class, 'index'])->name('index');
+            Route::post('/', [MarketingSetupAdController::class, 'store'])->name('store');
+            Route::put('/{ad}', [MarketingSetupAdController::class, 'update'])->name('update');
+            Route::delete('/{ad}', [MarketingSetupAdController::class, 'destroy'])->name('destroy');
+            Route::get('/options/by-period', [MarketingSetupAdController::class, 'options'])->name('options');
+        });
+    });
+
+    
 
     /*
     |--------------------------------------------------------------------------

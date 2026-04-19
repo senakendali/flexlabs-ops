@@ -69,7 +69,7 @@
                     {{ $isEdit ? 'Edit Marketing Report' : 'Create Marketing Report' }}
                 </h1>
                 <p class="page-subtitle mb-0">
-                    Lengkapi setiap section untuk menyusun ringkasan marketing yang terstruktur dalam satu halaman.
+                    Lengkapi setiap komponen report untuk menyusun ringkasan marketing yang rapi dan mudah dibaca.
                 </p>
             </div>
 
@@ -77,7 +77,7 @@
                 <a href="{{ route('marketing.reports.index') }}" class="btn btn-light border">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
-                <button type="button" id="saveDraftBtn" class="btn btn-outline-primary">
+                <button type="button" id="saveDraftBtn" class="btn btn-save-draft">
                     <i class="bi bi-save me-1"></i> Save Draft
                 </button>
                 <button type="button" id="submitReportBtn" class="btn btn-primary">
@@ -87,18 +87,26 @@
         </div>
     </div>
 
+    <div
+        id="toastContainer"
+        class="toast-container position-fixed top-0 end-0 p-3"
+        style="z-index: 1090;"
+    ></div>
+
     <div class="content-card mb-4">
         <div class="content-card-body">
-            <div class="row g-3 align-items-center">
-                <div class="col-lg-8">
-                    <div class="progress-summary-wrap">
-                        <div class="progress-summary-top d-flex justify-content-between align-items-center mb-2">
+            <div class="row g-3 align-items-stretch report-summary-row">
+                <div class="col-lg-8 d-flex">
+                    <div class="progress-summary-wrap w-100">
+                        <div class="progress-summary-top d-flex justify-content-between align-items-center gap-3 mb-2">
                             <div>
                                 <div class="progress-summary-label">Section Progress</div>
-                                <div class="progress-summary-subtitle">Pantau kelengkapan setiap bagian sebelum menyimpan report.</div>
+                                <div class="progress-summary-subtitle">
+                                    Pantau kesiapan tiap komponen report. Komponen optional tanpa data tidak dianggap kurang.
+                                </div>
                             </div>
                             <div class="progress-summary-count">
-                                <span id="completedSectionCount">0</span> / <span id="totalSectionCount">6</span> completed
+                                <span id="completedSectionCount">0</span> dari <span id="totalSectionCount">6</span> komponen report sudah diisi
                             </div>
                         </div>
 
@@ -108,13 +116,15 @@
                     </div>
                 </div>
 
-                <div class="col-lg-4">
-                    <div class="status-pill-card">
+                <div class="col-lg-4 d-flex">
+                    <div class="status-pill-card w-100">
                         <div class="status-pill-label">Report Status</div>
                         <div class="status-pill-value" id="liveStatusText">
                             {{ old('status', $report->status ?? 'draft') ? ucfirst(old('status', $report->status ?? 'draft')) : 'Draft' }}
                         </div>
-                        <div class="status-pill-help">Checklist akan muncul otomatis saat field inti pada section sudah terisi.</div>
+                        <div class="status-pill-help">
+                            Status report mengikuti pilihan saat ini. Komponen optional seperti campaign, ads, atau event tetap aman meski periode ini tidak menggunakannya.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -234,7 +244,7 @@
                                     </p>
                                 </div>
                                 <div class="section-status-badge" data-section-badge="overview">
-                                    <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                    <i class="bi bi-hourglass-split me-1"></i> Need Input
                                 </div>
                             </div>
 
@@ -258,9 +268,11 @@
 
                                     <div class="col-lg-4">
                                         <label class="form-label">Report No</label>
-                                        <input type="text" name="report_no" class="form-control"
+                                        <input type="text" name="report_no" id="reportNoField" class="form-control bg-light"
                                                value="{{ old('report_no', $report->report_no) }}"
-                                               placeholder="Contoh: MR-2026-04-001">
+                                               placeholder="Akan digenerate otomatis saat penyimpanan pertama"
+                                               readonly>
+                                        <div class="form-text">Nomor report dibuat otomatis oleh sistem.</div>
                                         <div class="invalid-feedback error-text" data-error-for="report_no"></div>
                                     </div>
 
@@ -332,7 +344,7 @@
                                 </div>
                                 <div class="d-flex gap-2 align-items-center">
                                     <div class="section-status-badge" data-section-badge="campaign">
-                                        <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                        <i class="bi bi-dash-circle me-1"></i> Optional
                                     </div>
                                     <button type="button" class="btn btn-primary btn-sm" id="addCampaignBtn">
                                         <i class="bi bi-plus-circle me-1"></i> Add Campaign
@@ -346,7 +358,7 @@
                                 <div id="campaignEmptyState" class="empty-state-box">
                                     <div class="empty-state-icon"><i class="bi bi-megaphone"></i></div>
                                     <div class="empty-state-title">Belum ada campaign</div>
-                                    <div class="empty-state-subtitle">Tambahkan minimal satu campaign untuk melengkapi section ini.</div>
+                                    <div class="empty-state-subtitle">Boleh kosong jika periode ini memang tidak memakai campaign khusus.</div>
                                 </div>
                             </div>
                         </div>
@@ -364,7 +376,7 @@
                                 </div>
                                 <div class="d-flex gap-2 align-items-center">
                                     <div class="section-status-badge" data-section-badge="ads">
-                                        <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                        <i class="bi bi-dash-circle me-1"></i> Optional
                                     </div>
                                     <button type="button" class="btn btn-primary btn-sm" id="addAdBtn">
                                         <i class="bi bi-plus-circle me-1"></i> Add Ads
@@ -378,7 +390,7 @@
                                 <div id="adsEmptyState" class="empty-state-box">
                                     <div class="empty-state-icon"><i class="bi bi-badge-ad"></i></div>
                                     <div class="empty-state-title">Belum ada ads</div>
-                                    <div class="empty-state-subtitle">Tambahkan minimal satu ads untuk melengkapi section ini.</div>
+                                    <div class="empty-state-subtitle">Boleh kosong jika periode ini tidak menjalankan iklan berbayar.</div>
                                 </div>
                             </div>
                         </div>
@@ -396,7 +408,7 @@
                                 </div>
                                 <div class="d-flex gap-2 align-items-center">
                                     <div class="section-status-badge" data-section-badge="events">
-                                        <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                        <i class="bi bi-dash-circle me-1"></i> Optional
                                     </div>
                                     <button type="button" class="btn btn-primary btn-sm" id="addEventBtn">
                                         <i class="bi bi-plus-circle me-1"></i> Add Event
@@ -410,7 +422,7 @@
                                 <div id="eventsEmptyState" class="empty-state-box">
                                     <div class="empty-state-icon"><i class="bi bi-calendar-event"></i></div>
                                     <div class="empty-state-title">Belum ada event</div>
-                                    <div class="empty-state-subtitle">Tambahkan minimal satu event untuk melengkapi section ini.</div>
+                                    <div class="empty-state-subtitle">Boleh kosong jika pada periode ini tidak ada event yang perlu dicatat.</div>
                                 </div>
                             </div>
                         </div>
@@ -427,7 +439,7 @@
                                     </p>
                                 </div>
                                 <div class="section-status-badge" data-section-badge="snapshot">
-                                    <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                    <i class="bi bi-hourglass-split me-1"></i> Need Input
                                 </div>
                             </div>
 
@@ -493,7 +505,7 @@
                                     </p>
                                 </div>
                                 <div class="section-status-badge" data-section-badge="insight">
-                                    <i class="bi bi-hourglass-split me-1"></i> Incomplete
+                                    <i class="bi bi-dash-circle me-1"></i> Optional
                                 </div>
                             </div>
 
@@ -537,14 +549,14 @@
                     <div class="content-card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
                         <div class="footer-note">
                             <div class="footer-note-title">Final Check</div>
-                            <div class="footer-note-subtitle">Pastikan seluruh section telah terisi sesuai kebutuhan sebelum menyimpan report.</div>
+                            <div class="footer-note-subtitle">Pastikan komponen penting sudah siap sebelum menyimpan report.</div>
                         </div>
 
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ route('marketing.reports.index') }}" class="btn btn-light border">
                                 Cancel
                             </a>
-                            <button type="button" id="saveDraftBtnBottom" class="btn btn-outline-primary">
+                            <button type="button" id="saveDraftBtnBottom" class="btn btn-save-draft">
                                 <i class="bi bi-save me-1"></i> Save Draft
                             </button>
                             <button type="button" id="submitReportBtnBottom" class="btn btn-primary">
@@ -801,6 +813,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusField = document.getElementById('statusField');
     const liveStatusText = document.getElementById('liveStatusText');
 
+    const reportNoField = document.getElementById('reportNoField');
+
     const liveTotalBudget = document.getElementById('liveTotalBudget');
     const liveActualSpend = document.getElementById('liveActualSpend');
 
@@ -812,6 +826,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalSectionCount = document.getElementById('totalSectionCount');
     const sectionProgressBar = document.getElementById('sectionProgressBar');
 
+    const toastContainer = document.getElementById('toastContainer');
+
     const campaignRows = @json($campaignRows);
     const adRows = @json($adRows);
     const eventRows = @json($eventRows);
@@ -819,8 +835,60 @@ document.addEventListener('DOMContentLoaded', function () {
     let campaignIndex = 0;
     let adIndex = 0;
     let eventIndex = 0;
+    let redirectTimeout = null;
 
     totalSectionCount.textContent = '6';
+
+    function showToast(message, type = 'success') {
+        if (!toastContainer || typeof bootstrap === 'undefined') return;
+
+        const toastId = 'toast-' + Date.now();
+
+        const bgClass = {
+            success: 'bg-success',
+            danger: 'bg-danger',
+            warning: 'bg-warning text-dark',
+            info: 'bg-info text-dark'
+        }[type] || 'bg-success';
+
+        const closeBtnClass = (type === 'warning' || type === 'info')
+            ? 'btn-close me-2 m-auto'
+            : 'btn-close btn-close-white me-2 m-auto';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="${closeBtnClass}" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, {
+            delay: 1600
+        });
+
+        toast.show();
+
+        toastEl.addEventListener('hidden.bs.toast', function () {
+            toastEl.remove();
+        });
+    }
+
+    function scheduleRedirect(url) {
+        if (!url) return;
+
+        if (redirectTimeout) {
+            clearTimeout(redirectTimeout);
+        }
+
+        redirectTimeout = setTimeout(function () {
+            window.location.href = url;
+        }, 900);
+    }
 
     function generateTempKey(prefix) {
         return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -1056,52 +1124,63 @@ document.addEventListener('DOMContentLoaded', function () {
         return value !== null && value !== undefined && String(value).trim() !== '';
     }
 
-    function checkOverviewComplete() {
+    function getSectionStateRequired(isComplete) {
+        return isComplete ? 'completed' : 'incomplete';
+    }
+
+    function getSectionStateOptional(itemsLength, isCompleteWhenHasData) {
+        if (itemsLength === 0) return 'optional';
+        return isCompleteWhenHasData ? 'completed' : 'incomplete';
+    }
+
+    function checkOverviewState() {
         const title = form.querySelector('[name="title"]').value;
         const periodType = form.querySelector('[name="period_type"]').value;
         const status = form.querySelector('[name="status"]').value;
         const startDate = form.querySelector('[name="start_date"]').value;
         const endDate = form.querySelector('[name="end_date"]').value;
 
-        return isFilled(title) && isFilled(periodType) && isFilled(status) && isFilled(startDate) && isFilled(endDate);
+        return getSectionStateRequired(
+            isFilled(title) && isFilled(periodType) && isFilled(status) && isFilled(startDate) && isFilled(endDate)
+        );
     }
 
-    function checkCampaignComplete() {
+    function checkCampaignState() {
         const items = campaignList.querySelectorAll('.campaign-item-card');
-        if (items.length === 0) return false;
-
-        return Array.from(items).every((item) => {
+        const allValid = Array.from(items).every((item) => {
             const name = item.querySelector('[data-field="name"]').value;
             const status = item.querySelector('[data-field="status"]').value;
             return isFilled(name) && isFilled(status);
         });
+
+        return getSectionStateOptional(items.length, allValid);
     }
 
-    function checkAdsComplete() {
+    function checkAdsState() {
         const items = adsList.querySelectorAll('.ads-item-card');
-        if (items.length === 0) return false;
-
-        return Array.from(items).every((item) => {
+        const allValid = Array.from(items).every((item) => {
             const platform = item.querySelector('[data-field="platform"]').value;
             const adName = item.querySelector('[data-field="ad_name"]').value;
             const status = item.querySelector('[data-field="status"]').value;
             return isFilled(platform) && isFilled(adName) && isFilled(status);
         });
+
+        return getSectionStateOptional(items.length, allValid);
     }
 
-    function checkEventsComplete() {
+    function checkEventsState() {
         const items = eventsList.querySelectorAll('.event-item-card');
-        if (items.length === 0) return false;
-
-        return Array.from(items).every((item) => {
+        const allValid = Array.from(items).every((item) => {
             const name = item.querySelector('[data-field="name"]').value;
             const eventType = item.querySelector('[data-field="event_type"]').value;
             const status = item.querySelector('[data-field="status"]').value;
             return isFilled(name) && isFilled(eventType) && isFilled(status);
         });
+
+        return getSectionStateOptional(items.length, allValid);
     }
 
-    function checkSnapshotComplete() {
+    function checkSnapshotState() {
         const fields = [
             form.querySelector('[name="total_leads"]').value,
             form.querySelector('[name="total_registrants"]').value,
@@ -1110,56 +1189,72 @@ document.addEventListener('DOMContentLoaded', function () {
             form.querySelector('[name="total_revenue"]').value,
         ];
 
-        return fields.every(value => value !== '' && value !== null);
+        return getSectionStateRequired(fields.every(value => value !== '' && value !== null));
     }
 
-    function checkInsightComplete() {
+    function checkInsightState() {
         const summary = form.querySelector('[name="summary"]').value;
         const keyInsight = form.querySelector('[name="key_insight"]').value;
         const nextAction = form.querySelector('[name="next_action"]').value;
         const notes = form.querySelector('[name="notes"]').value;
 
-        return isFilled(summary) || isFilled(keyInsight) || isFilled(nextAction) || isFilled(notes);
+        const hasContent = isFilled(summary) || isFilled(keyInsight) || isFilled(nextAction) || isFilled(notes);
+
+        return hasContent ? 'completed' : 'optional';
     }
 
-    function updateSectionUI(sectionKey, completed) {
+    function updateSectionUI(sectionKey, state) {
         const indicator = document.querySelector(`[data-section-indicator="${sectionKey}"]`);
         const badge = document.querySelector(`[data-section-badge="${sectionKey}"]`);
 
         if (indicator) {
-            indicator.classList.toggle('completed', completed);
-            indicator.innerHTML = completed
-                ? '<i class="bi bi-check-circle-fill"></i>'
-                : '<i class="bi bi-circle"></i>';
+            indicator.classList.remove('completed', 'optional');
+
+            if (state === 'completed') {
+                indicator.classList.add('completed');
+                indicator.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+            } else if (state === 'optional') {
+                indicator.classList.add('optional');
+                indicator.innerHTML = '<i class="bi bi-dash-circle-fill"></i>';
+            } else {
+                indicator.innerHTML = '<i class="bi bi-circle"></i>';
+            }
         }
 
         if (badge) {
-            badge.classList.toggle('completed', completed);
-            badge.innerHTML = completed
-                ? '<i class="bi bi-check-circle-fill me-1"></i> Completed'
-                : '<i class="bi bi-hourglass-split me-1"></i> Incomplete';
+            badge.classList.remove('completed', 'optional');
+
+            if (state === 'completed') {
+                badge.classList.add('completed');
+                badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Ready';
+            } else if (state === 'optional') {
+                badge.classList.add('optional');
+                badge.innerHTML = '<i class="bi bi-dash-circle me-1"></i> Optional';
+            } else {
+                badge.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Need Input';
+            }
         }
     }
 
     function refreshProgress() {
         const sections = {
-            overview: checkOverviewComplete(),
-            campaign: checkCampaignComplete(),
-            ads: checkAdsComplete(),
-            events: checkEventsComplete(),
-            snapshot: checkSnapshotComplete(),
-            insight: checkInsightComplete(),
+            overview: checkOverviewState(),
+            campaign: checkCampaignState(),
+            ads: checkAdsState(),
+            events: checkEventsState(),
+            snapshot: checkSnapshotState(),
+            insight: checkInsightState(),
         };
 
-        const completedCount = Object.values(sections).filter(Boolean).length;
+        const filledCount = Object.values(sections).filter((state) => state === 'completed').length;
         const totalCount = Object.keys(sections).length;
-        const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+        const percent = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0;
 
-        Object.entries(sections).forEach(([key, completed]) => {
-            updateSectionUI(key, completed);
+        Object.entries(sections).forEach(([key, state]) => {
+            updateSectionUI(key, state);
         });
 
-        completedSectionCount.textContent = String(completedCount);
+        completedSectionCount.textContent = String(filledCount);
         totalSectionCount.textContent = String(totalCount);
         sectionProgressBar.style.width = `${percent}%`;
     }
@@ -1167,8 +1262,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function refreshAll() {
         calculateLiveTotals();
         refreshProgress();
+
         if (statusField && liveStatusText) {
             liveStatusText.textContent = statusField.options[statusField.selectedIndex]?.text || 'Draft';
+        }
+
+        if (reportNoField && !reportNoField.value) {
+            reportNoField.value = '';
         }
     }
 
@@ -1218,6 +1318,21 @@ document.addEventListener('DOMContentLoaded', function () {
         return fd;
     }
 
+    async function parseResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            return await response.json();
+        }
+
+        const text = await response.text();
+
+        return {
+            success: false,
+            message: text || 'Unexpected server response.',
+        };
+    }
+
     async function submitForm(forceDraft = false) {
         clearValidationErrors();
 
@@ -1236,48 +1351,58 @@ document.addEventListener('DOMContentLoaded', function () {
         const submitButtons = [saveDraftBtn, saveDraftBtnBottom, submitReportBtn, submitReportBtnBottom];
         submitButtons.forEach(btn => btn && (btn.disabled = true));
 
+        const activeButton = forceDraft ? [saveDraftBtn, saveDraftBtnBottom] : [submitReportBtn, submitReportBtnBottom];
+        activeButton.forEach((btn) => {
+            if (btn) {
+                btn.dataset.originalHtml = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+            }
+        });
+
         try {
             const response = await fetch(form.action, {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 },
                 body: formData,
             });
 
-            const data = await response.json();
+            const data = await parseResponse(response);
 
             if (!response.ok) {
                 if (response.status === 422 && data.errors) {
                     applyValidationErrors(data.errors);
                 }
 
-                if (window.showToast) {
-                    window.showToast(data.message || 'Terjadi kesalahan saat menyimpan data.', 'danger');
-                } else {
-                    alert(data.message || 'Terjadi kesalahan saat menyimpan data.');
-                }
-
+                showToast(data.message || 'Terjadi kesalahan saat menyimpan data.', 'danger');
                 return;
             }
 
-            if (window.showToast) {
-                window.showToast(data.message || 'Data berhasil disimpan.', 'success');
+            if (data.report_no && reportNoField && !reportNoField.value) {
+                reportNoField.value = data.report_no;
             }
 
+            showToast(
+                data.message || (forceDraft ? 'Draft berhasil disimpan.' : 'Report berhasil disimpan.'),
+                'success'
+            );
+
             if (data.redirect) {
-                window.location.href = data.redirect;
+                scheduleRedirect(data.redirect);
             }
         } catch (error) {
-            if (window.showToast) {
-                window.showToast('Terjadi kesalahan saat mengirim data.', 'danger');
-            } else {
-                alert('Terjadi kesalahan saat mengirim data.');
-            }
+            showToast('Terjadi kesalahan saat mengirim data.', 'danger');
         } finally {
             submitButtons.forEach(btn => btn && (btn.disabled = false));
+
+            activeButton.forEach((btn) => {
+                if (btn && btn.dataset.originalHtml) {
+                    btn.innerHTML = btn.dataset.originalHtml;
+                }
+            });
         }
     }
 

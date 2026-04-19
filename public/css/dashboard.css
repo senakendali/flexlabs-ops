@@ -3080,3 +3080,2542 @@ img {
         box-shadow: none !important;
     }
 }
+
+.marketing-report-index-page .summary-metric-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.marketing-report-index-page .summary-metric-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: .84rem;
+}
+
+.marketing-report-index-page .summary-metric-item .label {
+    color: #6b7280;
+}
+
+.marketing-report-index-page .summary-metric-item .value {
+    color: #1f2937;
+    font-weight: 600;
+    text-align: right;
+}
+
+.marketing-report-index-page .table-meta-info {
+        font-size: .88rem;
+        color: #6b7280;
+    }
+
+    .marketing-report-index-page .progress-modern-sm {
+        height: 8px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .marketing-report-index-page .progress-modern-sm .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .marketing-report-index-page .section-check-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .marketing-report-index-page .check-pill {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: #9ca3af;
+        font-size: .75rem;
+        font-weight: 700;
+        border: 1px solid #e5e7eb;
+    }
+
+    .marketing-report-index-page .check-pill.completed {
+        background: #e8f8ee;
+        color: #15803d;
+        border-color: #c9ebd4;
+    }
+
+    .marketing-report-index-page .summary-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .marketing-report-index-page .summary-card-mini {
+        position: relative;
+        padding: 12px 12px 11px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8f6fc 100%);
+        border: 1px solid #ece7f6;
+        box-shadow: 0 8px 20px rgba(91, 62, 142, 0.04);
+        min-height: 84px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .marketing-report-index-page .summary-card-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .marketing-report-index-page .summary-card-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: .9rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-report-index-page .summary-card-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        line-height: 1.2;
+    }
+
+    .marketing-report-index-page .summary-card-value {
+        font-size: 1.08rem;
+        font-weight: 800;
+        line-height: 1.15;
+        color: #1f2937;
+        word-break: break-word;
+    }
+
+    .marketing-report-index-page .summary-card-revenue {
+        grid-column: 1 / -1;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.10) 0%, rgba(142, 106, 201, 0.16) 100%);
+        border-color: rgba(91, 62, 142, 0.18);
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-icon {
+        background: rgba(91, 62, 142, 0.14);
+        color: #4b2f7c;
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-label {
+        color: #69588d;
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-value {
+        color: #5B3E8E;
+        font-size: 1.15rem;
+    }
+
+    .marketing-report-index-page .empty-state-box {
+        padding: 28px 20px;
+        border-radius: 18px;
+        border: 1px dashed #d7dce3;
+        text-align: center;
+        background: #fcfcfd;
+    }
+
+    .marketing-report-index-page .empty-state-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eee7fb;
+        color: #5B3E8E;
+        font-size: 1.4rem;
+    }
+
+    .marketing-report-index-page .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-index-page .empty-state-subtitle {
+        font-size: .85rem;
+        color: #6b7280;
+    }
+
+    .marketing-report-index-page .content-card-footer {
+        padding: 16px 20px;
+        border-top: 1px solid #eef2f7;
+        background: #fff;
+    }
+
+    @media (max-width: 1399.98px) {
+        .marketing-report-index-page .summary-card-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .marketing-report-index-page .summary-card-revenue {
+            grid-column: auto;
+        }
+    }
+
+    .marketing-report-form-page .toast {
+        min-width: 280px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .marketing-report-form-page .report-summary-row .progress-summary-wrap,
+    .marketing-report-form-page .report-summary-row .status-pill-card {
+        min-height: 138px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .marketing-report-form-page .progress-summary-wrap {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+    }
+
+    .marketing-report-form-page .progress-summary-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 2px;
+    }
+
+    .marketing-report-form-page .progress-summary-subtitle {
+        font-size: .87rem;
+        color: #7c8698;
+    }
+
+    .marketing-report-form-page .progress-summary-count {
+        font-size: .92rem;
+        font-weight: 700;
+        color: #1f2937;
+        white-space: nowrap;
+    }
+
+    .marketing-report-form-page .progress-modern {
+        height: 10px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .marketing-report-form-page .progress-modern .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .marketing-report-form-page .status-pill-card {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+    }
+
+    .marketing-report-form-page .status-pill-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-form-page .status-pill-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 8px;
+    }
+
+    .marketing-report-form-page .status-pill-help {
+        font-size: .87rem;
+        color: #5f6775;
+        line-height: 1.45;
+    }
+
+    .marketing-report-form-page .btn-save-draft {
+        background: linear-gradient(135deg, #FFBE04 0%, #f59e0b 100%);
+        border-color: #f2ab00;
+        color: #3f2d00;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+    }
+
+    .marketing-report-form-page .btn-save-draft:hover,
+    .marketing-report-form-page .btn-save-draft:focus {
+        background: linear-gradient(135deg, #f5b400 0%, #e69008 100%);
+        border-color: #e2a100;
+        color: #2f2200;
+    }
+
+    .marketing-report-form-page .btn-save-draft:disabled {
+        opacity: .7;
+        box-shadow: none;
+    }
+
+    .marketing-report-form-page .section-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: 700;
+        background: #fff7ed;
+        color: #b45309;
+        border: 1px solid #fed7aa;
+    }
+
+    .marketing-report-form-page .section-status-badge.completed {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #bbf7d0;
+    }
+
+    .marketing-report-form-page .section-status-badge.optional {
+        background: #f3f4f6;
+        color: #6b7280;
+        border-color: #e5e7eb;
+    }
+
+    .marketing-report-form-page .section-check {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: #9ca3af;
+        font-size: .95rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-report-form-page .section-check.completed {
+        background: #ecfdf3;
+        color: #16a34a;
+    }
+
+    .marketing-report-form-page .section-check.optional {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .marketing-report-form-page .empty-state-box {
+        padding: 28px 22px;
+        border-radius: 18px;
+        border: 1px dashed #d8deea;
+        text-align: center;
+        background: #fcfcfd;
+    }
+
+    .marketing-report-form-page .empty-state-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eee7fb;
+        color: #5B3E8E;
+        font-size: 1.35rem;
+    }
+
+    .marketing-report-form-page .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-form-page .empty-state-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .marketing-report-form-page .dynamic-item-card {
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: #fff;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+
+    .marketing-report-form-page .dynamic-item-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f0ebf8;
+        background: linear-gradient(180deg, #fcfbfe 0%, #f8f6fc 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .marketing-report-form-page .dynamic-item-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-report-form-page .dynamic-item-subtitle {
+        font-size: .84rem;
+        color: #7c8698;
+        margin-top: 2px;
+    }
+
+    .marketing-report-form-page .dynamic-item-body {
+        padding: 18px 16px;
+    }
+
+    .marketing-report-form-page .footer-note-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-report-form-page .footer-note-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-report-form-page .progress-summary-count {
+            white-space: normal;
+        }
+    }
+
+    .marketing-report-show-page .toast {
+        min-width: 280px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .marketing-report-show-page .report-summary-row .progress-summary-wrap,
+    .marketing-report-show-page .report-summary-row .status-pill-card {
+        min-height: 148px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .marketing-report-show-page .progress-summary-wrap {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+    }
+
+    .marketing-report-show-page .progress-summary-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 2px;
+    }
+
+    .marketing-report-show-page .progress-summary-subtitle {
+        font-size: .87rem;
+        color: #7c8698;
+    }
+
+    .marketing-report-show-page .progress-summary-count {
+        font-size: .92rem;
+        font-weight: 700;
+        color: #1f2937;
+        white-space: nowrap;
+    }
+
+    .marketing-report-show-page .progress-modern {
+        height: 10px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .marketing-report-show-page .progress-modern .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .marketing-report-show-page .section-pill-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .marketing-report-show-page .section-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 700;
+        border: 1px solid #e5e7eb;
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .marketing-report-show-page .section-pill.completed {
+        background: #ecfdf3;
+        border-color: #bbf7d0;
+        color: #15803d;
+    }
+
+    .marketing-report-show-page .section-pill.optional {
+        background: #f3f4f6;
+        border-color: #e5e7eb;
+        color: #6b7280;
+    }
+
+    .marketing-report-show-page .status-pill-card {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+    }
+
+    .marketing-report-show-page .status-pill-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .status-pill-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .status-pill-help {
+        font-size: .87rem;
+        color: #5f6775;
+        line-height: 1.45;
+    }
+
+    .marketing-report-show-page .meta-chip-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .marketing-report-show-page .meta-chip {
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .marketing-report-show-page .meta-chip-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+    }
+
+    .marketing-report-show-page .meta-chip-value {
+        font-size: .9rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-report-show-page .form-switch-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-report-show-page .form-switch-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-report-show-page .form-switch-subtitle {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+
+    .marketing-report-show-page .audit-item {
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .marketing-report-show-page .audit-label {
+        font-size: .76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-show-page .audit-value {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .marketing-report-show-page .delete-report-modal-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff5f5;
+        border: 1px solid #ffd9d9;
+    }
+
+    .marketing-report-show-page .delete-report-modal-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fee2e2;
+        color: #dc2626;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-report-show-page .progress-summary-count {
+            white-space: normal;
+        }
+
+        .marketing-report-show-page .meta-chip-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .marketing-report-show-page .toast {
+        min-width: 280px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .marketing-report-show-page .report-summary-row .progress-summary-wrap,
+    .marketing-report-show-page .report-summary-row .status-pill-card {
+        min-height: 148px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .marketing-report-show-page .progress-summary-wrap {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+    }
+
+    .marketing-report-show-page .progress-summary-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 2px;
+    }
+
+    .marketing-report-show-page .progress-summary-subtitle {
+        font-size: .87rem;
+        color: #7c8698;
+    }
+
+    .marketing-report-show-page .progress-summary-count {
+        font-size: .92rem;
+        font-weight: 700;
+        color: #1f2937;
+        white-space: nowrap;
+    }
+
+    .marketing-report-show-page .progress-modern {
+        height: 10px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .marketing-report-show-page .progress-modern .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .marketing-report-show-page .section-pill-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .marketing-report-show-page .section-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 700;
+        border: 1px solid #e5e7eb;
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .marketing-report-show-page .section-pill.completed {
+        background: #ecfdf3;
+        border-color: #bbf7d0;
+        color: #15803d;
+    }
+
+    .marketing-report-show-page .section-pill.optional {
+        background: #f3f4f6;
+        border-color: #e5e7eb;
+        color: #6b7280;
+    }
+
+    .marketing-report-show-page .status-pill-card {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+    }
+
+    .marketing-report-show-page .status-pill-label {
+        font-size: .8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .status-pill-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .status-pill-help {
+        font-size: .87rem;
+        color: #5f6775;
+        line-height: 1.45;
+    }
+
+    .marketing-report-show-page .meta-chip-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .marketing-report-show-page .meta-chip {
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .marketing-report-show-page .meta-chip-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+    }
+
+    .marketing-report-show-page .meta-chip-value {
+        font-size: .9rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-report-show-page .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .marketing-report-show-page .info-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-report-show-page .info-item-full {
+        grid-column: 1 / -1;
+    }
+
+    .marketing-report-show-page .info-label {
+        font-size: .74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .info-value {
+        font-weight: 700;
+        color: #1f2937;
+        line-height: 1.45;
+    }
+
+    .marketing-report-show-page .snapshot-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .marketing-report-show-page .snapshot-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .marketing-report-show-page .snapshot-label {
+        font-size: .74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+    }
+
+    .marketing-report-show-page .snapshot-value {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.3;
+    }
+
+    .marketing-report-show-page .text-block-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .marketing-report-show-page .text-block-item {
+        padding-bottom: 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .marketing-report-show-page .text-block-label {
+        font-size: .74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-report-show-page .text-block-value {
+        color: #1f2937;
+        line-height: 1.65;
+        white-space: pre-line;
+    }
+
+    .marketing-report-show-page .audit-item {
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .marketing-report-show-page .audit-label {
+        font-size: .76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-show-page .audit-value {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .marketing-report-show-page .simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .marketing-report-show-page .simple-list-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-report-show-page .simple-list-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-show-page .simple-list-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .marketing-report-show-page .empty-state-box {
+        padding: 28px 22px;
+        border-radius: 18px;
+        border: 1px dashed #d8deea;
+        text-align: center;
+        background: #fcfcfd;
+    }
+
+    .marketing-report-show-page .small-empty-state {
+        padding: 24px 18px;
+    }
+
+    .marketing-report-show-page .empty-state-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eee7fb;
+        color: #5B3E8E;
+        font-size: 1.35rem;
+    }
+
+    .marketing-report-show-page .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-report-show-page .empty-state-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .marketing-report-show-page .delete-report-modal-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff5f5;
+        border: 1px solid #ffd9d9;
+    }
+
+    .marketing-report-show-page .delete-report-modal-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fee2e2;
+        color: #dc2626;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-report-show-page .progress-summary-count {
+            white-space: normal;
+        }
+
+        .marketing-report-show-page .meta-chip-grid,
+        .marketing-report-show-page .info-grid,
+        .marketing-report-show-page .snapshot-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .marketing-report-show-page .info-item-full {
+            grid-column: auto;
+        }
+    }
+
+    .marketing-report-show-page .btn-edit-accent {
+    background: linear-gradient(135deg, #FFBE04 0%, #f59e0b 100%);
+    border: 1px solid #f2ab00;
+    color: #3f2d00;
+    font-weight: 700;
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+}
+
+.marketing-report-show-page .btn-edit-accent:hover,
+.marketing-report-show-page .btn-edit-accent:focus {
+    background: linear-gradient(135deg, #f5b400 0%, #e69008 100%);
+    border-color: #e2a100;
+    color: #2f2200;
+}
+
+.marketing-report-show-page .btn-edit-accent:active {
+    background: linear-gradient(135deg, #e8aa00 0%, #d98206 100%) !important;
+    border-color: #cf8d00 !important;
+    color: #2f2200 !important;
+}
+
+.marketing-dashboard-page .dashboard-period-box {
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-period-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-value {
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-help {
+        font-size: .86rem;
+        color: #5f6775;
+    }
+
+    .marketing-dashboard-page .week-filter-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-dashboard-page .week-filter-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .week-filter-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: #fff;
+        text-decoration: none;
+        color: inherit;
+        transition: all .18s ease;
+        min-height: 112px;
+        box-shadow: 0 6px 18px rgba(91, 62, 142, 0.04);
+    }
+
+    .marketing-dashboard-page .week-filter-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(91, 62, 142, 0.28);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.08);
+    }
+
+    .marketing-dashboard-page .week-filter-card.active {
+        border-color: rgba(91, 62, 142, 0.34);
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.10);
+    }
+
+    .marketing-dashboard-page .week-filter-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-card.active .week-filter-icon {
+        background: rgba(91, 62, 142, 0.16);
+        color: #4b2f7c;
+    }
+
+    .marketing-dashboard-page .week-filter-body {
+        min-width: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-name {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .week-filter-mini {
+        font-size: .8rem;
+        color: #7c8698;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .week-filter-empty {
+        grid-column: 1 / -1;
+    }
+
+    .marketing-dashboard-page .small-empty-state {
+        padding: 24px 18px;
+    }
+
+    .marketing-dashboard-page .mini-stat-card {
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        padding: 16px;
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .mini-stat-label {
+        font-size: .78rem;
+        font-weight: 700;
+        color: #6f5b97;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .marketing-dashboard-page .mini-stat-value {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.25;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .mini-stat-help {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .monthly-summary-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+    }
+
+    .marketing-dashboard-page .monthly-summary-title {
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .monthly-summary-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-block {
+        padding-top: 12px;
+        margin-top: 12px;
+        border-top: 1px solid #eef2f7;
+    }
+
+    .marketing-dashboard-page .monthly-summary-label {
+        font-size: .76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-value {
+        color: #1f2937;
+        line-height: 1.6;
+        white-space: pre-line;
+    }
+
+    .marketing-dashboard-page .simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .simple-list-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-dashboard-page .simple-list-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+        line-height: 1.4;
+    }
+
+    .marketing-dashboard-page .simple-list-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.5;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .simple-list-tag {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+    @media (max-width: 1399.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .marketing-dashboard-page .dashboard-header-tools {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.10) 0%, rgba(142, 106, 201, 0.18) 100%);
+        border: 1px solid rgba(91, 62, 142, 0.16);
+        min-width: 360px;
+        max-width: 560px;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-help {
+        font-size: .84rem;
+        color: #5f6775;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .month-button-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn {
+        border-radius: 999px !important;
+        border: 1px solid rgba(91, 62, 142, 0.14);
+        background: rgba(255, 255, 255, 0.72);
+        color: #5B3E8E;
+        font-weight: 700;
+        font-size: .84rem;
+        padding: .48rem .9rem;
+        flex: 0 0 auto;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn.active {
+        background: #5B3E8E;
+        color: #fff;
+        border-color: #5B3E8E;
+        box-shadow: 0 8px 18px rgba(91, 62, 142, 0.18);
+    }
+
+    .marketing-dashboard-page .dashboard-period-box {
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: #fff;
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-period-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-value {
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-help {
+        font-size: .86rem;
+        color: #5f6775;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip {
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip.empty {
+        background: #fcfcfd;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-title {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 4px;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .week-filter-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-dashboard-page .week-filter-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .week-filter-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: #fff;
+        text-decoration: none;
+        color: inherit;
+        transition: all .18s ease;
+        min-height: 112px;
+        box-shadow: 0 6px 18px rgba(91, 62, 142, 0.04);
+    }
+
+    .marketing-dashboard-page .week-filter-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(91, 62, 142, 0.28);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.08);
+    }
+
+    .marketing-dashboard-page .week-filter-card.active {
+        border-color: rgba(91, 62, 142, 0.34);
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.10);
+    }
+
+    .marketing-dashboard-page .week-filter-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-card.active .week-filter-icon {
+        background: rgba(91, 62, 142, 0.16);
+        color: #4b2f7c;
+    }
+
+    .marketing-dashboard-page .week-filter-body {
+        min-width: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-name {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .week-filter-mini {
+        font-size: .8rem;
+        color: #7c8698;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .week-filter-empty {
+        grid-column: 1 / -1;
+    }
+
+    .marketing-dashboard-page .chart-wrap {
+        position: relative;
+        min-height: 340px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .monthly-summary-title {
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .monthly-summary-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini {
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: #fff;
+        border: 1px solid #ece7f6;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini .mini-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini .mini-value {
+        font-size: .92rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .monthly-summary-block {
+        padding-top: 12px;
+        margin-top: 12px;
+        border-top: 1px solid #eef2f7;
+    }
+
+    .marketing-dashboard-page .monthly-summary-label,
+    .marketing-dashboard-page .text-block-label {
+        font-size: .76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-value,
+    .marketing-dashboard-page .text-block-value {
+        color: #1f2937;
+        line-height: 1.65;
+        white-space: pre-line;
+    }
+
+    .marketing-dashboard-page .text-block-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .marketing-dashboard-page .text-block-item {
+        padding-bottom: 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .marketing-dashboard-page .mini-stat-card {
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        padding: 16px;
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .mini-stat-label {
+        font-size: .78rem;
+        font-weight: 700;
+        color: #6f5b97;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .marketing-dashboard-page .mini-stat-value {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.25;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .mini-stat-help {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .insight-box {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+        color: #5f6775;
+        line-height: 1.6;
+    }
+
+    .marketing-dashboard-page .simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .simple-list-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-dashboard-page .simple-list-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+        line-height: 1.4;
+    }
+
+    .marketing-dashboard-page .simple-list-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.5;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .simple-list-tag {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+    .marketing-dashboard-page .insight-snippet {
+        font-size: .84rem;
+        color: #4b5563;
+        line-height: 1.6;
+    }
+
+    .marketing-dashboard-page .small-empty-state {
+        padding: 24px 18px;
+    }
+
+    @media (max-width: 1399.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 1199.98px) {
+        .marketing-dashboard-page .dashboard-header-tools {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .marketing-dashboard-page .dashboard-filter-card {
+            min-width: unset;
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .marketing-dashboard-page .monthly-summary-mini-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .marketing-dashboard-page .month-button-group {
+            width: 100%;
+        }
+
+        .marketing-dashboard-page .month-button-group .btn {
+            flex: 1 1 calc(50% - 8px);
+            text-align: center;
+        }
+    }
+
+    .marketing-dashboard-page .dashboard-header-top {
+    width: 100%;
+}
+
+.marketing-dashboard-page .dashboard-header-intro {
+    max-width: 760px;
+}
+
+.marketing-dashboard-page .dashboard-header-action {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    margin-left: auto;
+}
+
+.marketing-dashboard-page .dashboard-filter-card {
+    width: 100%;
+    padding: 20px 22px;
+    border-radius: 22px;
+}
+
+.marketing-dashboard-page .dashboard-filter-card-soft {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(244, 238, 252, 0.92) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.marketing-dashboard-page .dashboard-filter-label {
+    font-size: .8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: rgba(255, 255, 255, 0.82);
+    margin-bottom: 4px;
+}
+
+.marketing-dashboard-page .dashboard-filter-help {
+    font-size: .9rem;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.55;
+    max-width: 720px;
+}
+
+.marketing-dashboard-page .month-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+}
+
+.marketing-dashboard-page .month-button-group .btn {
+    border-radius: 999px !important;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.92);
+    color: #5B3E8E;
+    font-weight: 700;
+    font-size: .86rem;
+    padding: .58rem 1rem;
+    flex: 0 0 auto;
+    box-shadow: 0 8px 18px rgba(61, 35, 110, 0.08);
+}
+
+.marketing-dashboard-page .month-button-group .btn:hover {
+    background: #ffffff;
+    color: #4b2f7c;
+    border-color: rgba(255, 255, 255, 0.36);
+    transform: translateY(-1px);
+}
+
+.marketing-dashboard-page .month-button-group .btn.active {
+    background: rgba(76, 46, 126, 0.94);
+    color: #fff;
+    border-color: rgba(76, 46, 126, 0.94);
+    box-shadow: 0 10px 20px rgba(50, 28, 87, 0.22);
+}
+
+@media (max-width: 1199.98px) {
+    .marketing-dashboard-page .dashboard-header-tools {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-card {
+        min-width: unset;
+        width: 100%;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .marketing-dashboard-page .dashboard-header-action {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+
+    .marketing-dashboard-page .dashboard-header-intro {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .marketing-dashboard-page .week-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .marketing-dashboard-page .month-button-group {
+        width: 100%;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn {
+        flex: 1 1 calc(50% - 8px);
+        text-align: center;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .marketing-dashboard-page .week-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .marketing-dashboard-page .month-button-group {
+        width: 100%;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn {
+        flex: 1 1 calc(50% - 8px);
+        text-align: center;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .marketing-dashboard-page .week-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .marketing-dashboard-page .month-button-group {
+        width: 100%;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn {
+        flex: 1 1 calc(50% - 10px);
+        text-align: center;
+    }
+}
+
+.marketing-dashboard-page .dashboard-header-top {
+        width: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-header-intro {
+        max-width: 760px;
+    }
+
+    .marketing-dashboard-page .dashboard-header-action {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-start;
+        margin-left: auto;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-card {
+        width: 100%;
+        padding: 20px 22px;
+        border-radius: 22px;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-card-soft {
+        background: linear-gradient(135deg, rgba(245, 240, 251, 0.92) 0%, rgba(235, 226, 248, 0.96) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .marketing-dashboard-page .dashboard-filter-label {
+        font-size: .8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #5B3E8E;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-filter-help {
+        font-size: .9rem;
+        color: #5f6775;
+        line-height: 1.55;
+        max-width: 760px;
+    }
+
+    .marketing-dashboard-page .month-button-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .marketing-dashboard-page .month-button-group .btn {
+        border-radius: 999px !important;
+        border: 1px solid rgba(91, 62, 142, 0.10);
+        background: rgba(255, 255, 255, 0.95);
+        color: #5B3E8E;
+        font-weight: 700;
+        font-size: .86rem;
+        padding: .58rem 1rem;
+        flex: 0 0 auto;
+        box-shadow: 0 8px 18px rgba(61, 35, 110, 0.05);
+    }
+
+    .marketing-dashboard-page .month-button-group .btn:hover {
+        background: #ffffff;
+        color: #4b2f7c;
+        border-color: rgba(91, 62, 142, 0.18);
+        transform: translateY(-1px);
+    }
+
+    .marketing-dashboard-page .month-button-group .btn.active {
+        background: rgba(76, 46, 126, 0.96);
+        color: #fff;
+        border-color: rgba(76, 46, 126, 0.96);
+        box-shadow: 0 10px 20px rgba(50, 28, 87, 0.18);
+    }
+
+    .marketing-dashboard-page .dashboard-period-box {
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: #fff;
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-period-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-value {
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: #2d1f4f;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-period-help {
+        font-size: .86rem;
+        color: #5f6775;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip {
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip.empty {
+        background: #fcfcfd;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-label {
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #6f5b97;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-title {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .dashboard-monthly-chip-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 4px;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .week-filter-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .marketing-dashboard-page .week-filter-subtitle {
+        font-size: .88rem;
+        color: #6b7280;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .week-filter-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: #fff;
+        text-decoration: none;
+        color: inherit;
+        transition: all .18s ease;
+        min-height: 112px;
+        box-shadow: 0 6px 18px rgba(91, 62, 142, 0.04);
+    }
+
+    .marketing-dashboard-page .week-filter-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(91, 62, 142, 0.28);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.08);
+    }
+
+    .marketing-dashboard-page .week-filter-card.active {
+        border-color: rgba(91, 62, 142, 0.34);
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+        box-shadow: 0 10px 24px rgba(91, 62, 142, 0.10);
+    }
+
+    .marketing-dashboard-page .week-filter-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-card.active .week-filter-icon {
+        background: rgba(91, 62, 142, 0.16);
+        color: #4b2f7c;
+    }
+
+    .marketing-dashboard-page .week-filter-body {
+        min-width: 0;
+    }
+
+    .marketing-dashboard-page .week-filter-name {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 2px;
+    }
+
+    .marketing-dashboard-page .week-filter-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .week-filter-mini {
+        font-size: .8rem;
+        color: #7c8698;
+        line-height: 1.45;
+    }
+
+    .marketing-dashboard-page .week-filter-empty {
+        grid-column: 1 / -1;
+    }
+
+    .marketing-dashboard-page .chart-wrap {
+        position: relative;
+        min-height: 340px;
+    }
+
+    .marketing-dashboard-page .insight-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .marketing-dashboard-page .insight-card {
+        border: 1px solid #ebe6f5;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        padding: 18px;
+        box-shadow: 0 8px 20px rgba(91, 62, 142, 0.04);
+    }
+
+    .marketing-dashboard-page .insight-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .marketing-dashboard-page .insight-card-title {
+        font-size: 1.02rem;
+        font-weight: 800;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .marketing-dashboard-page .insight-card-period {
+        font-size: .86rem;
+        color: #6b7280;
+    }
+
+    .marketing-dashboard-page .insight-card-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-dashboard-page .insight-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .marketing-dashboard-page .insight-mini-box {
+        border-radius: 16px;
+        border: 1px solid #ece7f6;
+        background: #fff;
+        padding: 12px 14px;
+        min-height: 110px;
+    }
+
+    .marketing-dashboard-page .insight-mini-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .insight-mini-value {
+        color: #1f2937;
+        line-height: 1.6;
+        white-space: pre-line;
+        font-size: .9rem;
+    }
+
+    .marketing-dashboard-page .monthly-summary-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid #ebe6f5;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        height: 100%;
+    }
+
+    .marketing-dashboard-page .monthly-summary-title {
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .monthly-summary-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini-grid,
+    .marketing-dashboard-page .snapshot-compact-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini,
+    .marketing-dashboard-page .snapshot-compact-item {
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: #fff;
+        border: 1px solid #ece7f6;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini .mini-label,
+    .marketing-dashboard-page .snapshot-compact-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+    }
+
+    .marketing-dashboard-page .monthly-summary-mini .mini-value,
+    .marketing-dashboard-page .snapshot-compact-value {
+        font-size: .92rem;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.35;
+    }
+
+    .marketing-dashboard-page .monthly-summary-block,
+    .marketing-dashboard-page .text-block-item {
+        padding-top: 12px;
+        margin-top: 12px;
+        border-top: 1px solid #eef2f7;
+    }
+
+    .marketing-dashboard-page .monthly-summary-label {
+        font-size: .76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        margin-bottom: 6px;
+    }
+
+    .marketing-dashboard-page .monthly-summary-value {
+        color: #1f2937;
+        line-height: 1.65;
+        white-space: pre-line;
+    }
+
+    .marketing-dashboard-page .insight-box {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+        color: #5f6775;
+        line-height: 1.6;
+    }
+
+    .marketing-dashboard-page .simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .marketing-dashboard-page .simple-list-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .marketing-dashboard-page .simple-list-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+        line-height: 1.4;
+    }
+
+    .marketing-dashboard-page .simple-list-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.5;
+        margin-top: 2px;
+    }
+
+    .marketing-dashboard-page .simple-list-tag {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #6b7280;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+    .marketing-dashboard-page .small-empty-state {
+        padding: 24px 18px;
+    }
+
+    @media (max-width: 1399.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 1199.98px) {
+        .marketing-dashboard-page .dashboard-header-action {
+            width: 100%;
+            justify-content: flex-start;
+            margin-left: 0;
+        }
+
+        .marketing-dashboard-page .dashboard-header-intro {
+            max-width: 100%;
+        }
+
+        .marketing-dashboard-page .insight-card-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-dashboard-page .week-filter-grid,
+        .marketing-dashboard-page .insight-mini-grid,
+        .marketing-dashboard-page .monthly-summary-mini-grid,
+        .marketing-dashboard-page .snapshot-compact-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .marketing-dashboard-page .week-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .marketing-dashboard-page .month-button-group .btn {
+            flex: 1 1 calc(50% - 10px);
+            text-align: center;
+        }
+    }
+
+    .marketing-dashboard-page .dashboard-header-content {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+}
+
+.marketing-dashboard-page .dashboard-header-top {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.marketing-dashboard-page .dashboard-header-intro {
+    flex: 1 1 720px;
+    max-width: 760px;
+}
+
+.marketing-dashboard-page .dashboard-header-action {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+}
+
+.marketing-dashboard-page .dashboard-header-filter-row {
+    width: 100%;
+    margin-top: 20px;
+}
+
+.marketing-dashboard-page .dashboard-filter-card {
+    width: 100% !important;
+    max-width: none !important;
+    display: block;
+    padding: 20px 22px;
+    border-radius: 22px;
+}
+
+.marketing-dashboard-page .dashboard-filter-card-soft {
+    background: linear-gradient(135deg, rgba(245, 240, 251, 0.92) 0%, rgba(235, 226, 248, 0.96) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.marketing-dashboard-page .dashboard-filter-label {
+    font-size: .8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #5B3E8E;
+    margin-bottom: 4px;
+}
+
+.marketing-dashboard-page .dashboard-filter-help {
+    font-size: .9rem;
+    color: #5f6775;
+    line-height: 1.55;
+    max-width: none;
+}
+
+.marketing-dashboard-page .month-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+}
+
+.marketing-dashboard-page .month-button-group .btn {
+    border-radius: 999px !important;
+    border: 1px solid rgba(91, 62, 142, 0.10);
+    background: rgba(255, 255, 255, 0.95);
+    color: #5B3E8E;
+    font-weight: 700;
+    font-size: .86rem;
+    padding: .58rem 1rem;
+    flex: 0 0 auto;
+    box-shadow: 0 8px 18px rgba(61, 35, 110, 0.05);
+}
+
+.marketing-dashboard-page .month-button-group .btn:hover {
+    background: #ffffff;
+    color: #4b2f7c;
+    border-color: rgba(91, 62, 142, 0.18);
+    transform: translateY(-1px);
+}
+
+.marketing-dashboard-page .month-button-group .btn.active {
+    background: rgba(76, 46, 126, 0.96);
+    color: #fff;
+    border-color: rgba(76, 46, 126, 0.96);
+    box-shadow: 0 10px 20px rgba(50, 28, 87, 0.18);
+}
+
+@media (max-width: 1199.98px) {
+    .marketing-dashboard-page .dashboard-header-action {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-start;
+    }
+
+    .marketing-dashboard-page .dashboard-header-intro {
+        max-width: 100%;
+    }
+}
+
+ .marketing-setup-page .toast { min-width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+    .marketing-setup-page .filter-action-row { padding-top: 2px; }
+    .marketing-setup-page .admin-table thead th {
+        background: #faf8fd;
+        color: #6f5b97;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        border-bottom: 1px solid #ece7f6;
+        padding: 14px 16px;
+        white-space: nowrap;
+    }
+    .marketing-setup-page .admin-table tbody td {
+        padding: 14px 16px;
+        border-color: #f0edf6;
+        vertical-align: middle;
+    }
+    .marketing-setup-page .content-card-footer { padding: 16px 20px; border-top: 1px solid #f0edf6; }
+    .marketing-setup-page .btn-edit-accent {
+        background: linear-gradient(135deg, #FFBE04 0%, #f59e0b 100%);
+        border: 1px solid #f2ab00;
+        color: #3f2d00;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+    }
+    .marketing-setup-page .btn-edit-accent:hover,
+    .marketing-setup-page .btn-edit-accent:focus {
+        background: linear-gradient(135deg, #f5b400 0%, #e69008 100%);
+        border-color: #e2a100;
+        color: #2f2200;
+    }
+    .marketing-setup-page .text-truncate-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .marketing-setup-page .delete-modal-box {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff5f5;
+        border: 1px solid #ffd9d9;
+    }
+    .marketing-setup-page .delete-modal-icon {
+        width: 44px; height: 44px; border-radius: 14px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #fee2e2; color: #dc2626; font-size: 1.1rem; flex-shrink: 0;
+    }
+
+    .marketing-setup-page .toast { min-width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+    .marketing-setup-page .filter-action-row { padding-top: 2px; }
+    .marketing-setup-page .admin-table thead th {
+        background: #faf8fd;
+        color: #6f5b97;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        border-bottom: 1px solid #ece7f6;
+        padding: 14px 16px;
+        white-space: nowrap;
+    }
+    .marketing-setup-page .admin-table tbody td {
+        padding: 14px 16px;
+        border-color: #f0edf6;
+        vertical-align: middle;
+    }
+    .marketing-setup-page .content-card-footer { padding: 16px 20px; border-top: 1px solid #f0edf6; }
+    .marketing-setup-page .btn-edit-accent {
+        background: linear-gradient(135deg, #FFBE04 0%, #f59e0b 100%);
+        border: 1px solid #f2ab00;
+        color: #3f2d00;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+    }
+    .marketing-setup-page .btn-edit-accent:hover,
+    .marketing-setup-page .btn-edit-accent:focus {
+        background: linear-gradient(135deg, #f5b400 0%, #e69008 100%);
+        border-color: #e2a100;
+        color: #2f2200;
+    }
+    .marketing-setup-page .text-truncate-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .marketing-setup-page .delete-modal-box {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff5f5;
+        border: 1px solid #ffd9d9;
+    }
+    .marketing-setup-page .delete-modal-icon {
+        width: 44px; height: 44px; border-radius: 14px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #fee2e2; color: #dc2626; font-size: 1.1rem; flex-shrink: 0;
+    }

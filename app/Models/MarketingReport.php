@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -73,13 +74,13 @@ class MarketingReport extends Model
     {
         static::creating(function (MarketingReport $report) {
             if (blank($report->slug) && filled($report->title)) {
-                $report->slug = \Illuminate\Support\Str::slug($report->title);
+                $report->slug = Str::slug($report->title);
             }
         });
 
         static::updating(function (MarketingReport $report) {
             if (blank($report->slug) && filled($report->title)) {
-                $report->slug = \Illuminate\Support\Str::slug($report->title);
+                $report->slug = Str::slug($report->title);
             }
         });
     }
@@ -92,21 +93,21 @@ class MarketingReport extends Model
 
     public function campaigns(): HasMany
     {
-        return $this->hasMany(MarketingReportCampaign::class)
+        return $this->hasMany(MarketingReportCampaign::class, 'marketing_report_id')
             ->orderBy('sort_order')
             ->orderBy('id');
     }
 
     public function ads(): HasMany
     {
-        return $this->hasMany(MarketingReportAd::class)
+        return $this->hasMany(MarketingReportAd::class, 'marketing_report_id')
             ->orderBy('sort_order')
             ->orderBy('id');
     }
 
     public function events(): HasMany
     {
-        return $this->hasMany(MarketingReportEvent::class)
+        return $this->hasMany(MarketingReportEvent::class, 'marketing_report_id')
             ->orderBy('sort_order')
             ->orderBy('event_date')
             ->orderBy('id');
@@ -124,6 +125,29 @@ class MarketingReport extends Model
 
     /*
     |--------------------------------------------------------------------------
+
+    | Scopes
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeWeekly(Builder $query): Builder
+    {
+        return $query->where('period_type', 'weekly');
+    }
+
+    public function scopeMonthly(Builder $query): Builder
+    {
+        return $query->where('period_type', 'monthly');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+
     | Helpers
     |--------------------------------------------------------------------------
     */
@@ -138,19 +162,78 @@ class MarketingReport extends Model
             && $this->is_insight_completed;
     }
 
+    public function getPeriodLabelAttribute(): string
+    {
+        return match ($this->period_type) {
+            'weekly' => 'Weekly',
+            'monthly' => 'Monthly',
+            default => ucfirst((string) $this->period_type),
+        };
+    }
+
+    public function availableSetupCampaigns(): Builder
+    {
+        if (blank($this->start_date) || blank($this->end_date)) {
+            return MarketingSetupCampaign::query()->whereRaw('1 = 0');
+        }
+
+        return MarketingSetupCampaign::query()
+            ->active()
+            ->overlappingPeriod(
+                $this->start_date->toDateString(),
+                $this->end_date->toDateString()
+            )
+            ->orderBy('start_date')
+            ->orderBy('name');
+    }
+
+    public function availableSetupAds(): Builder
+    {
+        if (blank($this->start_date) || blank($this->end_date)) {
+            return MarketingSetupAd::query()->whereRaw('1 = 0');
+        }
+
+        return MarketingSetupAd::query()
+            ->active()
+            ->overlappingPeriod(
+                $this->start_date->toDateString(),
+                $this->end_date->toDateString()
+            )
+            ->orderBy('start_date')
+            ->orderBy('ad_name');
+    }
+
     public function recalculateTotals(): void
     {
-        $this->total_budget = (
-            $this->campaigns()->sum('budget') +
-            $this->ads()->sum('budget') +
-            $this->events()->sum('budget')
-        );
+        $this->loadMissing([
+            'campaigns',
+            'ads',
+            'events',
+        ]);
 
-        $this->total_actual_spend = (
-            $this->campaigns()->sum('actual_spend') +
-            $this->ads()->sum('actual_spend')
-        );
+        $campaignBudget = $this->campaigns->sum(function ($campaign) {
+            return (float) ($campaign->resolved_budget ?? $campaign->budget ?? 0);
+        });
 
-        $this->save();
+        $adBudget = $this->ads->sum(function ($ad) {
+            return (float) ($ad->resolved_budget ?? $ad->budget ?? 0);
+        });
+
+        $eventBudget = $this->events->sum(function ($event) {
+            return (float) ($event->budget ?? 0);
+        });
+
+        $campaignActualSpend = $this->campaigns->sum(function ($campaign) {
+            return (float) ($campaign->actual_spend ?? 0);
+        });
+
+        $adActualSpend = $this->ads->sum(function ($ad) {
+            return (float) ($ad->actual_spend ?? 0);
+        });
+
+        $this->total_budget = $campaignBudget + $adBudget + $eventBudget;
+        $this->total_actual_spend = $campaignActualSpend + $adActualSpend;
+
+        $this->saveQuietly();
     }
 }

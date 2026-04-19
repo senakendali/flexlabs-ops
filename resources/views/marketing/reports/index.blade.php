@@ -26,6 +26,12 @@
         </div>
     </div>
 
+    <div
+        id="toastContainer"
+        class="toast-container position-fixed top-0 end-0 p-3"
+        style="z-index: 1090;"
+    ></div>
+
     @php
         $summaryDraft = $reports->where('status', 'draft')->count();
         $summaryPublished = $reports->where('status', 'published')->count();
@@ -118,11 +124,13 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-lg-4">
                         <label class="form-label">Search</label>
-                        <input type="text"
-                               name="search"
-                               class="form-control"
-                               value="{{ request('search') }}"
-                               placeholder="Search title, report no, or slug">
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            value="{{ request('search') }}"
+                            placeholder="Search title, report no, or slug"
+                        >
                     </div>
 
                     <div class="col-lg-3">
@@ -145,7 +153,8 @@
                     </div>
 
                     <div class="col-lg-2">
-                        <div class="d-grid gap-2">
+                        <label class="form-label d-block opacity-0">Action</label>
+                        <div class="d-flex gap-2 justify-content-lg-end flex-wrap">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-funnel me-1"></i> Apply
                             </button>
@@ -184,7 +193,7 @@
                             <th>Sections</th>
                             <th>Summary</th>
                             <th>Updated By</th>
-                            <th class="text-end pe-4">Action</th>
+                            <th class="text-center pe-4" style="width: 170px;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -286,27 +295,38 @@
                                     </div>
                                 </td>
 
-                                <td style="min-width: 250px;">
-                                    <div class="summary-metric-list">
-                                        <div class="summary-metric-item">
-                                            <span class="label">Leads</span>
-                                            <span class="value">{{ number_format($item->total_leads ?? 0) }}</span>
+                                <td style="min-width: 300px;">
+                                    <div class="summary-card-grid">
+                                        <div class="summary-card-mini">
+                                            <div class="summary-card-head">
+                                                <span class="summary-card-icon">
+                                                    <i class="bi bi-people"></i>
+                                                </span>
+                                                <span class="summary-card-label">Leads</span>
+                                            </div>
+                                            <div class="summary-card-value">{{ number_format($item->total_leads ?? 0) }}</div>
                                         </div>
-                                        <div class="summary-metric-item">
-                                            <span class="label">Registrants</span>
-                                            <span class="value">{{ number_format($item->total_registrants ?? 0) }}</span>
+
+                                        <div class="summary-card-mini">
+                                            <div class="summary-card-head">
+                                                <span class="summary-card-icon">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                </span>
+                                                <span class="summary-card-label">Conversions</span>
+                                            </div>
+                                            <div class="summary-card-value">{{ number_format($item->total_conversions ?? 0) }}</div>
                                         </div>
-                                        <div class="summary-metric-item">
-                                            <span class="label">Attendees</span>
-                                            <span class="value">{{ number_format($item->total_attendees ?? 0) }}</span>
-                                        </div>
-                                        <div class="summary-metric-item">
-                                            <span class="label">Conversions</span>
-                                            <span class="value">{{ number_format($item->total_conversions ?? 0) }}</span>
-                                        </div>
-                                        <div class="summary-metric-item">
-                                            <span class="label">Revenue</span>
-                                            <span class="value">Rp{{ number_format((float) $item->total_revenue, 0, ',', '.') }}</span>
+
+                                        <div class="summary-card-mini summary-card-revenue">
+                                            <div class="summary-card-head">
+                                                <span class="summary-card-icon">
+                                                    <i class="bi bi-cash-stack"></i>
+                                                </span>
+                                                <span class="summary-card-label">Revenue</span>
+                                            </div>
+                                            <div class="summary-card-value">
+                                                Rp{{ number_format((float) $item->total_revenue, 0, ',', '.') }}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -320,19 +340,32 @@
                                     </div>
                                 </td>
 
-                                <td class="text-end pe-4">
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('marketing.reports.show', $item) }}" class="btn btn-light border">
-                                            View
+                                <td class="text-center pe-4">
+                                    <div class="d-inline-flex gap-2">
+                                        <a
+                                            href="{{ route('marketing.reports.show', $item) }}"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            title="View"
+                                        >
+                                            <i class="bi bi-eye"></i>
                                         </a>
-                                        <a href="{{ route('marketing.reports.edit', $item) }}" class="btn btn-light border">
-                                            Edit
+
+                                        <a
+                                            href="{{ route('marketing.reports.edit', $item) }}"
+                                            class="btn btn-sm btn-outline-primary"
+                                            title="Edit"
+                                        >
+                                            <i class="bi bi-pencil-square"></i>
                                         </a>
-                                        <button type="button"
-                                                class="btn btn-light border text-danger delete-report-btn"
-                                                data-url="{{ route('marketing.reports.destroy', $item) }}"
-                                                data-title="{{ $item->title }}">
-                                            Delete
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-danger delete-report-btn"
+                                            data-url="{{ route('marketing.reports.destroy', $item) }}"
+                                            data-title="{{ $item->title }}"
+                                            title="Delete"
+                                        >
+                                            <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -367,6 +400,43 @@
                 {{ $reports->links() }}
             </div>
         @endif
+    </div>
+</div>
+
+<div class="modal fade" id="deleteReportModal" tabindex="-1" aria-labelledby="deleteReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold" id="deleteReportModalLabel">Delete Report</h5>
+                    <p class="text-muted small mb-0 mt-1">Tindakan ini tidak bisa dibatalkan.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body pt-3">
+                <div class="delete-report-modal-box">
+                    <div class="delete-report-modal-icon">
+                        <i class="bi bi-trash3"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold text-dark mb-1">Yakin mau hapus report ini?</div>
+                        <div class="text-muted small">
+                            Report <span class="fw-semibold text-dark" id="deleteReportTitle">-</span> akan dihapus permanen.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteReportBtn">
+                    <i class="bi bi-trash me-1"></i> Delete Report
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
@@ -416,27 +486,80 @@
         border-color: #c9ebd4;
     }
 
-    .marketing-report-index-page .summary-metric-list {
+    .marketing-report-index-page .summary-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .marketing-report-index-page .summary-card-mini {
+        position: relative;
+        padding: 12px 12px 11px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8f6fc 100%);
+        border: 1px solid #ece7f6;
+        box-shadow: 0 8px 20px rgba(91, 62, 142, 0.04);
+        min-height: 84px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
-    }
-
-    .marketing-report-index-page .summary-metric-item {
-        display: flex;
         justify-content: space-between;
-        gap: 12px;
-        font-size: .84rem;
     }
 
-    .marketing-report-index-page .summary-metric-item .label {
-        color: #6b7280;
+    .marketing-report-index-page .summary-card-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
     }
 
-    .marketing-report-index-page .summary-metric-item .value {
+    .marketing-report-index-page .summary-card-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe9fb;
+        color: #5B3E8E;
+        font-size: .9rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-report-index-page .summary-card-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #7b8494;
+        line-height: 1.2;
+    }
+
+    .marketing-report-index-page .summary-card-value {
+        font-size: 1.08rem;
+        font-weight: 800;
+        line-height: 1.15;
         color: #1f2937;
-        font-weight: 600;
-        text-align: right;
+        word-break: break-word;
+    }
+
+    .marketing-report-index-page .summary-card-revenue {
+        grid-column: 1 / -1;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.10) 0%, rgba(142, 106, 201, 0.16) 100%);
+        border-color: rgba(91, 62, 142, 0.18);
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-icon {
+        background: rgba(91, 62, 142, 0.14);
+        color: #4b2f7c;
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-label {
+        color: #69588d;
+    }
+
+    .marketing-report-index-page .summary-card-revenue .summary-card-value {
+        color: #5B3E8E;
+        font-size: 1.15rem;
     }
 
     .marketing-report-index-page .empty-state-box {
@@ -476,61 +599,199 @@
         border-top: 1px solid #eef2f7;
         background: #fff;
     }
+
+    .delete-report-modal-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px;
+        border-radius: 16px;
+        background: #fff5f5;
+        border: 1px solid #ffd9d9;
+    }
+
+    .delete-report-modal-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fee2e2;
+        color: #dc2626;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    .marketing-report-index-page .toast {
+        min-width: 280px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    @media (max-width: 991.98px) {
+        .marketing-report-index-page .content-card-body .btn {
+            white-space: nowrap;
+        }
+    }
+
+    @media (max-width: 1399.98px) {
+        .marketing-report-index-page .summary-card-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .marketing-report-index-page .summary-card-revenue {
+            grid-column: auto;
+        }
+    }
 </style>
 @endpush
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.delete-report-btn').forEach((button) => {
-        button.addEventListener('click', async function () {
-            const url = this.dataset.url;
-            const title = this.dataset.title || 'this report';
+    const modalElement = document.getElementById('deleteReportModal');
+    const deleteReportTitle = document.getElementById('deleteReportTitle');
+    const confirmDeleteReportBtn = document.getElementById('confirmDeleteReportBtn');
+    const toastContainer = document.getElementById('toastContainer');
 
-            const confirmed = confirm(`Delete "${title}"?`);
-            if (!confirmed) return;
+    if (!modalElement || !confirmDeleteReportBtn || typeof bootstrap === 'undefined') {
+        return;
+    }
 
-            this.disabled = true;
+    const deleteModal = new bootstrap.Modal(modalElement);
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    },
-                    body: new URLSearchParams({
-                        _method: 'DELETE',
-                    }),
-                });
+    let selectedDeleteUrl = null;
+    let selectedDeleteTrigger = null;
+    let reloadTimeout = null;
 
-                const data = await response.json();
+    function showToast(message, type = 'success') {
+        if (!toastContainer) return;
 
-                if (!response.ok) {
-                    if (window.showToast) {
-                        window.showToast(data.message || 'Failed to delete report.', 'danger');
-                    } else {
-                        alert(data.message || 'Failed to delete report.');
-                    }
-                    this.disabled = false;
-                    return;
-                }
+        const toastId = 'toast-' + Date.now();
 
-                if (window.showToast) {
-                    window.showToast(data.message || 'Report deleted successfully.', 'success');
-                }
+        const bgClass = {
+            success: 'bg-success',
+            danger: 'bg-danger',
+            warning: 'bg-warning text-dark',
+            info: 'bg-info text-dark'
+        }[type] || 'bg-success';
 
-                window.location.reload();
-            } catch (error) {
-                if (window.showToast) {
-                    window.showToast('An error occurred while deleting the report.', 'danger');
-                } else {
-                    alert('An error occurred while deleting the report.');
-                }
-                this.disabled = false;
-            }
+        const closeBtnClass = (type === 'warning' || type === 'info')
+            ? 'btn-close me-2 m-auto'
+            : 'btn-close btn-close-white me-2 m-auto';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="${closeBtnClass}" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, {
+            delay: 1500
         });
+
+        toast.show();
+
+        toastEl.addEventListener('hidden.bs.toast', function () {
+            toastEl.remove();
+        });
+    }
+
+    function resetDeleteState() {
+        selectedDeleteUrl = null;
+        selectedDeleteTrigger = null;
+        confirmDeleteReportBtn.disabled = false;
+        confirmDeleteReportBtn.innerHTML = '<i class="bi bi-trash me-1"></i> Delete Report';
+    }
+
+    function scheduleReload() {
+        if (reloadTimeout) {
+            clearTimeout(reloadTimeout);
+        }
+
+        reloadTimeout = setTimeout(function () {
+            window.location.reload();
+        }, 1200);
+    }
+
+    async function parseResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            return await response.json();
+        }
+
+        const text = await response.text();
+
+        return {
+            success: false,
+            message: text || 'Unexpected server response.',
+        };
+    }
+
+    document.querySelectorAll('.delete-report-btn').forEach((button) => {
+        button.addEventListener('click', function () {
+            selectedDeleteUrl = this.dataset.url;
+            selectedDeleteTrigger = this;
+
+            deleteReportTitle.textContent = this.dataset.title || 'this report';
+            deleteModal.show();
+        });
+    });
+
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        resetDeleteState();
+    });
+
+    confirmDeleteReportBtn.addEventListener('click', async function () {
+        if (!selectedDeleteUrl) {
+            return;
+        }
+
+        confirmDeleteReportBtn.disabled = true;
+        confirmDeleteReportBtn.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Deleting...';
+
+        if (selectedDeleteTrigger) {
+            selectedDeleteTrigger.disabled = true;
+        }
+
+        try {
+            const response = await fetch(selectedDeleteUrl, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            const result = await parseResponse(response);
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Failed to delete report.');
+            }
+
+            deleteModal.hide();
+            showToast(result.message || 'Report deleted successfully.', 'success');
+            scheduleReload();
+        } catch (error) {
+            showToast(error.message || 'Failed to delete report.', 'danger');
+
+            confirmDeleteReportBtn.disabled = false;
+            confirmDeleteReportBtn.innerHTML = '<i class="bi bi-trash me-1"></i> Delete Report';
+
+            if (selectedDeleteTrigger) {
+                selectedDeleteTrigger.disabled = false;
+            }
+        }
     });
 });
 </script>

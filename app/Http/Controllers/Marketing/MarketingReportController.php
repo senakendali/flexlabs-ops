@@ -123,7 +123,12 @@ class MarketingReportController extends Controller
             'updater',
         ]);
 
-        return view('marketing.reports.show', compact('report'));
+        return view('marketing.reports.show', [
+            'marketingReport' => $report,
+            'campaigns' => $report->campaigns,
+            'ads' => $report->ads,
+            'events' => $report->events,
+        ]);
     }
 
     public function edit(MarketingReport $report): View

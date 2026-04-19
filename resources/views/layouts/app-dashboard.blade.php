@@ -148,65 +148,68 @@
                                 </div>
                             </div>
 
-                            <div class="dropdown">
-    <button
-        class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
-            'marketing.*',
-            'quiz.*'
-        ) ? 'active' : '' }}"
-        type="button"
-        data-bs-toggle="dropdown"
-        aria-expanded="false"
-    >
-        <i class="bi bi-megaphone-fill"></i>
-        <span>Marketing</span>
-    </button>
+                           <div class="dropdown">
+                                <button
+                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+                                        'marketing.*',
+                                        'marketing.setup.*',
+                                        'quiz.*'
+                                    ) ? 'active' : '' }}"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                >
+                                    <i class="bi bi-megaphone-fill"></i>
+                                    <span>Marketing</span>
+                                </button>
 
-    <div class="dropdown-menu dropdown-menu-marketing">
-        <div class="dropdown-section-title">Reporting</div>
+                                <div class="dropdown-menu dropdown-menu-marketing">
+                                    <div class="dropdown-section-title">Reporting</div>
 
-        @if (Route::has('marketing.dashboard'))
-            <a class="dropdown-item {{ request()->routeIs('marketing.dashboard') ? 'active' : '' }}"
-               href="{{ route('marketing.dashboard') }}">
-                <i class="bi bi-speedometer2 me-2"></i>Dashboard
-            </a>
-        @endif
+                                    @if (Route::has('marketing.dashboard'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.dashboard') ? 'active' : '' }}"
+                                        href="{{ route('marketing.dashboard') }}">
+                                            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                                        </a>
+                                    @endif
 
-        @if (Route::has('marketing.reports.index'))
-            <a class="dropdown-item {{ request()->routeIs('marketing.reports.*') ? 'active' : '' }}"
-               href="{{ route('marketing.reports.index') }}">
-                <i class="bi bi-bar-chart-line me-2"></i>Reports
-            </a>
-        @endif
+                                    @if (Route::has('marketing.reports.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.reports.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.reports.index') }}">
+                                            <i class="bi bi-bar-chart-line me-2"></i>Reports
+                                        </a>
+                                    @endif
 
-        
+                                    <div class="dropdown-divider"></div>
 
-        @if (Route::has('marketing.plans.index'))
-            <a class="dropdown-item {{ request()->routeIs('marketing.plans.*') ? 'active' : '' }}"
-               href="{{ route('marketing.plans.index') }}">
-                <i class="bi bi-journal-check me-2"></i>Plans
-            </a>
-        @endif
+                                    <div class="dropdown-section-title">Setup</div>
 
-        @if (Route::has('marketing.events.index'))
-            <a class="dropdown-item {{ request()->routeIs('marketing.events.*') ? 'active' : '' }}"
-               href="{{ route('marketing.events.index') }}">
-                <i class="bi bi-calendar-event me-2"></i>Events
-            </a>
-        @endif
+                                    @if (Route::has('marketing.setup.campaigns.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.setup.campaigns.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.setup.campaigns.index') }}">
+                                            <i class="bi bi-bullseye me-2"></i>Campaign Setup
+                                        </a>
+                                    @endif
 
-        <div class="dropdown-divider"></div>
+                                    @if (Route::has('marketing.setup.ads.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('marketing.setup.ads.*') ? 'active' : '' }}"
+                                        href="{{ route('marketing.setup.ads.index') }}">
+                                            <i class="bi bi-badge-ad me-2"></i>Ads Setup
+                                        </a>
+                                    @endif
 
-        <div class="dropdown-section-title">Tools</div>
+                                    <div class="dropdown-divider"></div>
 
-        @if (Route::has('quiz.index'))
-            <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
-               href="{{ route('quiz.index') }}">
-                <i class="bi bi-ui-checks-grid me-2"></i>Quiz Management
-            </a>
-        @endif
-    </div>
-</div>
+                                    <div class="dropdown-section-title">Tools</div>
+
+                                    @if (Route::has('quiz.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
+                                        href="{{ route('quiz.index') }}">
+                                            <i class="bi bi-ui-checks-grid me-2"></i>Quiz Management
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
 
                             <div class="dropdown">
                                 <button

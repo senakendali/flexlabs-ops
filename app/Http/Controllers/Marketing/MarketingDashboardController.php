@@ -3,234 +3,369 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
-use App\Models\MarketingAd;
-use App\Models\MarketingCampaign;
-use App\Models\MarketingEvent;
-use App\Models\MarketingLeadSource;
+use App\Models\MarketingReport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class MarketingDashboardController extends Controller
 {
     public function index(Request $request): View
     {
-        $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
-        $dateTo = $request->input('date_to', now()->toDateString());
+        $selectedMonth = $request->input('month', now()->format('Y-m'));
 
-        $campaignBaseQuery = MarketingCampaign::query()
-            ->where(function ($query) use ($dateFrom, $dateTo) {
-                $query->whereBetween('start_date', [$dateFrom, $dateTo])
-                    ->orWhereBetween('end_date', [$dateFrom, $dateTo])
-                    ->orWhere(function ($subQuery) use ($dateFrom, $dateTo) {
-                        $subQuery->whereDate('start_date', '<=', $dateFrom)
-                            ->whereDate('end_date', '>=', $dateTo);
-                    });
-            });
+        try {
+            $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+        } catch (\Throwable $th) {
+            $monthDate = now()->startOfMonth();
+            $selectedMonth = $monthDate->format('Y-m');
+        }
 
-        $adsBaseQuery = MarketingAd::query()
-            ->where(function ($query) use ($dateFrom, $dateTo) {
-                $query->whereBetween('start_date', [$dateFrom, $dateTo])
-                    ->orWhereBetween('end_date', [$dateFrom, $dateTo])
-                    ->orWhere(function ($subQuery) use ($dateFrom, $dateTo) {
-                        $subQuery->whereDate('start_date', '<=', $dateFrom)
-                            ->whereDate('end_date', '>=', $dateTo);
-                    });
-            });
+        $monthStart = $monthDate->copy()->startOfMonth();
+        $monthEnd = $monthDate->copy()->endOfMonth();
 
-        $eventsBaseQuery = MarketingEvent::query()
-            ->whereBetween('event_date', [$dateFrom, $dateTo]);
+        $selectedWeek = $request->input('week', 'all');
 
-        $leadSourcesBaseQuery = MarketingLeadSource::query()
-            ->whereBetween('date', [$dateFrom, $dateTo]);
-
-        $campaignStats = [
-            'total' => (clone $campaignBaseQuery)->count(),
-            'planned' => (clone $campaignBaseQuery)->where('status', 'planned')->count(),
-            'ongoing' => (clone $campaignBaseQuery)->where('status', 'ongoing')->count(),
-            'completed' => (clone $campaignBaseQuery)->where('status', 'completed')->count(),
-            'budget' => (float) (clone $campaignBaseQuery)->sum('budget'),
-            'actual_leads' => (int) (clone $campaignBaseQuery)->sum('actual_leads'),
-            'actual_conversions' => (int) (clone $campaignBaseQuery)->sum('actual_conversions'),
-        ];
-
-        $adsStats = [
-            'total' => (clone $adsBaseQuery)->count(),
-            'active' => (clone $adsBaseQuery)->where('status', 'active')->count(),
-            'spend' => (float) (clone $adsBaseQuery)->sum('spend'),
-            'impressions' => (int) (clone $adsBaseQuery)->sum('impressions'),
-            'clicks' => (int) (clone $adsBaseQuery)->sum('clicks'),
-            'leads' => (int) (clone $adsBaseQuery)->sum('leads'),
-            'conversions' => (int) (clone $adsBaseQuery)->sum('conversions'),
-        ];
-
-        $eventsStats = [
-            'total' => (clone $eventsBaseQuery)->count(),
-            'planned' => (clone $eventsBaseQuery)->where('status', 'planned')->count(),
-            'ongoing' => (clone $eventsBaseQuery)->where('status', 'ongoing')->count(),
-            'completed' => (clone $eventsBaseQuery)->where('status', 'completed')->count(),
-            'target_participants' => (int) (clone $eventsBaseQuery)->sum('target_participants'),
-            'registrants' => (int) (clone $eventsBaseQuery)->sum('registrants'),
-            'attendees' => (int) (clone $eventsBaseQuery)->sum('attendees'),
-            'leads_generated' => (int) (clone $eventsBaseQuery)->sum('leads_generated'),
-            'conversions' => (int) (clone $eventsBaseQuery)->sum('conversions'),
-            'budget' => (float) (clone $eventsBaseQuery)->sum('budget'),
-        ];
-
-        $leadStats = [
-            'total_sources' => (clone $leadSourcesBaseQuery)->count(),
-            'leads' => (int) (clone $leadSourcesBaseQuery)->sum('leads'),
-            'qualified_leads' => (int) (clone $leadSourcesBaseQuery)->sum('qualified_leads'),
-            'conversions' => (int) (clone $leadSourcesBaseQuery)->sum('conversions'),
-            'revenue' => (float) (clone $leadSourcesBaseQuery)->sum('revenue'),
-        ];
-
-        $overallCtr = $adsStats['impressions'] > 0
-            ? round(($adsStats['clicks'] / $adsStats['impressions']) * 100, 2)
-            : 0;
-
-        $overallCpc = $adsStats['clicks'] > 0
-            ? round($adsStats['spend'] / $adsStats['clicks'], 2)
-            : 0;
-
-        $overallCpl = $adsStats['leads'] > 0
-            ? round($adsStats['spend'] / $adsStats['leads'], 2)
-            : 0;
-
-        $leadQualificationRate = $leadStats['leads'] > 0
-            ? round(($leadStats['qualified_leads'] / $leadStats['leads']) * 100, 2)
-            : 0;
-
-        $leadConversionRate = $leadStats['qualified_leads'] > 0
-            ? round(($leadStats['conversions'] / $leadStats['qualified_leads']) * 100, 2)
-            : 0;
-
-        $eventAttendanceRate = $eventsStats['target_participants'] > 0
-            ? round(($eventsStats['attendees'] / $eventsStats['target_participants']) * 100, 2)
-            : 0;
-
-        $campaignPerformance = (clone $campaignBaseQuery)
-            ->select([
-                'id',
-                'name',
-                'status',
-                'budget',
-                'actual_leads',
-                'actual_conversions',
+        $weeklyReports = MarketingReport::query()
+            ->withCount(['campaigns', 'ads', 'events'])
+            ->with([
+                'campaigns',
+                'ads',
+                'events',
+                'creator',
+                'updater',
             ])
-            ->latest('start_date')
-            ->limit(5)
+            ->where('period_type', 'weekly')
+            ->whereDate('start_date', '<=', $monthEnd->toDateString())
+            ->whereDate('end_date', '>=', $monthStart->toDateString())
+            ->orderBy('start_date')
+            ->orderBy('id')
             ->get();
 
-        $adsByPlatform = (clone $adsBaseQuery)
-            ->select(
-                'platform',
-                DB::raw('COUNT(*) as total_ads'),
-                DB::raw('SUM(spend) as total_spend'),
-                DB::raw('SUM(leads) as total_leads'),
-                DB::raw('SUM(conversions) as total_conversions')
-            )
-            ->groupBy('platform')
-            ->orderByDesc('total_leads')
-            ->get();
-
-        $leadSourcesSummary = (clone $leadSourcesBaseQuery)
-            ->select(
-                'source_type',
-                DB::raw('SUM(leads) as total_leads'),
-                DB::raw('SUM(qualified_leads) as total_qualified_leads'),
-                DB::raw('SUM(conversions) as total_conversions'),
-                DB::raw('SUM(revenue) as total_revenue')
-            )
-            ->groupBy('source_type')
-            ->orderByDesc('total_leads')
-            ->get();
-
-        $eventPerformance = (clone $eventsBaseQuery)
-            ->select([
-                'id',
-                'name',
-                'event_type',
-                'event_date',
-                'attendees',
-                'leads_generated',
-                'conversions',
-                'status',
+        $monthlyReport = MarketingReport::query()
+            ->withCount(['campaigns', 'ads', 'events'])
+            ->with([
+                'campaigns',
+                'ads',
+                'events',
+                'creator',
+                'updater',
             ])
-            ->latest('event_date')
-            ->limit(5)
-            ->get();
+            ->where('period_type', 'monthly')
+            ->whereDate('start_date', '<=', $monthEnd->toDateString())
+            ->whereDate('end_date', '>=', $monthStart->toDateString())
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->first();
 
-        $monthlyLeadTrend = $this->buildMonthlyLeadTrend($dateFrom, $dateTo);
+        $weekCards = $weeklyReports->values()->map(function ($report, $index) {
+            return [
+                'id' => $report->id,
+                'title' => 'Week ' . ($index + 1),
+                'date_label' => $this->formatDateRange($report->start_date, $report->end_date),
+                'status' => ucfirst($report->status ?? 'draft'),
+                'leads' => (int) ($report->total_leads ?? 0),
+                'conversions' => (int) ($report->total_conversions ?? 0),
+                'revenue' => (float) ($report->total_revenue ?? 0),
+                'actual_spend' => (float) ($report->total_actual_spend ?? 0),
+                'campaigns_count' => (int) ($report->campaigns_count ?? 0),
+                'ads_count' => (int) ($report->ads_count ?? 0),
+                'events_count' => (int) ($report->events_count ?? 0),
+            ];
+        });
 
-        return view('marketing.dashboard', compact(
-            'dateFrom',
-            'dateTo',
-            'campaignStats',
-            'adsStats',
-            'eventsStats',
-            'leadStats',
-            'overallCtr',
-            'overallCpc',
-            'overallCpl',
-            'leadQualificationRate',
-            'leadConversionRate',
-            'eventAttendanceRate',
-            'campaignPerformance',
-            'adsByPlatform',
-            'leadSourcesSummary',
-            'eventPerformance',
-            'monthlyLeadTrend'
-        ));
+        $activeWeeklyReport = null;
+
+        if ($selectedWeek !== 'all') {
+            $activeWeeklyReport = $weeklyReports->firstWhere('id', (int) $selectedWeek);
+        }
+
+        $effectiveReports = $activeWeeklyReport
+            ? collect([$activeWeeklyReport])
+            : $weeklyReports;
+
+        if ($effectiveReports->isEmpty() && $monthlyReport) {
+            $effectiveReports = collect([$monthlyReport]);
+        }
+
+        $summary = [
+            'campaigns' => (int) $effectiveReports->sum('campaigns_count'),
+            'ads' => (int) $effectiveReports->sum('ads_count'),
+            'events' => (int) $effectiveReports->sum('events_count'),
+            'leads' => (int) $effectiveReports->sum('total_leads'),
+            'conversions' => (int) $effectiveReports->sum('total_conversions'),
+            'revenue' => (float) $effectiveReports->sum('total_revenue'),
+            'total_budget' => (float) $effectiveReports->sum('total_budget'),
+            'actual_spend' => (float) $effectiveReports->sum('total_actual_spend'),
+        ];
+
+        $summary['remaining_budget'] = max($summary['total_budget'] - $summary['actual_spend'], 0);
+        $summary['budget_utilization'] = $summary['total_budget'] > 0
+            ? round(($summary['actual_spend'] / $summary['total_budget']) * 100, 1)
+            : 0;
+
+        $campaignRows = $this->buildCampaignRows($effectiveReports);
+        $adRows = $this->buildAdRows($effectiveReports);
+        $eventRows = $this->buildEventRows($effectiveReports);
+
+        $chartSourceCards = $activeWeeklyReport
+            ? $weekCards->where('id', $activeWeeklyReport->id)->values()
+            : $weekCards->values();
+
+        $showChart = $chartSourceCards->count() > 0;
+        $chartPayload = $showChart ? $this->buildChartPayload($chartSourceCards) : null;
+
+        $scopeTitle = $activeWeeklyReport
+            ? ($activeWeeklyReport->title ?: $this->formatDateRange($activeWeeklyReport->start_date, $activeWeeklyReport->end_date))
+            : 'All Weeks in ' . $monthDate->translatedFormat('F Y');
+
+        $scopeLabel = $activeWeeklyReport
+            ? 'Dashboard membaca satu weekly report yang dipilih.'
+            : 'Dashboard menggabungkan seluruh weekly report dalam bulan ini.';
+
+        $insightCards = $this->buildInsightCards(
+            $activeWeeklyReport
+                ? collect([$activeWeeklyReport])
+                : $weeklyReports
+        );
+
+        if ($insightCards->isEmpty() && $monthlyReport) {
+            $insightCards = collect([
+                $this->makeInsightCard(
+                    'Monthly Summary',
+                    $this->formatDateRange($monthlyReport->start_date, $monthlyReport->end_date),
+                    $monthlyReport->summary,
+                    $monthlyReport->key_insight,
+                    $monthlyReport->next_action,
+                    $monthlyReport->notes
+                ),
+            ])->filter(fn ($item) => $item['has_content'])->values();
+        }
+
+        $monthOptions = $this->buildMonthOptions($selectedMonth);
+
+        return view('marketing.dashboard', [
+            'selectedMonth' => $selectedMonth,
+            'selectedWeek' => $selectedWeek,
+            'monthLabel' => $monthDate->translatedFormat('F Y'),
+            'monthOptions' => $monthOptions,
+            'weekCards' => $weekCards,
+            'weeklyReports' => $weeklyReports,
+            'monthlyReport' => $monthlyReport,
+            'activeWeeklyReport' => $activeWeeklyReport,
+            'scopeTitle' => $scopeTitle,
+            'scopeLabel' => $scopeLabel,
+            'summary' => $summary,
+            'campaignRows' => $campaignRows,
+            'adRows' => $adRows,
+            'eventRows' => $eventRows,
+            'showChart' => $showChart,
+            'chartPayload' => $chartPayload,
+            'insightCards' => $insightCards,
+        ]);
     }
 
-    protected function buildMonthlyLeadTrend(string $dateFrom, string $dateTo): array
+    protected function buildCampaignRows(Collection $reports): Collection
     {
-        $start = Carbon::parse($dateFrom)->startOfMonth();
-        $end = Carbon::parse($dateTo)->startOfMonth();
+        return $reports
+            ->flatMap(function ($report) {
+                return $report->campaigns->map(function ($campaign) use ($report) {
+                    return (object) [
+                        'report_title' => $report->title,
+                        'report_no' => $report->report_no,
+                        'report_period_label' => $this->formatDateRange($report->start_date, $report->end_date),
+                        'name' => $campaign->name,
+                        'objective' => $campaign->objective,
+                        'owner_name' => $campaign->owner_name,
+                        'budget' => (float) ($campaign->budget ?? 0),
+                        'actual_spend' => (float) ($campaign->actual_spend ?? 0),
+                        'status' => $campaign->status,
+                        'start_date' => $campaign->start_date,
+                        'end_date' => $campaign->end_date,
+                        'notes' => $campaign->notes,
+                    ];
+                });
+            })
+            ->sortBy([
+                fn ($item) => $item->start_date ?? '9999-12-31',
+                fn ($item) => $item->name ?? '',
+            ])
+            ->values();
+    }
 
-        $periods = [];
-        $cursor = $start->copy();
+    protected function buildAdRows(Collection $reports): Collection
+    {
+        return $reports
+            ->flatMap(function ($report) {
+                return $report->ads->map(function ($ad) use ($report) {
+                    return (object) [
+                        'report_title' => $report->title,
+                        'report_no' => $report->report_no,
+                        'report_period_label' => $this->formatDateRange($report->start_date, $report->end_date),
+                        'platform' => $ad->platform,
+                        'ad_name' => $ad->ad_name,
+                        'objective' => $ad->objective,
+                        'budget' => (float) ($ad->budget ?? 0),
+                        'actual_spend' => (float) ($ad->actual_spend ?? 0),
+                        'status' => $ad->status,
+                        'start_date' => $ad->start_date,
+                        'end_date' => $ad->end_date,
+                        'notes' => $ad->notes,
+                    ];
+                });
+            })
+            ->sortBy([
+                fn ($item) => $item->start_date ?? '9999-12-31',
+                fn ($item) => $item->ad_name ?? '',
+            ])
+            ->values();
+    }
 
-        while ($cursor <= $end) {
-            $key = $cursor->format('Y-m');
-            $periods[$key] = [
-                'label' => $cursor->format('M Y'),
-                'leads' => 0,
-                'qualified_leads' => 0,
-                'conversions' => 0,
-                'revenue' => 0,
+    protected function buildEventRows(Collection $reports): Collection
+    {
+        return $reports
+            ->flatMap(function ($report) {
+                return $report->events->map(function ($event) use ($report) {
+                    return (object) [
+                        'report_title' => $report->title,
+                        'report_no' => $report->report_no,
+                        'report_period_label' => $this->formatDateRange($report->start_date, $report->end_date),
+                        'name' => $event->name,
+                        'event_type' => $event->event_type,
+                        'event_date' => $event->event_date,
+                        'location' => $event->location,
+                        'target_participants' => (int) ($event->target_participants ?? 0),
+                        'budget' => (float) ($event->budget ?? 0),
+                        'status' => $event->status,
+                        'notes' => $event->notes,
+                    ];
+                });
+            })
+            ->sortBy([
+                fn ($item) => $item->event_date ?? '9999-12-31',
+                fn ($item) => $item->name ?? '',
+            ])
+            ->values();
+    }
+
+    protected function buildChartPayload(Collection $cards): array
+    {
+        return [
+            'labels' => $cards->pluck('title')->values(),
+            'leads' => $cards->pluck('leads')->values(),
+            'conversions' => $cards->pluck('conversions')->values(),
+            'revenue_million' => $cards->map(fn ($item) => round(($item['revenue'] ?? 0) / 1000000, 2))->values(),
+            'actual_spend_million' => $cards->map(fn ($item) => round(($item['actual_spend'] ?? 0) / 1000000, 2))->values(),
+        ];
+    }
+
+    protected function buildInsightCards(Collection $reports): Collection
+    {
+        return $reports
+            ->values()
+            ->map(function ($report, $index) {
+                return $this->makeInsightCard(
+                    'Week ' . ($index + 1),
+                    $this->formatDateRange($report->start_date, $report->end_date),
+                    $report->summary,
+                    $report->key_insight,
+                    $report->next_action,
+                    $report->notes
+                );
+            })
+            ->filter(fn ($item) => $item['has_content'])
+            ->values();
+    }
+
+    protected function makeInsightCard(
+        string $title,
+        string $period,
+        ?string $summary,
+        ?string $keyInsight,
+        ?string $nextAction,
+        ?string $notes
+    ): array {
+        $hasContent = filled($summary) || filled($keyInsight) || filled($nextAction) || filled($notes);
+
+        return [
+            'title' => $title,
+            'period' => $period,
+            'summary' => $summary,
+            'key_insight' => $keyInsight,
+            'next_action' => $nextAction,
+            'notes' => $notes,
+            'has_content' => $hasContent,
+        ];
+    }
+
+    protected function buildMonthOptions(string $selectedMonth): array
+    {
+        $minDate = MarketingReport::query()->min('start_date');
+        $maxDate = MarketingReport::query()->max('start_date');
+
+        $rangeStart = $minDate
+            ? Carbon::parse($minDate)->startOfMonth()
+            : now()->copy()->subMonths(5)->startOfMonth();
+
+        $rangeEnd = $maxDate
+            ? Carbon::parse($maxDate)->startOfMonth()
+            : now()->copy()->startOfMonth();
+
+        $defaultStart = now()->copy()->subMonths(5)->startOfMonth();
+        $defaultEnd = now()->copy()->startOfMonth();
+
+        if ($rangeStart->greaterThan($defaultStart)) {
+            $rangeStart = $defaultStart;
+        }
+
+        if ($rangeEnd->lessThan($defaultEnd)) {
+            $rangeEnd = $defaultEnd;
+        }
+
+        try {
+            $selectedDate = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+
+            if ($selectedDate->lessThan($rangeStart)) {
+                $rangeStart = $selectedDate->copy();
+            }
+
+            if ($selectedDate->greaterThan($rangeEnd)) {
+                $rangeEnd = $selectedDate->copy();
+            }
+        } catch (\Throwable $th) {
+            //
+        }
+
+        $months = [];
+        $cursor = $rangeStart->copy();
+
+        while ($cursor <= $rangeEnd) {
+            $months[] = [
+                'value' => $cursor->format('Y-m'),
+                'short_label' => $cursor->translatedFormat('M Y'),
+                'label' => $cursor->translatedFormat('F Y'),
             ];
+
             $cursor->addMonth();
         }
 
-        $rows = MarketingLeadSource::query()
-            ->selectRaw("DATE_FORMAT(date, '%Y-%m') as month_key")
-            ->selectRaw('SUM(leads) as total_leads')
-            ->selectRaw('SUM(qualified_leads) as total_qualified_leads')
-            ->selectRaw('SUM(conversions) as total_conversions')
-            ->selectRaw('SUM(revenue) as total_revenue')
-            ->whereBetween('date', [$dateFrom, $dateTo])
-            ->groupBy('month_key')
-            ->orderBy('month_key')
-            ->get();
+        return array_reverse($months);
+    }
 
-        foreach ($rows as $row) {
-            if (isset($periods[$row->month_key])) {
-                $periods[$row->month_key]['leads'] = (int) $row->total_leads;
-                $periods[$row->month_key]['qualified_leads'] = (int) $row->total_qualified_leads;
-                $periods[$row->month_key]['conversions'] = (int) $row->total_conversions;
-                $periods[$row->month_key]['revenue'] = (float) $row->total_revenue;
-            }
+    protected function formatDateRange($startDate, $endDate): string
+    {
+        $start = $startDate ? Carbon::parse($startDate) : null;
+        $end = $endDate ? Carbon::parse($endDate) : null;
+
+        if (!$start && !$end) {
+            return '-';
         }
 
-        return [
-            'labels' => array_column($periods, 'label'),
-            'leads' => array_column($periods, 'leads'),
-            'qualified_leads' => array_column($periods, 'qualified_leads'),
-            'conversions' => array_column($periods, 'conversions'),
-            'revenue' => array_column($periods, 'revenue'),
-        ];
+        if ($start && $end) {
+            return $start->format('d M') . ' - ' . $end->format('d M Y');
+        }
+
+        return ($start ?? $end)?->format('d M Y') ?? '-';
     }
 }
