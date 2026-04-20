@@ -107,46 +107,55 @@
                             </div>
 
                             <div class="dropdown">
-                                <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
-                                        'sales.*',
-                                        'sales-daily-reports.*',
-                                        'sales-performance.*',
-                                        'sales-orders.*'
-                                    ) ? 'active' : '' }}"
-                                    type="button"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false"
-                                >
-                                    <i class="bi bi-graph-up-arrow"></i>
-                                    <span>Sales</span>
-                                </button>
+    <button
+        class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
+            'sales.*',
+            'sales-daily-reports.*',
+            'sales-performance.*',
+            'sales-orders.*',
+            'orders.*',
+            'enrollments.*',
+            'batches.*',
+            'students.*'
+        ) ? 'active' : '' }}"
+        type="button"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+    >
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>Sales</span>
+    </button>
 
-                                <div class="dropdown-menu">
-                                    @if (Route::has('sales-daily-reports.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}"
-                                        href="{{ route('sales-daily-reports.index') }}">
-                                            <i class="bi bi-journal-text me-2"></i>Daily Report
-                                        </a>
-                                    @endif
+    <div class="dropdown-menu">
+        @if (Route::has('sales-daily-reports.index'))
+            <a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}"
+               href="{{ route('sales-daily-reports.index') }}">
+                <i class="bi bi-journal-text me-2"></i>Daily Report
+            </a>
+        @endif
 
-                                    @if (Route::has('sales-performance.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}"
-                                        href="{{ route('sales-performance.index') }}">
-                                            <i class="bi bi-bar-chart-line me-2"></i>Performance
-                                        </a>
-                                    @endif
+        @if (Route::has('sales-performance.index'))
+            <a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}"
+               href="{{ route('sales-performance.index') }}">
+                <i class="bi bi-bar-chart-line me-2"></i>Performance
+            </a>
+        @endif
 
-                                   
+        @if (Route::has('enrollments.index'))
+            <a class="dropdown-item {{ request()->routeIs('enrollments.*', 'batches.*', 'students.*') ? 'active' : '' }}"
+               href="{{ route('enrollments.index') }}">
+                <i class="bi bi-people me-2"></i>Student Enrollment
+            </a>
+        @endif
 
-                                    @if (Route::has('orders.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}"
-                                        href="{{ route('orders.index') }}">
-                                            <i class="bi bi-receipt-cutoff me-2"></i>Sales Orders
-                                        </a>
-                                    @endif
-                                </div>
-                            </div>
+        @if (Route::has('orders.index'))
+            <a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}"
+               href="{{ route('orders.index') }}">
+                <i class="bi bi-receipt-cutoff me-2"></i>Sales Orders
+            </a>
+        @endif
+    </div>
+</div>
 
                            <div class="dropdown">
                                 <button

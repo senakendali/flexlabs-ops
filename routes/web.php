@@ -153,7 +153,7 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('enrollment')->group(function () {
-        Route::get('/', fn () => view('enrollment.index'))->name('enrollments.index');
+        Route::get('/', [StudentController::class, 'index'])->name('enrollments.index');
 
         /*
         |--------------------------------------------------------------------------
