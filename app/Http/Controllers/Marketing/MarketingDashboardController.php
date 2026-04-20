@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Illuminate\Support\Str;
 
 class MarketingDashboardController extends Controller
 {
@@ -85,8 +86,11 @@ class MarketingDashboardController extends Controller
             ? collect([$activeWeeklyReport])
             : $weeklyReports;
 
+        $usingMonthlyFallback = false;
+
         if ($effectiveReports->isEmpty() && $monthlyReport) {
             $effectiveReports = collect([$monthlyReport]);
+            $usingMonthlyFallback = true;
         }
 
         $summary = [
@@ -113,16 +117,41 @@ class MarketingDashboardController extends Controller
             ? $weekCards->where('id', $activeWeeklyReport->id)->values()
             : $weekCards->values();
 
+        if ($chartSourceCards->isEmpty() && $monthlyReport) {
+            $chartSourceCards = collect([
+                [
+                    'id' => $monthlyReport->id,
+                    'title' => 'Monthly',
+                    'date_label' => $this->formatDateRange($monthlyReport->start_date, $monthlyReport->end_date),
+                    'status' => ucfirst($monthlyReport->status ?? 'draft'),
+                    'leads' => (int) ($monthlyReport->total_leads ?? 0),
+                    'conversions' => (int) ($monthlyReport->total_conversions ?? 0),
+                    'revenue' => (float) ($monthlyReport->total_revenue ?? 0),
+                    'actual_spend' => (float) ($monthlyReport->total_actual_spend ?? 0),
+                    'campaigns_count' => (int) ($monthlyReport->campaigns_count ?? 0),
+                    'ads_count' => (int) ($monthlyReport->ads_count ?? 0),
+                    'events_count' => (int) ($monthlyReport->events_count ?? 0),
+                ],
+            ]);
+        }
+
         $showChart = $chartSourceCards->count() > 0;
         $chartPayload = $showChart ? $this->buildChartPayload($chartSourceCards) : null;
 
-        $scopeTitle = $activeWeeklyReport
-            ? ($activeWeeklyReport->title ?: $this->formatDateRange($activeWeeklyReport->start_date, $activeWeeklyReport->end_date))
-            : 'All Weeks in ' . $monthDate->translatedFormat('F Y');
+        if ($activeWeeklyReport) {
+            $scopeTitle = $activeWeeklyReport->title
+                ?: $this->formatDateRange($activeWeeklyReport->start_date, $activeWeeklyReport->end_date);
 
-        $scopeLabel = $activeWeeklyReport
-            ? 'Dashboard membaca satu weekly report yang dipilih.'
-            : 'Dashboard menggabungkan seluruh weekly report dalam bulan ini.';
+            $scopeLabel = 'Dashboard membaca satu weekly report yang dipilih.';
+        } elseif ($usingMonthlyFallback && $monthlyReport) {
+            $scopeTitle = $monthlyReport->title
+                ?: 'Monthly Summary ' . $monthDate->translatedFormat('F Y');
+
+            $scopeLabel = 'Weekly report belum tersedia, jadi dashboard sementara membaca report bulanan.';
+        } else {
+            $scopeTitle = 'All Weeks in ' . $monthDate->translatedFormat('F Y');
+            $scopeLabel = 'Dashboard menggabungkan seluruh weekly report dalam bulan ini.';
+        }
 
         $insightCards = $this->buildInsightCards(
             $activeWeeklyReport
@@ -187,11 +216,30 @@ class MarketingDashboardController extends Controller
                     ];
                 });
             })
-            ->sortBy([
-                fn ($item) => $item->start_date ?? '9999-12-31',
-                fn ($item) => $item->name ?? '',
-            ])
+            ->sortBy(fn ($item) => sprintf(
+                '%010d_%s',
+                $this->resolveSortTimestamp($item->start_date ?? null),
+                $this->resolveSortText($item->name ?? null)
+            ))
             ->values();
+    }
+
+    protected function resolveSortTimestamp(mixed $value): int
+    {
+        if (blank($value)) {
+            return 9999999999;
+        }
+
+        if ($value instanceof Carbon) {
+            return $value->copy()->startOfDay()->timestamp;
+        }
+
+        return Carbon::parse($value)->startOfDay()->timestamp;
+    }
+
+    protected function resolveSortText(mixed $value): string
+    {
+        return Str::lower(trim((string) ($value ?? '')));
     }
 
     protected function buildAdRows(Collection $reports): Collection
@@ -215,10 +263,11 @@ class MarketingDashboardController extends Controller
                     ];
                 });
             })
-            ->sortBy([
-                fn ($item) => $item->start_date ?? '9999-12-31',
-                fn ($item) => $item->ad_name ?? '',
-            ])
+            ->sortBy(fn ($item) => sprintf(
+                '%010d_%s',
+                $this->resolveSortTimestamp($item->start_date ?? null),
+                $this->resolveSortText($item->ad_name ?? null)
+            ))
             ->values();
     }
 
@@ -242,10 +291,11 @@ class MarketingDashboardController extends Controller
                     ];
                 });
             })
-            ->sortBy([
-                fn ($item) => $item->event_date ?? '9999-12-31',
-                fn ($item) => $item->name ?? '',
-            ])
+            ->sortBy(fn ($item) => sprintf(
+                '%010d_%s',
+                $this->resolveSortTimestamp($item->event_date ?? null),
+                $this->resolveSortText($item->name ?? null)
+            ))
             ->values();
     }
 

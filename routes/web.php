@@ -40,6 +40,7 @@ use App\Http\Controllers\Marketing\MarketingReportController;
 use App\Http\Controllers\Marketing\MarketingSetupCampaignController;
 use App\Http\Controllers\Marketing\MarketingSetupAdController;
 
+
 /*
 |--------------------------------------------------------------------------
 | Public Route

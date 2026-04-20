@@ -34,7 +34,7 @@
                     <div class="page-eyebrow">Marketing Dashboard</div>
                     <h1 class="page-title mb-2">Marketing Performance Overview</h1>
                     <p class="page-subtitle mb-0">
-                        Baca hasil marketing per bulan, lalu fokus ke seluruh week atau satu week tertentu untuk melihat apa yang benar-benar terjadi di lapangan.
+                        Ringkasan performa marketing untuk melihat hasil utama, aktivitas yang tercatat, dan tren per periode.
                     </p>
                 </div>
 
@@ -49,13 +49,13 @@
                 <div class="dashboard-filter-card dashboard-filter-card-soft">
                     <div class="dashboard-filter-label">Month Filter</div>
                     <div class="dashboard-filter-help">
-                        Pilih bulan untuk membaca weekly report dan monthly summary pada periode tersebut.
+                        Pilih bulan untuk menampilkan weekly report dan monthly summary pada periode yang sama.
                     </div>
 
                     <div class="month-button-group mt-3" role="group" aria-label="Month filter">
                         @foreach ($monthOptions as $option)
                             <a href="{{ route('marketing.dashboard', ['month' => $option['value'], 'week' => 'all']) }}"
-                            class="btn {{ $selectedMonth === $option['value'] ? 'active' : '' }}">
+                               class="btn {{ $selectedMonth === $option['value'] ? 'active' : '' }}">
                                 {{ $option['short_label'] }}
                             </a>
                         @endforeach
@@ -97,7 +97,7 @@
                             <div class="dashboard-monthly-chip-label">Monthly Report</div>
                             <div class="dashboard-monthly-chip-title">Belum ada report bulanan</div>
                             <div class="dashboard-monthly-chip-meta">
-                                Bulan {{ $monthLabel }} belum punya management summary.
+                                Data bulanan untuk {{ $monthLabel }} belum tersedia.
                             </div>
                         </div>
                     @endif
@@ -108,7 +108,7 @@
                 <div class="week-filter-header">
                     <div class="week-filter-title">Week Filter</div>
                     <div class="week-filter-subtitle">
-                        Default menampilkan seluruh week dalam bulan ini. Klik week tertentu kalau mau baca lebih tajam.
+                        Tampilkan seluruh minggu dalam bulan ini atau pilih satu minggu untuk melihat detailnya.
                     </div>
                 </div>
 
@@ -138,7 +138,7 @@
                                 <div class="week-filter-meta">{{ $card['date_label'] }}</div>
                                 <div class="week-filter-mini">
                                     Leads {{ number_format($card['leads']) }}
-                                    · Conv {{ number_format($card['conversions']) }}
+                                    · Conversions {{ number_format($card['conversions']) }}
                                 </div>
                             </div>
                         </a>
@@ -160,9 +160,9 @@
 
     <div class="dashboard-section-label mb-3">
         <div class="dashboard-section-eyebrow">Budget Position</div>
-        <h4 class="dashboard-section-title mb-1">Posisi anggaran untuk {{ $scopeTitle }}</h4>
+        <h4 class="dashboard-section-title mb-1">Ringkasan anggaran pada {{ $scopeTitle }}</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Tiga angka ini dipakai untuk membaca ruang gerak anggaran sebelum ambil keputusan aktivitas berikutnya.
+            Menampilkan total budget, aktual penggunaan, dan sisa budget pada periode yang sedang dipilih.
         </p>
     </div>
 
@@ -179,7 +179,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Alokasi budget yang tercatat pada scope dashboard saat ini.
+                    Total alokasi budget yang tercatat pada periode ini.
                 </div>
             </div>
         </div>
@@ -196,7 +196,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Budget yang sudah dipakai sampai update terakhir dalam scope ini.
+                    Total pengeluaran yang sudah tercatat sampai update terakhir.
                 </div>
             </div>
         </div>
@@ -213,7 +213,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Sisa budget yang masih tersedia. Utilisasi saat ini {{ number_format($summary['budget_utilization'], 1) }}%.
+                    Sisa budget yang masih tersedia. Utilization {{ number_format($summary['budget_utilization'], 1) }}%.
                 </div>
             </div>
         </div>
@@ -221,16 +221,16 @@
 
     @if ($showChart && $chartPayload)
         <div class="dashboard-section-label mb-3">
-            <div class="dashboard-section-eyebrow">Weekly Trend</div>
-            <h4 class="dashboard-section-title mb-1">Pergerakan angka penting pada {{ $scopeTitle }}</h4>
+            <div class="dashboard-section-eyebrow">Performance Trend</div>
+            <h4 class="dashboard-section-title mb-1">Perbandingan metrik utama</h4>
             <p class="dashboard-section-subtitle mb-0">
-                Chart ini membantu membaca leads, conversions, revenue, dan spend dalam scope yang sedang dipilih.
+                Grafik menampilkan leads, conversions, revenue, dan spend sesuai scope yang sedang aktif.
             </p>
         </div>
 
         <div class="content-card mb-4">
             <div class="content-card-body">
-                <div class="chart-wrap">
+                <div class="chart-wrap compact-chart-wrap">
                     <canvas id="weeklyMarketingChart" height="120"></canvas>
                 </div>
             </div>
@@ -239,9 +239,9 @@
 
     <div class="dashboard-section-label mb-3">
         <div class="dashboard-section-eyebrow">Performance Snapshot</div>
-        <h4 class="dashboard-section-title mb-1">Hasil utama dalam scope yang sedang dibaca</h4>
+        <h4 class="dashboard-section-title mb-1">Ringkasan hasil pada periode aktif</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Angka ini dipakai untuk membaca demand, hasil konversi, dan aktivitas eksekusi yang benar-benar masuk ke scope dashboard sekarang.
+            Menampilkan angka utama untuk leads, conversions, revenue, dan jumlah event yang tercatat.
         </p>
     </div>
 
@@ -258,7 +258,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Total leads yang tercatat pada {{ strtolower($scopeTitle) }}.
+                    Total leads yang tercatat pada periode ini.
                 </div>
             </div>
         </div>
@@ -275,7 +275,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Hasil konversi yang berhasil ditutup dalam scope ini.
+                    Total conversions yang berhasil dicatat.
                 </div>
             </div>
         </div>
@@ -292,7 +292,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Revenue yang berhasil dicatat dari report dalam scope ini.
+                    Total revenue yang tercatat pada periode ini.
                 </div>
             </div>
         </div>
@@ -309,17 +309,17 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Event yang ikut terbaca pada report yang sedang aktif.
+                    Jumlah event yang masuk ke dalam periode aktif.
                 </div>
             </div>
         </div>
     </div>
 
     <div class="dashboard-section-label mb-3">
-        <div class="dashboard-section-eyebrow">Narrative Reading</div>
+        <div class="dashboard-section-eyebrow">Insight Summary</div>
         <h4 class="dashboard-section-title mb-1">Insight & Notes</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Bagian ini penting untuk membaca narasi dibalik angka sebelum masuk ke keputusan berikutnya.
+            Menampilkan ringkasan, insight, tindak lanjut, dan catatan dari report yang terbaca.
         </p>
     </div>
 
@@ -368,7 +368,7 @@
                     <div class="empty-state-icon"><i class="bi bi-lightbulb"></i></div>
                     <div class="empty-state-title">Belum ada insight</div>
                     <div class="empty-state-subtitle">
-                        Belum ada insight dan notes yang tercatat untuk scope dashboard ini.
+                        Belum ada insight dan notes pada periode yang sedang ditampilkan.
                     </div>
                 </div>
             @endif
@@ -380,9 +380,9 @@
             <div class="content-card h-100">
                 <div class="content-card-header">
                     <div>
-                        <h5 class="content-card-title mb-1">Monthly Management Summary</h5>
+                        <h5 class="content-card-title mb-1">Monthly Summary</h5>
                         <p class="content-card-subtitle mb-0">
-                            Ringkasan bulanan dipakai untuk baca posisi bulan ini secara utuh tanpa harus membuka satu per satu weekly report.
+                            Ringkasan bulanan untuk melihat posisi bulan ini secara keseluruhan.
                         </p>
                     </div>
                 </div>
@@ -446,9 +446,9 @@
             <div class="content-card h-100">
                 <div class="content-card-header">
                     <div>
-                        <h5 class="content-card-title mb-1">Execution Reading</h5>
+                        <h5 class="content-card-title mb-1">Execution Overview</h5>
                         <p class="content-card-subtitle mb-0">
-                            Fokus cepat untuk melihat jumlah campaign, ads, dan events yang ikut terbaca di scope dashboard ini.
+                            Ringkasan jumlah campaign, ads, events, dan utilization pada periode aktif.
                         </p>
                     </div>
                 </div>
@@ -478,7 +478,7 @@
 
                     <div class="insight-box mt-3">
                         <p class="mb-0">
-                            Kalau angka execution tinggi tapi conversion belum bergerak, berarti problem-nya kemungkinan ada di kualitas traffic, follow up, atau ketepatan channel.
+                            Gunakan bagian ini untuk melihat beban aktivitas yang tercatat pada periode yang sedang dipilih.
                         </p>
                     </div>
                 </div>
@@ -490,7 +490,7 @@
         <div class="dashboard-section-eyebrow">Execution Visibility</div>
         <h4 class="dashboard-section-title mb-1">Campaign, ads, dan events pada {{ $scopeTitle }}</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Daftar di bawah membantu management melihat objek eksekusi yang benar-benar sedang terbaca di scope ini.
+            Menampilkan daftar aktivitas yang masuk ke dalam scope dashboard saat ini.
         </p>
     </div>
 
@@ -501,7 +501,7 @@
                     <div>
                         <h5 class="content-card-title mb-1">Campaigns</h5>
                         <p class="content-card-subtitle mb-0">
-                            Campaign yang tercatat pada {{ strtolower($scopeTitle) }}.
+                            Daftar campaign pada periode aktif.
                         </p>
                     </div>
                     <span class="badge rounded-pill bg-light text-dark border">
@@ -542,7 +542,7 @@
                             <div class="empty-state-icon"><i class="bi bi-megaphone"></i></div>
                             <div class="empty-state-title">No campaign</div>
                             <div class="empty-state-subtitle">
-                                Tidak ada campaign yang masuk ke scope ini.
+                                Tidak ada campaign pada periode ini.
                             </div>
                         </div>
                     @endif
@@ -556,7 +556,7 @@
                     <div>
                         <h5 class="content-card-title mb-1">Ads</h5>
                         <p class="content-card-subtitle mb-0">
-                            Ads yang terbaca pada report dalam scope saat ini.
+                            Daftar ads pada periode aktif.
                         </p>
                     </div>
                     <span class="badge rounded-pill bg-light text-dark border">
@@ -597,7 +597,7 @@
                             <div class="empty-state-icon"><i class="bi bi-badge-ad"></i></div>
                             <div class="empty-state-title">No ads</div>
                             <div class="empty-state-subtitle">
-                                Tidak ada ads yang masuk ke scope ini.
+                                Tidak ada ads pada periode ini.
                             </div>
                         </div>
                     @endif
@@ -611,7 +611,7 @@
                     <div>
                         <h5 class="content-card-title mb-1">Events</h5>
                         <p class="content-card-subtitle mb-0">
-                            Event yang tercatat pada {{ strtolower($scopeTitle) }}.
+                            Daftar event pada periode aktif.
                         </p>
                     </div>
                     <span class="badge rounded-pill bg-light text-dark border">
@@ -653,7 +653,7 @@
                             <div class="empty-state-icon"><i class="bi bi-calendar-event"></i></div>
                             <div class="empty-state-title">No event</div>
                             <div class="empty-state-subtitle">
-                                Tidak ada event yang masuk ke scope ini.
+                                Tidak ada event pada periode ini.
                             </div>
                         </div>
                     @endif
@@ -663,12 +663,6 @@
     </div>
 </div>
 @endsection
-
-@push('styles')
-<style>
-    
-</style>
-@endpush
 
 @push('scripts')
 <script>
@@ -682,54 +676,54 @@ document.addEventListener('DOMContentLoaded', function () {
     const ctx = document.getElementById('weeklyMarketingChart').getContext('2d');
 
     new Chart(ctx, {
+        type: 'bar',
         data: {
             labels: chartPayload.labels,
             datasets: [
                 {
-                    type: 'bar',
                     label: 'Leads',
                     data: chartPayload.leads,
                     yAxisID: 'y',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     backgroundColor: 'rgba(91, 62, 142, 0.78)',
+                    categoryPercentage: 0.56,
+                    barPercentage: 0.82,
+                    maxBarThickness: 42,
                 },
                 {
-                    type: 'bar',
                     label: 'Conversions',
                     data: chartPayload.conversions,
                     yAxisID: 'y',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     backgroundColor: 'rgba(255, 190, 4, 0.82)',
+                    categoryPercentage: 0.56,
+                    barPercentage: 0.82,
+                    maxBarThickness: 42,
                 },
                 {
-                    type: 'line',
                     label: 'Revenue (Jt)',
                     data: chartPayload.revenue_million,
                     yAxisID: 'y1',
-                    tension: 0.35,
-                    borderWidth: 3,
-                    pointRadius: 4,
-                    pointHoverRadius: 5,
-                    borderColor: 'rgba(59, 142, 77, 1)',
-                    backgroundColor: 'rgba(59, 142, 77, 0.18)',
-                    fill: false,
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(59, 142, 77, 0.78)',
+                    categoryPercentage: 0.56,
+                    barPercentage: 0.82,
+                    maxBarThickness: 42,
                 },
                 {
-                    type: 'line',
                     label: 'Spend (Jt)',
                     data: chartPayload.actual_spend_million,
                     yAxisID: 'y1',
-                    tension: 0.35,
-                    borderWidth: 3,
-                    pointRadius: 4,
-                    pointHoverRadius: 5,
-                    borderColor: 'rgba(239, 68, 68, 1)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                    fill: false,
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(239, 68, 68, 0.78)',
+                    categoryPercentage: 0.56,
+                    barPercentage: 0.82,
+                    maxBarThickness: 42,
                 }
             ]
         },
         options: {
+            responsive: true,
             maintainAspectRatio: false,
             interaction: {
                 mode: 'index',
@@ -740,7 +734,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        boxWidth: 10
+                        boxWidth: 10,
+                        padding: 16
                     }
                 },
                 tooltip: {
@@ -759,8 +754,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             },
             scales: {
+                x: {
+                    stacked: false,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#5b6472',
+                        font: {
+                            size: 12,
+                            weight: '600'
+                        }
+                    }
+                },
                 y: {
                     beginAtZero: true,
+                    position: 'left',
                     title: {
                         display: true,
                         text: 'Leads / Conversions'
@@ -778,11 +787,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     },
                     grid: {
                         drawOnChartArea: false
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
                     }
                 }
             }
