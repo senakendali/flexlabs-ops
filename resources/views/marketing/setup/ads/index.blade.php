@@ -77,8 +77,8 @@
                     <label class="form-label">Active</label>
                     <select name="is_active" class="form-select">
                         <option value="">All</option>
-                        <option value="1" @selected(request('is_active') === '1')>Yes</option>
-                        <option value="0" @selected(request('is_active') === '0')>No</option>
+                        <option value="1" @selected(request('is_active') === '1')>Active</option>
+                        <option value="0" @selected(request('is_active') === '0')>Inactive</option>
                     </select>
                 </div>
 
@@ -96,7 +96,7 @@
                     <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
                 </div>
 
-                <div class="col-xl-12">
+                <div class="col-12">
                     <div class="filter-action-row d-flex gap-2 flex-wrap">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-funnel me-1"></i> Apply Filter
@@ -120,24 +120,24 @@
                 </p>
             </div>
 
-            <span class="badge rounded-pill bg-light text-dark border">
-                {{ $ads->total() }} Data
-            </span>
+            <div class="table-meta-info">
+                Total: <strong>{{ $ads->total() }}</strong> ads
+            </div>
         </div>
 
         <div class="content-card-body p-0">
             <div class="table-responsive">
-                <table class="table admin-table align-middle mb-0">
+                <table class="table table-modern align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">#</th>
+                            <th class="ps-4" style="width: 60px;">#</th>
                             <th>Ad</th>
                             <th>Campaign</th>
                             <th>Period</th>
                             <th>Budget</th>
                             <th>Status</th>
                             <th>Usage</th>
-                            <th class="text-end" style="width: 180px;">Action</th>
+                            <th class="text-center pe-4" style="width: 170px;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -153,7 +153,7 @@
                                 };
                             @endphp
                             <tr>
-                                <td>{{ $ads->firstItem() + $index }}</td>
+                                <td class="ps-4">{{ $ads->firstItem() + $index }}</td>
                                 <td>
                                     <div class="fw-semibold text-dark">{{ $ad->ad_name }}</div>
                                     <div class="small text-muted">{{ $ad->platform }}</div>
@@ -187,11 +187,11 @@
                                 <td>
                                     <div class="small text-dark">Reports: <strong>{{ $ad->report_ads_count }}</strong></div>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-center pe-4">
                                     <div class="d-inline-flex gap-2">
                                         <button
                                             type="button"
-                                            class="btn btn-sm btn-edit-accent open-edit-ad-modal-btn"
+                                            class="btn btn-sm btn-outline-primary open-edit-ad-modal-btn"
                                             data-id="{{ $ad->id }}"
                                             data-marketing_setup_campaign_id="{{ $ad->marketing_setup_campaign_id }}"
                                             data-platform="{{ $ad->platform }}"
@@ -204,17 +204,19 @@
                                             data-status="{{ $ad->status }}"
                                             data-notes="{{ $ad->notes }}"
                                             data-is_active="{{ $ad->is_active ? 1 : 0 }}"
+                                            title="Edit"
                                         >
-                                            <i class="bi bi-pencil-square me-1"></i> Edit
+                                            <i class="bi bi-pencil-square"></i>
                                         </button>
 
                                         <button
                                             type="button"
-                                            class="btn btn-sm btn-danger open-delete-ad-modal-btn"
+                                            class="btn btn-sm btn-outline-danger open-delete-ad-modal-btn"
                                             data-id="{{ $ad->id }}"
                                             data-name="{{ $ad->ad_name }}"
+                                            title="Delete"
                                         >
-                                            <i class="bi bi-trash me-1"></i> Delete
+                                            <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -222,9 +224,9 @@
                         @empty
                             <tr>
                                 <td colspan="8">
-                                    <div class="empty-state-box my-4">
-                                        <div class="empty-state-icon"><i class="bi bi-badge-ad"></i></div>
-                                        <div class="empty-state-title">No ad setup found</div>
+                                    <div class="empty-state-box mx-4 my-3">
+                                        <div class="empty-state-icon"><i class="bi bi-folder-x"></i></div>
+                                        <div class="empty-state-title">No ads setup found</div>
                                         <div class="empty-state-subtitle">
                                             Belum ada data ads setup yang cocok dengan filter saat ini.
                                         </div>
@@ -338,7 +340,7 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label d-block">State</label>
+                            <label class="form-label d-block">Active</label>
                             <div class="form-check form-switch mt-2">
                                 <input class="form-check-input" type="checkbox" id="ad_is_active" name="is_active" value="1">
                                 <label class="form-check-label" for="ad_is_active">Active</label>
@@ -405,7 +407,7 @@
 
 @push('styles')
 <style>
-    
+   
 </style>
 @endpush
 
@@ -470,8 +472,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('#adForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
 
         [
-            'marketing_setup_campaign_id','platform','ad_name','slug','objective',
-            'start_date','end_date','total_budget','status','notes','is_active'
+            'marketing_setup_campaign_id', 'platform', 'ad_name', 'slug', 'objective',
+            'start_date', 'end_date', 'total_budget', 'status', 'notes', 'is_active'
         ].forEach(field => {
             const errorEl = document.getElementById(`error_${field}`);
             if (errorEl) errorEl.textContent = '';

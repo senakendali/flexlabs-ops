@@ -103,24 +103,24 @@
                 </p>
             </div>
 
-            <span class="badge rounded-pill bg-light text-dark border">
-                {{ $campaigns->total() }} Data
-            </span>
+            <div class="table-meta-info">
+                Total: <strong>{{ $campaigns->total() }}</strong> campaign
+            </div>
         </div>
 
         <div class="content-card-body p-0">
             <div class="table-responsive">
-                <table class="table admin-table align-middle mb-0">
+                <table class="table table-modern align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">#</th>
+                            <th class="ps-4" style="width: 60px;">#</th>
                             <th>Campaign</th>
                             <th>Period</th>
                             <th>Budget</th>
                             <th>Owner</th>
                             <th>Status</th>
                             <th>Usage</th>
-                            <th class="text-end" style="width: 180px;">Action</th>
+                            <th class="text-center pe-4" style="width: 170px;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -136,7 +136,7 @@
                                 };
                             @endphp
                             <tr>
-                                <td>{{ $campaigns->firstItem() + $index }}</td>
+                                <td class="ps-4">{{ $campaigns->firstItem() + $index }}</td>
                                 <td>
                                     <div class="fw-semibold text-dark">{{ $campaign->name }}</div>
                                     <div class="small text-muted">{{ $campaign->slug }}</div>
@@ -172,11 +172,11 @@
                                     <div class="small text-dark">Ads: <strong>{{ $campaign->ads_count }}</strong></div>
                                     <div class="small text-dark">Reports: <strong>{{ $campaign->report_campaigns_count }}</strong></div>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-center pe-4">
                                     <div class="d-inline-flex gap-2">
                                         <button
                                             type="button"
-                                            class="btn btn-sm btn-edit-accent open-edit-modal-btn"
+                                            class="btn btn-sm btn-outline-primary open-edit-modal-btn"
                                             data-id="{{ $campaign->id }}"
                                             data-name="{{ $campaign->name }}"
                                             data-slug="{{ $campaign->slug }}"
@@ -189,17 +189,19 @@
                                             data-status="{{ $campaign->status }}"
                                             data-notes="{{ $campaign->notes }}"
                                             data-is_active="{{ $campaign->is_active ? 1 : 0 }}"
+                                            title="Edit"
                                         >
-                                            <i class="bi bi-pencil-square me-1"></i> Edit
+                                            <i class="bi bi-pencil-square"></i>
                                         </button>
 
                                         <button
                                             type="button"
-                                            class="btn btn-sm btn-danger open-delete-modal-btn"
+                                            class="btn btn-sm btn-outline-danger open-delete-modal-btn"
                                             data-id="{{ $campaign->id }}"
                                             data-name="{{ $campaign->name }}"
+                                            title="Delete"
                                         >
-                                            <i class="bi bi-trash me-1"></i> Delete
+                                            <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -207,8 +209,8 @@
                         @empty
                             <tr>
                                 <td colspan="8">
-                                    <div class="empty-state-box my-4">
-                                        <div class="empty-state-icon"><i class="bi bi-megaphone"></i></div>
+                                    <div class="empty-state-box mx-4 my-3">
+                                        <div class="empty-state-icon"><i class="bi bi-folder-x"></i></div>
                                         <div class="empty-state-title">No campaign setup found</div>
                                         <div class="empty-state-subtitle">
                                             Belum ada data campaign setup yang cocok dengan filter saat ini.
@@ -379,7 +381,7 @@
 
 @push('styles')
 <style>
-   
+    
 </style>
 @endpush
 

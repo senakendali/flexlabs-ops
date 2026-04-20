@@ -538,6 +538,18 @@ Route::middleware('auth')->group(function () {
             Route::put('/{marketingLeadSource}', [MarketingLeadSourceController::class, 'update'])->name('update');
             Route::delete('/{marketingLeadSource}', [MarketingLeadSourceController::class, 'destroy'])->name('destroy');
         });
+
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::post('/sync-period-data', [MarketingReportController::class, 'syncPeriodData'])->name('sync-period-data');
+
+            Route::get('/', [MarketingReportController::class, 'index'])->name('index');
+            Route::get('/create', [MarketingReportController::class, 'create'])->name('create');
+            Route::post('/', [MarketingReportController::class, 'store'])->name('store');
+            Route::get('/{marketingReport}', [MarketingReportController::class, 'show'])->name('show');
+            Route::get('/{marketingReport}/edit', [MarketingReportController::class, 'edit'])->name('edit');
+            Route::put('/{marketingReport}', [MarketingReportController::class, 'update'])->name('update');
+            Route::delete('/{marketingReport}', [MarketingReportController::class, 'destroy'])->name('destroy');
+        });
     });
     
 

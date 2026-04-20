@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -72,16 +72,12 @@ class MarketingReport extends Model
 
     protected static function booted(): void
     {
-        static::creating(function (MarketingReport $report) {
-            if (blank($report->slug) && filled($report->title)) {
-                $report->slug = Str::slug($report->title);
-            }
+        static::creating(function (self $report): void {
+            $report->syncSlug();
         });
 
-        static::updating(function (MarketingReport $report) {
-            if (blank($report->slug) && filled($report->title)) {
-                $report->slug = Str::slug($report->title);
-            }
+        static::updating(function (self $report): void {
+            $report->syncSlug();
         });
     }
 
@@ -125,7 +121,6 @@ class MarketingReport extends Model
 
     /*
     |--------------------------------------------------------------------------
-
     | Scopes
     |--------------------------------------------------------------------------
     */
@@ -145,10 +140,14 @@ class MarketingReport extends Model
         return $query->where('period_type', 'monthly');
     }
 
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('status', 'published');
+    }
+
     /*
     |--------------------------------------------------------------------------
-
-    | Helpers
+    | Accessors / Helpers
     |--------------------------------------------------------------------------
     */
 
@@ -160,6 +159,34 @@ class MarketingReport extends Model
             && $this->is_events_completed
             && $this->is_snapshot_completed
             && $this->is_insight_completed;
+    }
+
+    public function getCompletedSectionsCountAttribute(): int
+    {
+        return collect([
+            $this->is_overview_completed,
+            $this->is_campaign_completed,
+            $this->is_ads_completed,
+            $this->is_events_completed,
+            $this->is_snapshot_completed,
+            $this->is_insight_completed,
+        ])->filter()->count();
+    }
+
+    public function getTotalSectionsCountAttribute(): int
+    {
+        return 6;
+    }
+
+    public function getCompletionPercentAttribute(): int
+    {
+        $total = $this->total_sections_count;
+
+        if ($total <= 0) {
+            return 0;
+        }
+
+        return (int) round(($this->completed_sections_count / $total) * 100);
     }
 
     public function getPeriodLabelAttribute(): string
@@ -205,35 +232,49 @@ class MarketingReport extends Model
 
     public function recalculateTotals(): void
     {
-        $this->loadMissing([
-            'campaigns',
-            'ads',
-            'events',
-        ]);
+        $this->loadMissing(['campaigns', 'ads', 'events']);
 
-        $campaignBudget = $this->campaigns->sum(function ($campaign) {
-            return (float) ($campaign->resolved_budget ?? $campaign->budget ?? 0);
+        $campaignBudget = $this->campaigns->sum(function ($campaign): float {
+            return $this->resolveNumericValue($campaign, ['resolved_budget', 'total_budget', 'budget']);
         });
 
-        $adBudget = $this->ads->sum(function ($ad) {
-            return (float) ($ad->resolved_budget ?? $ad->budget ?? 0);
+        $adBudget = $this->ads->sum(function ($ad): float {
+            return $this->resolveNumericValue($ad, ['resolved_budget', 'total_budget', 'budget']);
         });
 
-        $eventBudget = $this->events->sum(function ($event) {
-            return (float) ($event->budget ?? 0);
+        $eventBudget = $this->events->sum(function ($event): float {
+            return $this->resolveNumericValue($event, ['total_budget', 'budget']);
         });
 
-        $campaignActualSpend = $this->campaigns->sum(function ($campaign) {
-            return (float) ($campaign->actual_spend ?? 0);
+        $campaignActualSpend = $this->campaigns->sum(function ($campaign): float {
+            return $this->resolveNumericValue($campaign, ['total_actual_spend', 'actual_spend']);
         });
 
-        $adActualSpend = $this->ads->sum(function ($ad) {
-            return (float) ($ad->actual_spend ?? 0);
+        $adActualSpend = $this->ads->sum(function ($ad): float {
+            return $this->resolveNumericValue($ad, ['total_actual_spend', 'actual_spend']);
         });
 
-        $this->total_budget = $campaignBudget + $adBudget + $eventBudget;
-        $this->total_actual_spend = $campaignActualSpend + $adActualSpend;
+        $this->total_budget = round($campaignBudget + $adBudget + $eventBudget, 2);
+        $this->total_actual_spend = round($campaignActualSpend + $adActualSpend, 2);
 
         $this->saveQuietly();
+    }
+
+    protected function syncSlug(): void
+    {
+        if (blank($this->slug) && filled($this->title)) {
+            $this->slug = Str::slug($this->title);
+        }
+    }
+
+    protected function resolveNumericValue(object $model, array $keys): float
+    {
+        foreach ($keys as $key) {
+            if (isset($model->{$key}) && $model->{$key} !== null && $model->{$key} !== '') {
+                return (float) $model->{$key};
+            }
+        }
+
+        return 0.0;
     }
 }
