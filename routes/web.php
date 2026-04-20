@@ -39,6 +39,7 @@ use App\Http\Controllers\Marketing\MarketingLeadSourceController;
 use App\Http\Controllers\Marketing\MarketingReportController;
 use App\Http\Controllers\Marketing\MarketingSetupCampaignController;
 use App\Http\Controllers\Marketing\MarketingSetupAdController;
+use App\Http\Controllers\Academic\InstructorScheduleController;
 
 
 /*
@@ -435,6 +436,23 @@ Route::middleware('auth')->group(function () {
         Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
 
         
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Instructor Schedules
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('instructor-schedules')->name('instructor-schedules.')->group(function () {
+        Route::get('/', [InstructorScheduleController::class, 'index'])->name('index');
+        Route::get('/create', [InstructorScheduleController::class, 'create'])->name('create');
+        Route::post('/', [InstructorScheduleController::class, 'store'])->name('store');
+
+        Route::get('/{instructorSchedule}/edit', [InstructorScheduleController::class, 'edit'])->name('edit');
+        Route::put('/{instructorSchedule}', [InstructorScheduleController::class, 'update'])->name('update');
+        Route::delete('/{instructorSchedule}', [InstructorScheduleController::class, 'destroy'])->name('destroy');
+
+        Route::get('/{instructorSchedule}', [InstructorScheduleController::class, 'show'])->name('show');
     });
 
      /*

@@ -3789,3 +3789,314 @@ img {
         box-shadow: none !important;
     }
 }
+
+.instructor-schedules-form-page .section-nav-card {
+        overflow: hidden;
+        border: 1px solid #eef2f7;
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+
+    .instructor-schedules-form-page .section-nav-header {
+        padding: 18px 18px 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .instructor-schedules-form-page .section-nav-title {
+        margin-bottom: 4px;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .instructor-schedules-form-page .section-nav-subtitle {
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .instructor-schedules-form-page .custom-section-nav {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .instructor-schedules-form-page .custom-section-nav .nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        color: #374151;
+        background: #fff;
+    }
+
+    .instructor-schedules-form-page .custom-section-nav .nav-link:hover {
+        background: #f8f5ff;
+        border-color: rgba(91, 62, 142, 0.12);
+    }
+
+    .instructor-schedules-form-page .custom-section-nav .nav-link.active {
+        background: #f8f5ff;
+        border-color: rgba(91, 62, 142, 0.18);
+        color: #5b3e8e;
+        box-shadow: inset 0 0 0 1px rgba(91, 62, 142, 0.03);
+    }
+
+    .instructor-schedules-form-page .nav-link-content {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .instructor-schedules-form-page .nav-link-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        background: #eee7fb;
+        color: #5b3e8e;
+        font-size: 1rem;
+    }
+
+    .instructor-schedules-form-page .nav-link-title {
+        display: block;
+        font-size: 0.92rem;
+        font-weight: 700;
+        text-align: left;
+    }
+
+    .instructor-schedules-form-page .nav-link-subtitle {
+        display: block;
+        font-size: 0.78rem;
+        color: #6b7280;
+        text-align: left;
+    }
+
+    .instructor-schedules-form-page .progress-summary-wrap,
+    .instructor-schedules-form-page .status-pill-card {
+        min-height: 138px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .instructor-schedules-form-page .progress-summary-wrap {
+        padding: 20px 22px;
+        border: 1px solid #ebe6f5;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+    }
+
+    .instructor-schedules-form-page .progress-summary-label {
+        font-weight: 700;
+        color: #6f5b97;
+        font-size: .8rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 2px;
+    }
+
+    .instructor-schedules-form-page .progress-summary-subtitle,
+    .instructor-schedules-form-page .footer-note-subtitle {
+        font-size: .87rem;
+        color: #7c8698;
+    }
+
+    .instructor-schedules-form-page .progress-summary-count {
+        font-size: .92rem;
+        font-weight: 700;
+        color: #1f2937;
+        white-space: nowrap;
+    }
+
+    .instructor-schedules-form-page .progress-modern {
+        height: 10px;
+        background: #ece7f8;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .instructor-schedules-form-page .progress-modern .progress-bar {
+        background: linear-gradient(90deg, #5B3E8E 0%, #8e6ac9 100%);
+        border-radius: 999px;
+    }
+
+    .instructor-schedules-form-page .status-pill-card {
+        height: 100%;
+        padding: 20px 22px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08) 0%, rgba(142, 106, 201, 0.14) 100%);
+        color: #fff;
+        border: 1px solid #ebe6f5;
+    }
+
+    .instructor-schedules-form-page .status-pill-label {
+        margin-bottom: 6px;
+        font-size: .8rem;
+        color: #6f5b97;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .instructor-schedules-form-page .status-pill-value {
+        margin-bottom: 8px;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #2d1f4f;
+    }
+
+    .instructor-schedules-form-page .status-pill-help {
+        font-size: .87rem;
+        color: #5f6775;
+        line-height: 1.45;
+    }
+
+    .instructor-schedules-form-page .section-card {
+        overflow: hidden;
+        border-radius: 18px;
+    }
+
+    .instructor-schedules-form-page .section-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .instructor-schedules-form-page .form-switch-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        min-height: 56px;
+        padding: 14px 16px;
+        border: 1px solid rgba(91, 62, 142, 0.1);
+        border-radius: 14px;
+        background: #f8f5ff;
+    }
+
+    .instructor-schedules-form-page .form-switch-title,
+    .instructor-schedules-form-page .footer-note-title {
+        margin-bottom: 2px;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .instructor-schedules-form-page .form-switch-subtitle {
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+
+    .instructor-schedules-form-page .section-status-badge {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #fff7ed;
+        color: #b45309;
+        font-size: .8rem;
+        font-weight: 700;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid #fed7aa;
+    }
+
+    .instructor-schedules-form-page .section-status-badge.completed {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #bbf7d0;
+    }
+
+    .instructor-schedules-form-page .section-status-badge.optional {
+        background: #f3f4f6;
+        color: #6b7280;
+        border-color: #e5e7eb;
+    }
+
+    .instructor-schedules-form-page .section-check {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+        border-radius: 999px;
+        color: #9ca3af;
+        background: #f3f4f6;
+        font-size: .95rem;
+    }
+
+    .instructor-schedules-form-page .section-check.completed {
+        color: #16a34a;
+        background: #ecfdf3;
+    }
+
+    .instructor-schedules-form-page .section-check.optional {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .instructor-schedules-form-page .btn-save-draft {
+        background: linear-gradient(135deg, #FFBE04 0%, #f59e0b 100%);
+        border-color: #f2ab00;
+        color: #3f2d00;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+    }
+
+    .instructor-schedules-form-page .btn-save-draft:hover,
+    .instructor-schedules-form-page .btn-save-draft:focus {
+        background: linear-gradient(135deg, #f5b400 0%, #e69008 100%);
+        border-color: #e2a100;
+        color: #2f2200;
+    }
+
+    .instructor-schedules-form-page .simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .instructor-schedules-form-page .simple-list-item {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #ebe6f5;
+        background: #faf8fd;
+    }
+
+    .instructor-schedules-form-page .simple-list-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+
+    .instructor-schedules-form-page .simple-list-meta {
+        font-size: .84rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .instructor-schedules-form-page .toast {
+        min-width: 280px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    @media (max-width: 1199.98px) {
+        .instructor-schedules-form-page .section-nav-card {
+            position: static !important;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .instructor-schedules-form-page .progress-summary-count {
+            white-space: normal;
+        }
+    }
