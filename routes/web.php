@@ -40,6 +40,9 @@ use App\Http\Controllers\Marketing\MarketingReportController;
 use App\Http\Controllers\Marketing\MarketingSetupCampaignController;
 use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
+use App\Http\Controllers\PublicWorkshopController;
+use App\Http\Controllers\Academic\WorkshopController;
+
 
 
 /*
@@ -62,6 +65,10 @@ Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
 
 Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
     ->name('trial-class.store');
+
+
+Route::get('/workshop', [PublicWorkshopController::class, 'index'])->name('workshop.index');
+Route::get('/workshop/{slug}', [PublicWorkshopController::class, 'show'])->name('workshop.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -279,7 +286,7 @@ Route::middleware('auth')->group(function () {
     });
 
 
-     /*
+    /*
     |--------------------------------------------------------------------------
     | Equipment
     |--------------------------------------------------------------------------
@@ -436,6 +443,22 @@ Route::middleware('auth')->group(function () {
         Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
 
         
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Workshops
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('academic/workshops')->name('academic.workshops.')->group(function () {
+        Route::get('/', [WorkshopController::class, 'index'])->name('index');
+        Route::get('/create', [WorkshopController::class, 'create'])->name('create');
+        Route::post('/', [WorkshopController::class, 'store'])->name('store');
+
+        Route::get('/{workshop}', [WorkshopController::class, 'show'])->name('show');
+        Route::get('/{workshop}/edit', [WorkshopController::class, 'edit'])->name('edit');
+        Route::put('/{workshop}', [WorkshopController::class, 'update'])->name('update');
+        Route::delete('/{workshop}', [WorkshopController::class, 'destroy'])->name('destroy');
     });
 
     /*

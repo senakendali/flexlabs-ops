@@ -70,22 +70,17 @@
 
     <!-- App CSS -->
     <link rel="stylesheet" href="{{ asset('css/public.css') }}">
-
-    
-    
 </head>
 <body>
     <header class="public-navbar" id="publicNavbar">
         <div class="container">
             <div class="navbar-inner d-flex align-items-center justify-content-between">
-                <a href="{{ url('/trial-class') }}" class="brand-logo" aria-label="FlexLabs Home">
+                <a href="@yield('brand_url', url('/trial-class'))" class="brand-logo" aria-label="FlexLabs Home">
                     <img
-                        src="{{ asset('images/logo-black.png') }}"
+                        src="{{ asset('images/logo.png') }}"
                         alt="FlexLabs Logo"
                         class="brand-logo-img"
                         id="navbarLogo"
-                        data-logo-default="{{ asset('images/logo-black.png') }}"
-                        data-logo-scrolled="{{ asset('images/logo.png') }}"
                     >
                 </a>
 
@@ -170,20 +165,14 @@
     <script>
         (function () {
             const navbar = document.getElementById('publicNavbar');
-            const logo = document.getElementById('navbarLogo');
 
-            if (!navbar || !logo) {
+            if (!navbar) {
                 return;
             }
 
-            const defaultLogo = logo.dataset.logoDefault;
-            const scrolledLogo = logo.dataset.logoScrolled;
-
             const updateNavbarState = () => {
                 const isScrolled = window.scrollY > 24;
-
                 navbar.classList.toggle('scrolled', isScrolled);
-                logo.src = isScrolled ? scrolledLogo : defaultLogo;
             };
 
             updateNavbarState();

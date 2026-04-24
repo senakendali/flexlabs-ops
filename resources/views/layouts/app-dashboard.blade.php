@@ -32,7 +32,7 @@
                                 <span>Dashboard</span>
                             </a>
 
-                            <div class="dropdown">
+                           <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
                                         'programs.*',
@@ -42,7 +42,8 @@
                                         'instructor-tracking.*',
                                         'trial-themes.*',
                                         'trial-schedules.*',
-                                        'trial-participants.*'
+                                        'trial-participants.*',
+                                        'academic.workshops.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -107,6 +108,13 @@
                                         <a class="dropdown-item {{ request()->routeIs('trial-participants.*') ? 'active' : '' }}"
                                         href="{{ route('trial-participants.index') }}">
                                             <i class="bi bi-people-fill me-2"></i>Trial Participants
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.workshops.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('academic.workshops.*') ? 'active' : '' }}"
+                                        href="{{ route('academic.workshops.index') }}">
+                                            <i class="bi bi-easel2-fill me-2"></i>Workshops
                                         </a>
                                     @endif
                                 </div>
