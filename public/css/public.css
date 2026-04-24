@@ -1,3 +1,7 @@
+/* ========================================
+   CLEANED PUBLIC CSS (STRUCTURED)
+======================================== */
+
 :root {
     --primary: #5B3E8E;
     --primary-dark: #452f6b;
@@ -2245,3 +2249,4 @@ textarea.form-control {
         font-size: 1.7rem;
     }
 }
+
