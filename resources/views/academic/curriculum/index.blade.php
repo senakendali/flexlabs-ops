@@ -303,6 +303,19 @@
                                                                         >
                                                                             <i class="bi bi-plus-circle me-1"></i>Add Topic
                                                                         </button>
+
+                                                                        <button
+                                                                            type="button"
+                                                                            class="btn btn-outline-danger btn-sm"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#deleteConfirmModal"
+                                                                            data-delete-type="Module"
+                                                                            data-delete-name="{{ $module->name }}"
+                                                                            data-delete-url="{{ Route::has('curriculum.modules.destroy') ? route('curriculum.modules.destroy', $module->id) : '' }}"
+                                                                            data-delete-warning="Semua topic dan sub topic di dalam module ini juga akan ikut terhapus."
+                                                                        >
+                                                                            <i class="bi bi-trash me-1"></i>Delete
+                                                                        </button>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -342,6 +355,11 @@
                                                                                                 data-sort-order="{{ $topic->sort_order }}"
                                                                                                 data-description="{{ $topic->description }}"
                                                                                                 data-is-active="{{ (int) $topic->is_active }}"
+                                                                                                data-slide-url="{{ $topic->slide_url ?? '' }}"
+                                                                                                data-starter-code-url="{{ $topic->starter_code_url ?? '' }}"
+                                                                                                data-supporting-file-url="{{ $topic->supporting_file_url ?? '' }}"
+                                                                                                data-external-reference-url="{{ $topic->external_reference_url ?? '' }}"
+                                                                                                data-practice-brief="{{ $topic->practice_brief ?? '' }}"
                                                                                             >
                                                                                                 <i class="bi bi-pencil-square me-1"></i>Edit
                                                                                             </button>
@@ -357,6 +375,57 @@
                                                                                             >
                                                                                                 <i class="bi bi-plus-lg me-1"></i>Add Sub Topic
                                                                                             </button>
+
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                class="btn btn-outline-danger btn-sm"
+                                                                                                data-bs-toggle="modal"
+                                                                                                data-bs-target="#deleteConfirmModal"
+                                                                                                data-delete-type="Topic"
+                                                                                                data-delete-name="{{ $topic->name }}"
+                                                                                                data-delete-url="{{ Route::has('curriculum.topics.destroy') ? route('curriculum.topics.destroy', $topic->id) : '' }}"
+                                                                                                data-delete-warning="Semua sub topic di dalam topic ini juga akan ikut terhapus."
+                                                                                            >
+                                                                                                <i class="bi bi-trash me-1"></i>Delete
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    @php
+                                                                                        $topicMaterialCount = collect([
+                                                                                            $topic->slide_url ?? null,
+                                                                                            $topic->starter_code_url ?? null,
+                                                                                            $topic->supporting_file_url ?? null,
+                                                                                            $topic->external_reference_url ?? null,
+                                                                                            $topic->practice_brief ?? null,
+                                                                                        ])->filter()->count();
+                                                                                    @endphp
+
+                                                                                    <div class="topic-material-strip">
+                                                                                        <div class="topic-material-info">
+                                                                                            <span class="material-pill {{ !empty($topic->slide_url) ? 'is-ready' : '' }}">
+                                                                                                <i class="bi bi-file-earmark-slides me-1"></i>Slide
+                                                                                            </span>
+
+                                                                                            <span class="material-pill {{ !empty($topic->starter_code_url) ? 'is-ready' : '' }}">
+                                                                                                <i class="bi bi-code-slash me-1"></i>Starter Code
+                                                                                            </span>
+
+                                                                                            <span class="material-pill {{ !empty($topic->supporting_file_url) ? 'is-ready' : '' }}">
+                                                                                                <i class="bi bi-paperclip me-1"></i>Supporting File
+                                                                                            </span>
+
+                                                                                            <span class="material-pill {{ !empty($topic->external_reference_url) ? 'is-ready' : '' }}">
+                                                                                                <i class="bi bi-link-45deg me-1"></i>Reference
+                                                                                            </span>
+
+                                                                                            <span class="material-pill {{ !empty($topic->practice_brief) ? 'is-ready' : '' }}">
+                                                                                                <i class="bi bi-clipboard-check me-1"></i>Practice Brief
+                                                                                            </span>
+                                                                                        </div>
+
+                                                                                        <div class="topic-material-count">
+                                                                                            {{ $topicMaterialCount }} / 5 materials ready
                                                                                         </div>
                                                                                     </div>
 
@@ -365,17 +434,66 @@
                                                                                             @foreach($topic->subTopics as $subTopic)
                                                                                                 <div class="subtopic-item">
                                                                                                     <div class="subtopic-left">
-                                                                                                        <span class="subtopic-dot"></span>
-                                                                                                        <div>
-                                                                                                            <div class="subtopic-title">
-                                                                                                                <span class="level-badge level-subtopic">Sub Topic</span>
-                                                                                                                {{ $subTopic->name }}
-                                                                                                            </div>
-                                                                                                            @if(!empty($subTopic->description))
-                                                                                                                <div class="subtopic-description">
-                                                                                                                    {{ $subTopic->description }}
+                                                                                                        <div class="subtopic-thumb">
+                                                                                                            @if(($subTopic->lesson_type ?? 'video') === 'live_session')
+                                                                                                                <div class="subtopic-thumb-placeholder live">
+                                                                                                                    <i class="bi bi-broadcast"></i>
+                                                                                                                </div>
+                                                                                                            @elseif(!empty($subTopic->video_url))
+                                                                                                                @if(!empty($subTopic->thumbnail_url))
+                                                                                                                    <img
+                                                                                                                        src="{{ $subTopic->thumbnail_url }}"
+                                                                                                                        alt="{{ $subTopic->name }}"
+                                                                                                                        class="subtopic-thumb-img"
+                                                                                                                    >
+                                                                                                                @else
+                                                                                                                    <div class="subtopic-thumb-placeholder video">
+                                                                                                                        <i class="bi bi-play-circle"></i>
+                                                                                                                    </div>
+                                                                                                                @endif
+                                                                                                            @else
+                                                                                                                <div class="subtopic-thumb-placeholder empty">
+                                                                                                                    <i class="bi bi-camera-video-off"></i>
                                                                                                                 </div>
                                                                                                             @endif
+                                                                                                        </div>
+
+                                                                                                        <div class="subtopic-content">
+                                                                                                            <div class="subtopic-title">
+                                                                                                                <span class="level-badge level-subtopic">Sub Topic</span>
+
+                                                                                                                @if(($subTopic->lesson_type ?? 'video') === 'live_session')
+                                                                                                                    <span class="lesson-type-badge lesson-type-live">
+                                                                                                                        <i class="bi bi-broadcast me-1"></i>Live Session
+                                                                                                                    </span>
+                                                                                                                @else
+                                                                                                                    <span class="lesson-type-badge lesson-type-video">
+                                                                                                                        <i class="bi bi-play-circle me-1"></i>Video
+                                                                                                                    </span>
+                                                                                                                @endif
+
+                                                                                                                {{ $subTopic->name }}
+                                                                                                            </div>
+
+                                                                                                            <div class="subtopic-learning-meta">
+                                                                                                                @if(($subTopic->lesson_type ?? 'video') === 'video')
+                                                                                                                    @if(!empty($subTopic->video_url))
+                                                                                                                        @if(!empty($subTopic->video_duration_minutes))
+                                                                                                                            <span>
+                                                                                                                                <i class="bi bi-clock me-1"></i>{{ $subTopic->video_duration_minutes }} min
+                                                                                                                            </span>
+                                                                                                                        @endif
+                                                                                                                    @else
+                                                                                                                        <span class="text-warning">
+                                                                                                                            <i class="bi bi-exclamation-triangle me-1"></i>Belum ada video
+                                                                                                                        </span>
+                                                                                                                    @endif
+                                                                                                                @else
+                                                                                                                    <span>
+                                                                                                                        <i class="bi bi-calendar-event me-1"></i>Live schedule mengikuti batch/session
+                                                                                                                    </span>
+                                                                                                                @endif
+                                                                                                            </div>
                                                                                                         </div>
                                                                                                     </div>
 
@@ -392,8 +510,25 @@
                                                                                                             data-sort-order="{{ $subTopic->sort_order }}"
                                                                                                             data-description="{{ $subTopic->description }}"
                                                                                                             data-is-active="{{ (int) $subTopic->is_active }}"
+                                                                                                            data-lesson-type="{{ $subTopic->lesson_type ?? 'video' }}"
+                                                                                                            data-video-url="{{ $subTopic->video_url ?? '' }}"
+                                                                                                            data-video-duration-minutes="{{ $subTopic->video_duration_minutes ?? '' }}"
+                                                                                                            data-thumbnail-url="{{ $subTopic->thumbnail_url ?? '' }}"
                                                                                                         >
                                                                                                             <i class="bi bi-pencil-square me-1"></i>Edit
+                                                                                                        </button>
+
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            class="btn btn-outline-danger btn-sm"
+                                                                                                            data-bs-toggle="modal"
+                                                                                                            data-bs-target="#deleteConfirmModal"
+                                                                                                            data-delete-type="Sub Topic"
+                                                                                                            data-delete-name="{{ $subTopic->name }}"
+                                                                                                            data-delete-url="{{ Route::has('curriculum.sub-topics.destroy') ? route('curriculum.sub-topics.destroy', $subTopic->id) : '' }}"
+                                                                                                            data-delete-warning="Sub topic ini akan dihapus dari struktur curriculum."
+                                                                                                        >
+                                                                                                            <i class="bi bi-trash me-1"></i>Delete
                                                                                                         </button>
                                                                                                     </div>
                                                                                                 </div>
@@ -589,7 +724,7 @@
 </div>
 
 <div class="modal fade" id="topicModal" tabindex="-1" aria-labelledby="topicModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content custom-modal">
             <form id="topicForm" data-create-url="{{ route('curriculum.topics.store') }}">
                 @csrf
@@ -599,7 +734,9 @@
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="topicModalLabel">Add Topic</h5>
-                        <p class="text-muted mb-0" id="topicModalSubtitle">Tambahkan topic baru ke module yang dipilih.</p>
+                        <p class="text-muted mb-0" id="topicModalSubtitle">
+                            Tambahkan topic baru ke module yang dipilih.
+                        </p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -627,12 +764,12 @@
 
                         <div class="col-12">
                             <label class="form-label">Topic Name</label>
-                            <input type="text" name="name" class="form-control" placeholder="Contoh: Basic HTML Structure" required>
+                            <input type="text" name="name" class="form-control" placeholder="Contoh: Project Flow Review" required>
                         </div>
 
                         <div class="col-12">
                             <label class="form-label">Description</label>
-                            <textarea name="description" rows="4" class="form-control" placeholder="Deskripsi singkat topic..."></textarea>
+                            <textarea name="description" rows="3" class="form-control" placeholder="Deskripsi singkat topic..."></textarea>
                         </div>
 
                         <div class="col-md-6">
@@ -641,6 +778,73 @@
                                 <option value="1">Active</option>
                                 <option value="0">Inactive</option>
                             </select>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="lesson-config-card">
+                                <div class="lesson-config-header">
+                                    <div>
+                                        <div class="lesson-config-title">
+                                            <i class="bi bi-folder2-open me-2"></i>Topic Materials
+                                        </div>
+                                        <div class="lesson-config-subtitle">
+                                            Materi utama untuk satu topic. Cocok untuk slide, starter code, file pendukung, dan practice brief.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Slide URL</label>
+                                        <input
+                                            type="url"
+                                            name="slide_url"
+                                            class="form-control"
+                                            placeholder="https://drive.google.com/..."
+                                        >
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label">Starter Code URL</label>
+                                        <input
+                                            type="url"
+                                            name="starter_code_url"
+                                            class="form-control"
+                                            placeholder="https://github.com/... atau link file"
+                                        >
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label">Supporting File URL</label>
+                                        <input
+                                            type="url"
+                                            name="supporting_file_url"
+                                            class="form-control"
+                                            placeholder="https://drive.google.com/..."
+                                        >
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label">External Reference URL</label>
+                                        <input
+                                            type="url"
+                                            name="external_reference_url"
+                                            class="form-control"
+                                            placeholder="https://developer.mozilla.org/..."
+                                        >
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label">Practice Brief</label>
+                                        <textarea
+                                            name="practice_brief"
+                                            rows="4"
+                                            class="form-control"
+                                            placeholder="Instruksi latihan/practice untuk topic ini..."
+                                        ></textarea>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -655,7 +859,7 @@
 </div>
 
 <div class="modal fade" id="subTopicModal" tabindex="-1" aria-labelledby="subTopicModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content custom-modal">
             <form id="subTopicForm" data-create-url="{{ route('curriculum.sub-topics.store') }}">
                 @csrf
@@ -665,7 +869,9 @@
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="subTopicModalLabel">Add Sub Topic</h5>
-                        <p class="text-muted mb-0" id="subTopicModalSubtitle">Tambahkan sub topic sebagai unit checklist instructor.</p>
+                        <p class="text-muted mb-0" id="subTopicModalSubtitle">
+                            Tambahkan sub topic sebagai unit learning item dan checklist instructor.
+                        </p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -693,12 +899,18 @@
 
                         <div class="col-12">
                             <label class="form-label">Sub Topic Name</label>
-                            <input type="text" name="name" class="form-control" placeholder="Contoh: Menjelaskan struktur dasar HTML" required>
+                            <input type="text" name="name" class="form-control" placeholder="Contoh: Product system flow" required>
                         </div>
 
-                        <div class="col-12">
-                            <label class="form-label">Description</label>
-                            <textarea name="description" rows="4" class="form-control" placeholder="Catatan tambahan untuk sub topic..."></textarea>
+                        <div class="col-md-6">
+                            <label class="form-label">Lesson Type</label>
+                            <select name="lesson_type" class="form-select">
+                                <option value="video">Video Lesson</option>
+                                <option value="live_session">Live Session</option>
+                            </select>
+                            <div class="form-text">
+                                Tipe ini dipakai untuk membedakan item belajar video atau live session.
+                            </div>
                         </div>
 
                         <div class="col-md-6">
@@ -708,6 +920,79 @@
                                 <option value="0">Inactive</option>
                             </select>
                         </div>
+
+                        <div class="col-12 subtopic-video-fields">
+                            <div class="lesson-config-card">
+                                <div class="lesson-config-header">
+                                    <div>
+                                        <div class="lesson-config-title">
+                                            <i class="bi bi-play-circle me-2"></i>Video Lesson
+                                        </div>
+                                        <div class="lesson-config-subtitle">
+                                            Isi informasi video jika sub topic ini adalah video lesson.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Video URL</label>
+                                        <input
+                                            type="url"
+                                            name="video_url"
+                                            class="form-control"
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                        >
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="form-label">Duration Minutes</label>
+                                        <input
+                                            type="number"
+                                            name="video_duration_minutes"
+                                            class="form-control"
+                                            min="1"
+                                            placeholder="60"
+                                        >
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="form-label">Thumbnail URL</label>
+                                        <input
+                                            type="url"
+                                            name="thumbnail_url"
+                                            class="form-control"
+                                            placeholder="https://..."
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 subtopic-live-fields d-none">
+                            <div class="lesson-config-card lesson-config-live">
+                                <div class="lesson-config-header">
+                                    <div>
+                                        <div class="lesson-config-title">
+                                            <i class="bi bi-broadcast me-2"></i>Live Session
+                                        </div>
+                                        <div class="lesson-config-subtitle">
+                                            Sub topic ini akan ditandai sebagai live session. Jadwal real-nya bisa diatur dari schedule/batch.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="live-session-note">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    Untuk UI curriculum, kita hanya menandai tipe lesson-nya dulu. Detail jadwal tidak diisi di sini.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" rows="4" class="form-control" placeholder="Catatan tambahan untuk sub topic..."></textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -716,6 +1001,49 @@
                     <button type="submit" class="btn btn-primary btn-modern submit-btn">Save Sub Topic</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-modal delete-confirm-modal">
+            <div class="modal-header border-0 pb-0">
+                <div class="delete-confirm-heading">
+                    <div class="delete-confirm-icon">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title" id="deleteConfirmModalLabel">Delete Item</h5>
+                        <p class="text-muted mb-0" id="deleteConfirmSubtitle">
+                            Konfirmasi sebelum menghapus data.
+                        </p>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body pt-4">
+                <div class="delete-confirm-message">
+                    <div class="delete-confirm-label">Item yang akan dihapus</div>
+                    <div class="delete-confirm-name" id="deleteConfirmName">-</div>
+                </div>
+
+                <div class="delete-confirm-warning mt-3" id="deleteConfirmWarning">
+                    Data yang sudah dihapus tidak bisa dikembalikan.
+                </div>
+            </div>
+
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <i class="bi bi-trash me-2"></i>Delete
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -960,6 +1288,53 @@
         margin-bottom: 1rem;
     }
 
+    .topic-material-strip {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: .85rem 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .topic-material-info {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+    .material-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .3rem .65rem;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 700;
+        background: #f3f4f6;
+        color: #6b7280;
+        border: 1px solid #e5e7eb;
+        white-space: nowrap;
+    }
+
+    .material-pill.is-ready {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #bbf7d0;
+    }
+
+    .topic-material-count {
+        font-size: .8rem;
+        font-weight: 700;
+        color: #5B3E8E;
+        white-space: nowrap;
+    }
+
     .subtopic-list {
         display: flex;
         flex-direction: column;
@@ -980,23 +1355,187 @@
     .subtopic-left {
         display: flex;
         align-items: flex-start;
-        gap: .85rem;
+        gap: .9rem;
         min-width: 0;
         flex: 1 1 auto;
     }
 
-    .subtopic-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #5B3E8E;
-        margin-top: .5rem;
+    .subtopic-content {
+        min-width: 0;
+        flex: 1 1 auto;
+        padding-top: .1rem;
+    }
+
+    .subtopic-thumb {
+        width: 112px;
+        height: 68px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #ece7f7;
+        background: #f9f7ff;
         flex-shrink: 0;
     }
 
-    .subtopic-description {
-        margin-top: .35rem;
+    .subtopic-thumb-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .subtopic-thumb-placeholder {
+        width: 100%;
+        height: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.55rem;
+    }
+
+    .subtopic-thumb-placeholder.video {
+        background: #ede7ff;
+        color: #5B3E8E;
+    }
+
+    .subtopic-thumb-placeholder.live {
+        background: #fff3d9;
+        color: #b7791f;
+    }
+
+    .subtopic-thumb-placeholder.empty {
+        background: #f3f4f6;
+        color: #9ca3af;
+    }
+
+    .lesson-type-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .25rem .6rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .lesson-type-video {
+        background: #ede7ff;
+        color: #5B3E8E;
+        border: 1px solid #d9cffa;
+    }
+
+    .lesson-type-live {
+        background: #fff3d9;
+        color: #b7791f;
+        border: 1px solid #f6ddab;
+    }
+
+    .subtopic-learning-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .65rem;
+        margin-top: .4rem;
         color: #6b7280;
+        font-size: .84rem;
+    }
+
+    .lesson-config-card {
+        border: 1px solid #ece7f7;
+        border-radius: 16px;
+        background: #fbfaff;
+        padding: 1rem;
+    }
+
+    .lesson-config-live {
+        background: #fffaf0;
+        border-color: #f6ddab;
+    }
+
+    .lesson-config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .lesson-config-title {
+        font-weight: 800;
+        color: #1f2937;
+    }
+
+    .lesson-config-subtitle {
+        margin-top: .25rem;
+        font-size: .875rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .live-session-note {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        padding: .875rem 1rem;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #7c520c;
+        font-size: .9rem;
+        line-height: 1.5;
+    }
+
+    .delete-confirm-modal {
+        border-radius: 22px;
+    }
+
+    .delete-confirm-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .delete-confirm-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fee2e2;
+        color: #dc2626;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .delete-confirm-message {
+        padding: 1rem;
+        border: 1px solid #fee2e2;
+        border-radius: 16px;
+        background: #fff7f7;
+    }
+
+    .delete-confirm-label {
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #991b1b;
+        margin-bottom: .35rem;
+    }
+
+    .delete-confirm-name {
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.4;
+    }
+
+    .delete-confirm-warning {
+        padding: .85rem 1rem;
+        border-radius: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
         font-size: .9rem;
         line-height: 1.5;
     }
@@ -1134,8 +1673,25 @@
             width: 100%;
         }
 
+        .topic-material-strip {
+            align-items: flex-start;
+        }
+
+        .topic-material-count {
+            width: 100%;
+        }
+
         .subtopic-item {
             flex-direction: column;
+        }
+
+        .subtopic-left {
+            width: 100%;
+        }
+
+        .subtopic-thumb {
+            width: 96px;
+            height: 60px;
         }
     }
 </style>
@@ -1312,6 +1868,78 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function setupDeleteConfirmModal() {
+        const modalEl = document.getElementById('deleteConfirmModal');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+
+        if (!modalEl || !confirmBtn) return;
+
+        modalEl.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+
+            const deleteType = button?.dataset?.deleteType || 'Item';
+            const deleteName = button?.dataset?.deleteName || '-';
+            const deleteUrl = button?.dataset?.deleteUrl || '';
+            const deleteWarning = button?.dataset?.deleteWarning || 'Data yang sudah dihapus tidak bisa dikembalikan.';
+
+            modalEl.dataset.deleteUrl = deleteUrl;
+
+            modalEl.querySelector('#deleteConfirmModalLabel').textContent = `Delete ${deleteType}`;
+            modalEl.querySelector('#deleteConfirmSubtitle').textContent = `Konfirmasi sebelum menghapus ${deleteType.toLowerCase()}.`;
+            modalEl.querySelector('#deleteConfirmName').textContent = deleteName;
+            modalEl.querySelector('#deleteConfirmWarning').textContent = deleteWarning;
+
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Delete';
+        });
+
+        confirmBtn.addEventListener('click', async function () {
+            const deleteUrl = modalEl.dataset.deleteUrl;
+
+            if (!deleteUrl) {
+                showToast('Route delete belum tersedia.', 'error');
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = 'Deleting...';
+
+            try {
+                const response = await fetch(deleteUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    showToast(data.message || 'Gagal menghapus data.', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Delete';
+                    return;
+                }
+
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+
+                showToast(data.message || 'Data berhasil dihapus.', 'success');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 900);
+            } catch (error) {
+                showToast('Gagal menghubungi server.', 'error');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Delete';
+            }
+        });
+    }
+
     function setupStageModal() {
         const modalEl = document.getElementById('stageModal');
         const form = document.getElementById('stageForm');
@@ -1422,7 +2050,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (mode === 'edit') {
                 title.textContent = 'Edit Topic';
-                subtitle.textContent = 'Perbarui data topic.';
+                subtitle.textContent = 'Perbarui data topic dan material pembelajaran.';
                 submitBtn.innerHTML = 'Update Topic';
                 submitBtn.dataset.defaultText = 'Update Topic';
 
@@ -1433,6 +2061,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('input[name="sort_order"]').value = button.dataset.sortOrder || 1;
                 form.querySelector('textarea[name="description"]').value = button.dataset.description || '';
                 form.querySelector('select[name="is_active"]').value = button.dataset.isActive || '1';
+
+                form.querySelector('input[name="slide_url"]').value = button.dataset.slideUrl || '';
+                form.querySelector('input[name="starter_code_url"]').value = button.dataset.starterCodeUrl || '';
+                form.querySelector('input[name="supporting_file_url"]').value = button.dataset.supportingFileUrl || '';
+                form.querySelector('input[name="external_reference_url"]').value = button.dataset.externalReferenceUrl || '';
+                form.querySelector('textarea[name="practice_brief"]').value = button.dataset.practiceBrief || '';
             } else {
                 title.textContent = 'Add Topic';
                 subtitle.textContent = 'Tambahkan topic baru ke module yang dipilih.';
@@ -1450,11 +2084,34 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function syncSubTopicLessonFields(form) {
+        const lessonType = form.querySelector('select[name="lesson_type"]')?.value || 'video';
+
+        const videoFields = form.querySelector('.subtopic-video-fields');
+        const liveFields = form.querySelector('.subtopic-live-fields');
+
+        if (lessonType === 'live_session') {
+            videoFields?.classList.add('d-none');
+            liveFields?.classList.remove('d-none');
+        } else {
+            videoFields?.classList.remove('d-none');
+            liveFields?.classList.add('d-none');
+        }
+    }
+
     function setupSubTopicModal() {
         const modalEl = document.getElementById('subTopicModal');
         const form = document.getElementById('subTopicForm');
 
         if (!modalEl || !form) return;
+
+        const lessonTypeSelect = form.querySelector('select[name="lesson_type"]');
+
+        if (lessonTypeSelect) {
+            lessonTypeSelect.addEventListener('change', function () {
+                syncSubTopicLessonFields(form);
+            });
+        }
 
         modalEl.addEventListener('show.bs.modal', function (event) {
             resetFormState(form);
@@ -1479,16 +2136,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('input[name="sort_order"]').value = button.dataset.sortOrder || 1;
                 form.querySelector('textarea[name="description"]').value = button.dataset.description || '';
                 form.querySelector('select[name="is_active"]').value = button.dataset.isActive || '1';
+
+                form.querySelector('select[name="lesson_type"]').value = button.dataset.lessonType || 'video';
+                form.querySelector('input[name="video_url"]').value = button.dataset.videoUrl || '';
+                form.querySelector('input[name="video_duration_minutes"]').value = button.dataset.videoDurationMinutes || '';
+                form.querySelector('input[name="thumbnail_url"]').value = button.dataset.thumbnailUrl || '';
             } else {
                 title.textContent = 'Add Sub Topic';
-                subtitle.textContent = 'Tambahkan sub topic sebagai unit checklist instructor.';
+                subtitle.textContent = 'Tambahkan sub topic sebagai unit learning item dan checklist instructor.';
                 submitBtn.innerHTML = 'Save Sub Topic';
                 submitBtn.dataset.defaultText = 'Save Sub Topic';
+
+                form.querySelector('select[name="lesson_type"]').value = 'video';
 
                 if (button?.dataset?.topicId) {
                     form.querySelector('select[name="topic_id"]').value = button.dataset.topicId;
                 }
             }
+
+            syncSubTopicLessonFields(form);
         });
 
         bindAsyncForm(form, 'subTopicModal', function (id) {
@@ -1500,6 +2166,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setupModuleModal();
     setupTopicModal();
     setupSubTopicModal();
+    setupDeleteConfirmModal();
 });
 </script>
 @endpush

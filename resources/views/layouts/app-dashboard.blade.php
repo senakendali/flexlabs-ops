@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/dashboard.css?' . time()) }}">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
     <div class="dashboard-layout">
@@ -36,7 +38,9 @@
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
                                         'programs.*',
+                                        'batches.*',
                                         'curriculum.*',
+                                        'assignments.*',
                                         'instructors.*',
                                         'instructor-schedules.*',
                                         'instructor-tracking.*',
@@ -54,20 +58,33 @@
                                 </button>
 
                                 <div class="dropdown-menu">
-                                    <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
-                                    href="{{ route('programs.index') }}">
-                                        <i class="bi bi-journal-bookmark-fill me-2"></i>Programs
-                                    </a>
+                                    @if (Route::has('programs.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
+                                        href="{{ route('programs.index') }}">
+                                            <i class="bi bi-journal-bookmark-fill me-2"></i>Programs
+                                        </a>
+                                    @endif
 
-                                    <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
-                                    href="{{ route('batches.index') }}">
-                                        <i class="bi bi-collection-play-fill me-2"></i>Batches
-                                    </a>
+                                    @if (Route::has('batches.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
+                                        href="{{ route('batches.index') }}">
+                                            <i class="bi bi-collection-play-fill me-2"></i>Batches
+                                        </a>
+                                    @endif
 
-                                    <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
-                                    href="{{ route('curriculum.index') }}">
-                                        <i class="bi bi-diagram-3-fill me-2"></i>Curriculum
-                                    </a>
+                                    @if (Route::has('curriculum.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
+                                        href="{{ route('curriculum.index') }}">
+                                            <i class="bi bi-diagram-3-fill me-2"></i>Curriculum
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('assignments.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('assignments.*') ? 'active' : '' }}"
+                                        href="{{ route('assignments.index') }}">
+                                            <i class="bi bi-journal-check me-2"></i>Assignments
+                                        </a>
+                                    @endif
 
                                     @if (Route::has('instructors.index'))
                                         <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
@@ -453,6 +470,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
     @stack('scripts')
 
 </body>

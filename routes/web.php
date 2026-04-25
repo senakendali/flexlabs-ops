@@ -26,6 +26,7 @@ use App\Http\Controllers\Payment\XenditWebhookController;
 use App\Http\Controllers\Sales\SalesDailyReportController;
 use App\Http\Controllers\Sales\SalesPerformanceController;
 use App\Http\Controllers\Academic\CurriculumController;
+use App\Http\Controllers\Academic\AssignmentController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
+
 
 
 
@@ -443,6 +445,18 @@ Route::middleware('auth')->group(function () {
         Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
 
         
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Assignments
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('assignments')->name('assignments.')->group(function () {
+        Route::get('/', [AssignmentController::class, 'index'])->name('index');
+        Route::post('/', [AssignmentController::class, 'store'])->name('store');
+        Route::put('/{assignment}', [AssignmentController::class, 'update'])->name('update');
+        Route::delete('/{assignment}', [AssignmentController::class, 'destroy'])->name('destroy');
     });
 
     /*

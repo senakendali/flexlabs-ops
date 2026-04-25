@@ -22,4 +22,9 @@ class Student extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    public function assignmentSubmissions(): HasMany
+    {
+        return $this->hasMany(AssignmentSubmission::class, 'student_id');
+    }
 }

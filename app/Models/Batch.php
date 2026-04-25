@@ -29,4 +29,9 @@ class Batch extends Model
     {
         return $this->belongsTo(Program::class);
     }
+
+    public function batchAssignments(): HasMany
+    {
+        return $this->hasMany(BatchAssignment::class, 'batch_id');
+    }
 }

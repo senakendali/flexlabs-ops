@@ -10,6 +10,7 @@ use App\Models\Topic;
 use App\Models\SubTopic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -68,7 +69,7 @@ class CurriculumController extends Controller
                                                         if ($search !== '') {
                                                             $subTopicQuery->where('name', 'like', '%' . $search . '%');
                                                         }
-                                                    }
+                                                    },
                                                 ]);
 
                                             if ($search !== '') {
@@ -79,7 +80,7 @@ class CurriculumController extends Controller
                                                         });
                                                 });
                                             }
-                                        }
+                                        },
                                     ]);
 
                                 if ($search !== '') {
@@ -93,7 +94,7 @@ class CurriculumController extends Controller
                                             });
                                     });
                                 }
-                            }
+                            },
                         ]);
 
                     if ($search !== '') {
@@ -110,7 +111,7 @@ class CurriculumController extends Controller
                                 });
                         });
                     }
-                }
+                },
             ])
             ->orderBy('name')
             ->get();
@@ -187,13 +188,7 @@ class CurriculumController extends Controller
     public function storeStage(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'program_id' => ['required', 'exists:programs,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateStage($request);
 
             $stage = ProgramStage::create([
                 'program_id' => $validated['program_id'],
@@ -215,24 +210,14 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menambahkan stage.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            return $this->errorResponse('Gagal menambahkan stage.', $e);
         }
     }
 
     public function updateStage(Request $request, ProgramStage $stage): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'program_id' => ['required', 'exists:programs,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateStage($request);
 
             $stage->update([
                 'program_id' => $validated['program_id'],
@@ -254,24 +239,36 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
+            return $this->errorResponse('Gagal memperbarui stage.', $e);
+        }
+    }
+
+    public function destroyStage(ProgramStage $stage): JsonResponse
+    {
+        try {
+            DB::transaction(function () use ($stage) {
+                $stage->load('modules.topics.subTopics');
+
+                foreach ($stage->modules as $module) {
+                    $this->deleteModuleTree($module);
+                }
+
+                $stage->delete();
+            });
+
             return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui stage.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'success' => true,
+                'message' => 'Stage berhasil dihapus.',
+            ]);
+        } catch (Throwable $e) {
+            return $this->errorResponse('Gagal menghapus stage.', $e);
         }
     }
 
     public function storeModule(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'program_stage_id' => ['required', 'exists:program_stages,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateModule($request);
 
             $module = Module::create([
                 'program_stage_id' => $validated['program_stage_id'],
@@ -292,24 +289,14 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menambahkan module.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            return $this->errorResponse('Gagal menambahkan module.', $e);
         }
     }
 
     public function updateModule(Request $request, Module $module): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'program_stage_id' => ['required', 'exists:program_stages,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateModule($request);
 
             $module->update([
                 'program_stage_id' => $validated['program_stage_id'],
@@ -330,24 +317,31 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
+            return $this->errorResponse('Gagal memperbarui module.', $e);
+        }
+    }
+
+    public function destroyModule(Module $module): JsonResponse
+    {
+        try {
+            DB::transaction(function () use ($module) {
+                $module->load('topics.subTopics');
+                $this->deleteModuleTree($module);
+            });
+
             return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui module.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'success' => true,
+                'message' => 'Module berhasil dihapus.',
+            ]);
+        } catch (Throwable $e) {
+            return $this->errorResponse('Gagal menghapus module.', $e);
         }
     }
 
     public function storeTopic(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'module_id' => ['required', 'exists:modules,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateTopic($request);
 
             $topic = Topic::create([
                 'module_id' => $validated['module_id'],
@@ -355,6 +349,12 @@ class CurriculumController extends Controller
                 'description' => $validated['description'] ?? null,
                 'sort_order' => $validated['sort_order'] ?? 1,
                 'is_active' => (bool) $validated['is_active'],
+
+                'slide_url' => $validated['slide_url'] ?? null,
+                'starter_code_url' => $validated['starter_code_url'] ?? null,
+                'supporting_file_url' => $validated['supporting_file_url'] ?? null,
+                'external_reference_url' => $validated['external_reference_url'] ?? null,
+                'practice_brief' => $validated['practice_brief'] ?? null,
             ]);
 
             return response()->json([
@@ -368,24 +368,14 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menambahkan topic.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            return $this->errorResponse('Gagal menambahkan topic.', $e);
         }
     }
 
     public function updateTopic(Request $request, Topic $topic): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'module_id' => ['required', 'exists:modules,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateTopic($request);
 
             $topic->update([
                 'module_id' => $validated['module_id'],
@@ -393,6 +383,12 @@ class CurriculumController extends Controller
                 'description' => $validated['description'] ?? null,
                 'sort_order' => $validated['sort_order'] ?? $topic->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
+
+                'slide_url' => $validated['slide_url'] ?? null,
+                'starter_code_url' => $validated['starter_code_url'] ?? null,
+                'supporting_file_url' => $validated['supporting_file_url'] ?? null,
+                'external_reference_url' => $validated['external_reference_url'] ?? null,
+                'practice_brief' => $validated['practice_brief'] ?? null,
             ]);
 
             return response()->json([
@@ -406,24 +402,33 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
+            return $this->errorResponse('Gagal memperbarui topic.', $e);
+        }
+    }
+
+    public function destroyTopic(Topic $topic): JsonResponse
+    {
+        try {
+            DB::transaction(function () use ($topic) {
+                $topic->load('subTopics');
+                $this->deleteTopicTree($topic);
+            });
+
             return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui topic.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+                'success' => true,
+                'message' => 'Topic berhasil dihapus.',
+            ]);
+        } catch (Throwable $e) {
+            return $this->errorResponse('Gagal menghapus topic.', $e);
         }
     }
 
     public function storeSubTopic(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'topic_id' => ['required', 'exists:topics,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateSubTopic($request);
+
+            $lessonData = $this->normalizeSubTopicLessonData($validated);
 
             $subTopic = SubTopic::create([
                 'topic_id' => $validated['topic_id'],
@@ -431,6 +436,11 @@ class CurriculumController extends Controller
                 'description' => $validated['description'] ?? null,
                 'sort_order' => $validated['sort_order'] ?? 1,
                 'is_active' => (bool) $validated['is_active'],
+
+                'lesson_type' => $lessonData['lesson_type'],
+                'video_url' => $lessonData['video_url'],
+                'video_duration_minutes' => $lessonData['video_duration_minutes'],
+                'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
             return response()->json([
@@ -444,24 +454,16 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menambahkan sub topic.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            return $this->errorResponse('Gagal menambahkan sub topic.', $e);
         }
     }
 
     public function updateSubTopic(Request $request, SubTopic $subTopic): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'topic_id' => ['required', 'exists:topics,id'],
-                'name' => ['required', 'string', 'max:255'],
-                'description' => ['nullable', 'string'],
-                'sort_order' => ['nullable', 'integer', 'min:1'],
-                'is_active' => ['required', 'boolean'],
-            ]);
+            $validated = $this->validateSubTopic($request);
+
+            $lessonData = $this->normalizeSubTopicLessonData($validated);
 
             $subTopic->update([
                 'topic_id' => $validated['topic_id'],
@@ -469,6 +471,11 @@ class CurriculumController extends Controller
                 'description' => $validated['description'] ?? null,
                 'sort_order' => $validated['sort_order'] ?? $subTopic->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
+
+                'lesson_type' => $lessonData['lesson_type'],
+                'video_url' => $lessonData['video_url'],
+                'video_duration_minutes' => $lessonData['video_duration_minutes'],
+                'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
             return response()->json([
@@ -482,12 +489,129 @@ class CurriculumController extends Controller
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui sub topic.',
-                'error' => config('app.debug') ? $e->getMessage() : null,
-            ], 500);
+            return $this->errorResponse('Gagal memperbarui sub topic.', $e);
         }
+    }
+
+    public function destroySubTopic(SubTopic $subTopic): JsonResponse
+    {
+        try {
+            $subTopic->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sub topic berhasil dihapus.',
+            ]);
+        } catch (Throwable $e) {
+            return $this->errorResponse('Gagal menghapus sub topic.', $e);
+        }
+    }
+
+    private function validateStage(Request $request): array
+    {
+        return $request->validate([
+            'program_id' => ['required', 'exists:programs,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+    }
+
+    private function validateModule(Request $request): array
+    {
+        return $request->validate([
+            'program_stage_id' => ['required', 'exists:program_stages,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+    }
+
+    private function validateTopic(Request $request): array
+    {
+        return $request->validate([
+            'module_id' => ['required', 'exists:modules,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+
+            'slide_url' => ['nullable', 'url'],
+            'starter_code_url' => ['nullable', 'url'],
+            'supporting_file_url' => ['nullable', 'url'],
+            'external_reference_url' => ['nullable', 'url'],
+            'practice_brief' => ['nullable', 'string'],
+        ]);
+    }
+
+    private function validateSubTopic(Request $request): array
+    {
+        return $request->validate([
+            'topic_id' => ['required', 'exists:topics,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+
+            'lesson_type' => ['nullable', 'string', 'in:video,live_session'],
+            'video_url' => ['nullable', 'url'],
+            'video_duration_minutes' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'thumbnail_url' => ['nullable', 'url'],
+        ]);
+    }
+
+    private function normalizeSubTopicLessonData(array $validated): array
+    {
+        $lessonType = $validated['lesson_type'] ?? 'video';
+
+        if ($lessonType === 'live_session') {
+            return [
+                'lesson_type' => 'live_session',
+                'video_url' => null,
+                'video_duration_minutes' => null,
+                'thumbnail_url' => null,
+            ];
+        }
+
+        return [
+            'lesson_type' => 'video',
+            'video_url' => $validated['video_url'] ?? null,
+            'video_duration_minutes' => $validated['video_duration_minutes'] ?? null,
+            'thumbnail_url' => $validated['thumbnail_url'] ?? null,
+        ];
+    }
+
+    private function deleteModuleTree(Module $module): void
+    {
+        $module->loadMissing('topics.subTopics');
+
+        foreach ($module->topics as $topic) {
+            $this->deleteTopicTree($topic);
+        }
+
+        $module->delete();
+    }
+
+    private function deleteTopicTree(Topic $topic): void
+    {
+        $topic->loadMissing('subTopics');
+
+        foreach ($topic->subTopics as $subTopic) {
+            $subTopic->delete();
+        }
+
+        $topic->delete();
+    }
+
+    private function errorResponse(string $message, Throwable $e): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'error' => config('app.debug') ? $e->getMessage() : null,
+        ], 500);
     }
 
     private function generateUniqueStageSlug(string $name, ?int $ignoreId = null): string
