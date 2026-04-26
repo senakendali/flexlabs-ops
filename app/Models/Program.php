@@ -57,5 +57,10 @@ class Program extends Model
             ->where('access_status', 'active');
     }
 
+    public function announcements(): HasMany
+    {
+        return $this->hasMany(Announcement::class);
+    }
+
     
 }

@@ -56,4 +56,9 @@ class Batch extends Model
             ->where('status', 'active')
             ->where('access_status', 'active');
     }
+
+    public function announcements(): HasMany
+    {
+        return $this->hasMany(Announcement::class);
+    }
 }

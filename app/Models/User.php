@@ -119,4 +119,14 @@ class User extends Authenticatable
     {
         return $this->hasOne(Instructor::class, 'user_id');
     }
+
+    public function createdAnnouncements(): HasMany
+    {
+        return $this->hasMany(Announcement::class, 'created_by');
+    }
+
+    public function updatedAnnouncements(): HasMany
+    {
+        return $this->hasMany(Announcement::class, 'updated_by');
+    }
 }

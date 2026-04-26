@@ -35,6 +35,7 @@ use App\Http\Controllers\Academic\BatchLearningQuizController;
 use App\Http\Controllers\Academic\LearningQuizAttemptController;
 use App\Http\Controllers\Academic\InstructorAvailabilitySlotController;
 use App\Http\Controllers\Academic\StudentMentoringSessionController;
+use App\Http\Controllers\Academic\AnnouncementController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
@@ -618,6 +619,35 @@ Route::middleware('auth')->group(function () {
             Route::patch('/{studentMentoringSession}/cancel', [StudentMentoringSessionController::class, 'cancel'])->name('cancel');
             Route::patch('/{studentMentoringSession}/meeting-url', [StudentMentoringSessionController::class, 'updateMeetingUrl'])->name('meeting-url');
             Route::patch('/{studentMentoringSession}/status', [StudentMentoringSessionController::class, 'updateStatus'])->name('status');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Announcements
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('academic')->name('academic.')->group(function () {
+        Route::prefix('announcements')
+            ->name('announcements.')
+            ->controller(AnnouncementController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+
+                Route::get('/{announcement}', 'show')
+                    ->whereNumber('announcement')
+                    ->name('show');
+
+                Route::post('/', 'store')->name('store');
+
+                Route::put('/{announcement}', 'update')
+                    ->whereNumber('announcement')
+                    ->name('update');
+
+                Route::delete('/{announcement}', 'destroy')
+                    ->whereNumber('announcement')
+                    ->name('destroy');
         });
     });
 

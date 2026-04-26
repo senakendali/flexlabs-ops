@@ -55,6 +55,8 @@
                                         'trial-schedules.*',
                                         'trial-participants.*',
                                         'academic.workshops.*',
+                                        'academic.mentoring-sessions.*',
+                                        'academic.announcements.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -92,6 +94,16 @@
                                         <a class="dropdown-item {{ request()->routeIs('enrollments.*', 'batches.*', 'students.*') ? 'active' : '' }}"
                                         href="{{ route('enrollments.index') }}">
                                             <i class="bi bi-people me-2"></i>Student Enrollment
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.announcements.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.announcements.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.announcements.index') }}"
+                                        >
+                                            <i class="bi bi-megaphone me-2"></i>
+                                            Announcements
                                         </a>
                                     @endif
 
