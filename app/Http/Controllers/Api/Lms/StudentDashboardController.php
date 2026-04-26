@@ -3,20 +3,23 @@
 namespace App\Http\Controllers\Api\Lms;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\AssignmentSubmission;
 use App\Models\BatchAssignment;
 use App\Models\BatchLearningQuiz;
 use App\Models\LearningQuizAttempt;
 use App\Models\Student;
 use App\Models\StudentLessonProgress;
+use App\Models\StudentMentoringSession;
 use App\Models\SubTopic;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class StudentDashboardController extends Controller
 {
@@ -25,8 +28,8 @@ class StudentDashboardController extends Controller
         $user = $request->user();
 
         $user->load([
-            'student.activeEnrollments.program',
-            'student.activeEnrollments.batch.program',
+            'student.enrollments.program',
+            'student.enrollments.batch.program',
         ]);
 
         if (!$this->isStudentUser($user) || !$user->student) {
@@ -38,9 +41,7 @@ class StudentDashboardController extends Controller
 
         $student = $user->student;
 
-        $activeEnrollments = $student->activeEnrollments
-            ->filter(fn ($enrollment) => ($enrollment->is_accessible ?? true))
-            ->values();
+        $activeEnrollments = $this->getEligibleEnrollments($student);
 
         if ($activeEnrollments->isEmpty()) {
             return response()->json([
@@ -52,12 +53,17 @@ class StudentDashboardController extends Controller
         $batchIds = $activeEnrollments
             ->pluck('batch_id')
             ->filter()
+            ->map(fn ($id) => (int) $id)
             ->unique()
             ->values();
 
         $programIds = $activeEnrollments
-            ->map(fn ($enrollment) => $enrollment->program?->id ?? $enrollment->batch?->program?->id)
+            ->map(fn ($enrollment) => $enrollment->program?->id
+                ?? $enrollment->program_id
+                ?? $enrollment->batch?->program?->id
+                ?? $enrollment->batch?->program_id)
             ->filter()
+            ->map(fn ($id) => (int) $id)
             ->unique()
             ->values();
 
@@ -66,6 +72,7 @@ class StudentDashboardController extends Controller
 
         $courses = $activeEnrollments
             ->map(fn ($enrollment) => $this->formatCourse($enrollment, $student))
+            ->filter()
             ->unique('id')
             ->values();
 
@@ -97,8 +104,16 @@ class StudentDashboardController extends Controller
 
                 'courses' => $courses->toArray(),
 
-                'upcoming_sessions' => [],
-                'announcements' => [],
+                'upcoming_sessions' => $this->getDashboardUpcomingSessions(
+                    student: $student,
+                    programIds: $programIds,
+                    batchIds: $batchIds
+                )->toArray(),
+
+                'announcements' => $this->getDashboardAnnouncements(
+                    programIds: $programIds,
+                    batchIds: $batchIds
+                )->toArray(),
             ],
         ]);
     }
@@ -107,6 +122,34 @@ class StudentDashboardController extends Controller
     {
         return ($user->user_type ?? null) === 'student'
             || ($user->role ?? null) === 'student';
+    }
+
+    private function getEligibleEnrollments(Student $student): Collection
+    {
+        return $student->enrollments
+            ->filter(function ($enrollment) {
+                $status = strtolower((string) ($enrollment->status ?? ''));
+                $accessStatus = strtolower((string) ($enrollment->access_status ?? ''));
+
+                $validStatuses = [
+                    'active',
+                    'enrolled',
+                    'ongoing',
+                    'paid',
+                    'confirmed',
+                ];
+
+                $validAccessStatuses = [
+                    '',
+                    'active',
+                    'enabled',
+                    'open',
+                ];
+
+                return in_array($status, $validStatuses, true)
+                    && in_array($accessStatus, $validAccessStatuses, true);
+            })
+            ->values();
     }
 
     private function formatStudent(Student $student): array
@@ -191,7 +234,7 @@ class StudentDashboardController extends Controller
                     return false;
                 }
 
-                return $progress->last_watched_at->between($startOfWeek, $endOfWeek);
+                return Carbon::parse($progress->last_watched_at)->between($startOfWeek, $endOfWeek);
             })
             ->values();
 
@@ -213,10 +256,12 @@ class StudentDashboardController extends Controller
                 }
 
                 if ($progress->completed_at) {
-                    return $progress->completed_at->between($startOfWeek, $endOfWeek);
+                    return Carbon::parse($progress->completed_at)->between($startOfWeek, $endOfWeek);
                 }
 
-                return $progress->updated_at?->between($startOfWeek, $endOfWeek) ?? false;
+                return $progress->updated_at
+                    ? Carbon::parse($progress->updated_at)->between($startOfWeek, $endOfWeek)
+                    : false;
             })
             ->count();
 
@@ -224,7 +269,7 @@ class StudentDashboardController extends Controller
 
         $latestActivity = $progressRows
             ->filter(fn ($progress) => $progress->last_watched_at)
-            ->sortByDesc(fn ($progress) => $progress->last_watched_at?->timestamp ?? 0)
+            ->sortByDesc(fn ($progress) => Carbon::parse($progress->last_watched_at)->timestamp)
             ->first();
 
         return [
@@ -244,201 +289,351 @@ class StudentDashboardController extends Controller
 
     private function countTasksDoneThisWeek(Student $student, Carbon $startOfWeek, Carbon $endOfWeek): int
     {
-        $assignmentCount = AssignmentSubmission::query()
-            ->where('student_id', $student->id)
-            ->whereIn('status', [
-                'submitted',
-                'late',
-                'reviewed',
-                'returned',
-                'graded',
-                'completed',
-            ])
-            ->whereBetween('updated_at', [$startOfWeek, $endOfWeek])
-            ->count();
+        $assignmentCount = 0;
+        $quizCount = 0;
 
-        $quizCount = LearningQuizAttempt::query()
-            ->where('student_id', $student->id)
-            ->whereIn('status', [
-                'submitted',
-                'graded',
-                'completed',
-                'passed',
-            ])
-            ->whereBetween('updated_at', [$startOfWeek, $endOfWeek])
-            ->count();
+        if (Schema::hasTable('assignment_submissions')) {
+            $assignmentQuery = AssignmentSubmission::query()
+                ->where('student_id', $student->id)
+                ->whereBetween('updated_at', [$startOfWeek, $endOfWeek]);
+
+            if (Schema::hasColumn('assignment_submissions', 'status')) {
+                $assignmentQuery->whereIn('status', [
+                    'submitted',
+                    'late',
+                    'reviewed',
+                    'returned',
+                    'graded',
+                    'completed',
+                ]);
+            }
+
+            $assignmentCount = $assignmentQuery->count();
+        }
+
+        if (Schema::hasTable('learning_quiz_attempts')) {
+            $quizQuery = LearningQuizAttempt::query()
+                ->where('student_id', $student->id)
+                ->whereBetween('updated_at', [$startOfWeek, $endOfWeek]);
+
+            if (Schema::hasColumn('learning_quiz_attempts', 'status')) {
+                $quizQuery->whereIn('status', [
+                    'submitted',
+                    'completed',
+                    'finished',
+                    'passed',
+                ]);
+            }
+
+            $quizCount = $quizQuery->count();
+        }
 
         return $assignmentCount + $quizCount;
     }
 
+    private function formatWatchTime(int|float $seconds): string
+    {
+        $seconds = (int) round($seconds);
+
+        if ($seconds <= 0) {
+            return '0m';
+        }
+
+        $hours = intdiv($seconds, 3600);
+        $minutes = (int) floor(($seconds % 3600) / 60);
+
+        if ($hours > 0) {
+            return $minutes > 0
+                ? "{$hours}h {$minutes}m"
+                : "{$hours}h";
+        }
+
+        return max(1, $minutes) . 'm';
+    }
+
     private function calculateCurrentStreak(Student $student): int
     {
-        $activeDates = StudentLessonProgress::query()
+        if (!Schema::hasTable('student_lesson_progress')) {
+            return 0;
+        }
+
+        $dateColumn = Schema::hasColumn('student_lesson_progress', 'last_watched_at')
+            ? 'last_watched_at'
+            : 'updated_at';
+
+        $dates = StudentLessonProgress::query()
             ->where('student_id', $student->id)
-            ->whereNotNull('last_watched_at')
-            ->where('last_watched_at', '>=', now()->subDays(30)->startOfDay())
-            ->pluck('last_watched_at')
+            ->whereNotNull($dateColumn)
+            ->orderByDesc($dateColumn)
+            ->pluck($dateColumn)
             ->map(fn ($date) => Carbon::parse($date)->toDateString())
             ->unique()
             ->values();
 
-        if ($activeDates->isEmpty()) {
+        if ($dates->isEmpty()) {
             return 0;
         }
 
         $streak = 0;
-        $cursor = now()->startOfDay();
+        $cursor = now()->toDateString();
 
-        while ($activeDates->contains($cursor->toDateString())) {
-            $streak++;
-            $cursor->subDay();
+        foreach ($dates as $date) {
+            if ($date === $cursor) {
+                $streak++;
+                $cursor = Carbon::parse($cursor)->subDay()->toDateString();
+                continue;
+            }
+
+            if ($streak === 0 && $date === Carbon::parse($cursor)->subDay()->toDateString()) {
+                $streak++;
+                $cursor = Carbon::parse($date)->subDay()->toDateString();
+                continue;
+            }
+
+            break;
         }
 
         return $streak;
     }
 
-    private function formatWatchTime(int $seconds): string
+    private function formatLastActiveLabel($date): string
     {
-        if ($seconds <= 0) {
-            return '0m';
-        }
-
-        $minutes = (int) round($seconds / 60);
-
-        if ($minutes < 60) {
-            return $minutes . 'm';
-        }
-
-        $hours = intdiv($minutes, 60);
-        $remainingMinutes = $minutes % 60;
-
-        if ($remainingMinutes <= 0) {
-            return $hours . 'h';
-        }
-
-        return $hours . 'h ' . $remainingMinutes . 'm';
-    }
-
-    private function formatLastActiveLabel(?Carbon $lastActiveAt): string
-    {
-        if (!$lastActiveAt) {
+        if (!$date) {
             return 'No activity yet';
         }
 
-        if ($lastActiveAt->isToday()) {
-            return 'Active today';
-        }
-
-        if ($lastActiveAt->isYesterday()) {
-            return 'Active yesterday';
-        }
-
-        $days = (int) floor($lastActiveAt->diffInDays(now()));
-
-        if ($days <= 1) {
-            return 'Recently active';
-        }
-
-        return 'Active ' . $days . ' days ago';
+        return 'Last active ' . Carbon::parse($date)->diffForHumans();
     }
 
-    private function formatCourse($enrollment, Student $student): array
+    private function getSubTopicsForPrograms(Collection $programIds): Collection
+    {
+        if ($programIds->isEmpty() || !Schema::hasTable('sub_topics')) {
+            return collect();
+        }
+
+        $query = SubTopic::query();
+
+        if (method_exists(SubTopic::class, 'topic')) {
+            $query
+                ->with([
+                    'topic.module.program',
+                ])
+                ->whereHas('topic.module', function ($moduleQuery) use ($programIds) {
+                    if (Schema::hasColumn('modules', 'program_id')) {
+                        $moduleQuery->whereIn('program_id', $programIds);
+                    }
+                });
+        } elseif (
+            Schema::hasTable('topics')
+            && Schema::hasTable('modules')
+            && Schema::hasColumn('sub_topics', 'topic_id')
+            && Schema::hasColumn('topics', 'module_id')
+            && Schema::hasColumn('modules', 'program_id')
+        ) {
+            $subTopicIds = DB::table('sub_topics')
+                ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+                ->join('modules', 'modules.id', '=', 'topics.module_id')
+                ->whereIn('modules.program_id', $programIds)
+                ->pluck('sub_topics.id');
+
+            $query->whereIn('id', $subTopicIds);
+        } else {
+            return collect();
+        }
+
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'sort_order')) {
+            $query->orderBy('sort_order');
+        }
+
+        return $query
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function getProgressRows(Student $student, Collection $subTopics): Collection
+    {
+        if (!Schema::hasTable('student_lesson_progress') || $subTopics->isEmpty()) {
+            return collect();
+        }
+
+        return StudentLessonProgress::query()
+            ->where('student_id', $student->id)
+            ->whereIn('sub_topic_id', $subTopics->pluck('id'))
+            ->get();
+    }
+
+    private function formatCourse($enrollment, Student $student): ?array
     {
         $program = $enrollment->program ?? $enrollment->batch?->program;
-        $batch = $enrollment->batch;
 
-        $programId = $program->id ?? null;
-        $programName = $program->name ?? 'Untitled Course';
-        $courseSlug = $program ? $this->getProgramSlug($program) : $this->slugify($programName);
+        if (!$program) {
+            return null;
+        }
 
-        $subTopics = $programId
-            ? $this->getSubTopicsForProgram((int) $programId)
-            : collect();
-
+        $subTopics = $this->getSubTopicsForPrograms(collect([(int) $program->id]));
         $progressRows = $this->getProgressRows($student, $subTopics);
 
         $totalSubTopics = $subTopics->count();
 
-        $completedSubTopics = $subTopics
-            ->filter(function ($subTopic) use ($progressRows) {
-                $progress = $progressRows->get($subTopic->id);
-
-                return (bool) ($progress?->is_completed ?? false);
-            })
+        $completedSubTopics = $progressRows
+            ->where('is_completed', true)
+            ->pluck('sub_topic_id')
+            ->unique()
             ->count();
 
         $progress = $totalSubTopics > 0
             ? (int) round(($completedSubTopics / $totalSubTopics) * 100)
             : 0;
 
-        $nextSubTopic = $this->getNextSubTopicForProgram(
-            subTopics: $subTopics,
-            courseSlug: $courseSlug,
-            progressRows: $progressRows
-        );
+        $nextLesson = $this->resolveNextLessonTitle($subTopics, $progressRows);
 
         return [
-            'id' => $programId ?? $enrollment->id,
-            'slug' => $courseSlug,
+            'id' => $program->id,
+            'title' => $program->name ?? $program->title ?? 'Untitled Course',
+            'name' => $program->name ?? $program->title ?? 'Untitled Course',
+            'slug' => $program->slug ?? $program->id,
 
-            'title' => $programName,
-            'name' => $programName,
+            'batch_id' => $enrollment->batch_id,
+            'batch_name' => $enrollment->batch?->name,
 
-            'category' => $this->getColumnValue($program, [
-                'category',
-                'program_type',
-                'type',
-            ]) ?: 'Learning Program',
-
-            'description' => $this->getColumnValue($program, [
-                'description',
-                'summary',
-                'short_description',
-            ]) ?: 'Continue your learning progress with FlexLabs.',
-
-            'status' => $progress >= 100 ? 'completed' : 'in_progress',
-            'status_label' => $progress >= 100 ? 'Completed' : 'In Progress',
+            'next_lesson' => $nextLesson,
+            'next_sub_topic' => $nextLesson,
 
             'progress' => $progress,
             'progress_percentage' => $progress,
 
-            'completed_lessons' => $completedSubTopics,
-            'total_lessons' => $totalSubTopics,
             'completed_sub_topics' => $completedSubTopics,
             'total_sub_topics' => $totalSubTopics,
 
-            'next_lesson' => $nextSubTopic['title'] ?? 'No next sub topic',
-            'next_lesson_url' => $nextSubTopic['url'] ?? null,
-            'next_sub_topic' => $nextSubTopic['title'] ?? 'No next sub topic',
-            'next_sub_topic_url' => $nextSubTopic['url'] ?? null,
+            'completed_lessons' => $completedSubTopics,
+            'total_lessons' => $totalSubTopics,
 
-            'course_url' => '/courses/' . $courseSlug,
+            'course_url' => '/my-courses/' . ($program->slug ?? $program->id),
+        ];
+    }
 
-            'batch_id' => $batch->id ?? null,
-            'batch_name' => $batch->name ?? null,
+    private function resolveNextLessonTitle(Collection $subTopics, Collection $progressRows): string
+    {
+        if ($subTopics->isEmpty()) {
+            return 'No next lesson';
+        }
 
-            'enrollment_id' => $enrollment->id,
-            'enrollment_status' => $enrollment->status,
-            'access_status' => $enrollment->access_status,
+        $completedSubTopicIds = $progressRows
+            ->where('is_completed', true)
+            ->pluck('sub_topic_id')
+            ->unique()
+            ->values();
+
+        $nextSubTopic = $subTopics
+            ->first(fn ($subTopic) => !$completedSubTopicIds->contains($subTopic->id));
+
+        if (!$nextSubTopic) {
+            return 'All lessons completed';
+        }
+
+        return $this->getColumnValue($nextSubTopic, [
+            'name',
+            'title',
+        ]) ?: 'Untitled Lesson';
+    }
+
+    private function resolveCurrentLesson(Collection $subTopics, Collection $progressRows): ?array
+    {
+        if ($subTopics->isEmpty()) {
+            return null;
+        }
+
+        $progressBySubTopic = $progressRows->keyBy('sub_topic_id');
+
+        $currentSubTopic = $subTopics->first(function ($subTopic) use ($progressBySubTopic) {
+            $progress = $progressBySubTopic->get($subTopic->id);
+
+            return !$progress || !$progress->is_completed;
+        });
+
+        if (!$currentSubTopic) {
+            $currentSubTopic = $subTopics->last();
+        }
+
+        if (!$currentSubTopic) {
+            return null;
+        }
+
+        $progress = $progressBySubTopic->get($currentSubTopic->id);
+
+        $program = $currentSubTopic->topic?->module?->program ?? null;
+        $module = $currentSubTopic->topic?->module ?? null;
+        $topic = $currentSubTopic->topic ?? null;
+
+        $progressPercentage = (int) ($progress->progress_percentage ?? 0);
+
+        if (!$progressPercentage) {
+            $duration = (int) ($progress->duration_seconds ?? 0);
+            $lastPosition = (int) ($progress->last_position_seconds ?? 0);
+
+            $progressPercentage = $duration > 0
+                ? (int) min(100, round(($lastPosition / $duration) * 100))
+                : 0;
+        }
+
+        $isCompleted = (bool) ($progress->is_completed ?? false);
+
+        $courseSlug = $program?->slug ?? $program?->id ?? 'course';
+        $lessonSlug = $currentSubTopic->slug ?? $currentSubTopic->id;
+
+        return [
+            'id' => $currentSubTopic->id,
+            'title' => $this->getColumnValue($currentSubTopic, [
+                'name',
+                'title',
+            ]) ?: 'Untitled Lesson',
+
+            'description' => $this->getColumnValue($currentSubTopic, [
+                'description',
+                'summary',
+            ]) ?: 'Continue your current learning activity.',
+
+            'duration_minutes' => $this->getColumnValue($currentSubTopic, [
+                'duration_minutes',
+                'duration',
+            ]),
+
+            'thumbnail_url' => $this->getColumnValue($currentSubTopic, [
+                'thumbnail_url',
+                'image',
+                'thumbnail',
+            ]),
+
+            'module' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
+            'module_title' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
+
+            'topic' => $this->getColumnValue($topic, ['name', 'title']) ?: '-',
+            'topic_title' => $this->getColumnValue($topic, ['name', 'title']) ?: '-',
+
+            'status' => $isCompleted ? 'Completed' : 'In Progress',
+            'status_label' => $isCompleted ? 'Completed' : 'In Progress',
+            'is_completed' => $isCompleted,
+
+            'progress_percentage' => max(0, min(100, $progressPercentage)),
+            'video_progress_percentage' => max(0, min(100, $progressPercentage)),
+
+            'last_position_seconds' => (int) ($progress->last_position_seconds ?? 0),
+
+            'learn_url' => '/learn/' . $courseSlug . '/' . $lessonSlug,
         ];
     }
 
     private function getPendingTasks(Student $student, Collection $batchIds): Collection
     {
-        if ($batchIds->isEmpty()) {
-            return collect();
-        }
-
-        $assignments = $this->getPendingAssignments($student, $batchIds);
-        $quizzes = $this->getPendingQuizzes($student, $batchIds);
-
-        return $assignments
-            ->merge($quizzes)
-            ->sortBy(function (array $task) {
-                return $task['sort_deadline'] ?? now()->addYears(10)->timestamp;
-            })
+        return $this->getPendingAssignments($student, $batchIds)
+            ->merge($this->getPendingQuizzes($student, $batchIds))
+            ->sortBy('sort_deadline')
+            ->take(5)
             ->values()
-            ->take(8)
             ->map(function (array $task) {
                 unset($task['sort_deadline']);
 
@@ -448,149 +643,182 @@ class StudentDashboardController extends Controller
 
     private function getPendingAssignments(Student $student, Collection $batchIds): Collection
     {
-        $submittedBatchAssignmentIds = AssignmentSubmission::query()
-            ->where('student_id', $student->id)
-            ->whereNotNull('batch_assignment_id')
-            ->whereIn('status', [
+        if ($batchIds->isEmpty() || !Schema::hasTable('batch_assignments')) {
+            return collect();
+        }
+
+        $assignments = BatchAssignment::query()
+            ->with($this->resolveBatchAssignmentRelations())
+            ->whereIn('batch_id', $batchIds)
+            ->when(Schema::hasColumn('batch_assignments', 'is_active'), fn ($query) => $query->where('is_active', true))
+            ->get();
+
+        return $assignments
+            ->reject(fn (BatchAssignment $assignment) => $this->hasSubmittedAssignment($student, $assignment))
+            ->map(fn (BatchAssignment $assignment) => $this->formatAssignmentTask($assignment))
+            ->values();
+    }
+
+    private function resolveBatchAssignmentRelations(): array
+    {
+        $relations = [];
+
+        if (method_exists(BatchAssignment::class, 'assignment')) {
+            $relations[] = 'assignment';
+        }
+
+        if (method_exists(BatchAssignment::class, 'batch')) {
+            $relations[] = 'batch.program';
+        }
+
+        return $relations;
+    }
+
+    private function hasSubmittedAssignment(Student $student, BatchAssignment $assignment): bool
+    {
+        if (!Schema::hasTable('assignment_submissions')) {
+            return false;
+        }
+
+        $query = AssignmentSubmission::query()
+            ->where('student_id', $student->id);
+
+        if (Schema::hasColumn('assignment_submissions', 'batch_assignment_id')) {
+            $query->where('batch_assignment_id', $assignment->id);
+        }
+
+        if (Schema::hasColumn('assignment_submissions', 'batch_id') && $assignment->batch_id) {
+            $query->where('batch_id', $assignment->batch_id);
+        }
+
+        if (Schema::hasColumn('assignment_submissions', 'status')) {
+            $query->whereIn('status', [
                 'submitted',
                 'late',
                 'reviewed',
                 'returned',
                 'graded',
                 'completed',
-            ])
-            ->pluck('batch_assignment_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        $query = BatchAssignment::query()
-            ->whereIn('batch_id', $batchIds)
-            ->whereNotIn('id', $submittedBatchAssignmentIds);
-
-        if (method_exists(BatchAssignment::class, 'batch')) {
-            $query->with('batch');
+            ]);
         }
 
-        $this->applyActiveFilter($query, 'batch_assignments');
-        $this->applyPublishedFilter($query, 'batch_assignments');
-
-        return $query
-            ->get()
-            ->map(fn ($assignment) => $this->formatAssignmentTask($assignment))
-            ->values();
+        return $query->exists();
     }
 
-    private function getPendingQuizzes(Student $student, Collection $batchIds): Collection
+    private function formatAssignmentTask(BatchAssignment $assignment): array
     {
-        $completedBatchQuizIds = LearningQuizAttempt::query()
-            ->where('student_id', $student->id)
-            ->whereNotNull('batch_learning_quiz_id')
-            ->whereIn('status', [
-                'submitted',
-                'graded',
-                'completed',
-                'passed',
-            ])
-            ->pluck('batch_learning_quiz_id')
-            ->filter()
-            ->unique()
-            ->values();
+        $relatedAssignment = method_exists(BatchAssignment::class, 'assignment')
+            ? $assignment->assignment
+            : null;
 
-        $query = BatchLearningQuiz::query()
-            ->whereIn('batch_id', $batchIds)
-            ->whereNotIn('id', $completedBatchQuizIds);
-
-        if (method_exists(BatchLearningQuiz::class, 'batch')) {
-            $query->with('batch');
-        }
-
-        if (method_exists(BatchLearningQuiz::class, 'learningQuiz')) {
-            $query->with('learningQuiz');
-        }
-
-        $this->applyActiveFilter($query, 'batch_learning_quizzes');
-        $this->applyPublishedFilter($query, 'batch_learning_quizzes');
-
-        return $query
-            ->get()
-            ->map(fn ($quiz) => $this->formatQuizTask($quiz))
-            ->values();
-    }
-
-    private function formatAssignmentTask($assignment): array
-    {
-        $deadline = $this->resolveDeadline($assignment, [
-            'due_date',
-            'deadline',
-            'due_at',
-            'closed_at',
-        ]);
+        $deadline = $this->resolveDeadline($assignment);
 
         $priority = $this->resolvePriority($deadline);
+
+        $title = $this->getColumnValue($relatedAssignment, [
+            'title',
+            'name',
+        ]) ?: $this->getColumnValue($assignment, [
+            'title',
+            'name',
+        ]) ?: 'Assignment';
+
+        $courseName = $assignment->batch?->program?->name
+            ?? $assignment->batch?->name
+            ?? 'Course Assignment';
 
         return [
             'id' => $assignment->id,
             'type' => 'assignment',
 
-            'title' => $this->getColumnValue($assignment, [
-                'title',
-                'name',
-            ]) ?: 'Assignment',
-
-            'course' => $assignment->batch?->name
-                ?? $this->getColumnValue($assignment, ['batch_name'])
-                ?? 'Course Assignment',
+            'title' => $title,
+            'course' => $courseName,
+            'course_name' => $courseName,
 
             'deadline' => $this->formatDeadlineLabel($deadline),
+            'deadline_label' => $this->formatDeadlineLabel($deadline),
+
             'remaining' => $this->formatRemainingTime($deadline),
+            'remaining_label' => $this->formatRemainingTime($deadline),
 
             'priority' => $priority,
             'priority_label' => $this->formatPriorityLabel($priority),
 
-            'detail_url' => '/my-courses',
-            'submit_url' => '/my-courses',
+            'detail_url' => '/assignments/' . $assignment->id,
+            'submit_url' => '/assignments/' . $assignment->id . '/submit',
 
             'sort_deadline' => $deadline?->timestamp ?? now()->addYears(10)->timestamp,
         ];
     }
 
-    private function formatQuizTask($quiz): array
+    private function getPendingQuizzes(Student $student, Collection $batchIds): Collection
     {
-        $deadline = $this->resolveDeadline($quiz, [
-            'due_date',
-            'deadline',
-            'closed_at',
-            'end_at',
-            'available_until',
-        ]);
+        if ($batchIds->isEmpty() || !Schema::hasTable('batch_learning_quizzes')) {
+            return collect();
+        }
 
-        $priority = $this->resolvePriority($deadline);
+        $quizzes = BatchLearningQuiz::query()
+            ->whereIn('batch_id', $batchIds)
+            ->when(Schema::hasColumn('batch_learning_quizzes', 'is_active'), fn ($query) => $query->where('is_active', true))
+            ->get();
 
-        $quizTitle = $this->getColumnValue($quiz, [
-            'title',
-            'name',
-        ]);
+        return $quizzes
+            ->reject(fn ($quiz) => $this->hasCompletedQuiz($student, $quiz))
+            ->map(fn ($quiz) => $this->formatQuizTask($quiz))
+            ->values();
+    }
 
-        if (!$quizTitle && isset($quiz->learningQuiz)) {
-            $quizTitle = $this->getColumnValue($quiz->learningQuiz, [
-                'title',
-                'name',
+    private function hasCompletedQuiz(Student $student, $quiz): bool
+    {
+        if (!Schema::hasTable('learning_quiz_attempts')) {
+            return false;
+        }
+
+        $query = LearningQuizAttempt::query()
+            ->where('student_id', $student->id);
+
+        if (Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')) {
+            $query->where('batch_learning_quiz_id', $quiz->id);
+        } elseif (Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id') && isset($quiz->learning_quiz_id)) {
+            $query->where('learning_quiz_id', $quiz->learning_quiz_id);
+        }
+
+        if (Schema::hasColumn('learning_quiz_attempts', 'status')) {
+            $query->whereIn('status', [
+                'submitted',
+                'completed',
+                'finished',
+                'passed',
             ]);
         }
+
+        return $query->exists();
+    }
+
+    private function formatQuizTask($quiz): array
+    {
+        $deadline = $this->resolveDeadline($quiz);
+        $priority = $this->resolvePriority($deadline);
+
+        $title = $this->getColumnValue($quiz, [
+            'title',
+            'name',
+            'quiz_title',
+        ]) ?: 'Quiz';
 
         return [
             'id' => $quiz->id,
             'type' => 'quiz',
 
-            'title' => $quizTitle ?: 'Quiz',
-
-            'course' => $quiz->batch?->name
-                ?? $this->getColumnValue($quiz, ['batch_name'])
-                ?? 'Course Quiz',
+            'title' => $title,
+            'course' => 'Learning Quiz',
+            'course_name' => 'Learning Quiz',
 
             'deadline' => $this->formatDeadlineLabel($deadline),
+            'deadline_label' => $this->formatDeadlineLabel($deadline),
+
             'remaining' => $this->formatRemainingTime($deadline),
+            'remaining_label' => $this->formatRemainingTime($deadline),
 
             'priority' => $priority,
             'priority_label' => $this->formatPriorityLabel($priority),
@@ -602,235 +830,18 @@ class StudentDashboardController extends Controller
         ];
     }
 
-    private function resolveCurrentLesson(Collection $subTopics, Collection $progressRows): ?array
+    private function resolveDeadline($model): ?Carbon
     {
-        if ($subTopics->isEmpty()) {
-            return null;
-        }
-
-        $watchedProgress = $progressRows
-            ->filter(function ($progress) {
-                return !$progress->is_completed
-                    && (int) $progress->last_position_seconds > 0;
-            })
-            ->sortByDesc(function ($progress) {
-                return $progress->last_watched_at?->timestamp ?? 0;
-            })
-            ->first();
-
-        if ($watchedProgress) {
-            $subTopic = $subTopics->firstWhere('id', $watchedProgress->sub_topic_id);
-
-            if ($subTopic) {
-                return $this->formatCurrentLesson($subTopic, $watchedProgress);
-            }
-        }
-
-        $firstNotCompleted = $subTopics->first(function ($subTopic) use ($progressRows) {
-            $progress = $progressRows->get($subTopic->id);
-
-            return !($progress?->is_completed ?? false);
-        });
-
-        if ($firstNotCompleted) {
-            return $this->formatCurrentLesson(
-                $firstNotCompleted,
-                $progressRows->get($firstNotCompleted->id)
-            );
-        }
-
-        $latestCompleted = $progressRows
-            ->filter(fn ($progress) => (bool) $progress->is_completed)
-            ->sortByDesc(function ($progress) {
-                return $progress->completed_at?->timestamp
-                    ?? $progress->updated_at?->timestamp
-                    ?? 0;
-            })
-            ->first();
-
-        if ($latestCompleted) {
-            $subTopic = $subTopics->firstWhere('id', $latestCompleted->sub_topic_id);
-
-            if ($subTopic) {
-                return $this->formatCurrentLesson($subTopic, $latestCompleted);
-            }
-        }
-
-        return null;
-    }
-
-    private function formatCurrentLesson($subTopic, ?StudentLessonProgress $progress = null): array
-    {
-        $topic = $subTopic->topic;
-        $module = $topic?->module;
-        $program = $module?->stage?->program;
-
-        $title = $subTopic->name
-            ?? $subTopic->title
-            ?? 'Untitled Lesson';
-
-        $courseSlug = $program
-            ? $this->getProgramSlug($program)
-            : 'course';
-
-        $subTopicSlug = $this->getSubTopicSlug($subTopic);
-
-        $progressPercentage = (float) ($progress?->progress_percentage ?? 0);
-        $isCompleted = (bool) ($progress?->is_completed ?? false);
-
-        if ($isCompleted && $progressPercentage < 100) {
-            $progressPercentage = 100;
-        }
-
-        return [
-            'id' => $subTopic->id,
-
-            'title' => $title,
-
-            'description' => $this->getColumnValue($subTopic, [
-                'description',
-                'summary',
-                'content',
-            ]) ?: 'Continue your current learning activity.',
-
-            'duration_minutes' => $this->resolveDurationMinutes($subTopic),
-
-            'thumbnail_url' => $this->resolveThumbnailUrl($subTopic, $program),
-
-            'module' => $module->name ?? $module->title ?? '-',
-            'module_title' => $module->name ?? $module->title ?? '-',
-
-            'topic' => $topic->name ?? $topic->title ?? '-',
-            'topic_title' => $topic->name ?? $topic->title ?? '-',
-
-            'status' => $isCompleted ? 'Completed' : 'In Progress',
-            'status_label' => $isCompleted ? 'Completed' : 'In Progress',
-
-            'is_completed' => $isCompleted,
-            'progress_percentage' => round($progressPercentage, 2),
-            'last_position_seconds' => (int) ($progress?->last_position_seconds ?? 0),
-
-            'learn_url' => '/learn/' . $courseSlug . '/' . $subTopicSlug,
-        ];
-    }
-
-    private function getSubTopicsForPrograms(Collection $programIds): Collection
-    {
-        if ($programIds->isEmpty()) {
-            return collect();
-        }
-
-        $query = SubTopic::query()
-            ->with([
-                'topic.module.stage.program',
-            ])
-            ->whereHas('topic.module.stage', function ($stageQuery) use ($programIds) {
-                $stageQuery->whereIn('program_id', $programIds);
-            });
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        return $this->sortSubTopics($query->get());
-    }
-
-    private function getSubTopicsForProgram(int $programId): Collection
-    {
-        $query = SubTopic::query()
-            ->with([
-                'topic.module.stage.program',
-            ])
-            ->whereHas('topic.module.stage', function ($stageQuery) use ($programId) {
-                $stageQuery->where('program_id', $programId);
-            });
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        return $this->sortSubTopics($query->get());
-    }
-
-    private function sortSubTopics(Collection $subTopics): Collection
-    {
-        return $subTopics
-            ->sortBy(function ($subTopic) {
-                return sprintf(
-                    '%06d-%06d-%06d-%06d-%06d',
-                    $subTopic->topic?->module?->stage?->sort_order ?? 999999,
-                    $subTopic->topic?->module?->sort_order ?? 999999,
-                    $subTopic->topic?->sort_order ?? 999999,
-                    $subTopic->sort_order ?? 999999,
-                    $subTopic->id ?? 999999
-                );
-            })
-            ->values();
-    }
-
-    private function getProgressRows(Student $student, Collection $subTopics): Collection
-    {
-        $subTopicIds = $subTopics
-            ->pluck('id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($subTopicIds->isEmpty()) {
-            return collect();
-        }
-
-        return StudentLessonProgress::query()
-            ->where('student_id', $student->id)
-            ->whereIn('sub_topic_id', $subTopicIds)
-            ->get()
-            ->keyBy('sub_topic_id');
-    }
-
-    private function getNextSubTopicForProgram(Collection $subTopics, string $courseSlug, Collection $progressRows): ?array
-    {
-        foreach ($subTopics as $subTopic) {
-            $progress = $progressRows->get($subTopic->id);
-
-            if (!($progress?->is_completed ?? false)) {
-                $title = $subTopic->name
-                    ?? $subTopic->title
-                    ?? 'Untitled Sub Topic';
-
-                $slug = $this->getSubTopicSlug($subTopic);
-
-                return [
-                    'id' => $subTopic->id,
-                    'title' => $title,
-                    'url' => '/learn/' . $courseSlug . '/' . $slug,
-                ];
-            }
-        }
-
-        return null;
-    }
-
-    private function applyActiveFilter(Builder $query, string $table): void
-    {
-        if (Schema::hasColumn($table, 'is_active')) {
-            $query->where('is_active', true);
-        }
-    }
-
-    private function applyPublishedFilter(Builder $query, string $table): void
-    {
-        if (Schema::hasColumn($table, 'status')) {
-            $query->whereIn('status', [
-                'published',
-                'active',
-                'open',
-            ]);
-        }
-    }
-
-    private function resolveDeadline($model, array $columns): ?Carbon
-    {
-        foreach ($columns as $column) {
+        foreach ([
+            'due_at',
+            'deadline_at',
+            'deadline',
+            'due_date',
+            'closed_at',
+            'available_until',
+            'end_at',
+            'end_date',
+        ] as $column) {
             $value = $this->getColumnValue($model, [$column]);
 
             if ($value) {
@@ -847,7 +858,7 @@ class StudentDashboardController extends Controller
             return 'No deadline';
         }
 
-        return $deadline->format('d M Y');
+        return $deadline->format('d M Y H:i');
     }
 
     private function formatRemainingTime(?Carbon $deadline): string
@@ -856,7 +867,7 @@ class StudentDashboardController extends Controller
             return 'No deadline';
         }
 
-        $seconds = now()->diffInSeconds($deadline, false);
+        $seconds = (int) now()->diffInSeconds($deadline, false);
 
         if ($seconds < 0) {
             $daysLate = (int) ceil(abs($seconds) / 86400);
@@ -866,13 +877,13 @@ class StudentDashboardController extends Controller
                 : $daysLate . ' days overdue';
         }
 
-        $daysLeft = (int) ceil($seconds / 86400);
-
-        if ($daysLeft <= 0) {
+        if ($seconds <= 0) {
             return 'Due today';
         }
 
-        if ($daysLeft === 1) {
+        $daysLeft = (int) ceil($seconds / 86400);
+
+        if ($daysLeft <= 1) {
             return '1 day left';
         }
 
@@ -885,19 +896,13 @@ class StudentDashboardController extends Controller
             return 'normal';
         }
 
-        $seconds = now()->diffInSeconds($deadline, false);
+        $seconds = (int) now()->diffInSeconds($deadline, false);
 
-        if ($seconds < 0) {
+        if ($seconds < 0 || $seconds <= 86400) {
             return 'high';
         }
 
-        $daysLeft = (int) ceil($seconds / 86400);
-
-        if ($daysLeft <= 2) {
-            return 'high';
-        }
-
-        if ($daysLeft <= 7) {
+        if ($seconds <= 259200) {
             return 'medium';
         }
 
@@ -907,64 +912,196 @@ class StudentDashboardController extends Controller
     private function formatPriorityLabel(string $priority): string
     {
         return match ($priority) {
-            'high' => 'High',
-            'medium' => 'Medium',
-            default => 'Normal',
+            'high' => 'Urgent',
+            'medium' => 'Soon',
+            default => 'Task',
         };
     }
 
-    private function resolveDurationMinutes($subTopic): ?int
+    private function getDashboardAnnouncements(Collection $programIds, Collection $batchIds): Collection
     {
-        $durationMinutes = $this->getColumnValue($subTopic, [
-            'video_duration_minutes',
-            'duration_minutes',
-        ]);
-
-        return $durationMinutes
-            ? (int) $durationMinutes
-            : null;
-    }
-
-    private function resolveThumbnailUrl($subTopic, $program = null): ?string
-    {
-        return $this->getColumnValue($subTopic, [
-            'thumbnail_url',
-            'thumbnail',
-            'image_url',
-            'image',
-        ]) ?: $this->getColumnValue($program, [
-            'thumbnail_url',
-            'thumbnail',
-            'image_url',
-            'image',
-        ]);
-    }
-
-    private function getProgramSlug($program): string
-    {
-        $slug = $this->getColumnValue($program, ['slug']);
-
-        if ($slug) {
-            return $this->slugify($slug);
+        if (!Schema::hasTable('announcements') || !class_exists(Announcement::class)) {
+            return collect();
         }
 
-        return $this->slugify($program->name ?? 'course');
+        return Announcement::query()
+            ->with(['program', 'batch.program'])
+            ->visibleNow()
+            ->forProgramsAndBatches($programIds, $batchIds)
+            ->orderByDesc('is_pinned')
+            ->latest('publish_at')
+            ->latest('id')
+            ->limit(5)
+            ->get()
+            ->map(function (Announcement $announcement) {
+                $content = (string) ($announcement->content ?? '');
+
+                return [
+                    'id' => $announcement->id,
+                    'title' => $announcement->title,
+                    'slug' => $announcement->slug,
+                    'excerpt' => Str::limit(strip_tags($content), 120),
+                    'is_pinned' => (bool) $announcement->is_pinned,
+                    'publish_at_label' => $announcement->publish_at?->format('d M Y H:i'),
+                    'url' => '/announcements/' . $announcement->slug,
+                ];
+            })
+            ->values();
     }
 
-    private function getSubTopicSlug($subTopic): string
+    private function getDashboardUpcomingSessions(Student $student, Collection $programIds, Collection $batchIds): Collection
     {
-        $slug = $this->getColumnValue($subTopic, ['slug']);
+        $mentoringSessions = collect();
 
-        if ($slug) {
-            return $this->slugify($slug);
+        if (Schema::hasTable('student_mentoring_sessions')) {
+            $mentoringSessions = StudentMentoringSession::query()
+                ->with(['instructor', 'availabilitySlot'])
+                ->where('student_id', $student->id)
+                ->whereIn('status', ['pending', 'approved', 'rescheduled'])
+                ->whereHas('availabilitySlot', function ($query) {
+                    $query->whereDate('date', '>=', now()->toDateString());
+                })
+                ->get()
+                ->map(function (StudentMentoringSession $session) {
+                    $slot = $session->availabilitySlot;
+
+                    $date = $slot?->date;
+                    $startTime = $slot?->start_time ? substr($slot->start_time, 0, 5) : null;
+                    $endTime = $slot?->end_time ? substr($slot->end_time, 0, 5) : null;
+
+                    $dateLabel = $date ? Carbon::parse($date)->format('d M Y') : '-';
+                    $timeLabel = $startTime && $endTime ? "{$startTime} - {$endTime}" : '-';
+
+                    return [
+                        'id' => $session->id,
+                        'type' => 'mentoring',
+                        'title' => '1-on-1 with ' . ($session->instructor?->name ?? 'Instructor'),
+                        'subtitle' => $session->topic_type_label,
+                        'time' => "{$dateLabel}, {$timeLabel}",
+                        'status' => $session->status,
+                        'badge_label' => $session->status_label,
+                        'join_url' => $session->status === 'approved' ? $session->meeting_url : null,
+                        'meeting_url' => $session->status === 'approved' ? $session->meeting_url : null,
+                        'sort_datetime' => trim(($date?->format('Y-m-d') ?? '') . ' ' . ($startTime ?: '00:00')),
+                    ];
+                });
         }
 
-        return $this->slugify($subTopic->name ?? $subTopic->title ?? 'sub-topic');
+        $liveSessions = $this->getDashboardLiveSessions($programIds, $batchIds);
+
+        return $mentoringSessions
+            ->merge($liveSessions)
+            ->sortBy('sort_datetime')
+            ->values()
+            ->map(function (array $session) {
+                unset($session['sort_datetime']);
+
+                return $session;
+            });
+    }
+
+    private function getDashboardLiveSessions(Collection $programIds, Collection $batchIds): Collection
+    {
+        if (!Schema::hasTable('instructor_schedules')) {
+            return collect();
+        }
+
+        if ($programIds->isEmpty() && $batchIds->isEmpty()) {
+            return collect();
+        }
+
+        $query = DB::table('instructor_schedules')
+            ->leftJoin('instructors', 'instructors.id', '=', 'instructor_schedules.instructor_id')
+            ->leftJoin('batches', 'batches.id', '=', 'instructor_schedules.batch_id')
+            ->leftJoin('programs', 'programs.id', '=', 'batches.program_id')
+            ->whereDate('instructor_schedules.schedule_date', '>=', now()->toDateString());
+
+        $query->where(function ($targetQuery) use ($programIds, $batchIds) {
+            if ($batchIds->isNotEmpty() && Schema::hasColumn('instructor_schedules', 'batch_id')) {
+                $targetQuery->orWhereIn('instructor_schedules.batch_id', $batchIds);
+            }
+
+            if (
+                $programIds->isNotEmpty()
+                && Schema::hasColumn('instructor_schedules', 'program_id')
+            ) {
+                $targetQuery->orWhereIn('instructor_schedules.program_id', $programIds);
+            }
+        });
+
+        if (Schema::hasColumn('instructor_schedules', 'status')) {
+            $query->whereNotIn('instructor_schedules.status', [
+                'cancelled',
+                'canceled',
+                'inactive',
+            ]);
+        }
+
+        $selects = [
+            'instructor_schedules.id',
+            'instructor_schedules.schedule_date',
+            'instructor_schedules.start_time',
+            'instructor_schedules.end_time',
+            'instructors.name as instructor_name',
+            'batches.name as batch_name',
+            'programs.name as program_name',
+        ];
+
+        if (Schema::hasColumn('instructor_schedules', 'meeting_url')) {
+            $selects[] = 'instructor_schedules.meeting_url';
+        }
+
+        if (Schema::hasColumn('instructor_schedules', 'title')) {
+            $selects[] = 'instructor_schedules.title';
+        }
+
+        if (Schema::hasColumn('instructor_schedules', 'topic')) {
+            $selects[] = 'instructor_schedules.topic';
+        }
+
+        return $query
+            ->select($selects)
+            ->orderBy('instructor_schedules.schedule_date')
+            ->orderBy('instructor_schedules.start_time')
+            ->limit(5)
+            ->get()
+            ->map(function ($schedule) {
+                $date = $schedule->schedule_date ?? null;
+                $startTime = isset($schedule->start_time) ? substr($schedule->start_time, 0, 5) : null;
+                $endTime = isset($schedule->end_time) ? substr($schedule->end_time, 0, 5) : null;
+
+                $dateLabel = $date ? Carbon::parse($date)->format('d M Y') : '-';
+                $timeLabel = $startTime && $endTime ? "{$startTime} - {$endTime}" : '-';
+
+                $title = $schedule->title
+                    ?? $schedule->topic
+                    ?? 'Live Class';
+
+                $subtitle = collect([
+                    $schedule->program_name ?? null,
+                    $schedule->batch_name ?? null,
+                    $schedule->instructor_name ?? null,
+                ])->filter()->implode(' • ');
+
+                return [
+                    'id' => $schedule->id,
+                    'type' => 'live',
+                    'title' => $title,
+                    'subtitle' => $subtitle,
+                    'time' => "{$dateLabel}, {$timeLabel}",
+                    'status' => 'scheduled',
+                    'badge_label' => 'Live Class',
+                    'join_url' => $schedule->meeting_url ?? null,
+                    'meeting_url' => $schedule->meeting_url ?? null,
+                    'sort_datetime' => trim(($date ?: '') . ' ' . ($startTime ?: '00:00')),
+                ];
+            })
+            ->values();
     }
 
     private function getColumnValue($model, array $columns)
     {
-        if (!$model) {
+        if (!$model || !method_exists($model, 'getTable')) {
             return null;
         }
 
@@ -973,16 +1110,11 @@ class StudentDashboardController extends Controller
                 continue;
             }
 
-            if (!empty($model->{$column})) {
+            if (!blank($model->{$column})) {
                 return $model->{$column};
             }
         }
 
         return null;
-    }
-
-    private function slugify(?string $value): string
-    {
-        return str($value ?: 'item')->slug()->toString();
     }
 }

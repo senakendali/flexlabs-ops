@@ -36,4 +36,9 @@ class Module extends Model
             ->orderBy('sort_order')
             ->orderBy('name');
     }
+
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class, 'program_id');
+    }
 }
