@@ -31,6 +31,7 @@ use App\Http\Controllers\Academic\BatchAssignmentController;
 use App\Http\Controllers\Academic\AssignmentSubmissionController;
 use App\Http\Controllers\Academic\LearningQuizController;
 use App\Http\Controllers\Academic\LearningQuizQuestionController;
+use App\Http\Controllers\Academic\BatchLearningQuizController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
@@ -538,6 +539,18 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [BatchAssignmentController::class, 'store'])->name('store');
         Route::put('/{batchAssignment}', [BatchAssignmentController::class, 'update'])->name('update');
         Route::delete('/{batchAssignment}', [BatchAssignmentController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Batch Learning Quizzes
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('batch-learning-quizzes')->name('batch-learning-quizzes.')->group(function () {
+        Route::get('/', [BatchLearningQuizController::class, 'index'])->name('index');
+        Route::post('/', [BatchLearningQuizController::class, 'store'])->name('store');
+        Route::put('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'update'])->name('update');
+        Route::delete('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'destroy'])->name('destroy');
     });
 
     /*

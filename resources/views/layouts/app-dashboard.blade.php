@@ -108,6 +108,13 @@
                                         </a>
                                     @endif
 
+                                    @if (Route::has('batch-learning-quizzes.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('batch-learning-quizzes.*') ? 'active' : '' }}"
+                                        href="{{ route('batch-learning-quizzes.index') }}">
+                                            <i class="bi bi-ui-checks-grid me-2"></i>Batch Learning Quizzes
+                                        </a>
+                                    @endif
+
                                     @if (Route::has('instructors.index'))
                                         <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
                                         href="{{ route('instructors.index') }}">
