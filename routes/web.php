@@ -32,6 +32,9 @@ use App\Http\Controllers\Academic\AssignmentSubmissionController;
 use App\Http\Controllers\Academic\LearningQuizController;
 use App\Http\Controllers\Academic\LearningQuizQuestionController;
 use App\Http\Controllers\Academic\BatchLearningQuizController;
+use App\Http\Controllers\Academic\LearningQuizAttemptController;
+use App\Http\Controllers\Academic\InstructorAvailabilitySlotController;
+use App\Http\Controllers\Academic\StudentMentoringSessionController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
@@ -195,6 +198,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/', [StudentController::class, 'store'])->name('store');
             Route::put('/{student}', [StudentController::class, 'update'])->name('update');
             Route::delete('/{student}', [StudentController::class, 'destroy'])->name('destroy');
+
+            Route::post('/{student}/enroll', [StudentController::class, 'enroll'])
+                ->name('enroll');
         });
     });
 
@@ -291,6 +297,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [InstructorController::class, 'store'])->name('store');
         Route::put('/{instructor}', [InstructorController::class, 'update'])->name('update');
         Route::delete('/{instructor}', [InstructorController::class, 'destroy'])->name('destroy');
+        Route::post('/{instructor}/assign-teaching-scope', [InstructorController::class, 'assignTeachingScope'])
+        ->name('assign-teaching-scope');
     });
 
 
@@ -551,6 +559,66 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [BatchLearningQuizController::class, 'store'])->name('store');
         Route::put('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'update'])->name('update');
         Route::delete('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Learning Quiz Attempts / Results
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('learning-quiz-attempts')->name('learning-quiz-attempts.')->group(function () {
+        Route::get('/', [LearningQuizAttemptController::class, 'index'])
+            ->name('index');
+
+        Route::get('/{attempt}', [LearningQuizAttemptController::class, 'show'])
+            ->name('show');
+
+        Route::post('/{attempt}/grade', [LearningQuizAttemptController::class, 'gradeAttempt'])
+            ->name('grade');
+
+        Route::post('/{attempt}/status', [LearningQuizAttemptController::class, 'updateStatus'])
+            ->name('status');
+
+        Route::post('/{attempt}/answers/{answer}/grade', [LearningQuizAttemptController::class, 'gradeAnswer'])
+            ->name('answers.grade');
+
+        Route::delete('/{attempt}', [LearningQuizAttemptController::class, 'destroy'])
+            ->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Instructor Availability
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('academic')->name('academic.')->group(function () {
+        Route::prefix('instructor-availability')->name('instructor-availability.')->group(function () {
+            Route::get('/', [InstructorAvailabilitySlotController::class, 'index'])->name('index');
+            Route::get('/{instructorAvailabilitySlot}', [InstructorAvailabilitySlotController::class, 'show'])->name('show');
+            Route::post('/', [InstructorAvailabilitySlotController::class, 'store'])->name('store');
+            Route::put('/{instructorAvailabilitySlot}', [InstructorAvailabilitySlotController::class, 'update'])->name('update');
+            Route::delete('/{instructorAvailabilitySlot}', [InstructorAvailabilitySlotController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Student Mentoring Sessions
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('academic')->name('academic.')->group(function () {
+        Route::prefix('mentoring-sessions')->name('mentoring-sessions.')->group(function () {
+            Route::get('/', [StudentMentoringSessionController::class, 'index'])->name('index');
+            Route::get('/{studentMentoringSession}', [StudentMentoringSessionController::class, 'show'])->name('show');
+
+            Route::patch('/{studentMentoringSession}/approve', [StudentMentoringSessionController::class, 'approve'])->name('approve');
+            Route::patch('/{studentMentoringSession}/reject', [StudentMentoringSessionController::class, 'reject'])->name('reject');
+            Route::patch('/{studentMentoringSession}/complete', [StudentMentoringSessionController::class, 'complete'])->name('complete');
+            Route::patch('/{studentMentoringSession}/cancel', [StudentMentoringSessionController::class, 'cancel'])->name('cancel');
+            Route::patch('/{studentMentoringSession}/meeting-url', [StudentMentoringSessionController::class, 'updateMeetingUrl'])->name('meeting-url');
+            Route::patch('/{studentMentoringSession}/status', [StudentMentoringSessionController::class, 'updateStatus'])->name('status');
+        });
     });
 
     /*

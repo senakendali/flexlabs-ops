@@ -44,4 +44,16 @@ class Batch extends Model
     {
         return $this->hasMany(LearningQuizAttempt::class);
     }
+
+    public function studentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function activeStudentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class)
+            ->where('status', 'active')
+            ->where('access_status', 'active');
+    }
 }

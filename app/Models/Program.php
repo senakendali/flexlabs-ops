@@ -45,5 +45,17 @@ class Program extends Model
             ->orderBy('name');
     }
 
+    public function studentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function activeStudentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class)
+            ->where('status', 'active')
+            ->where('access_status', 'active');
+    }
+
     
 }

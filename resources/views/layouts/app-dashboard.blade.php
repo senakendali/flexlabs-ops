@@ -39,16 +39,22 @@
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
                                         'programs.*',
                                         'batches.*',
+                                        'enrollments.*',
                                         'curriculum.*',
                                         'assignments.*',
                                         'batch-assignments.*',
+                                        'assignment-submissions.*',
+                                        'learning-quizzes.*',
+                                        'batch-learning-quizzes.*',
+                                        'learning-quiz-attempts.*',
                                         'instructors.*',
                                         'instructor-schedules.*',
                                         'instructor-tracking.*',
+                                        'academic.instructor-availability.*',
                                         'trial-themes.*',
                                         'trial-schedules.*',
                                         'trial-participants.*',
-                                        'academic.workshops.*'
+                                        'academic.workshops.*',
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -58,7 +64,9 @@
                                     <span>Academic</span>
                                 </button>
 
-                                <div class="dropdown-menu">
+                                <div class="dropdown-menu dropdown-menu-academic">
+                                    <div class="dropdown-section-title">Core Setup</div>
+
                                     @if (Route::has('programs.index'))
                                         <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
                                         href="{{ route('programs.index') }}">
@@ -79,6 +87,17 @@
                                             <i class="bi bi-diagram-3-fill me-2"></i>Curriculum
                                         </a>
                                     @endif
+
+                                    @if (Route::has('enrollments.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('enrollments.*', 'batches.*', 'students.*') ? 'active' : '' }}"
+                                        href="{{ route('enrollments.index') }}">
+                                            <i class="bi bi-people me-2"></i>Student Enrollment
+                                        </a>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Learning Activities</div>
 
                                     @if (Route::has('assignments.index'))
                                         <a class="dropdown-item {{ request()->routeIs('assignments.*') ? 'active' : '' }}"
@@ -115,10 +134,41 @@
                                         </a>
                                     @endif
 
+                                    @if (Route::has('learning-quiz-attempts.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('learning-quiz-attempts.*') ? 'active' : '' }}"
+                                        href="{{ route('learning-quiz-attempts.index') }}">
+                                            <i class="bi bi-activity me-2"></i>Quiz Attempts / Results
+                                        </a>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Instructor Operations</div>
+
                                     @if (Route::has('instructors.index'))
                                         <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
                                         href="{{ route('instructors.index') }}">
                                             <i class="bi bi-person-video3 me-2"></i>Instructors
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.instructor-availability.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.instructor-availability.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.instructor-availability.index') }}"
+                                        >
+                                            <i class="bi bi-calendar2-week me-2"></i>
+                                            Instructor Availability
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.mentoring-sessions.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.mentoring-sessions.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.mentoring-sessions.index') }}"
+                                        >
+                                            <i class="bi bi-chat-square-text me-2"></i>
+                                            Mentoring Sessions
                                         </a>
                                     @endif
 
@@ -135,6 +185,10 @@
                                             <i class="bi bi-clipboard-data-fill me-2"></i>Instructor Tracking
                                         </a>
                                     @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Trial & Workshops</div>
 
                                     @if (Route::has('trial-themes.index'))
                                         <a class="dropdown-item {{ request()->routeIs('trial-themes.*') ? 'active' : '' }}"
@@ -174,7 +228,6 @@
                                         'sales-performance.*',
                                         'sales-orders.*',
                                         'orders.*',
-                                        'enrollments.*',
                                         'batches.*',
                                         'students.*'
                                     ) ? 'active' : '' }}"
@@ -201,12 +254,7 @@
                                         </a>
                                     @endif
 
-                                    @if (Route::has('enrollments.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('enrollments.*', 'batches.*', 'students.*') ? 'active' : '' }}"
-                                        href="{{ route('enrollments.index') }}">
-                                            <i class="bi bi-people me-2"></i>Student Enrollment
-                                        </a>
-                                    @endif
+                                    
 
                                     @if (Route::has('orders.index'))
                                         <a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}"
