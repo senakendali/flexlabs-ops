@@ -27,4 +27,21 @@ class Student extends Model
     {
         return $this->hasMany(AssignmentSubmission::class, 'student_id');
     }
+
+    public function learningQuizAttempts(): HasMany
+    {
+        return $this->hasMany(LearningQuizAttempt::class);
+    }
+
+    public function learningQuizAnswers(): HasMany
+    {
+        return $this->hasManyThrough(
+            LearningQuizAnswer::class,
+            LearningQuizAttempt::class,
+            'student_id',
+            'learning_quiz_attempt_id',
+            'id',
+            'id'
+        );
+    }
 }

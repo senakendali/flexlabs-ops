@@ -41,6 +41,7 @@
                                         'batches.*',
                                         'curriculum.*',
                                         'assignments.*',
+                                        'batch-assignments.*',
                                         'instructors.*',
                                         'instructor-schedules.*',
                                         'instructor-tracking.*',
@@ -83,6 +84,27 @@
                                         <a class="dropdown-item {{ request()->routeIs('assignments.*') ? 'active' : '' }}"
                                         href="{{ route('assignments.index') }}">
                                             <i class="bi bi-journal-check me-2"></i>Assignments
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('batch-assignments.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('batch-assignments.*') ? 'active' : '' }}"
+                                        href="{{ route('batch-assignments.index') }}">
+                                            <i class="bi bi-clipboard-check me-2"></i>Batch Assignments
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('assignment-submissions.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('assignment-submissions.*') ? 'active' : '' }}"
+                                        href="{{ route('assignment-submissions.index') }}">
+                                            <i class="bi bi-inbox-fill me-2"></i>Assignment Submissions
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('learning-quizzes.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('learning-quizzes.*') ? 'active' : '' }}"
+                                        href="{{ route('learning-quizzes.index') }}">
+                                            <i class="bi bi-patch-question-fill me-2"></i>Learning Quizzes
                                         </a>
                                     @endif
 

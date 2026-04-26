@@ -66,4 +66,10 @@ class SubTopic extends Model
             ->orderBy('sort_order')
             ->orderBy('title');
     }
+
+    public function learningQuizzes(): HasMany
+    {
+        return $this->hasMany(LearningQuiz::class)
+            ->orderBy('title');
+    }
 }

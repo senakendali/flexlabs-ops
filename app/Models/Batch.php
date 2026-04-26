@@ -34,4 +34,14 @@ class Batch extends Model
     {
         return $this->hasMany(BatchAssignment::class, 'batch_id');
     }
+
+    public function batchLearningQuizzes(): HasMany
+    {
+        return $this->hasMany(BatchLearningQuiz::class);
+    }
+
+    public function learningQuizAttempts(): HasMany
+    {
+        return $this->hasMany(LearningQuizAttempt::class);
+    }
 }

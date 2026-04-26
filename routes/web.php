@@ -27,6 +27,10 @@ use App\Http\Controllers\Sales\SalesDailyReportController;
 use App\Http\Controllers\Sales\SalesPerformanceController;
 use App\Http\Controllers\Academic\CurriculumController;
 use App\Http\Controllers\Academic\AssignmentController;
+use App\Http\Controllers\Academic\BatchAssignmentController;
+use App\Http\Controllers\Academic\AssignmentSubmissionController;
+use App\Http\Controllers\Academic\LearningQuizController;
+use App\Http\Controllers\Academic\LearningQuizQuestionController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
@@ -43,6 +47,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
+
 
 
 
@@ -457,6 +462,82 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [AssignmentController::class, 'store'])->name('store');
         Route::put('/{assignment}', [AssignmentController::class, 'update'])->name('update');
         Route::delete('/{assignment}', [AssignmentController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Assignment Submissions
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('assignment-submissions')->name('assignment-submissions.')->group(function () {
+        Route::get('/', [AssignmentSubmissionController::class, 'index'])->name('index');
+
+        Route::post('/{assignmentSubmission}/review', [AssignmentSubmissionController::class, 'review'])
+            ->name('review');
+
+        Route::post('/{assignmentSubmission}/return-revision', [AssignmentSubmissionController::class, 'returnRevision'])
+            ->name('return-revision');
+
+        Route::post('/{assignmentSubmission}/mark-submitted', [AssignmentSubmissionController::class, 'markSubmitted'])
+            ->name('mark-submitted');
+
+        Route::delete('/{assignmentSubmission}', [AssignmentSubmissionController::class, 'destroy'])
+            ->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Learning Quizzes
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('learning-quizzes')->name('learning-quizzes.')->group(function () {
+        Route::get('/', [LearningQuizController::class, 'index'])->name('index');
+        Route::post('/', [LearningQuizController::class, 'store'])->name('store');
+        Route::put('/{learningQuiz}', [LearningQuizController::class, 'update'])->name('update');
+        Route::delete('/{learningQuiz}', [LearningQuizController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Learning Quiz Questions & Options
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('learning-quizzes/{learningQuiz}/questions')
+        ->name('learning-quizzes.questions.')
+        ->group(function () {
+            Route::get('/', [LearningQuizQuestionController::class, 'index'])
+                ->name('index');
+
+            Route::post('/', [LearningQuizQuestionController::class, 'storeQuestion'])
+                ->name('store');
+
+            Route::put('/{question}', [LearningQuizQuestionController::class, 'updateQuestion'])
+                ->name('update');
+
+            Route::delete('/{question}', [LearningQuizQuestionController::class, 'destroyQuestion'])
+                ->name('destroy');
+
+            Route::post('/{question}/options', [LearningQuizQuestionController::class, 'storeOption'])
+                ->name('options.store');
+
+            Route::put('/{question}/options/{option}', [LearningQuizQuestionController::class, 'updateOption'])
+                ->name('options.update');
+
+            Route::delete('/{question}/options/{option}', [LearningQuizQuestionController::class, 'destroyOption'])
+                ->name('options.destroy');
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Batch Assignments
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('batch-assignments')->name('batch-assignments.')->group(function () {
+        Route::get('/', [BatchAssignmentController::class, 'index'])->name('index');
+        Route::post('/', [BatchAssignmentController::class, 'store'])->name('store');
+        Route::put('/{batchAssignment}', [BatchAssignmentController::class, 'update'])->name('update');
+        Route::delete('/{batchAssignment}', [BatchAssignmentController::class, 'destroy'])->name('destroy');
     });
 
     /*
