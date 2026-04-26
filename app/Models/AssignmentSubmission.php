@@ -20,6 +20,7 @@ class AssignmentSubmission extends Model
         'answer_text',
         'answer_url',
         'submitted_file',
+        'student_notes',
         'status',
         'score',
         'feedback',

@@ -61,7 +61,18 @@ class StudentAssignmentController extends Controller
         $validated = $request->validate([
             'file' => ['nullable', 'file', 'max:20480'],
             'answer_text' => ['nullable', 'string', 'max:20000'],
+
+            /*
+             * Frontend kirim submission_url.
+             * Backend simpan ke assignment_submissions.answer_url.
+             */
             'submission_url' => ['nullable', 'url', 'max:1500'],
+
+            /*
+             * Table lu saat ini belum punya notes.
+             * Tetap diterima supaya frontend aman,
+             * tapi tidak akan disimpan kecuali nanti ada student_notes/notes/comment.
+             */
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
@@ -69,8 +80,7 @@ class StudentAssignmentController extends Controller
             request: $request,
             assignmentType: $assignmentType,
             answerText: $validated['answer_text'] ?? null,
-            submissionUrl: $validated['submission_url'] ?? null,
-            notes: $validated['notes'] ?? null
+            submissionUrl: $validated['submission_url'] ?? null
         );
 
         $deadline = $this->resolveDeadline($batchAssignment);
@@ -86,9 +96,9 @@ class StudentAssignmentController extends Controller
             student: $student,
             batchAssignment: $batchAssignment,
             status: $status,
-            notes: $validated['notes'] ?? null,
             answerText: $validated['answer_text'] ?? null,
             submissionUrl: $validated['submission_url'] ?? null,
+            notes: $validated['notes'] ?? null,
             currentSubmission: $submission
         );
 
@@ -125,13 +135,11 @@ class StudentAssignmentController extends Controller
         Request $request,
         string $assignmentType,
         ?string $answerText,
-        ?string $submissionUrl,
-        ?string $notes
+        ?string $submissionUrl
     ): void {
         $hasFile = $request->hasFile('file');
         $hasAnswer = filled($answerText);
         $hasUrl = filled($submissionUrl);
-        $hasNotes = filled($notes);
 
         if ($assignmentType === 'text' && !$hasAnswer) {
             throw ValidationException::withMessages([
@@ -151,9 +159,16 @@ class StudentAssignmentController extends Controller
             ]);
         }
 
-        if ($assignmentType === 'mixed' && !$hasFile && !$hasAnswer && !$hasUrl && !$hasNotes) {
+        /*
+         * Karena table saat ini belum punya field notes student,
+         * mixed minimal harus punya salah satu dari:
+         * - file
+         * - answer_text
+         * - submission_url
+         */
+        if ($assignmentType === 'mixed' && !$hasFile && !$hasAnswer && !$hasUrl) {
             throw ValidationException::withMessages([
-                'submission' => ['Isi minimal salah satu: file, text answer, submission link, atau notes.'],
+                'submission' => ['Isi minimal salah satu: file, text answer, atau submission link.'],
             ]);
         }
     }
@@ -277,9 +292,9 @@ class StudentAssignmentController extends Controller
         Student $student,
         BatchAssignment $batchAssignment,
         string $status,
-        ?string $notes,
         ?string $answerText,
         ?string $submissionUrl,
+        ?string $notes,
         ?AssignmentSubmission $currentSubmission = null
     ): array {
         $payload = [];
@@ -294,9 +309,20 @@ class StudentAssignmentController extends Controller
             $payload['submitted_at'] = now();
         }
 
-        $this->setNotesPayload($payload, $notes);
+        /*
+         * Mapping sesuai table lu:
+         * answer_text    -> jawaban text
+         * answer_url     -> link submission
+         * submitted_file -> upload file
+         */
         $this->setAnswerTextPayload($payload, $answerText);
-        $this->setSubmissionUrlPayload($payload, $submissionUrl);
+        $this->setAnswerUrlPayload($payload, $submissionUrl);
+
+        /*
+         * Notes hanya akan tersimpan kalau nanti lu tambah kolom student_notes/notes/comment.
+         * Feedback tidak dipakai karena itu untuk reviewer/instructor.
+         */
+        $this->setStudentNotesPayload($payload, $notes);
 
         if ($request->hasFile('file')) {
             $this->setFilePayload(
@@ -317,40 +343,47 @@ class StudentAssignmentController extends Controller
         }
     }
 
-    private function setNotesPayload(array &$payload, ?string $notes): void
-    {
-        foreach (['notes', 'comment'] as $column) {
-            if (Schema::hasColumn('assignment_submissions', $column)) {
-                $payload[$column] = $notes;
-                return;
-            }
-        }
-
-        /*
-         * Kalau table belum punya notes/comment, jangan pakai submission_text
-         * karena sekarang submission_text dipakai sebagai fallback answer_text.
-         */
-    }
-
     private function setAnswerTextPayload(array &$payload, ?string $answerText): void
     {
-        foreach (['answer_text', 'text_answer', 'submission_answer', 'answer'] as $column) {
+        foreach ([
+            'answer_text',
+            'text_answer',
+            'submission_answer',
+            'answer',
+            'submission_text',
+        ] as $column) {
             if (Schema::hasColumn('assignment_submissions', $column)) {
                 $payload[$column] = $answerText;
                 return;
             }
         }
+    }
 
-        if (Schema::hasColumn('assignment_submissions', 'submission_text')) {
-            $payload['submission_text'] = $answerText;
+    private function setAnswerUrlPayload(array &$payload, ?string $submissionUrl): void
+    {
+        foreach ([
+            'answer_url',
+            'submission_url',
+            'submission_link',
+            'link_url',
+            'url',
+        ] as $column) {
+            if (Schema::hasColumn('assignment_submissions', $column)) {
+                $payload[$column] = $submissionUrl;
+                return;
+            }
         }
     }
 
-    private function setSubmissionUrlPayload(array &$payload, ?string $submissionUrl): void
+    private function setStudentNotesPayload(array &$payload, ?string $notes): void
     {
-        foreach (['submission_url', 'submission_link', 'link_url', 'url'] as $column) {
+        foreach ([
+            'student_notes',
+            'notes',
+            'comment',
+        ] as $column) {
             if (Schema::hasColumn('assignment_submissions', $column)) {
-                $payload[$column] = $submissionUrl;
+                $payload[$column] = $notes;
                 return;
             }
         }
@@ -382,6 +415,7 @@ class StudentAssignmentController extends Controller
         }
 
         foreach ([
+            'submitted_file',
             'file_path',
             'attachment_path',
             'submission_file',
@@ -510,16 +544,19 @@ class StudentAssignmentController extends Controller
                 'submitted_at_label' => '-',
                 'file_url' => null,
                 'submission_url' => null,
+                'answer_url' => null,
                 'answer_text' => '',
                 'notes' => '',
+                'feedback' => null,
                 'message' => 'Belum ada submission untuk assignment ini.',
             ];
         }
 
         $fileUrl = $this->getSubmissionFileUrl($submission);
-        $submissionUrl = $this->getSubmissionUrl($submission);
+        $answerUrl = $this->getSubmissionUrl($submission);
         $answerText = $this->getSubmissionAnswerText($submission);
         $notes = $this->getSubmissionNotes($submission);
+        $feedback = $this->getColumnValue($submission, ['feedback']);
 
         $submittedAt = $this->getColumnValue($submission, [
             'submitted_at',
@@ -539,9 +576,17 @@ class StudentAssignmentController extends Controller
             'submitted_at_label' => $submittedAtCarbon?->format('d M Y H:i') ?? '-',
 
             'file_url' => $fileUrl,
-            'submission_url' => $submissionUrl,
+
+            /*
+             * Frontend tetap baca submission_url.
+             * DB lu pakai answer_url.
+             */
+            'submission_url' => $answerUrl,
+            'answer_url' => $answerUrl,
+
             'answer_text' => $answerText,
             'notes' => $notes,
+            'feedback' => $feedback,
 
             'message' => 'Assignment sudah dikumpulkan.',
         ];
@@ -723,13 +768,12 @@ class StudentAssignmentController extends Controller
     {
         return match ($status) {
             'not_submitted' => 'Not Submitted',
+            'draft' => 'Draft',
             'pending' => 'Pending',
             'submitted' => 'Submitted',
             'late' => 'Submitted Late',
             'reviewed' => 'Reviewed',
             'returned' => 'Returned',
-            'graded' => 'Graded',
-            'completed' => 'Completed',
             'overdue' => 'Overdue',
             default => Str::of($status ?: '-')->replace('_', ' ')->title()->toString(),
         };
@@ -751,6 +795,7 @@ class StudentAssignmentController extends Controller
     private function getSubmissionFilePath(AssignmentSubmission $submission): ?string
     {
         foreach ([
+            'submitted_file',
             'file_path',
             'attachment_path',
             'submission_file',
@@ -787,6 +832,7 @@ class StudentAssignmentController extends Controller
     private function getSubmissionUrl(AssignmentSubmission $submission): ?string
     {
         return $this->getColumnValue($submission, [
+            'answer_url',
             'submission_url',
             'submission_link',
             'link_url',
@@ -808,6 +854,7 @@ class StudentAssignmentController extends Controller
     private function getSubmissionNotes(AssignmentSubmission $submission): ?string
     {
         return $this->getColumnValue($submission, [
+            'student_notes',
             'notes',
             'comment',
         ]);
