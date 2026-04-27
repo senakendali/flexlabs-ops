@@ -33,10 +33,16 @@
         'blocked' => 'Blocked',
     ];
 
-    $statusBadgeMap = [
-        'available' => 'ui-badge-success',
-        'booked' => 'ui-badge-primary',
-        'blocked' => 'ui-badge-muted',
+    $statusClassMap = [
+        'available' => 'status-published',
+        'booked' => 'status-draft',
+        'blocked' => 'status-archived',
+    ];
+
+    $statusIconMap = [
+        'available' => 'bi-check2-circle',
+        'booked' => 'bi-person-check-fill',
+        'blocked' => 'bi-slash-circle',
     ];
 
     $pageStats = [
@@ -70,18 +76,11 @@
                 <h1 class="page-title mb-2">Instructor Availability</h1>
 
                 <p class="page-subtitle mb-0">
-                    Kelola slot jadwal instructor untuk kebutuhan 1-on-1 mentoring session di LMS student.
+                    Kelola slot jadwal instructor untuk kebutuhan <strong>1-on-1 mentoring session</strong> di LMS student.
                 </p>
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a
-                    href="{{ $indexRoute }}"
-                    class="btn btn-light btn-modern"
-                >
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Filter
-                </a>
-
                 <button
                     type="button"
                     class="btn btn-primary btn-modern"
@@ -155,269 +154,258 @@
         </div>
     </div>
 
+    <div class="content-card mb-4">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Filter Availability</h5>
+                <p class="content-card-subtitle mb-0">
+                    Cari slot berdasarkan instructor, tanggal, status, atau keyword tertentu.
+                </p>
+            </div>
+        </div>
+
+        <div class="content-card-body">
+            <form method="GET" action="{{ $indexRoute }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-xl-3 col-md-6">
+                        <label for="search" class="form-label">Keyword</label>
+                        <input
+                            type="text"
+                            name="search"
+                            id="search"
+                            class="form-control"
+                            value="{{ $currentSearch }}"
+                            placeholder="Cari nama, email, spesialisasi..."
+                        >
+                    </div>
+
+                    <div class="col-xl-3 col-md-6">
+                        <label for="instructor_id" class="form-label">Instructor</label>
+                        <select name="instructor_id" id="instructor_id" class="form-select">
+                            <option value="">All instructors</option>
+                            @foreach($instructors ?? [] as $instructor)
+                                <option
+                                    value="{{ $instructor->id }}"
+                                    {{ (string) $currentInstructorId === (string) $instructor->id ? 'selected' : '' }}
+                                >
+                                    {{ $instructor->name }}{{ $instructor->specialization ? ' — ' . $instructor->specialization : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-xl-2 col-md-6">
+                        <label for="date" class="form-label">Date</label>
+                        <input
+                            type="date"
+                            name="date"
+                            id="date"
+                            class="form-control"
+                            value="{{ $currentDate }}"
+                        >
+                    </div>
+
+                    <div class="col-xl-2 col-md-6">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="">All Statuses</option>
+                            @foreach($statusOptions as $value => $label)
+                                <option
+                                    value="{{ $value }}"
+                                    {{ (string) $currentStatus === (string) $value ? 'selected' : '' }}
+                                >
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-xl-2 col-md-6">
+                        <label for="per_page" class="form-label">Show</label>
+                        <select name="per_page" id="per_page" class="form-select">
+                            @foreach ([10, 25, 50, 100] as $size)
+                                <option value="{{ $size }}" {{ $currentPerPage === $size ? 'selected' : '' }}>
+                                    {{ $size }} rows
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <a href="{{ $indexRoute }}" class="btn btn-outline-secondary btn-modern">
+                                <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
+                            </a>
+
+                            <button type="submit" class="btn btn-primary btn-modern">
+                                <i class="bi bi-funnel me-2"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="content-card">
         <div class="content-card-header">
             <div>
-                <h5 class="content-card-title mb-1">Availability Slots</h5>
+                <h5 class="content-card-title mb-1">Availability Slot List</h5>
                 <p class="content-card-subtitle mb-0">
                     Slot available akan tampil sebagai pilihan jadwal saat student book 1-on-1 session.
                 </p>
             </div>
-
-            <form method="GET" action="{{ $indexRoute }}" class="d-flex align-items-center gap-2 flex-wrap">
-                <input type="hidden" name="search" value="{{ $currentSearch }}">
-                <input type="hidden" name="instructor_id" value="{{ $currentInstructorId }}">
-                <input type="hidden" name="date" value="{{ $currentDate }}">
-                <input type="hidden" name="status" value="{{ $currentStatus }}">
-
-                <label for="per_page" class="form-label mb-0 text-muted">Show</label>
-
-                <select
-                    name="per_page"
-                    id="per_page"
-                    class="form-select form-select-sm"
-                    style="width: 90px;"
-                    onchange="this.form.submit()"
-                >
-                    @foreach ([10, 25, 50, 100] as $size)
-                        <option value="{{ $size }}" {{ $currentPerPage === $size ? 'selected' : '' }}>
-                            {{ $size }}
-                        </option>
-                    @endforeach
-                </select>
-            </form>
         </div>
 
-        <div class="content-card-body border-bottom">
-            <form method="GET" action="{{ $indexRoute }}" class="row g-3 align-items-end">
-                <input type="hidden" name="per_page" value="{{ $currentPerPage }}">
-
-                <div class="col-xl-3 col-md-6">
-                    <label for="search" class="form-label">Search Instructor</label>
-                    <input
-                        type="text"
-                        name="search"
-                        id="search"
-                        class="form-control"
-                        value="{{ $currentSearch }}"
-                        placeholder="Name, email, specialization..."
-                    >
-                </div>
-
-                <div class="col-xl-3 col-md-6">
-                    <label for="instructor_id" class="form-label">Instructor</label>
-                    <select name="instructor_id" id="instructor_id" class="form-select">
-                        <option value="">All instructors</option>
-                        @foreach($instructors as $instructor)
-                            <option
-                                value="{{ $instructor->id }}"
-                                {{ (string) $currentInstructorId === (string) $instructor->id ? 'selected' : '' }}
-                            >
-                                {{ $instructor->name }}
-                                {{ $instructor->specialization ? ' — ' . $instructor->specialization : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-xl-2 col-md-6">
-                    <label for="date" class="form-label">Date</label>
-                    <input
-                        type="date"
-                        name="date"
-                        id="date"
-                        class="form-control"
-                        value="{{ $currentDate }}"
-                    >
-                </div>
-
-                <div class="col-xl-2 col-md-6">
-                    <label for="status" class="form-label">Status</label>
-                    <select name="status" id="status" class="form-select">
-                        <option value="">All status</option>
-                        @foreach($statusOptions as $value => $label)
-                            <option
-                                value="{{ $value }}"
-                                {{ (string) $currentStatus === (string) $value ? 'selected' : '' }}
-                            >
-                                {{ $label }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-xl-2 col-md-6">
-                    <div class="d-flex gap-2">
-                        <a href="{{ $indexRoute }}" class="btn btn-outline-secondary btn-modern w-100">
-                            Clear
-                        </a>
-
-                        <button type="submit" class="btn btn-primary btn-modern w-100">
-                            Filter
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <div class="content-card-body p-0">
+        <div class="content-card-body">
             @if(($slots ?? collect())->count())
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 70px;">No</th>
-                                <th>Instructor</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Slot Status</th>
-                                <th>Visibility</th>
-                                <th class="text-end" style="width: 300px; min-width: 300px;">Action</th>
-                            </tr>
-                        </thead>
+                <div class="assignment-list">
+                    @foreach($slots as $slot)
+                        @php
+                            $slotStatus = $slot->status ?? 'available';
+                            $slotStatusLabel = $statusOptions[$slotStatus] ?? \Illuminate\Support\Str::title($slotStatus);
+                            $slotStatusClass = $statusClassMap[$slotStatus] ?? 'status-draft';
+                            $slotStatusIcon = $statusIconMap[$slotStatus] ?? 'bi-info-circle';
 
-                        <tbody>
-                            @foreach($slots as $slot)
-                                @php
-                                    $slotStatus = $slot->status ?? 'available';
-                                    $slotStatusLabel = $statusOptions[$slotStatus] ?? \Illuminate\Support\Str::title($slotStatus);
-                                    $slotBadgeClass = $statusBadgeMap[$slotStatus] ?? 'ui-badge-muted';
+                            $dateLabel = $slot->date
+                                ? \Illuminate\Support\Carbon::parse($slot->date)->format('d M Y')
+                                : '-';
 
-                                    $dateLabel = $slot->date
-                                        ? \Illuminate\Support\Carbon::parse($slot->date)->format('d M Y')
-                                        : '-';
+                            $dateMachine = $slot->date
+                                ? \Illuminate\Support\Carbon::parse($slot->date)->format('Y-m-d')
+                                : '-';
 
-                                    $dateMachine = $slot->date
-                                        ? \Illuminate\Support\Carbon::parse($slot->date)->format('Y-m-d')
-                                        : '-';
+                            $dayLabel = $slot->date
+                                ? \Illuminate\Support\Carbon::parse($slot->date)->translatedFormat('l')
+                                : '-';
 
-                                    $startTime = $slot->start_time ? substr($slot->start_time, 0, 5) : '-';
-                                    $endTime = $slot->end_time ? substr($slot->end_time, 0, 5) : '-';
+                            $startTime = $slot->start_time ? substr($slot->start_time, 0, 5) : '-';
+                            $endTime = $slot->end_time ? substr($slot->end_time, 0, 5) : '-';
 
-                                    $initial = strtoupper(mb_substr($slot->instructor?->name ?? 'I', 0, 1));
+                            $initial = strtoupper(mb_substr($slot->instructor?->name ?? 'I', 0, 1));
 
-                                    $photoUrl = null;
+                            $photoUrl = null;
 
-                                    if (!empty($slot->instructor?->photo)) {
-                                        $photoUrl = str_starts_with($slot->instructor->photo, 'http')
-                                            ? $slot->instructor->photo
-                                            : asset('storage/' . $slot->instructor->photo);
-                                    }
-                                @endphp
+                            if (!empty($slot->instructor?->photo)) {
+                                $photoUrl = str_starts_with($slot->instructor->photo, 'http')
+                                    ? $slot->instructor->photo
+                                    : asset('storage/' . $slot->instructor->photo);
+                            }
 
-                                <tr>
-                                    <td>
-                                        @if(method_exists($slots, 'currentPage'))
-                                            {{ ($slots->currentPage() - 1) * $slots->perPage() + $loop->iteration }}
-                                        @else
-                                            {{ $loop->iteration }}
-                                        @endif
-                                    </td>
+                            $rowNumber = method_exists($slots, 'currentPage')
+                                ? (($slots->currentPage() - 1) * $slots->perPage() + $loop->iteration)
+                                : $loop->iteration;
+                        @endphp
 
-                                    <td>
-                                        <div class="entity-main">
-                                            <div class="entity-icon overflow-hidden">
-                                                @if($photoUrl)
-                                                    <img
-                                                        src="{{ $photoUrl }}"
-                                                        alt="{{ $slot->instructor?->name }}"
-                                                        class="w-100 h-100 object-fit-cover"
-                                                    >
-                                                @else
-                                                    {{ $initial }}
-                                                @endif
-                                            </div>
+                        <div class="assignment-card">
+                            <div class="assignment-main">
+                                <div class="assignment-icon overflow-hidden">
+                                    @if($photoUrl)
+                                        <img
+                                            src="{{ $photoUrl }}"
+                                            alt="{{ $slot->instructor?->name }}"
+                                            class="w-100 h-100 object-fit-cover"
+                                        >
+                                    @else
+                                        {{ $initial }}
+                                    @endif
+                                </div>
 
-                                            <div class="entity-info">
-                                                <div class="entity-title-row">
-                                                    <div>
-                                                        <h6 class="entity-title mb-1">
-                                                            {{ $slot->instructor?->name ?? 'Instructor not found' }}
-                                                        </h6>
+                                <div class="assignment-info">
+                                    <div class="assignment-title-row">
+                                        <h5 class="assignment-title mb-0">
+                                            {{ $slot->instructor?->name ?? 'Instructor not found' }}
+                                        </h5>
 
-                                                        <div class="entity-subtitle">
-                                                            {{ $slot->instructor?->specialization ?: 'General Instructor' }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div class="assignment-badges">
+                                            <span class="assignment-type-badge type-link">
+                                                <i class="bi bi-clock me-1"></i>{{ $startTime }} - {{ $endTime }}
+                                            </span>
+
+                                            <span class="assignment-status-badge {{ $slotStatusClass }}">
+                                                <i class="bi {{ $slotStatusIcon }} me-1"></i>{{ $slotStatusLabel }}
+                                            </span>
+
+                                            @if($slot->is_active)
+                                                <span class="assignment-required-badge">Active</span>
+                                            @else
+                                                <span class="assignment-optional-badge">Inactive</span>
+                                            @endif
                                         </div>
-                                    </td>
+                                    </div>
 
-                                    <td>
-                                        <div class="fw-semibold">{{ $dateLabel }}</div>
-                                        <div class="text-muted small">{{ $dateMachine }}</div>
-                                    </td>
-
-                                    <td>
-                                        <span class="ui-badge ui-badge-primary">
-                                            <i class="bi bi-clock me-1"></i>
-                                            {{ $startTime }} - {{ $endTime }}
+                                    <div class="assignment-meta mt-2">
+                                        <span>
+                                            <i class="bi bi-hash me-1"></i>No. {{ $rowNumber }}
                                         </span>
-                                    </td>
 
-                                    <td>
-                                        <span class="ui-badge {{ $slotBadgeClass }}">
-                                            {{ $slotStatusLabel }}
+                                        <span>
+                                            <i class="bi bi-person-badge me-1"></i>{{ $slot->instructor?->specialization ?: 'General Instructor' }}
                                         </span>
-                                    </td>
 
-                                    <td>
-                                        @if($slot->is_active)
-                                            <span class="ui-badge ui-badge-success">Active</span>
-                                        @else
-                                            <span class="ui-badge ui-badge-muted">Inactive</span>
-                                        @endif
-                                    </td>
+                                        <span>
+                                            <i class="bi bi-calendar-event me-1"></i>{{ $dayLabel }}, {{ $dateLabel }}
+                                        </span>
+                                    </div>
 
-                                    <td>
-                                        <div class="d-flex justify-content-end gap-2 flex-nowrap">
-                                            <button
-                                                type="button"
-                                                class="btn btn-outline-secondary btn-sm btn-modern text-nowrap"
-                                                onclick="editSlot({{ $slot->id }})"
-                                            >
-                                                <i class="bi bi-pencil-square me-1"></i>Edit
-                                            </button>
+                                    <div class="assignment-target mt-3">
+                                        <i class="bi bi-calendar-check me-1"></i>
+                                        {{ $dateMachine }} · Slot untuk 1-on-1 mentoring session
+                                    </div>
 
-                                            <button
-                                                type="button"
-                                                class="btn btn-outline-danger btn-sm btn-modern text-nowrap"
-                                                onclick="openDeleteModal(
-                                                    {{ $slot->id }},
-                                                    @js(($slot->instructor?->name ?? 'Instructor') . ' - ' . $dateLabel . ' ' . $startTime . '-' . $endTime),
-                                                    @js($slotStatus)
-                                                )"
-                                                {{ $slotStatus === 'booked' ? 'disabled' : '' }}
-                                            >
-                                                <i class="bi bi-trash me-1"></i>Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                                    <div class="assignment-footer-meta">
+                                        <span>
+                                            <i class="bi bi-eye me-1"></i>{{ $slot->is_active ? 'Visible to student' : 'Hidden from student' }}
+                                        </span>
+                                        <span>
+                                            <i class="bi bi-shield-check me-1"></i>{{ $slotStatus === 'booked' ? 'Used by booking' : 'Editable slot' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="assignment-actions">
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-sm"
+                                    onclick="editSlot({{ $slot->id }})"
+                                >
+                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-danger btn-sm"
+                                    onclick="openDeleteModal(
+                                        {{ $slot->id }},
+                                        @js(($slot->instructor?->name ?? 'Instructor') . ' - ' . $dateLabel . ' ' . $startTime . '-' . $endTime),
+                                        @js($slotStatus)
+                                    )"
+                                    {{ $slotStatus === 'booked' ? 'disabled' : '' }}
+                                >
+                                    <i class="bi bi-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
 
                 @if(method_exists($slots, 'hasPages') && $slots->hasPages())
-                    <div class="p-3 border-top">
+                    <div class="mt-4">
                         {{ $slots->links() }}
                     </div>
                 @endif
             @else
-                <div class="empty-state">
+                <div class="empty-state-box">
                     <div class="empty-state-icon">
-                        <i class="bi bi-calendar-plus"></i>
+                        <i class="bi bi-calendar-x"></i>
                     </div>
-
-                    <h5 class="mt-3 mb-1 fw-bold">No availability slots found</h5>
-                    <p class="text-muted mb-3">
-                        Tambahkan slot pertama supaya student bisa memilih jadwal mentoring 1-on-1.
+                    <h5 class="empty-state-title">Availability slot belum tersedia</h5>
+                    <p class="empty-state-text mb-3">
+                        Belum ada slot instructor yang sesuai filter. Buat slot pertama supaya student bisa memilih jadwal mentoring 1-on-1.
                     </p>
-
                     <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
-                        <i class="bi bi-plus-circle me-2"></i>Add Slot
+                        <i class="bi bi-plus-circle me-2"></i>Add First Slot
                     </button>
                 </div>
             @endif
@@ -432,11 +420,11 @@
             @csrf
             <input type="hidden" id="slot_id" name="slot_id">
 
-            <div class="modal-content">
+            <div class="modal-content custom-modal">
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="slotModalTitle">Add Availability Slot</h5>
-                        <p class="text-muted small mb-0">
+                        <p class="text-muted small mb-0" id="slotModalSubtitle">
                             Slot ini akan jadi pilihan jadwal untuk booking 1-on-1 mentoring session.
                         </p>
                     </div>
@@ -478,7 +466,7 @@
 
                             <select id="instructor_id_modal" name="instructor_id" class="form-select">
                                 <option value="">Select instructor</option>
-                                @foreach($instructors as $instructor)
+                                @foreach($instructors ?? [] as $instructor)
                                     <option value="{{ $instructor->id }}">
                                         {{ $instructor->name }}{{ $instructor->specialization ? ' — ' . $instructor->specialization : '' }}
                                     </option>
@@ -586,9 +574,12 @@
 {{-- Delete Modal --}}
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content custom-modal delete-confirm-modal">
             <div class="modal-header border-0 pb-0">
                 <div>
+                    <div class="modal-icon-danger mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
                     <h5 class="modal-title">Delete Availability Slot</h5>
                     <p class="text-muted small mb-0">
                         Slot yang dihapus tidak bisa dikembalikan.
@@ -653,6 +644,20 @@ function buildRoute(template, id) {
     return String(template || '#').replace('__ID__', id);
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function normalizeTime(value) {
+    if (!value) return '';
+    return String(value).substring(0, 5);
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toastId = 'toast-' + Date.now();
@@ -665,11 +670,14 @@ function showToast(message, type = 'success') {
                 ? 'bg-primary'
                 : 'bg-danger';
 
+    const textClass = type === 'warning' ? 'text-dark' : 'text-white';
+    const closeClass = type === 'warning' ? '' : 'btn-close-white';
+
     container.insertAdjacentHTML('beforeend', `
-        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+        <div id="${toastId}" class="toast align-items-center ${textClass} ${bgClass} border-0" role="alert">
             <div class="d-flex">
-                <div class="toast-body fw-semibold">${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                <div class="toast-body fw-semibold">${escapeHtml(message)}</div>
+                <button type="button" class="btn-close ${closeClass} me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>
     `);
@@ -685,6 +693,8 @@ function showToast(message, type = 'success') {
 }
 
 function setButtonLoading(button, loading = true) {
+    if (!button) return;
+
     const defaultText = button.querySelector('.default-text');
     const loadingText = button.querySelector('.loading-text');
 
@@ -727,16 +737,22 @@ function fillValidationErrors(errors) {
 function resetSlotForm() {
     resetErrors();
 
-    document.getElementById('slotForm').reset();
+    const form = document.getElementById('slotForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.reset();
     document.getElementById('slot_id').value = '';
     document.getElementById('status_modal').value = 'available';
     document.getElementById('is_active_modal').value = '1';
+
+    setButtonLoading(submitBtn, false);
 }
 
 function openCreateModal() {
     resetSlotForm();
 
     document.getElementById('slotModalTitle').innerText = 'Add Availability Slot';
+    document.getElementById('slotModalSubtitle').innerText = 'Slot ini akan jadi pilihan jadwal untuk booking 1-on-1 mentoring session.';
 
     slotModal.show();
 }
@@ -763,11 +779,12 @@ async function editSlot(id) {
         const slot = result.data || result;
 
         document.getElementById('slotModalTitle').innerText = 'Edit Availability Slot';
+        document.getElementById('slotModalSubtitle').innerText = 'Update data slot instructor availability.';
         document.getElementById('slot_id').value = slot.id || '';
         document.getElementById('instructor_id_modal').value = slot.instructor_id || '';
         document.getElementById('date_modal').value = slot.date || '';
-        document.getElementById('start_time').value = slot.start_time || '';
-        document.getElementById('end_time').value = slot.end_time || '';
+        document.getElementById('start_time').value = normalizeTime(slot.start_time);
+        document.getElementById('end_time').value = normalizeTime(slot.end_time);
         document.getElementById('status_modal').value = slot.status || 'available';
         document.getElementById('is_active_modal').value = Number(slot.is_active ?? 1).toString();
 
