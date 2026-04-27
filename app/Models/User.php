@@ -129,4 +129,29 @@ class User extends Authenticatable
     {
         return $this->hasMany(Announcement::class, 'updated_by');
     }
+
+    public function organizedMeetingMinutes(): HasMany
+    {
+        return $this->hasMany(MeetingMinute::class, 'organizer_id');
+    }
+
+    public function createdMeetingMinutes(): HasMany
+    {
+        return $this->hasMany(MeetingMinute::class, 'created_by');
+    }
+
+    public function updatedMeetingMinutes(): HasMany
+    {
+        return $this->hasMany(MeetingMinute::class, 'updated_by');
+    }
+
+    public function meetingMinuteParticipations(): HasMany
+    {
+        return $this->hasMany(MeetingMinuteParticipant::class);
+    }
+
+    public function meetingMinuteActionItems(): HasMany
+    {
+        return $this->hasMany(MeetingMinuteActionItem::class, 'pic_user_id');
+    }
 }

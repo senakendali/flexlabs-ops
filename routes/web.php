@@ -16,6 +16,7 @@ use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
 use App\Http\Controllers\Operation\QuizPlayController;
 use App\Http\Controllers\Operation\QuizLeaderboardController;
+use App\Http\Controllers\Operation\MeetingMinuteController;
 use App\Http\Controllers\Enrollment\BatchController;
 use App\Http\Controllers\Enrollment\StudentController;
 use App\Http\Controllers\Payment\OrderController;
@@ -331,6 +332,33 @@ Route::middleware('auth')->group(function () {
         Route::post('/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operations - Meeting Minutes / MOM
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('operation/meeting-minutes')
+        ->name('operation.meeting-minutes.')
+        ->group(function () {
+            Route::get('/', [MeetingMinuteController::class, 'index'])->name('index');
+            Route::get('/create', [MeetingMinuteController::class, 'create'])->name('create');
+            Route::post('/', [MeetingMinuteController::class, 'store'])->name('store');
+
+            // Download PDF harus sebelum route show
+            Route::get('/{meetingMinute}/download-pdf', [MeetingMinuteController::class, 'downloadPdf'])
+                ->name('download-pdf');
+
+            Route::get('/{meetingMinute}', [MeetingMinuteController::class, 'show'])->name('show');
+            Route::get('/{meetingMinute}/edit', [MeetingMinuteController::class, 'edit'])->name('edit');
+            Route::put('/{meetingMinute}', [MeetingMinuteController::class, 'update'])->name('update');
+            Route::delete('/{meetingMinute}', [MeetingMinuteController::class, 'destroy'])->name('destroy');
+        });
+
+    Route::patch(
+        'operation/meeting-minute-action-items/{actionItem}/status',
+        [MeetingMinuteController::class, 'updateActionItemStatus']
+    )->name('operation.meeting-minute-action-items.update-status');
+
 
     /*
     |--------------------------------------------------------------------------
@@ -364,6 +392,8 @@ Route::middleware('auth')->group(function () {
             
         });
     });
+
+    
 
     Route::prefix('marketing/reports')->name('marketing.reports.')->group(function () {
         Route::get('/', [MarketingReportController::class, 'index'])->name('index');

@@ -403,7 +403,9 @@
                                         'atk-items.*',
                                         'atk-requests.*',
                                         'inventory.atk-items.*',
-                                        'inventory.atk-requests.*'
+                                        'inventory.atk-requests.*',
+                                        'operation.meeting-minutes.*',
+                                        'operation.meeting-minute-action-items.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -428,6 +430,21 @@
                                     @endif
 
                                     <div class="dropdown-divider"></div-->
+
+                                    <div class="dropdown-section-title">Meeting & Documents</div>
+
+                                    @if (Route::has('operation.meeting-minutes.index'))
+                                        <a class="dropdown-item {{ request()->routeIs('operation.meeting-minutes.*', 'operation.meeting-minute-action-items.*') ? 'active' : '' }}"
+                                        href="{{ route('operation.meeting-minutes.index') }}">
+                                            <i class="bi bi-journal-text me-2"></i>Meeting Minutes / MOM
+                                        </a>
+                                    @else
+                                        <span class="dropdown-item-text text-muted small px-3 py-2">
+                                            Meeting Minutes belum tersedia
+                                        </span>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
 
                                     <div class="dropdown-section-title">Inventory</div>
 
