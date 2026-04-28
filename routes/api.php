@@ -1,13 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\Lms\StudentAnnouncementController;
+use App\Http\Controllers\Api\Lms\StudentAssignmentController;
 use App\Http\Controllers\Api\Lms\StudentAuthController;
 use App\Http\Controllers\Api\Lms\StudentCourseController;
 use App\Http\Controllers\Api\Lms\StudentDashboardController;
 use App\Http\Controllers\Api\Lms\StudentLearningController;
 use App\Http\Controllers\Api\Lms\StudentMentoringController;
+use App\Http\Controllers\Api\Lms\StudentQuizController;
 use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
-use App\Http\Controllers\Api\Lms\StudentAssignmentController;
 use App\Http\Controllers\Api\PublicQuizController;
 use Illuminate\Support\Facades\Route;
 
@@ -61,6 +62,20 @@ Route::prefix('lms/student')->group(function () {
 
         Route::post('/assignments/{batchAssignment}/submit', [StudentAssignmentController::class, 'submit'])
             ->whereNumber('batchAssignment');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Quizzes
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/quizzes/{quiz}', [StudentQuizController::class, 'show'])
+            ->whereNumber('quiz');
+
+        Route::post('/quizzes/{quiz}/start', [StudentQuizController::class, 'start'])
+            ->whereNumber('quiz');
+
+        Route::post('/quizzes/{quiz}/submit', [StudentQuizController::class, 'submit'])
+            ->whereNumber('quiz');
 
         /*
         |--------------------------------------------------------------------------
