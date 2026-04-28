@@ -69,7 +69,7 @@
     >
 
     <!-- App CSS -->
-    <link rel="stylesheet" href="{{ asset('css/public.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/public.css?v=2') }}">
 </head>
 <body>
     <header class="public-navbar" id="publicNavbar">
