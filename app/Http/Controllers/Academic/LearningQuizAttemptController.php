@@ -11,7 +11,6 @@ use App\Models\LearningQuizAttempt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
@@ -29,7 +28,16 @@ class LearningQuizAttemptController extends Controller
 
         $attempts = LearningQuizAttempt::query()
             ->with([
-                'student:id,name,email,phone',
+                'student' => function ($query) {
+                    $query
+                        ->select([
+                            'id',
+                            'full_name',
+                            'email',
+                            'phone',
+                        ])
+                        ->selectRaw('full_name as name');
+                },
                 'learningQuiz:id,title,quiz_type,passing_score,max_attempts,status',
                 'batch:id,program_id,name,start_date,end_date,status',
                 'batch.program:id,name',
@@ -41,7 +49,7 @@ class LearningQuizAttemptController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->whereHas('student', function ($studentQuery) use ($search) {
                         $studentQuery
-                            ->where('name', 'like', '%' . $search . '%')
+                            ->where('full_name', 'like', '%' . $search . '%')
                             ->orWhere('email', 'like', '%' . $search . '%')
                             ->orWhere('phone', 'like', '%' . $search . '%');
                     })
@@ -123,7 +131,9 @@ class LearningQuizAttemptController extends Controller
             'submitted' => LearningQuizAttempt::where('status', 'submitted')->count(),
             'graded' => LearningQuizAttempt::where('status', 'graded')->count(),
             'passed' => LearningQuizAttempt::where('is_passed', true)->count(),
-            'failed' => LearningQuizAttempt::where('is_passed', false)->count(),
+            'failed' => LearningQuizAttempt::where('status', 'graded')
+                ->where('is_passed', false)
+                ->count(),
         ];
 
         return view('academic.learning-quiz-attempts.index', [
@@ -139,7 +149,16 @@ class LearningQuizAttemptController extends Controller
     public function show(LearningQuizAttempt $attempt): View
     {
         $attempt->load([
-            'student:id,name,email,phone',
+            'student' => function ($query) {
+                $query
+                    ->select([
+                        'id',
+                        'full_name',
+                        'email',
+                        'phone',
+                    ])
+                    ->selectRaw('full_name as name');
+            },
             'learningQuiz:id,title,quiz_type,passing_score,max_attempts,status',
             'batch:id,program_id,name,start_date,end_date,status',
             'batch.program:id,name',
@@ -239,70 +258,19 @@ class LearningQuizAttemptController extends Controller
         }
     }
 
-    public function updateStatus(Request $request, LearningQuizAttempt $attempt): JsonResponse
-    {
-        try {
-            $validated = $request->validate([
-                'status' => [
-                    'required',
-                    Rule::in(array_keys($this->statuses())),
-                ],
-            ]);
-
-            DB::transaction(function () use ($attempt, $validated) {
-                $attempt->update([
-                    'status' => $validated['status'],
-                ]);
-
-                if ($validated['status'] === 'graded') {
-                    $this->recalculateAttemptScore($attempt);
-                }
-            });
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Status attempt berhasil diperbarui.',
-                'data' => [
-                    'id' => $attempt->id,
-                    'status' => $validated['status'],
-                ],
-            ]);
-        } catch (ValidationException $e) {
-            throw $e;
-        } catch (Throwable $e) {
-            return $this->errorResponse('Gagal memperbarui status attempt.', $e);
-        }
-    }
-
-    public function destroy(LearningQuizAttempt $attempt): JsonResponse
-    {
-        try {
-            DB::transaction(function () use ($attempt) {
-                $attempt->delete();
-            });
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Quiz attempt berhasil dihapus.',
-            ]);
-        } catch (Throwable $e) {
-            return $this->errorResponse('Gagal menghapus quiz attempt.', $e);
-        }
-    }
-
     private function recalculateAttemptScore(LearningQuizAttempt $attempt): void
     {
         $attempt->loadMissing([
             'answers.question:id,score',
-            'batchLearningQuiz:id,passing_score',
             'learningQuiz:id,passing_score',
+            'batchLearningQuiz:id,passing_score',
         ]);
 
-        $totalScore = (float) $attempt->answers->sum(function ($answer) {
+        $totalScore = $attempt->answers->sum(function ($answer) {
             return (float) ($answer->question?->score ?? 0);
         });
 
-        $score = (float) $attempt->answers->sum(function ($answer) {
+        $score = $attempt->answers->sum(function ($answer) {
             return (float) ($answer->score ?? 0);
         });
 
@@ -310,9 +278,11 @@ class LearningQuizAttemptController extends Controller
             ? round(($score / $totalScore) * 100, 2)
             : 0;
 
-        $passingScore = $attempt->batchLearningQuiz?->passing_score
+        $passingScore = (float) (
+            $attempt->batchLearningQuiz?->passing_score
             ?? $attempt->learningQuiz?->passing_score
-            ?? 70;
+            ?? 70
+        );
 
         $attempt->update([
             'score' => $score,
@@ -329,10 +299,9 @@ class LearningQuizAttemptController extends Controller
         LearningQuizAttempt $attempt,
         LearningQuizAnswer $answer
     ): void {
-        abort_unless(
-            (int) $answer->learning_quiz_attempt_id === (int) $attempt->id,
-            404
-        );
+        if ((int) $answer->learning_quiz_attempt_id !== (int) $attempt->id) {
+            abort(404, 'Answer tidak ditemukan pada attempt ini.');
+        }
     }
 
     private function statuses(): array
@@ -348,6 +317,8 @@ class LearningQuizAttemptController extends Controller
 
     private function errorResponse(string $message, Throwable $e): JsonResponse
     {
+        report($e);
+
         return response()->json([
             'success' => false,
             'message' => $message,
