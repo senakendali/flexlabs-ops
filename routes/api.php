@@ -13,11 +13,21 @@ use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
 use App\Http\Controllers\Api\PublicQuizController;
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| Public Quiz API
+|--------------------------------------------------------------------------
+*/
 Route::prefix('public/quizzes/{quiz}')->group(function () {
     Route::post('/participants', [PublicQuizController::class, 'storeParticipant']);
     Route::post('/submit', [PublicQuizController::class, 'submitAnswers']);
 });
 
+/*
+|--------------------------------------------------------------------------
+| LMS Student API
+|--------------------------------------------------------------------------
+*/
 Route::prefix('lms/student')->group(function () {
     /*
     |--------------------------------------------------------------------------
@@ -36,6 +46,7 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         */
         Route::get('/dashboard', [StudentDashboardController::class, 'index']);
+        Route::get('/learning-timeline', [StudentDashboardController::class, 'learningTimeline']);
 
         /*
         |--------------------------------------------------------------------------
@@ -90,8 +101,8 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         | Schedule
         |--------------------------------------------------------------------------
-        | Gabungan live session dari instructor schedule
-        | dan mentoring session, termasuk one-on-one.
+        | Gabungan live session dari instructor schedule dan mentoring session,
+        | termasuk one-on-one.
         */
         Route::get('/schedules', [StudentScheduleController::class, 'index']);
 

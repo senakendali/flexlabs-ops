@@ -2048,4 +2048,253 @@ class StudentDashboardController extends Controller
 
         return null;
     }
+
+    public function learningTimeline(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $user->loadMissing([
+            'student.enrollments.program',
+            'student.enrollments.batch.program',
+        ]);
+
+        if (!$this->isStudentUser($user) || !$user->student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized student account.',
+            ], 403);
+        }
+
+        $student = $user->student;
+        $activeEnrollments = $this->getEligibleEnrollments($student);
+
+        if ($activeEnrollments->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'timeline' => [],
+                    'summary' => [
+                        'total' => 0,
+                        'completed' => 0,
+                        'in_progress' => 0,
+                        'not_started' => 0,
+                        'progress_percentage' => 0,
+                    ],
+                ],
+            ]);
+        }
+
+        $batchIds = $this->resolveBatchIds($activeEnrollments);
+        $programIds = $this->resolveProgramIds($activeEnrollments);
+
+        $subTopics = $this->getSubTopicsForPrograms($programIds);
+        $progressRows = $this->getProgressRows($student, $subTopics);
+
+        $progressRows = $this->mergeProgressRows(
+            primaryRows: $progressRows,
+            extraRows: $this->getAllStudentProgressRows($student)
+        );
+
+        $subTopics = $this->mergeIncompleteProgressSubTopics(
+            subTopics: $subTopics,
+            progressRows: $progressRows
+        );
+
+        if ($subTopics->isEmpty()) {
+            $subTopics = $this->getFallbackSubTopics($programIds, $batchIds);
+        }
+
+        if ($subTopics->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'timeline' => [],
+                    'summary' => [
+                        'total' => 0,
+                        'completed' => 0,
+                        'in_progress' => 0,
+                        'not_started' => 0,
+                        'progress_percentage' => 0,
+                    ],
+                ],
+            ]);
+        }
+
+        $progressBySubTopic = $this->mapLatestProgressBySubTopic($progressRows);
+        $currentSubTopicId = $this->resolveCurrentTimelineSubTopicId(
+            subTopics: $subTopics,
+            progressBySubTopic: $progressBySubTopic
+        );
+
+        $timeline = $subTopics
+            ->values()
+            ->map(function ($subTopic, int $index) use ($progressBySubTopic, $currentSubTopicId) {
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
+
+                return $this->formatLearningTimelineItem(
+                    subTopic: $subTopic,
+                    progress: $progress,
+                    index: $index,
+                    currentSubTopicId: $currentSubTopicId
+                );
+            })
+            ->values();
+
+        $totalCount = $timeline->count();
+        $completedCount = $timeline->where('status', 'done')->count();
+        $inProgressCount = $timeline->where('status', 'in_progress')->count();
+        $notStartedCount = $timeline->where('status', 'not_started')->count();
+
+        $progressPercentage = $totalCount > 0
+            ? $this->clampPercent(($completedCount / $totalCount) * 100)
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'timeline' => $timeline->toArray(),
+                'summary' => [
+                    'total' => $totalCount,
+                    'completed' => $completedCount,
+                    'in_progress' => $inProgressCount,
+                    'not_started' => $notStartedCount,
+                    'progress_percentage' => $progressPercentage,
+                    'progressPercentage' => $progressPercentage,
+                ],
+            ],
+        ]);
+    }
+
+    private function resolveCurrentTimelineSubTopicId(Collection $subTopics, Collection $progressBySubTopic): ?int
+    {
+        if ($subTopics->isEmpty()) {
+            return null;
+        }
+
+        $activeSubTopic = $subTopics
+            ->filter(function ($subTopic) use ($progressBySubTopic) {
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
+
+                return $progress
+                    && !$this->isProgressCompleted($progress)
+                    && $this->resolveProgressActivityAt($progress);
+            })
+            ->sortByDesc(function ($subTopic) use ($progressBySubTopic) {
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
+                $activityAt = $this->resolveProgressActivityAt($progress);
+
+                return $activityAt
+                    ? Carbon::parse($activityAt)->timestamp
+                    : 0;
+            })
+            ->first();
+
+        if ($activeSubTopic) {
+            return (int) $activeSubTopic->id;
+        }
+
+        $firstIncompleteSubTopic = $subTopics
+            ->first(function ($subTopic) use ($progressBySubTopic) {
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
+
+                return !$this->isProgressCompleted($progress);
+            });
+
+        return $firstIncompleteSubTopic
+            ? (int) $firstIncompleteSubTopic->id
+            : null;
+    }
+
+    private function formatLearningTimelineItem($subTopic, $progress, int $index, ?int $currentSubTopicId): array
+    {
+        $progressPercentage = $this->resolveProgressPercentage($progress, $subTopic);
+        $isCompleted = $this->isProgressCompleted($progress);
+
+        if ($isCompleted) {
+            $progressPercentage = 100;
+            $status = 'done';
+        } elseif ($currentSubTopicId && (int) $subTopic->id === $currentSubTopicId) {
+            $status = 'in_progress';
+        } elseif ($progressPercentage > 0) {
+            $status = 'in_progress';
+        } else {
+            $status = 'not_started';
+        }
+
+        $topic = $subTopic->topic ?? null;
+        $module = $topic?->module ?? null;
+
+        $moduleName = $this->getColumnValue($module, ['name', 'title']);
+        $topicName = $this->getColumnValue($topic, ['name', 'title']);
+
+        $title = $this->getColumnValue($subTopic, ['name', 'title']) ?: 'Untitled Material';
+        $type = $this->getColumnValue($subTopic, ['lesson_type', 'type']) ?: 'lesson';
+        $url = $this->resolveLearningTimelineUrl($subTopic);
+
+        return [
+            'id' => $subTopic->id,
+            'number' => $index + 1,
+
+            'title' => $title,
+            'name' => $title,
+
+            'subtitle' => $moduleName ?: $topicName ?: '',
+            'module' => $moduleName ?: '',
+            'module_title' => $moduleName ?: '',
+            'moduleTitle' => $moduleName ?: '',
+            'topic' => $topicName ?: '',
+            'topic_title' => $topicName ?: '',
+            'topicTitle' => $topicName ?: '',
+
+            'type' => $type,
+            'lesson_type' => $type,
+            'lessonType' => $type,
+
+            'status' => $status,
+            'progress_status' => $status,
+            'progressStatus' => $status,
+
+            'progress' => $progressPercentage,
+            'progress_percentage' => $progressPercentage,
+            'progressPercentage' => $progressPercentage,
+
+            'is_completed' => $isCompleted,
+            'isCompleted' => $isCompleted,
+            'is_current' => $status === 'in_progress',
+            'isCurrent' => $status === 'in_progress',
+            'is_locked' => false,
+            'isLocked' => false,
+
+            'url' => $url,
+            'learn_url' => $url,
+            'learnUrl' => $url,
+        ];
+    }
+
+    private function resolveLearningTimelineUrl($subTopic): string
+    {
+        $topic = $subTopic->topic ?? null;
+        $module = $topic?->module ?? null;
+        $stage = $module?->stage ?? null;
+
+        $program = $stage?->program
+            ?? $module?->program
+            ?? $this->resolveProgramFromDatabase($module);
+
+        $courseSlug = $this->resolveProgramSlug($program);
+        $lessonSlug = $this->resolveSubTopicSlug($subTopic);
+
+        if ($courseSlug !== 'course' && $lessonSlug !== 'lesson') {
+            return '/learn/' . $courseSlug . '/' . $lessonSlug;
+        }
+
+        return '/learn/sub-topics/' . $subTopic->id;
+    }
 }
