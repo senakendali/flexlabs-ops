@@ -80,4 +80,19 @@ class Student extends Model
             ->latest('requested_at')
             ->latest('id');
     }
+
+    public function assessmentScores()
+    {
+        return $this->hasMany(StudentAssessmentScore::class);
+    }
+
+    public function reportCards()
+    {
+        return $this->hasMany(ReportCard::class);
+    }
+
+    public function certificates()
+    {
+        return $this->hasMany(Certificate::class);
+    }
 }

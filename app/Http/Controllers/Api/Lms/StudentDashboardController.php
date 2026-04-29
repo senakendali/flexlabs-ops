@@ -466,10 +466,24 @@ class StudentDashboardController extends Controller
 
     private function getSubTopicsForPrograms(Collection $programIds): Collection
     {
-        if ($programIds->isEmpty() || !Schema::hasTable('sub_topics')) {
+        if (!Schema::hasTable('sub_topics')) {
             return collect();
         }
 
+        $programIds = $programIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($programIds->isEmpty()) {
+            return collect();
+        }
+
+        /*
+         * Timeline harus dibangun dari master curriculum, bukan dari progress student.
+         * Progress student cuma dipakai untuk menentukan status: done / in_progress / not_started.
+         */
         $subTopicIds = $this->resolveSubTopicIdsByProgram($programIds);
 
         if ($subTopicIds->isEmpty()) {
@@ -478,8 +492,17 @@ class StudentDashboardController extends Controller
 
         $subTopics = $this->querySubTopicsByIds($subTopicIds, true)->get();
 
-        if ($subTopics->isEmpty()) {
-            $subTopics = $this->querySubTopicsByIds($subTopicIds, false)->get();
+        /*
+         * Kalau filter visibility terlalu ketat atau data lama belum punya is_active/status yang rapi,
+         * tetap hydrate dari ID yang sudah terbukti milik program aktif.
+         */
+        if ($subTopics->count() < $subTopicIds->count()) {
+            $fallbackSubTopics = $this->querySubTopicsByIds($subTopicIds, false)->get();
+
+            $subTopics = $subTopics
+                ->merge($fallbackSubTopics)
+                ->unique(fn ($subTopic) => (int) $subTopic->id)
+                ->values();
         }
 
         return $subTopics
@@ -487,8 +510,15 @@ class StudentDashboardController extends Controller
             ->values();
     }
 
+
     private function querySubTopicsByIds(Collection $subTopicIds, bool $applyVisibilityFilters = true)
     {
+        $subTopicIds = $subTopicIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
         $query = SubTopic::query();
         $relations = $this->resolveSubTopicRelations();
 
@@ -496,24 +526,25 @@ class StudentDashboardController extends Controller
             $query->with($relations);
         }
 
-        $query->whereIn('id', $subTopicIds);
+        $query->whereIn('sub_topics.id', $subTopicIds);
 
         if ($applyVisibilityFilters && Schema::hasColumn('sub_topics', 'is_active')) {
             $query->where(function ($activeQuery) {
-                $activeQuery->where('is_active', true)
-                    ->orWhereNull('is_active');
+                $activeQuery->where('sub_topics.is_active', true)
+                    ->orWhereNull('sub_topics.is_active');
             });
         }
 
         if ($applyVisibilityFilters && Schema::hasColumn('sub_topics', 'status')) {
             $query->where(function ($statusQuery) {
-                $statusQuery->whereNull('status')
-                    ->orWhereNotIn('status', ['inactive', 'archived', 'deleted']);
+                $statusQuery->whereNull('sub_topics.status')
+                    ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
             });
         }
 
         return $query;
     }
+
 
     private function resolveSubTopicIdsByProgram(Collection $programIds): Collection
     {
@@ -521,16 +552,32 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
+        $programIds = $programIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($programIds->isEmpty()) {
+            return collect();
+        }
+
         $ids = collect();
 
+        /*
+         * Path 1: sub_topics langsung punya program_id.
+         */
         if (Schema::hasColumn('sub_topics', 'program_id')) {
             $ids = $ids->merge(
                 DB::table('sub_topics')
-                    ->whereIn('program_id', $programIds)
-                    ->pluck('id')
+                    ->whereIn('sub_topics.program_id', $programIds->all())
+                    ->pluck('sub_topics.id')
             );
         }
 
+        /*
+         * Path 2: sub_topics -> topics -> program.
+         */
         if (
             Schema::hasTable('topics')
             && Schema::hasColumn('sub_topics', 'topic_id')
@@ -539,11 +586,14 @@ class StudentDashboardController extends Controller
             $ids = $ids->merge(
                 DB::table('sub_topics')
                     ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
-                    ->whereIn('topics.program_id', $programIds)
+                    ->whereIn('topics.program_id', $programIds->all())
                     ->pluck('sub_topics.id')
             );
         }
 
+        /*
+         * Path 3: sub_topics -> topics -> modules -> program.
+         */
         if (
             Schema::hasTable('topics')
             && Schema::hasTable('modules')
@@ -555,11 +605,14 @@ class StudentDashboardController extends Controller
                 DB::table('sub_topics')
                     ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
                     ->join('modules', 'modules.id', '=', 'topics.module_id')
-                    ->whereIn('modules.program_id', $programIds)
+                    ->whereIn('modules.program_id', $programIds->all())
                     ->pluck('sub_topics.id')
             );
         }
 
+        /*
+         * Path 4: sub_topics -> modules -> program.
+         */
         if (
             Schema::hasTable('modules')
             && Schema::hasColumn('sub_topics', 'module_id')
@@ -568,54 +621,152 @@ class StudentDashboardController extends Controller
             $ids = $ids->merge(
                 DB::table('sub_topics')
                     ->join('modules', 'modules.id', '=', 'sub_topics.module_id')
-                    ->whereIn('modules.program_id', $programIds)
+                    ->whereIn('modules.program_id', $programIds->all())
                     ->pluck('sub_topics.id')
             );
         }
 
-        foreach ($this->candidateStageTables() as $stageTable) {
-            if (!Schema::hasTable($stageTable) || !Schema::hasColumn($stageTable, 'program_id')) {
+        /*
+         * Path 5: pivot program_module / program_modules.
+         */
+        foreach (['program_module', 'program_modules'] as $pivotTable) {
+            if (
+                !Schema::hasTable($pivotTable)
+                || !Schema::hasColumn($pivotTable, 'program_id')
+                || !Schema::hasColumn($pivotTable, 'module_id')
+            ) {
                 continue;
             }
 
             if (
                 Schema::hasTable('topics')
-                && Schema::hasTable('modules')
                 && Schema::hasColumn('sub_topics', 'topic_id')
                 && Schema::hasColumn('topics', 'module_id')
-                && Schema::hasColumn('modules', 'stage_id')
             ) {
                 $ids = $ids->merge(
                     DB::table('sub_topics')
                         ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
-                        ->join('modules', 'modules.id', '=', 'topics.module_id')
-                        ->join($stageTable, $stageTable . '.id', '=', 'modules.stage_id')
-                        ->whereIn($stageTable . '.program_id', $programIds)
+                        ->join($pivotTable, $pivotTable . '.module_id', '=', 'topics.module_id')
+                        ->whereIn($pivotTable . '.program_id', $programIds->all())
                         ->pluck('sub_topics.id')
                 );
             }
 
+            if (Schema::hasColumn('sub_topics', 'module_id')) {
+                $ids = $ids->merge(
+                    DB::table('sub_topics')
+                        ->join($pivotTable, $pivotTable . '.module_id', '=', 'sub_topics.module_id')
+                        ->whereIn($pivotTable . '.program_id', $programIds->all())
+                        ->pluck('sub_topics.id')
+                );
+            }
+        }
+
+        /*
+         * Path 6: pivot program_topic / program_topics.
+         */
+        foreach (['program_topic', 'program_topics'] as $pivotTable) {
             if (
-                Schema::hasTable('modules')
-                && Schema::hasColumn('sub_topics', 'module_id')
-                && Schema::hasColumn('modules', 'stage_id')
+                !Schema::hasTable($pivotTable)
+                || !Schema::hasColumn($pivotTable, 'program_id')
+                || !Schema::hasColumn($pivotTable, 'topic_id')
+                || !Schema::hasColumn('sub_topics', 'topic_id')
             ) {
-                $ids = $ids->merge(
-                    DB::table('sub_topics')
-                        ->join('modules', 'modules.id', '=', 'sub_topics.module_id')
-                        ->join($stageTable, $stageTable . '.id', '=', 'modules.stage_id')
-                        ->whereIn($stageTable . '.program_id', $programIds)
-                        ->pluck('sub_topics.id')
-                );
+                continue;
             }
 
-            if (Schema::hasColumn('sub_topics', 'stage_id')) {
-                $ids = $ids->merge(
-                    DB::table('sub_topics')
-                        ->join($stageTable, $stageTable . '.id', '=', 'sub_topics.stage_id')
-                        ->whereIn($stageTable . '.program_id', $programIds)
-                        ->pluck('sub_topics.id')
-                );
+            $ids = $ids->merge(
+                DB::table('sub_topics')
+                    ->join($pivotTable, $pivotTable . '.topic_id', '=', 'sub_topics.topic_id')
+                    ->whereIn($pivotTable . '.program_id', $programIds->all())
+                    ->pluck('sub_topics.id')
+            );
+        }
+
+        /*
+         * Path 7: pivot program_sub_topic / program_sub_topics.
+         */
+        foreach (['program_sub_topic', 'program_sub_topics'] as $pivotTable) {
+            if (
+                !Schema::hasTable($pivotTable)
+                || !Schema::hasColumn($pivotTable, 'program_id')
+                || !Schema::hasColumn($pivotTable, 'sub_topic_id')
+            ) {
+                continue;
+            }
+
+            $ids = $ids->merge(
+                DB::table('sub_topics')
+                    ->join($pivotTable, $pivotTable . '.sub_topic_id', '=', 'sub_topics.id')
+                    ->whereIn($pivotTable . '.program_id', $programIds->all())
+                    ->pluck('sub_topics.id')
+            );
+        }
+
+        /*
+         * Path 8: stage/curriculum stage path.
+         * Support beberapa nama FK yang sering kepakai:
+         * stage_id, program_stage_id, curriculum_stage_id.
+         */
+        foreach ($this->candidateStageTables() as $stageTable) {
+            if (!Schema::hasTable($stageTable) || !Schema::hasColumn($stageTable, 'program_id')) {
+                continue;
+            }
+
+            foreach (['stage_id', 'program_stage_id', 'curriculum_stage_id'] as $stageColumn) {
+                if (
+                    Schema::hasTable('topics')
+                    && Schema::hasTable('modules')
+                    && Schema::hasColumn('sub_topics', 'topic_id')
+                    && Schema::hasColumn('topics', 'module_id')
+                    && Schema::hasColumn('modules', $stageColumn)
+                ) {
+                    $ids = $ids->merge(
+                        DB::table('sub_topics')
+                            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+                            ->join('modules', 'modules.id', '=', 'topics.module_id')
+                            ->join($stageTable, $stageTable . '.id', '=', 'modules.' . $stageColumn)
+                            ->whereIn($stageTable . '.program_id', $programIds->all())
+                            ->pluck('sub_topics.id')
+                    );
+                }
+
+                if (
+                    Schema::hasTable('modules')
+                    && Schema::hasColumn('sub_topics', 'module_id')
+                    && Schema::hasColumn('modules', $stageColumn)
+                ) {
+                    $ids = $ids->merge(
+                        DB::table('sub_topics')
+                            ->join('modules', 'modules.id', '=', 'sub_topics.module_id')
+                            ->join($stageTable, $stageTable . '.id', '=', 'modules.' . $stageColumn)
+                            ->whereIn($stageTable . '.program_id', $programIds->all())
+                            ->pluck('sub_topics.id')
+                    );
+                }
+
+                if (
+                    Schema::hasTable('topics')
+                    && Schema::hasColumn('topics', $stageColumn)
+                    && Schema::hasColumn('sub_topics', 'topic_id')
+                ) {
+                    $ids = $ids->merge(
+                        DB::table('sub_topics')
+                            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+                            ->join($stageTable, $stageTable . '.id', '=', 'topics.' . $stageColumn)
+                            ->whereIn($stageTable . '.program_id', $programIds->all())
+                            ->pluck('sub_topics.id')
+                    );
+                }
+
+                if (Schema::hasColumn('sub_topics', $stageColumn)) {
+                    $ids = $ids->merge(
+                        DB::table('sub_topics')
+                            ->join($stageTable, $stageTable . '.id', '=', 'sub_topics.' . $stageColumn)
+                            ->whereIn($stageTable . '.program_id', $programIds->all())
+                            ->pluck('sub_topics.id')
+                    );
+                }
             }
         }
 
@@ -626,25 +777,40 @@ class StudentDashboardController extends Controller
             ->values();
     }
 
+
     private function candidateStageTables(): array
     {
         $tables = [];
 
-        if (class_exists(\App\Models\Stage::class)) {
+        foreach ([
+            \App\Models\Stage::class,
+            \App\Models\ProgramStage::class,
+            \App\Models\CurriculumStage::class,
+        ] as $modelClass) {
+            if (!class_exists($modelClass)) {
+                continue;
+            }
+
             try {
-                $tables[] = (new \App\Models\Stage())->getTable();
+                $tables[] = (new $modelClass())->getTable();
             } catch (\Throwable) {
                 // ignore and use fallback names below
             }
         }
 
         return collect($tables)
-            ->merge(['stages', 'program_stages', 'curriculum_stages'])
+            ->merge([
+                'stages',
+                'program_stages',
+                'curriculum_stages',
+                'learning_stages',
+            ])
             ->filter()
             ->unique()
             ->values()
             ->all();
     }
+
 
     private function resolveSubTopicRelations(): array
     {
@@ -1114,6 +1280,14 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
+        /*
+         * Fallback hanya boleh berdasarkan batch.
+         * Jangan return semua sub_topics global karena timeline student bisa tercampur program lain.
+         */
+        if (!Schema::hasColumn('sub_topics', 'batch_id') || $batchIds->isEmpty()) {
+            return collect();
+        }
+
         $query = SubTopic::query();
         $relations = $this->resolveSubTopicRelations();
 
@@ -1121,17 +1295,15 @@ class StudentDashboardController extends Controller
             $query->with($relations);
         }
 
-        if (Schema::hasColumn('sub_topics', 'batch_id') && $batchIds->isNotEmpty()) {
-            $query->whereIn('batch_id', $batchIds);
-        }
+        $query->whereIn('sub_topics.batch_id', $batchIds);
 
         if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->orderByRaw('CASE WHEN is_active = 1 THEN 0 ELSE 1 END');
+            $query->orderByRaw('CASE WHEN sub_topics.is_active = 1 THEN 0 ELSE 1 END');
         }
 
         foreach (['sort_order', 'order', 'position', 'id'] as $column) {
             if (Schema::hasColumn('sub_topics', $column)) {
-                $query->orderBy($column);
+                $query->orderBy('sub_topics.' . $column);
             }
         }
 
@@ -1140,6 +1312,7 @@ class StudentDashboardController extends Controller
             ->sortBy(fn ($subTopic) => $this->formatSubTopicSortKey($subTopic))
             ->values();
     }
+
 
     private function resolveProgramFromDatabase($module)
     {
@@ -1957,13 +2130,27 @@ class StudentDashboardController extends Controller
             return (string) $thumbnail;
         }
 
-        $youtubeId = $this->extractYoutubeVideoId($videoUrl ?: $this->resolveSubTopicVideoUrl($subTopic));
+        $resolvedVideoUrl = $videoUrl ?: $this->resolveSubTopicVideoUrl($subTopic);
 
-        if ($youtubeId) {
-            return "https://img.youtube.com/vi/{$youtubeId}/maxresdefault.jpg";
+        if ($resolvedVideoUrl) {
+            $youtubeId = $this->extractYoutubeVideoId($resolvedVideoUrl);
+
+            if ($youtubeId) {
+                return "https://img.youtube.com/vi/{$youtubeId}/maxresdefault.jpg";
+            }
         }
 
-        return 'https://img.youtube.com/vi/Ke90Tje7VS0/maxresdefault.jpg';
+        $lessonType = strtolower((string) $this->getColumnValue($subTopic, [
+            'lesson_type',
+            'type',
+            'session_type',
+        ]));
+
+        if (in_array($lessonType, ['live', 'live_session', 'live-session', 'mentoring', 'offline', 'online'], true)) {
+            return asset('images/live-session.png');
+        }
+
+        return asset('images/live-session.png');
     }
 
     private function resolveSubTopicVideoUrl($subTopic): ?string
@@ -2156,19 +2343,40 @@ class StudentDashboardController extends Controller
             ? $this->clampPercent(($completedCount / $totalCount) * 100)
             : 0;
 
+        $responseData = [
+            'timeline' => $timeline->toArray(),
+            'summary' => [
+                'total' => $totalCount,
+                'completed' => $completedCount,
+                'in_progress' => $inProgressCount,
+                'not_started' => $notStartedCount,
+                'progress_percentage' => $progressPercentage,
+                'progressPercentage' => $progressPercentage,
+            ],
+        ];
+
+        if ($request->boolean('debug')) {
+            $responseData['debug'] = [
+                'student_id' => $student->id,
+                'batch_ids' => $batchIds->values()->all(),
+                'program_ids' => $programIds->values()->all(),
+                'sub_topics_count' => $subTopics->count(),
+                'sub_topic_ids' => $subTopics->pluck('id')->values()->all(),
+                'progress_rows_count' => $progressRows->count(),
+                'progress_sub_topic_ids' => $progressRows
+                    ->map(fn ($progress) => (int) $this->getColumnValue($progress, ['sub_topic_id']))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all(),
+                'timeline_count' => $timeline->count(),
+                'current_sub_topic_id' => $currentSubTopicId,
+            ];
+        }
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'timeline' => $timeline->toArray(),
-                'summary' => [
-                    'total' => $totalCount,
-                    'completed' => $completedCount,
-                    'in_progress' => $inProgressCount,
-                    'not_started' => $notStartedCount,
-                    'progress_percentage' => $progressPercentage,
-                    'progressPercentage' => $progressPercentage,
-                ],
-            ],
+            'data' => $responseData,
         ]);
     }
 

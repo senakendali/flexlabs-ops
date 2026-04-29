@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Batch extends Model
@@ -60,5 +61,25 @@ class Batch extends Model
     public function announcements(): HasMany
     {
         return $this->hasMany(Announcement::class);
+    }
+
+    public function assessmentTemplate()
+    {
+        return $this->belongsTo(AssessmentTemplate::class);
+    }
+
+    public function assessmentScores()
+    {
+        return $this->hasMany(StudentAssessmentScore::class);
+    }
+
+    public function reportCards()
+    {
+        return $this->hasMany(ReportCard::class);
+    }
+
+    public function certificates()
+    {
+        return $this->hasMany(Certificate::class);
     }
 }

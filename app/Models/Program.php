@@ -62,5 +62,20 @@ class Program extends Model
         return $this->hasMany(Announcement::class);
     }
 
+    public function assessmentTemplates()
+    {
+        return $this->hasMany(AssessmentTemplate::class);
+    }
+
+    public function reportCards()
+    {
+        return $this->hasMany(ReportCard::class);
+    }
+
+    public function certificates()
+    {
+        return $this->hasMany(Certificate::class);
+    }
+
     
 }

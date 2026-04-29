@@ -56,7 +56,11 @@
                                         'trial-participants.*',
                                         'academic.workshops.*',
                                         'academic.mentoring-sessions.*',
-                                        'academic.announcements.*'
+                                        'academic.announcements.*',
+                                        'academic.assessment-templates.*',
+                                        'academic.assessment-scores.*',
+                                        'academic.report-cards.*',
+                                        'academic.certificates.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -150,6 +154,50 @@
                                         <a class="dropdown-item {{ request()->routeIs('learning-quiz-attempts.*') ? 'active' : '' }}"
                                         href="{{ route('learning-quiz-attempts.index') }}">
                                             <i class="bi bi-activity me-2"></i>Quiz Attempts / Results
+                                        </a>
+                                    @endif
+
+                                    <div class="dropdown-divider"></div>
+
+                                    <div class="dropdown-section-title">Evaluation & Certification</div>
+
+                                    @if (Route::has('academic.assessment-templates.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.assessment-templates.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.assessment-templates.index') }}"
+                                        >
+                                            <i class="bi bi-sliders2-vertical me-2"></i>
+                                            Assessment Templates
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.assessment-scores.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.assessment-scores.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.assessment-scores.index') }}"
+                                        >
+                                            <i class="bi bi-pencil-square me-2"></i>
+                                            Assessment Scores
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.report-cards.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.report-cards.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.report-cards.index') }}"
+                                        >
+                                            <i class="bi bi-file-earmark-text-fill me-2"></i>
+                                            Report Cards
+                                        </a>
+                                    @endif
+
+                                    @if (Route::has('academic.certificates.index'))
+                                        <a
+                                            class="dropdown-item {{ request()->routeIs('academic.certificates.*') ? 'active' : '' }}"
+                                            href="{{ route('academic.certificates.index') }}"
+                                        >
+                                            <i class="bi bi-award-fill me-2"></i>
+                                            Certificates
                                         </a>
                                     @endif
 

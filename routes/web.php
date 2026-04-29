@@ -38,6 +38,10 @@ use App\Http\Controllers\Academic\InstructorAvailabilitySlotController;
 use App\Http\Controllers\Academic\StudentMentoringSessionController;
 use App\Http\Controllers\Academic\AnnouncementController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
+use App\Http\Controllers\Academic\AssessmentTemplateController;
+use App\Http\Controllers\Academic\AssessmentScoreController;
+use App\Http\Controllers\Academic\ReportCardController;
+use App\Http\Controllers\Academic\CertificateController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
 use App\Http\Controllers\Marketing\MarketingDashboardController;
@@ -651,6 +655,122 @@ Route::middleware('auth')->group(function () {
             Route::patch('/{studentMentoringSession}/status', [StudentMentoringSessionController::class, 'updateStatus'])->name('status');
         });
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Assessment Templates, Scores, Report Cards, Certificates
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('academic')->name('academic.')->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assessment Templates
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('assessment-templates')->name('assessment-templates.')->group(function () {
+            Route::get('/', [AssessmentTemplateController::class, 'index'])->name('index');
+            Route::get('/create', [AssessmentTemplateController::class, 'create'])->name('create');
+            Route::post('/', [AssessmentTemplateController::class, 'store'])->name('store');
+
+            Route::get('/{assessmentTemplate}/edit', [AssessmentTemplateController::class, 'edit'])
+                ->whereNumber('assessmentTemplate')
+                ->name('edit');
+
+            Route::put('/{assessmentTemplate}', [AssessmentTemplateController::class, 'update'])
+                ->whereNumber('assessmentTemplate')
+                ->name('update');
+
+            Route::delete('/{assessmentTemplate}', [AssessmentTemplateController::class, 'destroy'])
+                ->whereNumber('assessmentTemplate')
+                ->name('destroy');
+
+            Route::get('/{assessmentTemplate}', [AssessmentTemplateController::class, 'show'])
+                ->whereNumber('assessmentTemplate')
+                ->name('show');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assessment Scores
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('assessment-scores')->name('assessment-scores.')->group(function () {
+            Route::get('/', [AssessmentScoreController::class, 'index'])
+                ->name('index');
+
+            Route::get('/preview', [AssessmentScoreController::class, 'preview'])
+                ->name('preview');
+
+            Route::post('/', [AssessmentScoreController::class, 'store'])
+                ->name('store');
+
+            Route::post('/bulk', [AssessmentScoreController::class, 'bulkStore'])
+                ->name('bulk-store');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Report Cards
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('report-cards')->name('report-cards.')->group(function () {
+            Route::get('/', [ReportCardController::class, 'index'])
+                ->name('index');
+
+            Route::post('/generate', [ReportCardController::class, 'generate'])
+                ->name('generate');
+
+            Route::post('/{reportCard}/regenerate', [ReportCardController::class, 'regenerate'])
+                ->whereNumber('reportCard')
+                ->name('regenerate');
+
+            Route::post('/{reportCard}/publish', [ReportCardController::class, 'publish'])
+                ->whereNumber('reportCard')
+                ->name('publish');
+
+            Route::post('/{reportCard}/cancel', [ReportCardController::class, 'cancel'])
+                ->whereNumber('reportCard')
+                ->name('cancel');
+
+            Route::get('/{reportCard}', [ReportCardController::class, 'show'])
+                ->whereNumber('reportCard')
+                ->name('show');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Certificates
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('certificates')->name('certificates.')->group(function () {
+            Route::get('/', [CertificateController::class, 'index'])
+                ->name('index');
+
+            Route::post('/issue', [CertificateController::class, 'issue'])
+                ->name('issue');
+
+            Route::post('/{certificate}/reissue', [CertificateController::class, 'reissue'])
+                ->whereNumber('certificate')
+                ->name('reissue');
+
+            Route::post('/{certificate}/revoke', [CertificateController::class, 'revoke'])
+                ->whereNumber('certificate')
+                ->name('revoke');
+
+            Route::get('/{certificate}', [CertificateController::class, 'show'])
+                ->whereNumber('certificate')
+                ->name('show');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Certificate Verification
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/certificates/verify/{token}', [CertificateController::class, 'verify'])
+        ->name('public.certificates.verify');
 
     /*
     |--------------------------------------------------------------------------

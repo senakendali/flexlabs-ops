@@ -1,0 +1,194 @@
+<?php
+
+namespace App\Services\Assessment;
+
+use App\Models\Batch;
+use App\Models\ReportCard;
+use App\Models\Student;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class ReportCardService
+{
+    public function __construct(
+        protected AssessmentCalculatorService $calculator
+    ) {
+    }
+
+    public function generate(Student $student, Batch $batch, ?int $generatedBy = null, array $extraData = []): ReportCard
+    {
+        return DB::transaction(function () use ($student, $batch, $generatedBy, $extraData) {
+            $result = $this->calculator->calculate($student, $batch);
+
+            $reportCard = ReportCard::query()->firstOrNew([
+                'student_id' => $student->id,
+                'batch_id' => $batch->id,
+            ]);
+
+            if (! $reportCard->exists) {
+                $reportCard->report_no = $this->generateReportNo($batch);
+            }
+
+            $reportCard->program_id = $result['program_id'] ?? $batch->program_id;
+            $reportCard->assessment_template_id = $result['assessment_template_id'] ?? null;
+
+            $reportCard->attendance_percent = $result['attendance_percent'] ?? 0;
+            $reportCard->progress_percent = $result['progress_percent'] ?? 0;
+            $reportCard->final_score = $result['final_score'] ?? 0;
+            $reportCard->grade = $result['grade'] ?? null;
+
+            $reportCard->status = $result['status'] ?? 'draft';
+            $reportCard->is_certificate_eligible = (bool) ($result['is_certificate_eligible'] ?? false);
+
+            $reportCard->summary = $extraData['summary'] ?? $reportCard->summary;
+            $reportCard->strengths = $extraData['strengths'] ?? $reportCard->strengths;
+            $reportCard->improvements = $extraData['improvements'] ?? $reportCard->improvements;
+            $reportCard->instructor_note = $extraData['instructor_note'] ?? $reportCard->instructor_note;
+            $reportCard->academic_note = $extraData['academic_note'] ?? $reportCard->academic_note;
+
+            $reportCard->score_snapshot = $result['score_snapshot'] ?? [];
+            $reportCard->rubric_snapshot = $result['rubric_snapshot'] ?? [];
+            $reportCard->rule_snapshot = $result['rule_snapshot'] ?? [];
+
+            $reportCard->generated_by = $generatedBy;
+            $reportCard->generated_at = now();
+
+            $reportCard->save();
+
+            return $reportCard->fresh([
+                'student',
+                'batch',
+                'program',
+                'template',
+            ]);
+        });
+    }
+
+    public function generateByIds(int $studentId, int $batchId, ?int $generatedBy = null, array $extraData = []): ReportCard
+    {
+        $student = Student::query()->findOrFail($studentId);
+        $batch = Batch::query()->findOrFail($batchId);
+
+        return $this->generate(
+            student: $student,
+            batch: $batch,
+            generatedBy: $generatedBy,
+            extraData: $extraData
+        );
+    }
+
+    public function publish(ReportCard $reportCard, ?int $publishedBy = null): ReportCard
+    {
+        $reportCard->status = $reportCard->is_certificate_eligible
+            ? 'published'
+            : $reportCard->status;
+
+        $reportCard->published_by = $publishedBy;
+        $reportCard->published_at = now();
+        $reportCard->save();
+
+        return $reportCard->fresh([
+            'student',
+            'batch',
+            'program',
+            'template',
+        ]);
+    }
+
+    public function publishById(int $reportCardId, ?int $publishedBy = null): ReportCard
+    {
+        $reportCard = ReportCard::query()->findOrFail($reportCardId);
+
+        return $this->publish($reportCard, $publishedBy);
+    }
+
+    public function cancel(ReportCard $reportCard): ReportCard
+    {
+        $reportCard->status = 'cancelled';
+        $reportCard->is_certificate_eligible = false;
+        $reportCard->save();
+
+        return $reportCard->fresh([
+            'student',
+            'batch',
+            'program',
+            'template',
+        ]);
+    }
+
+    public function cancelById(int $reportCardId): ReportCard
+    {
+        $reportCard = ReportCard::query()->findOrFail($reportCardId);
+
+        return $this->cancel($reportCard);
+    }
+
+    public function regenerate(ReportCard $reportCard, ?int $generatedBy = null, array $extraData = []): ReportCard
+    {
+        $reportCard->loadMissing(['student', 'batch']);
+
+        return $this->generate(
+            student: $reportCard->student,
+            batch: $reportCard->batch,
+            generatedBy: $generatedBy,
+            extraData: $extraData
+        );
+    }
+
+    public function generateReportNo(Batch $batch): string
+    {
+        $prefix = 'RC';
+        $date = now()->format('Ymd');
+
+        $programCode = $this->resolveProgramCode($batch);
+        $batchCode = $this->resolveBatchCode($batch);
+
+        $base = "{$prefix}-{$date}-{$programCode}-{$batchCode}";
+
+        $latestCount = ReportCard::query()
+            ->where('report_no', 'like', "{$base}-%")
+            ->withTrashed()
+            ->count();
+
+        $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
+
+        $reportNo = "{$base}-{$sequence}";
+
+        while (ReportCard::query()->withTrashed()->where('report_no', $reportNo)->exists()) {
+            $latestCount++;
+            $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
+            $reportNo = "{$base}-{$sequence}";
+        }
+
+        return $reportNo;
+    }
+
+    private function resolveProgramCode(Batch $batch): string
+    {
+        $batch->loadMissing('program');
+
+        $name = $batch->program?->name ?? 'PROGRAM';
+
+        return Str::of($name)
+            ->upper()
+            ->replaceMatches('/[^A-Z0-9]+/', '-')
+            ->trim('-')
+            ->limit(16, '')
+            ->toString() ?: 'PROGRAM';
+    }
+
+    private function resolveBatchCode(Batch $batch): string
+    {
+        $name = $batch->name
+            ?? $batch->title
+            ?? $batch->code
+            ?? "BATCH-{$batch->id}";
+
+        return Str::of($name)
+            ->upper()
+            ->replaceMatches('/[^A-Z0-9]+/', '-')
+            ->trim('-')
+            ->limit(16, '')
+            ->toString() ?: "BATCH-{$batch->id}";
+    }
+}
