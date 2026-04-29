@@ -10,7 +10,6 @@ use App\Models\BatchLearningQuiz;
 use App\Models\LearningQuizAttempt;
 use App\Models\Student;
 use App\Models\StudentLessonProgress;
-use App\Models\StudentMentoringSession;
 use App\Models\SubTopic;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -62,14 +61,6 @@ class StudentDashboardController extends Controller
         $subTopics = $this->getSubTopicsForPrograms($programIds);
         $progressRows = $this->getProgressRows($student, $subTopics);
 
-        /*
-         * Penting:
-         * Tabel progress di beberapa project bisa plural (`student_lesson_progresses`)
-         * atau singular (`student_lesson_progress`). Selain itu, kadang query curriculum
-         * belum memasukkan sub topic yang sudah punya progress. Jadi progress student
-         * kita merge dulu, lalu sub topic dari progress yang belum completed ikut
-         * dimasukkan sebagai kandidat current lesson.
-         */
         $progressRows = $this->mergeProgressRows(
             primaryRows: $progressRows,
             extraRows: $this->getAllStudentProgressRows($student)
@@ -94,12 +85,6 @@ class StudentDashboardController extends Controller
             progressRows: $progressRows
         );
 
-        /*
-         * Fallback penting:
-         * Kalau curriculum path program -> stages -> modules -> topics -> sub_topics belum kebaca,
-         * frontend akan dapat current_lesson = null. Jadi kita cari lagi dari progress student,
-         * lalu fallback terakhir ke first available sub topic dari program aktif.
-         */
         if (!$currentLesson) {
             $currentLesson = $this->resolveCurrentLessonFallback(
                 student: $student,
@@ -127,12 +112,14 @@ class StudentDashboardController extends Controller
 
                 'courses' => $courses->toArray(),
 
-                'upcoming_sessions' => $this->getDashboardUpcomingSessions(
-                    student: $student,
-                    programIds: $programIds,
-                    batchIds: $batchIds
-                )->toArray(),
-
+                /*
+                 * Upcoming sessions sengaja tidak diambil dari DashboardController.
+                 * Sumber jadwal student sekarang satu pintu:
+                 * GET /api/lms/student/schedules
+                 *
+                 * Dashboard Vue tetap mengambil upcoming sessions lewat endpoint schedules
+                 * supaya hasilnya sama dengan halaman Schedule.
+                 */
                 'announcements' => $this->getDashboardAnnouncements(
                     programIds: $programIds,
                     batchIds: $batchIds
@@ -324,28 +311,33 @@ class StudentDashboardController extends Controller
             ->sortByDesc(fn ($progress) => Carbon::parse($this->resolveProgressActivityAt($progress))->timestamp)
             ->first();
 
+        $periodLabel = $startOfWeek->format('d M') . ' - ' . $endOfWeek->format('d M Y');
+        $watchTime = $this->formatWatchTime($watchSeconds);
+        $streak = $this->calculateCurrentStreak($student);
+        $lastActiveLabel = $this->formatLastActiveLabel($latestActivity ? $this->resolveProgressActivityAt($latestActivity) : null);
+
         return [
-            'period_label' => $startOfWeek->format('d M') . ' - ' . $endOfWeek->format('d M Y'),
-            'periodLabel' => $startOfWeek->format('d M') . ' - ' . $endOfWeek->format('d M Y'),
+            'period_label' => $periodLabel,
+            'periodLabel' => $periodLabel,
 
             'total_watch_seconds' => $watchSeconds,
             'totalWatchSeconds' => $watchSeconds,
             'total_watch_minutes' => (int) round($watchSeconds / 60),
             'totalWatchMinutes' => (int) round($watchSeconds / 60),
-            'total_watch_time_label' => $this->formatWatchTime($watchSeconds),
-            'totalWatchTimeLabel' => $this->formatWatchTime($watchSeconds),
-            'total_watch_time' => $this->formatWatchTime($watchSeconds),
-            'totalWatchTime' => $this->formatWatchTime($watchSeconds),
+            'total_watch_time_label' => $watchTime,
+            'totalWatchTimeLabel' => $watchTime,
+            'total_watch_time' => $watchTime,
+            'totalWatchTime' => $watchTime,
 
             'completed_sub_topics' => $completedSubTopics,
             'completedSubTopics' => $completedSubTopics,
             'tasks_done' => $tasksDone,
             'tasksDone' => $tasksDone,
 
-            'current_streak' => $this->calculateCurrentStreak($student),
-            'currentStreak' => $this->calculateCurrentStreak($student),
-            'last_active_label' => $this->formatLastActiveLabel($latestActivity ? $this->resolveProgressActivityAt($latestActivity) : null),
-            'lastActiveLabel' => $this->formatLastActiveLabel($latestActivity ? $this->resolveProgressActivityAt($latestActivity) : null),
+            'current_streak' => $streak,
+            'currentStreak' => $streak,
+            'last_active_label' => $lastActiveLabel,
+            'lastActiveLabel' => $lastActiveLabel,
         ];
     }
 
@@ -384,6 +376,9 @@ class StudentDashboardController extends Controller
                     'completed',
                     'finished',
                     'passed',
+                    'done',
+                    'reviewed',
+                    'graded',
                 ]);
             }
 
@@ -483,10 +478,6 @@ class StudentDashboardController extends Controller
 
         $subTopics = $this->querySubTopicsByIds($subTopicIds, true)->get();
 
-        /*
-         * Jangan sampai current lesson hilang cuma karena is_active/status belum rapi.
-         * Kalau filter visibility bikin kosong, fallback ambil unfiltered curriculum dulu.
-         */
         if ($subTopics->isEmpty()) {
             $subTopics = $this->querySubTopicsByIds($subTopicIds, false)->get();
         }
@@ -642,7 +633,7 @@ class StudentDashboardController extends Controller
         if (class_exists(\App\Models\Stage::class)) {
             try {
                 $tables[] = (new \App\Models\Stage())->getTable();
-            } catch (\Throwable $exception) {
+            } catch (\Throwable) {
                 // ignore and use fallback names below
             }
         }
@@ -799,7 +790,7 @@ class StudentDashboardController extends Controller
             if ($modelTable && Schema::hasTable($modelTable)) {
                 return $modelTable;
             }
-        } catch (\Throwable $exception) {
+        } catch (\Throwable) {
             // ignore and use fallback names below
         }
 
@@ -879,7 +870,7 @@ class StudentDashboardController extends Controller
 
         $nextSubTopic = $subTopics
             ->first(function ($subTopic) use ($progressBySubTopic) {
-                $progress = $progressBySubTopic->get($subTopic->id);
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
 
                 return !$this->isProgressCompleted($progress);
             });
@@ -899,14 +890,6 @@ class StudentDashboardController extends Controller
 
         $progressBySubTopic = $this->mapLatestProgressBySubTopic($progressRows);
 
-        /*
-         * Urutan current lesson yang benar:
-         * 1. Lesson yang sudah pernah dibuka tapi belum completed.
-         * 2. Lesson pertama di curriculum yang belum completed / belum punya progress.
-         * 3. Completed fallback hanya boleh dipakai kalau caller memang mengizinkan.
-         *
-         * Ini penting supaya dashboard tidak balik lagi ke lesson pertama yang sudah completed.
-         */
         $currentSubTopic = $subTopics
             ->filter(function ($subTopic) use ($progressBySubTopic) {
                 $progress = $progressBySubTopic->get((int) $subTopic->id);
@@ -988,6 +971,11 @@ class StudentDashboardController extends Controller
         $courseSlug = $this->resolveProgramSlug($program);
         $lessonSlug = $this->resolveSubTopicSlug($currentSubTopic);
         $learnUrl = '/learn/' . $courseSlug . '/' . $lessonSlug;
+        $videoUrl = $this->resolveSubTopicVideoUrl($currentSubTopic);
+        $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($currentSubTopic, $videoUrl);
+        $durationMinutes = $this->resolveDurationMinutes($currentSubTopic, $progress);
+        $durationSeconds = $this->resolveDurationSeconds($currentSubTopic, $progress);
+        $lastPositionSeconds = $this->resolveLastPositionSeconds($progress);
 
         return [
             'id' => $currentSubTopic->id,
@@ -997,15 +985,15 @@ class StudentDashboardController extends Controller
             'title' => $this->getColumnValue($currentSubTopic, ['name', 'title']) ?: 'Untitled Lesson',
             'description' => $this->getColumnValue($currentSubTopic, ['description', 'summary']) ?: 'Continue your current learning activity.',
 
-            'duration_minutes' => $this->resolveDurationMinutes($currentSubTopic, $progress),
-            'durationMinutes' => $this->resolveDurationMinutes($currentSubTopic, $progress),
-            'duration_seconds' => $this->resolveDurationSeconds($currentSubTopic, $progress),
-            'durationSeconds' => $this->resolveDurationSeconds($currentSubTopic, $progress),
+            'duration_minutes' => $durationMinutes,
+            'durationMinutes' => $durationMinutes,
+            'duration_seconds' => $durationSeconds,
+            'durationSeconds' => $durationSeconds,
 
-            'thumbnail_url' => $this->getColumnValue($currentSubTopic, ['thumbnail_url', 'image', 'thumbnail'])
-                ?: 'https://img.youtube.com/vi/Ke90Tje7VS0/maxresdefault.jpg',
-            'thumbnailUrl' => $this->getColumnValue($currentSubTopic, ['thumbnail_url', 'image', 'thumbnail'])
-                ?: 'https://img.youtube.com/vi/Ke90Tje7VS0/maxresdefault.jpg',
+            'thumbnail_url' => $thumbnailUrl,
+            'thumbnailUrl' => $thumbnailUrl,
+            'video_url' => $videoUrl,
+            'videoUrl' => $videoUrl,
 
             'module' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
             'module_title' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
@@ -1028,8 +1016,8 @@ class StudentDashboardController extends Controller
             'watched_percentage' => $progressPercentage,
             'watchedPercentage' => $progressPercentage,
 
-            'last_position_seconds' => $this->resolveLastPositionSeconds($progress),
-            'lastPositionSeconds' => $this->resolveLastPositionSeconds($progress),
+            'last_position_seconds' => $lastPositionSeconds,
+            'lastPositionSeconds' => $lastPositionSeconds,
 
             'course_slug' => $courseSlug,
             'courseSlug' => $courseSlug,
@@ -1371,10 +1359,18 @@ class StudentDashboardController extends Controller
 
         $query = BatchLearningQuiz::query()
             ->whereIn('batch_id', $batchIds)
-            ->when(Schema::hasColumn('batch_learning_quizzes', 'is_active'), fn ($query) => $query->where('is_active', true));
+            ->when(
+                Schema::hasColumn('batch_learning_quizzes', 'is_active'),
+                fn ($query) => $query->where('is_active', true)
+            );
 
         if (Schema::hasColumn('batch_learning_quizzes', 'status')) {
-            $query->whereNotIn('status', ['inactive', 'archived', 'cancelled', 'canceled']);
+            $query->whereNotIn('status', [
+                'inactive',
+                'archived',
+                'cancelled',
+                'canceled',
+            ]);
         }
 
         if (method_exists(BatchLearningQuiz::class, 'batch')) {
@@ -1401,22 +1397,123 @@ class StudentDashboardController extends Controller
             return false;
         }
 
-        $query = LearningQuizAttempt::query()
-            ->where('student_id', $student->id);
+        $batchLearningQuizId = $this->getColumnValue($quiz, ['id']);
 
-        if (Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')) {
-            $query->where('batch_learning_quiz_id', $quiz->id);
-        } elseif (Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id') && isset($quiz->learning_quiz_id)) {
-            $query->where('learning_quiz_id', $quiz->learning_quiz_id);
+        $learningQuizId = $this->getColumnValue($quiz, ['learning_quiz_id'])
+            ?? data_get($quiz, 'learningQuiz.id')
+            ?? data_get($quiz, 'quiz.id');
+
+        $possibleQuizIds = collect([
+            $learningQuizId,
+            $batchLearningQuizId,
+        ])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $hasIdentifierColumn = Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')
+            || Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id')
+            || Schema::hasColumn('learning_quiz_attempts', 'quiz_id');
+
+        if (!$hasIdentifierColumn) {
+            return false;
         }
 
-        if (Schema::hasColumn('learning_quiz_attempts', 'status')) {
-            $query->whereIn('status', [
-                'submitted',
-                'completed',
-                'finished',
-                'passed',
-            ]);
+        $query = LearningQuizAttempt::query()
+            ->where('student_id', $student->id)
+            ->where(function ($attemptQuery) use ($batchLearningQuizId, $learningQuizId, $possibleQuizIds) {
+                $hasCondition = false;
+
+                if (
+                    Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')
+                    && $batchLearningQuizId
+                ) {
+                    $attemptQuery->where('batch_learning_quiz_id', $batchLearningQuizId);
+                    $hasCondition = true;
+                }
+
+                if (
+                    Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id')
+                    && $learningQuizId
+                ) {
+                    $hasCondition
+                        ? $attemptQuery->orWhere('learning_quiz_id', $learningQuizId)
+                        : $attemptQuery->where('learning_quiz_id', $learningQuizId);
+
+                    $hasCondition = true;
+                }
+
+                if (
+                    Schema::hasColumn('learning_quiz_attempts', 'quiz_id')
+                    && $possibleQuizIds->isNotEmpty()
+                ) {
+                    $hasCondition
+                        ? $attemptQuery->orWhereIn('quiz_id', $possibleQuizIds->all())
+                        : $attemptQuery->whereIn('quiz_id', $possibleQuizIds->all());
+
+                    $hasCondition = true;
+                }
+
+                if (!$hasCondition) {
+                    $attemptQuery->whereRaw('1 = 0');
+                }
+            });
+
+        $hasCompletionIndicator = Schema::hasColumn('learning_quiz_attempts', 'status')
+            || Schema::hasColumn('learning_quiz_attempts', 'submitted_at')
+            || Schema::hasColumn('learning_quiz_attempts', 'completed_at')
+            || Schema::hasColumn('learning_quiz_attempts', 'finished_at')
+            || Schema::hasColumn('learning_quiz_attempts', 'ended_at')
+            || Schema::hasColumn('learning_quiz_attempts', 'is_submitted')
+            || Schema::hasColumn('learning_quiz_attempts', 'is_completed');
+
+        if ($hasCompletionIndicator) {
+            $query->where(function ($completedQuery) {
+                $hasCondition = false;
+
+                if (Schema::hasColumn('learning_quiz_attempts', 'status')) {
+                    $completedQuery->whereIn('status', [
+                        'submitted',
+                        'completed',
+                        'finished',
+                        'passed',
+                        'done',
+                        'reviewed',
+                        'graded',
+                    ]);
+
+                    $hasCondition = true;
+                }
+
+                foreach (['submitted_at', 'completed_at', 'finished_at', 'ended_at'] as $column) {
+                    if (!Schema::hasColumn('learning_quiz_attempts', $column)) {
+                        continue;
+                    }
+
+                    $hasCondition
+                        ? $completedQuery->orWhereNotNull($column)
+                        : $completedQuery->whereNotNull($column);
+
+                    $hasCondition = true;
+                }
+
+                foreach (['is_submitted', 'is_completed'] as $column) {
+                    if (!Schema::hasColumn('learning_quiz_attempts', $column)) {
+                        continue;
+                    }
+
+                    $hasCondition
+                        ? $completedQuery->orWhere($column, true)
+                        : $completedQuery->where($column, true);
+
+                    $hasCondition = true;
+                }
+
+                if (!$hasCondition) {
+                    $completedQuery->whereRaw('1 = 0');
+                }
+            });
         }
 
         return $query->exists();
@@ -1654,170 +1751,6 @@ class StudentDashboardController extends Controller
             ->values();
     }
 
-    private function getDashboardUpcomingSessions(Student $student, Collection $programIds, Collection $batchIds): Collection
-    {
-        $mentoringSessions = collect();
-
-        if (Schema::hasTable('student_mentoring_sessions')) {
-            $query = StudentMentoringSession::query()
-                ->where('student_id', $student->id)
-                ->whereIn('status', ['pending', 'approved', 'rescheduled']);
-
-            if (method_exists(StudentMentoringSession::class, 'instructor')) {
-                $query->with('instructor');
-            }
-
-            if (method_exists(StudentMentoringSession::class, 'availabilitySlot')) {
-                $query->with('availabilitySlot')
-                    ->whereHas('availabilitySlot', function ($slotQuery) {
-                        $slotQuery->whereDate('date', '>=', now()->toDateString());
-                    });
-            }
-
-            $mentoringSessions = $query
-                ->get()
-                ->map(function (StudentMentoringSession $session) {
-                    $slot = $session->availabilitySlot ?? null;
-                    $date = $slot?->date;
-                    $startTime = $slot?->start_time ? substr($slot->start_time, 0, 5) : null;
-                    $endTime = $slot?->end_time ? substr($slot->end_time, 0, 5) : null;
-
-                    $dateLabel = $date ? Carbon::parse($date)->format('d M Y') : '-';
-                    $sortDate = $date ? Carbon::parse($date)->format('Y-m-d') : now()->addYears(10)->format('Y-m-d');
-                    $timeLabel = $startTime && $endTime ? "{$startTime} - {$endTime}" : '-';
-
-                    return [
-                        'id' => $session->id,
-                        'type' => 'mentoring',
-                        'title' => '1-on-1 with ' . ($session->instructor?->name ?? 'Instructor'),
-                        'subtitle' => $session->topic_type_label ?? Str::headline((string) ($session->topic_type ?? 'Mentoring')),
-                        'time' => "{$dateLabel}, {$timeLabel}",
-                        'status' => $session->status,
-                        'badge_label' => $session->status_label ?? Str::headline((string) $session->status),
-                        'join_url' => $session->status === 'approved' ? $session->meeting_url : null,
-                        'meeting_url' => $session->status === 'approved' ? $session->meeting_url : null,
-                        'sort_datetime' => trim($sortDate . ' ' . ($startTime ?: '00:00')),
-                    ];
-                });
-        }
-
-        $liveSessions = $this->getDashboardLiveSessions($programIds, $batchIds);
-
-        return collect($mentoringSessions->all())
-            ->merge(collect($liveSessions->all()))
-            ->sortBy(fn (array $session) => $session['sort_datetime'] ?? now()->addYears(10)->toDateTimeString())
-            ->take(5)
-            ->values()
-            ->map(function (array $session) {
-                unset($session['sort_datetime']);
-
-                return $session;
-            });
-    }
-
-    private function getDashboardLiveSessions(Collection $programIds, Collection $batchIds): Collection
-    {
-        if (!Schema::hasTable('instructor_schedules')) {
-            return collect();
-        }
-
-        if ($programIds->isEmpty() && $batchIds->isEmpty()) {
-            return collect();
-        }
-
-        $query = DB::table('instructor_schedules')
-            ->leftJoin('instructors', 'instructors.id', '=', 'instructor_schedules.instructor_id')
-            ->leftJoin('batches', 'batches.id', '=', 'instructor_schedules.batch_id')
-            ->leftJoin('programs', 'programs.id', '=', 'batches.program_id')
-            ->whereDate('instructor_schedules.schedule_date', '>=', now()->toDateString());
-
-        $query->where(function ($targetQuery) use ($programIds, $batchIds) {
-            if ($batchIds->isNotEmpty() && Schema::hasColumn('instructor_schedules', 'batch_id')) {
-                $targetQuery->orWhereIn('instructor_schedules.batch_id', $batchIds);
-            }
-
-            if ($programIds->isNotEmpty()) {
-                if (Schema::hasColumn('instructor_schedules', 'program_id')) {
-                    $targetQuery->orWhereIn('instructor_schedules.program_id', $programIds);
-                }
-
-                if (Schema::hasColumn('batches', 'program_id')) {
-                    $targetQuery->orWhereIn('batches.program_id', $programIds);
-                }
-            }
-        });
-
-        if (Schema::hasColumn('instructor_schedules', 'status')) {
-            $query->whereNotIn('instructor_schedules.status', [
-                'cancelled',
-                'canceled',
-                'inactive',
-            ]);
-        }
-
-        $selects = [
-            'instructor_schedules.id',
-            'instructor_schedules.schedule_date',
-            'instructor_schedules.start_time',
-            'instructor_schedules.end_time',
-            'instructors.name as instructor_name',
-            'batches.name as batch_name',
-            'programs.name as program_name',
-        ];
-
-        if (Schema::hasColumn('instructor_schedules', 'meeting_url')) {
-            $selects[] = 'instructor_schedules.meeting_url';
-        }
-
-        if (Schema::hasColumn('instructor_schedules', 'title')) {
-            $selects[] = 'instructor_schedules.title';
-        }
-
-        if (Schema::hasColumn('instructor_schedules', 'topic')) {
-            $selects[] = 'instructor_schedules.topic';
-        }
-
-        return $query
-            ->select($selects)
-            ->orderBy('instructor_schedules.schedule_date')
-            ->orderBy('instructor_schedules.start_time')
-            ->limit(5)
-            ->get()
-            ->map(function ($schedule) {
-                $date = $schedule->schedule_date ?? null;
-                $startTime = isset($schedule->start_time) ? substr($schedule->start_time, 0, 5) : null;
-                $endTime = isset($schedule->end_time) ? substr($schedule->end_time, 0, 5) : null;
-
-                $dateLabel = $date ? Carbon::parse($date)->format('d M Y') : '-';
-                $sortDate = $date ? Carbon::parse($date)->format('Y-m-d') : now()->addYears(10)->format('Y-m-d');
-                $timeLabel = $startTime && $endTime ? "{$startTime} - {$endTime}" : '-';
-
-                $title = $schedule->title
-                    ?? $schedule->topic
-                    ?? 'Live Class';
-
-                $subtitle = collect([
-                    $schedule->program_name ?? null,
-                    $schedule->batch_name ?? null,
-                    $schedule->instructor_name ?? null,
-                ])->filter()->implode(' • ');
-
-                return [
-                    'id' => $schedule->id,
-                    'type' => 'live',
-                    'title' => $title,
-                    'subtitle' => $subtitle,
-                    'time' => "{$dateLabel}, {$timeLabel}",
-                    'status' => 'scheduled',
-                    'badge_label' => 'Live Class',
-                    'join_url' => $schedule->meeting_url ?? null,
-                    'meeting_url' => $schedule->meeting_url ?? null,
-                    'sort_datetime' => trim($sortDate . ' ' . ($startTime ?: '00:00')),
-                ];
-            })
-            ->values();
-    }
-
     private function resolveProgressActivityAt($progress)
     {
         if (!$progress) {
@@ -2007,6 +1940,74 @@ class StudentDashboardController extends Controller
     private function clampPercent($value): int
     {
         return max(0, min(100, (int) round((float) $value)));
+    }
+
+    private function resolveSubTopicThumbnailUrl($subTopic, ?string $videoUrl = null): string
+    {
+        $thumbnail = $this->getColumnValue($subTopic, [
+            'thumbnail_url',
+            'thumbnail',
+            'image',
+            'image_url',
+            'cover',
+            'cover_url',
+        ]);
+
+        if ($thumbnail) {
+            return (string) $thumbnail;
+        }
+
+        $youtubeId = $this->extractYoutubeVideoId($videoUrl ?: $this->resolveSubTopicVideoUrl($subTopic));
+
+        if ($youtubeId) {
+            return "https://img.youtube.com/vi/{$youtubeId}/maxresdefault.jpg";
+        }
+
+        return 'https://img.youtube.com/vi/Ke90Tje7VS0/maxresdefault.jpg';
+    }
+
+    private function resolveSubTopicVideoUrl($subTopic): ?string
+    {
+        $videoUrl = $this->getColumnValue($subTopic, [
+            'video_url',
+            'youtube_url',
+            'youtube_link',
+            'video_link',
+            'url',
+            'link',
+        ]);
+
+        return $videoUrl ? (string) $videoUrl : null;
+    }
+
+    private function extractYoutubeVideoId(?string $url): ?string
+    {
+        if (!$url) {
+            return null;
+        }
+
+        $url = trim($url);
+
+        if ($url === '') {
+            return null;
+        }
+
+        $patterns = [
+            '/youtu\.be\/([a-zA-Z0-9_-]{6,})/',
+            '/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{6,})/',
+            '/youtube\.com\/watch.*[?&]v=([a-zA-Z0-9_-]{6,})/',
+            '/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/',
+            '/youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/',
+            '/youtube\.com\/live\/([a-zA-Z0-9_-]{6,})/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $url, $matches)) {
+                return $matches[1] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function getColumnValue($model, array $columns)

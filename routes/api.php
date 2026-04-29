@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Lms\StudentDashboardController;
 use App\Http\Controllers\Api\Lms\StudentLearningController;
 use App\Http\Controllers\Api\Lms\StudentMentoringController;
 use App\Http\Controllers\Api\Lms\StudentQuizController;
+use App\Http\Controllers\Api\Lms\StudentScheduleController;
 use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
 use App\Http\Controllers\Api\PublicQuizController;
 use Illuminate\Support\Facades\Route;
@@ -87,9 +88,18 @@ Route::prefix('lms/student')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
+        | Schedule
+        |--------------------------------------------------------------------------
+        | Gabungan live session dari instructor schedule
+        | dan mentoring session, termasuk one-on-one.
+        */
+        Route::get('/schedules', [StudentScheduleController::class, 'index']);
+
+        /*
+        |--------------------------------------------------------------------------
         | Upcoming Sessions
         |--------------------------------------------------------------------------
-        | Gabungan live session program/batch + 1-on-1 mentoring session.
+        | Ringkasan upcoming session untuk dashboard student.
         */
         Route::get('/upcoming-sessions', [StudentUpcomingSessionController::class, 'index']);
 
