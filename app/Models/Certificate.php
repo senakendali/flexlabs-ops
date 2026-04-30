@@ -25,6 +25,7 @@ class Certificate extends Model
         'public_token',
         'verification_url',
         'qr_code_path',
+        'image_path',
         'pdf_path',
         'status',
         'revocation_reason',

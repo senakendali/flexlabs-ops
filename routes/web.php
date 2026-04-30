@@ -71,6 +71,13 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Public Certificate Verification
+|--------------------------------------------------------------------------
+*/
+Route::get('/certificates/verify/{token}', [CertificateController::class, 'verify'])
+    ->name('public.certificates.verify');
 
 
 /*
@@ -758,6 +765,22 @@ Route::middleware('auth')->group(function () {
             Route::post('/{certificate}/revoke', [CertificateController::class, 'revoke'])
                 ->whereNumber('certificate')
                 ->name('revoke');
+
+            Route::post('/{certificate}/regenerate-qr', [CertificateController::class, 'regenerateQr'])
+                ->whereNumber('certificate')
+                ->name('regenerate-qr');
+
+            Route::post('/{certificate}/generate-image', [CertificateController::class, 'generateImage'])
+                ->whereNumber('certificate')
+                ->name('generate-image');
+
+            Route::get('/{certificate}/download-image', [CertificateController::class, 'downloadImage'])
+                ->whereNumber('certificate')
+                ->name('download-image');
+
+            Route::get('/{certificate}/download-pdf', [CertificateController::class, 'downloadPdf'])
+                ->whereNumber('certificate')
+                ->name('download-pdf');
 
             Route::get('/{certificate}', [CertificateController::class, 'show'])
                 ->whereNumber('certificate')

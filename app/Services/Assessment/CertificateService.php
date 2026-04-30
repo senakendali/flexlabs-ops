@@ -10,6 +10,11 @@ use RuntimeException;
 
 class CertificateService
 {
+    public function __construct(
+        protected CertificateQrService $qrService
+    ) {
+    }
+
     public function issue(ReportCard $reportCard, ?int $issuedBy = null, array $extraData = []): Certificate
     {
         return DB::transaction(function () use ($reportCard, $issuedBy, $extraData) {
@@ -66,7 +71,9 @@ class CertificateService
             $certificate->issued_by = $issuedBy;
             $certificate->issued_at = now();
 
-            $certificate->save();
+           $certificate->save();
+
+            $certificate = $this->qrService->generate($certificate);
 
             return $certificate->fresh([
                 'reportCard',

@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Academic;
 use App\Http\Controllers\Controller;
 use App\Models\Certificate;
 use App\Models\ReportCard;
+use App\Services\Assessment\CertificateImageService;
+use App\Services\Assessment\CertificatePdfService;
+use App\Services\Assessment\CertificateQrService;
 use App\Services\Assessment\CertificateService;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -12,7 +15,10 @@ use RuntimeException;
 class CertificateController extends Controller
 {
     public function __construct(
-        protected CertificateService $certificateService
+        protected CertificateService $certificateService,
+        protected CertificateQrService $qrService,
+        protected CertificatePdfService $pdfService,
+        protected CertificateImageService $imageService
     ) {
     }
 
@@ -171,5 +177,69 @@ class CertificateController extends Controller
         }
 
         return back()->with('success', 'Certificate revoked successfully.');
+    }
+
+    public function verify(string $token)
+    {
+        $certificate = $this->certificateService->verifyByToken($token);
+
+        abort_if(! $certificate, 404);
+
+        $certificate->loadMissing([
+            'student',
+            'batch',
+            'program',
+            'reportCard',
+        ]);
+
+        return view('public.certificates.verify', compact('certificate'));
+    }
+
+    public function regenerateQr(Request $request, Certificate $certificate)
+    {
+        $certificate = $this->qrService->regenerate($certificate);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Certificate QR code regenerated successfully.',
+                'data' => $certificate,
+            ]);
+        }
+
+        return back()->with('success', 'Certificate QR code regenerated successfully.');
+    }
+
+    public function generateImage(Request $request, Certificate $certificate)
+    {
+        try {
+            $certificate = $this->imageService->generate($certificate);
+            $certificate->refresh();
+
+            if (! $certificate->image_path) {
+                return redirect()
+                    ->route('academic.certificates.show', $certificate)
+                    ->with('error', 'Generate image sudah dipanggil, tapi image_path masih kosong. Cek CertificateImageService bagian save image.');
+            }
+
+            return redirect()
+                ->route('academic.certificates.show', $certificate)
+                ->with('success', 'Certificate image generated successfully.');
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('academic.certificates.show', $certificate)
+                ->with('error', 'Failed to generate certificate image: ' . $exception->getMessage());
+        }
+    }
+
+    public function downloadImage(Certificate $certificate)
+    {
+        return $this->imageService->download($certificate);
+    }
+
+    public function downloadPdf(Certificate $certificate)
+    {
+        return $this->pdfService->download($certificate);
     }
 }
