@@ -7949,3 +7949,214 @@ img {
         grid-template-columns: 1fr;
     }
 }
+
+.table-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    background: #e8dbff;
+    color: #5B3E8E;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    flex: 0 0 auto;
+}
+
+.grade-badge {
+    min-width: 38px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: .9rem;
+}
+
+.grade-a {
+    background: #e7f8ed;
+    color: #247847;
+}
+
+.grade-b {
+    background: #eef7ff;
+    color: #276a9f;
+}
+
+.grade-c {
+    background: #fff8e6;
+    color: #9a6a00;
+}
+
+.grade-d,
+.grade-e {
+    background: #fff1f0;
+    color: #b42318;
+}
+
+.student-report-profile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.student-report-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    background: #e8dbff;
+    color: #5B3E8E;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 1.35rem;
+}
+
+.info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.info-list-item {
+    padding: 13px 0;
+    border-bottom: 1px solid #f0edf5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.info-list-item:last-child {
+    border-bottom: 0;
+}
+
+.info-list-item span:first-child {
+    color: #777283;
+    font-size: .88rem;
+}
+
+.info-list-item strong {
+    text-align: right;
+    color: #2f2440;
+}
+
+.rule-check-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rule-check-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    background: #fbfbfe;
+    border: 1px solid #eeeef4;
+}
+
+.rule-check-title {
+    font-weight: 800;
+    color: #2f2440;
+}
+
+.rule-check-value {
+    font-size: .84rem;
+    color: #777283;
+    margin-top: 2px;
+}
+
+.rule-check-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+}
+
+.rule-check-icon.is-pass {
+    background: #e7f8ed;
+    color: #247847;
+}
+
+.rule-check-icon.is-fail {
+    background: #fff1f0;
+    color: #b42318;
+}
+
+.rubric-detail-row td {
+    background: #fbfbfe;
+}
+
+.rubric-detail-box {
+    padding: 14px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid #eeeef4;
+}
+
+.rubric-detail-title {
+    font-weight: 800;
+    color: #2f2440;
+}
+
+.rubric-detail-item {
+    min-height: 74px;
+    padding: 12px;
+    border-radius: 14px;
+    background: #f8f5ff;
+    border: 1px solid #eee7ff;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.rubric-detail-name {
+    font-weight: 800;
+    color: #2f2440;
+    font-size: .9rem;
+}
+
+.rubric-detail-note {
+    color: #777283;
+    font-size: .82rem;
+    margin-top: 3px;
+}
+
+.note-box {
+    height: 100%;
+    padding: 16px;
+    border-radius: 18px;
+    background: #fbfbfe;
+    border: 1px solid #eeeef4;
+}
+
+.note-title {
+    font-weight: 800;
+    color: #2f2440;
+    margin-bottom: 8px;
+}
+
+.note-box p {
+    color: #6f6879;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .info-list-item {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .info-list-item strong {
+        text-align: left;
+    }
+}
