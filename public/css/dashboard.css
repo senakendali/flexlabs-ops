@@ -19,3 +19,49 @@
 @import url("./dashboard/07-sales-marketing-pages.css");
 @import url("./dashboard/08-operations-workshops-pages.css");
 @import url("./dashboard/99-print.css");
+
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+
+.modal {
+    position: fixed !important;
+    z-index: 1055 !important;
+}
+
+.modal.show {
+    display: block;
+    z-index: 1055 !important;
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+.modal-backdrop {
+    z-index: 1090 !important;
+}
+
+.modal {
+    position: fixed !important;
+    z-index: 1100 !important;
+}
+
+.modal.show {
+    display: block;
+    z-index: 1100 !important;
+}
+
+.modal-backdrop {
+    z-index: 1090 !important;
+}
+
+.modal {
+    position: fixed !important;
+    z-index: 1100 !important;
+}
+
+.modal.show {
+    display: block;
+    z-index: 1100 !important;
+}

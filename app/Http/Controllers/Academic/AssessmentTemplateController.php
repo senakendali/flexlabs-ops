@@ -93,23 +93,20 @@ class AssessmentTemplateController extends Controller
             ->with('success', 'Assessment template created successfully.');
     }
 
-    public function show(Request $request, AssessmentTemplate $assessmentTemplate)
+    public function show(AssessmentTemplate $assessmentTemplate)
     {
-        $assessmentTemplate->load([
+        $template = $assessmentTemplate->load([
             'program',
+            'creator',
+            'updater',
+            'components' => function ($query) {
+                $query->orderBy('sort_order');
+            },
             'components.rubric.criteria',
             'components.rubric.levels',
         ]);
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'data' => $assessmentTemplate,
-            ]);
-        }
-
-        return view('academic.assessment-templates.show', [
-            'template' => $assessmentTemplate,
-        ]);
+        return view('academic.assessment-templates.show', compact('template'));
     }
 
     public function edit(AssessmentTemplate $assessmentTemplate)
