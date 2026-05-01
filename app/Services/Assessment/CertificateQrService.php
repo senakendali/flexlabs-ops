@@ -3,46 +3,67 @@
 namespace App\Services\Assessment;
 
 use App\Models\Certificate;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Output\QROutputInterface;
 use Illuminate\Support\Facades\Storage;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Support\Str;
+use RuntimeException;
 
 class CertificateQrService
 {
-    
     public function generate(Certificate $certificate): Certificate
     {
-        $certificate->refresh();
+        $certificate->loadMissing([
+            'student',
+            'program',
+            'batch',
+            'reportCard',
+        ]);
 
-        $verificationUrl = $certificate->verification_url
-            ?: $this->buildVerificationUrl($certificate);
-
-        if (! $certificate->verification_url) {
-            $certificate->verification_url = $verificationUrl;
-        }
+        $publicToken = $certificate->public_token ?: Str::random(40);
+        $verificationUrl = route('public.certificates.verify', $publicToken);
 
         $directory = 'certificates/qr';
-        $filename = $this->buildFilename($certificate);
-        $path = "{$directory}/{$filename}";
-
         Storage::disk('public')->makeDirectory($directory);
 
-        $qrContent = QrCode::format('svg')
-            ->size(360)
-            ->margin(1)
-            ->errorCorrection('H')
-            ->generate($verificationUrl);
+        $filename = $this->buildFilename($certificate);
+        $relativePath = $directory . '/' . $filename;
+        $absolutePath = Storage::disk('public')->path($relativePath);
 
-        Storage::disk('public')->put($path, $qrContent);
+        $options = new QROptions([
+            'outputType'       => QROutputInterface::GDIMAGE_PNG,
+            'eccLevel'         => QRCode::ECC_M,
+            'scale'            => 8,
+            'imageBase64'      => false,
+            'imageTransparent' => false,
+            'addQuietzone'     => true,
+            'quietzoneSize'    => 2,
+        ]);
 
-        $certificate->qr_code_path = $path;
-        $certificate->save();
+        $qrBinary = (new QRCode($options))->render($verificationUrl);
+
+        if (! $qrBinary) {
+            throw new RuntimeException('QR PNG gagal dibuat.');
+        }
+
+        file_put_contents($absolutePath, $qrBinary);
+
+        if (! file_exists($absolutePath)) {
+            throw new RuntimeException('File QR PNG gagal disimpan.');
+        }
+
+        $certificate->forceFill([
+            'public_token' => $publicToken,
+            'verification_url' => $verificationUrl,
+            'qr_code_path' => $relativePath,
+        ])->save();
 
         return $certificate->fresh([
             'student',
-            'batch',
             'program',
+            'batch',
             'reportCard',
-            'issuer',
         ]);
     }
 
@@ -52,33 +73,21 @@ class CertificateQrService
             Storage::disk('public')->delete($certificate->qr_code_path);
         }
 
+        $certificate->forceFill([
+            'qr_code_path' => null,
+        ])->save();
+
         return $this->generate($certificate);
     }
 
-    public function getPublicUrl(Certificate $certificate): ?string
+    protected function buildFilename(Certificate $certificate): string
     {
-        if (! $certificate->qr_code_path) {
-            return null;
-        }
-
-        return Storage::disk('public')->url($certificate->qr_code_path);
-    }
-
-    private function buildVerificationUrl(Certificate $certificate): string
-    {
-        return route('public.certificates.verify', [
-            'token' => $certificate->public_token,
-        ]);
-    }
-
-    private function buildFilename(Certificate $certificate): string
-    {
-        $safeCertificateNo = str($certificate->certificate_no)
+        $base = Str::of($certificate->certificate_no ?: ('certificate-' . $certificate->id))
             ->lower()
             ->replaceMatches('/[^a-z0-9]+/', '-')
             ->trim('-')
             ->toString();
 
-        return "{$safeCertificateNo}-qr.svg";
+        return $base . '-qr.png';
     }
 }

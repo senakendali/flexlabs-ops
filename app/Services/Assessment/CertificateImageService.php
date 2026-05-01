@@ -538,6 +538,18 @@ class CertificateImageService
             return null;
         }
 
+        $contents = @file_get_contents($path);
+
+        if ($contents === false || $contents === '') {
+            return null;
+        }
+
+        $image = @imagecreatefromstring($contents);
+
+        if ($image !== false) {
+            return $image;
+        }
+
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return match ($extension) {

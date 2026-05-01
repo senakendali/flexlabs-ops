@@ -1,0 +1,387 @@
+/* =========================================================
+   Buttons, forms, tables, pagination, Quill
+   Generated from dashboard-cleaned-full-patch.css
+   ========================================================= */
+
+.dashboard-content-shell .table, .table {
+    margin-bottom: 0;
+}
+
+.dashboard-content-shell .table thead th {
+    padding: 20px;
+    border-bottom-width: 1px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.dashboard-content-shell .table tbody td {
+    vertical-align: middle;
+    border-color: var(--border-lighter);
+}
+
+.dashboard-content-shell .table-responsive, .table-responsive {
+    margin-bottom: 0;
+    border-radius: 5px;
+}
+
+.table thead th {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+}
+
+.table tbody td {
+    padding: 14px 16px;
+    border-top: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.table-modern thead th {
+    padding-top: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #eef2f7;
+    background: #f8fafc;
+    color: #6b7280;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.table-modern tbody td {
+    padding-top: 14px;
+    padding-bottom: 14px;
+    border-color: #eef2f7;
+    vertical-align: middle;
+    color: #374151;
+}
+
+.table-modern tbody tr:hover {
+    background: rgba(91, 62, 142, 0.025);
+}
+
+.dashboard-content-shell .form-control, .dashboard-content-shell .form-select, .custom-modal .form-control, .custom-modal .form-select {
+    min-height: 46px;
+    border-radius: 14px;
+    border-color: var(--border-input);
+    box-shadow: none;
+}
+
+.dashboard-content-shell textarea.form-control {
+    min-height: 120px;
+}
+
+.dashboard-content-shell .form-control:focus, .dashboard-content-shell .form-select:focus, .custom-modal .form-control:focus, .custom-modal .form-select:focus {
+    border-color: #8b6dd9;
+    box-shadow: 0 0 0 0.18rem rgba(91, 62, 142, 0.12);
+}
+
+.dashboard-content-shell .badge {
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.pagination {
+    margin: 0;
+    gap: 6px;
+}
+
+.pagination .page-link {
+    padding: 6px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px !important;
+    color: #5b3e8e;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #5b3e8e;
+    border-color: #5b3e8e;
+    color: #fff;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #9ca3af;
+    background-color: #f9fafb;
+}
+
+.pagination .page-link:hover {
+    background-color: #f3f4f6;
+}
+
+.dashboard-content-shell .btn-primary, .btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.dashboard-content-shell .btn-primary:hover, .dashboard-content-shell .btn-primary:focus, .dashboard-content-shell .btn-primary:active, .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+    background-color: #4d3378 !important;
+    border-color: #4d3378 !important;
+}
+
+.dashboard-content-shell .btn-light {
+    background: #f5f6fb;
+    border-color: var(--border-input);
+}
+
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: var(--white);
+}
+
+.btn-outline-primary:focus {
+    box-shadow: 0 0 0 0.2rem rgba(91, 62, 142, 0.25);
+}
+
+.btn-outline-primary:active {
+    background-color: #4a3276;
+    border-color: #4a3276;
+    color: var(--white);
+}
+
+.filter-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 45px;
+    border-radius: 14px;
+}
+
+.btn-modern {
+    border: 0;
+    border-radius: 12px;
+    padding: 0.72rem 1rem;
+    padding-inline: 16px;
+    font-weight: 600;
+}
+
+.dashboard-mode-switch .btn {
+    min-width: 92px;
+    font-weight: 600;
+}
+
+.modal-content, .custom-modal {
+    overflow: hidden;
+    border: none;
+    border-radius: 24px;
+    box-shadow: var(--shadow-modal);
+}
+
+.modal-header, .modal-footer {
+    padding: 18px 22px;
+    border-color: var(--border-lighter);
+}
+
+.modal-body {
+    padding: 22px;
+}
+
+.custom-modal .modal-body .form-label {
+    font-weight: 600;
+    color: #483566;
+}
+
+.toast {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.invoice-table-wrap {
+    overflow: hidden;
+    margin-bottom: 24px;
+    border: 1px solid #ece7f4;
+    border-radius: 22px;
+    background: var(--white);
+    box-shadow: 0 12px 28px rgba(45, 28, 80, 0.08);
+}
+
+.level-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1;
+    background: #ebe5ff;
+    color: #5B3E8E;
+    border: 1px solid #dfd2ff;
+    white-space: nowrap;
+}
+
+.ql-toolbar.ql-snow {
+    border-color: #dee2e6;
+    border-radius: 14px 14px 0 0;
+    background: #fbfaff;
+}
+
+.ql-container.ql-snow {
+    border-radius: 0 0 12px 12px;
+    border-color: #dee2e6;
+}
+
+.delete-confirm-modal {
+    border-radius: 22px;
+}
+
+.custom-modal {
+    border: 0;
+    border-radius: 20px;
+    overflow: visible;
+}
+
+.form-alert {
+    border-radius: 14px;
+    font-size: 0.92rem;
+}
+
+.toast.bg-success {
+    background-color: var(--primary) !important;
+}
+
+.toast.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.section-status-badge {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    background: rgba(255, 190, 4, 0.18);
+    color: #946900;
+}
+
+.section-status-badge.completed {
+    background: rgba(59, 142, 77, 0.12);
+    color: #2D7A42;
+}
+
+.section-status-badge.optional {
+    background: rgba(108, 117, 125, 0.12);
+    color: #495057;
+}
+
+.form-switch-card {
+    min-height: 58px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid rgba(91, 62, 142, 0.10);
+    border-radius: 16px;
+    background: #FAF8FF;
+}
+
+.form-switch-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #211B32;
+}
+
+.form-switch-subtitle {
+    font-size: 12px;
+    color: #7B7488;
+    line-height: 1.4;
+}
+
+.delete-report-modal-box {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(220, 53, 69, 0.06);
+    border: 1px solid rgba(220, 53, 69, 0.12);
+}
+
+.delete-report-modal-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220, 53, 69, 0.12);
+    color: #dc3545;
+    font-size: 20px;
+}
+
+.btn-save-draft {
+    background: #FFF8E1;
+    border: 1px solid rgba(255, 190, 4, 0.35);
+    color: #946900;
+    font-weight: 800;
+}
+
+.btn-save-draft:hover {
+    background: #FFBE04;
+    border-color: #FFBE04;
+    color: #211B32;
+}
+
+.btn-edit-accent {
+    background: #5B3E8E;
+    border-color: #5B3E8E;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.btn-edit-accent:hover {
+    background: #4c3279;
+    border-color: #4c3279;
+    color: #ffffff;
+}
+
+.cert-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .dashboard-content-shell .card-header, .dashboard-content-shell .card-body, .modal-header, .modal-footer, .modal-body, .export-stat-card .card-body, .export-section-card .card-header, .export-section-card .card-body {
+        padding: 16px;
+    }
+
+    .dashboard-mode-switch .btn {
+        width: 50%;
+    }
+}

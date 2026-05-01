@@ -9,274 +9,354 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/dashboard.css?' . time()) }}">
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+
     <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
     <div class="dashboard-layout">
 
         <!-- Header -->
-        <header class="dashboard-topbar">
+        <header class="dashboard-topbar dashboard-topbar-fixed">
             <div class="container-fluid">
                 <div class="row align-items-center g-3 py-3">
 
                     <div class="col-12 col-xl-2">
                         <a href="{{ route('dashboard') }}" class="dashboard-brand text-decoration-none">
                             <img src="{{ asset('images/logo.png') }}" alt="Logo" class="dashboard-logo me-2">
-                            
                         </a>
                     </div>
 
                     <div class="col-12 col-xl-7">
-                       <nav class="dashboard-nav">
+                        <nav class="dashboard-nav">
                             <a href="{{ route('dashboard') }}"
-                            class="nav-btn {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                               class="nav-btn {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                                 <i class="bi bi-grid-1x2-fill"></i>
                                 <span>Dashboard</span>
                             </a>
 
-                           <div class="dropdown">
+                            @php
+                                $academicActive = request()->routeIs(
+                                    'programs.*',
+                                    'batches.*',
+                                    'enrollments.*',
+                                    'students.*',
+                                    'curriculum.*',
+                                    'assignments.*',
+                                    'batch-assignments.*',
+                                    'assignment-submissions.*',
+                                    'learning-quizzes.*',
+                                    'batch-learning-quizzes.*',
+                                    'learning-quiz-attempts.*',
+                                    'instructors.*',
+                                    'instructor-schedules.*',
+                                    'instructor-tracking.*',
+                                    'academic.instructor-availability.*',
+                                    'trial-themes.*',
+                                    'trial-schedules.*',
+                                    'trial-participants.*',
+                                    'academic.workshops.*',
+                                    'academic.mentoring-sessions.*',
+                                    'academic.announcements.*',
+                                    'academic.assessment-templates.*',
+                                    'academic.assessment-scores.*',
+                                    'academic.report-cards.*',
+                                    'academic.certificates.*'
+                                );
+
+                                $academicMenuGroups = [
+                                    [
+                                        'title' => 'Core Setup',
+                                        'subtitle' => 'Master data akademik utama.',
+                                        'icon' => 'bi bi-layers-fill',
+                                        'items' => [
+                                            [
+                                                'label' => 'Programs',
+                                                'route' => 'programs.index',
+                                                'active' => ['programs.*'],
+                                                'icon' => 'bi bi-journal-bookmark-fill',
+                                                'desc' => 'Program belajar, pricing, dan basic setup.',
+                                            ],
+                                            [
+                                                'label' => 'Batches',
+                                                'route' => 'batches.index',
+                                                'active' => ['batches.*'],
+                                                'icon' => 'bi bi-collection-play-fill',
+                                                'desc' => 'Batch, kapasitas, tanggal mulai, dan status.',
+                                            ],
+                                            [
+                                                'label' => 'Curriculum',
+                                                'route' => 'curriculum.index',
+                                                'active' => ['curriculum.*'],
+                                                'icon' => 'bi bi-diagram-3-fill',
+                                                'desc' => 'Stage, module, topic, dan sub topic.',
+                                            ],
+                                            [
+                                                'label' => 'Student Enrollment',
+                                                'route' => 'enrollments.index',
+                                                'active' => ['enrollments.*', 'students.*'],
+                                                'icon' => 'bi bi-people-fill',
+                                                'desc' => 'Data student, enrollment, dan batch student.',
+                                            ],
+                                            [
+                                                'label' => 'Announcements',
+                                                'route' => 'academic.announcements.index',
+                                                'active' => ['academic.announcements.*'],
+                                                'icon' => 'bi bi-megaphone-fill',
+                                                'desc' => 'Pengumuman untuk student dan batch.',
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'title' => 'Learning Activities',
+                                        'subtitle' => 'Tugas, quiz, dan aktivitas belajar.',
+                                        'icon' => 'bi bi-journal-check',
+                                        'items' => [
+                                            [
+                                                'label' => 'Assignments',
+                                                'route' => 'assignments.index',
+                                                'active' => ['assignments.*'],
+                                                'icon' => 'bi bi-journal-check',
+                                                'desc' => 'Master tugas dan aktivitas mandiri.',
+                                            ],
+                                            [
+                                                'label' => 'Batch Assignments',
+                                                'route' => 'batch-assignments.index',
+                                                'active' => ['batch-assignments.*'],
+                                                'icon' => 'bi bi-clipboard-check-fill',
+                                                'desc' => 'Assign tugas ke batch tertentu.',
+                                            ],
+                                            [
+                                                'label' => 'Assignment Submissions',
+                                                'route' => 'assignment-submissions.index',
+                                                'active' => ['assignment-submissions.*'],
+                                                'icon' => 'bi bi-inbox-fill',
+                                                'desc' => 'Review hasil pengumpulan tugas student.',
+                                            ],
+                                            [
+                                                'label' => 'Learning Quizzes',
+                                                'route' => 'learning-quizzes.index',
+                                                'active' => ['learning-quizzes.*'],
+                                                'icon' => 'bi bi-patch-question-fill',
+                                                'desc' => 'Quiz pembelajaran dan bank pertanyaan.',
+                                            ],
+                                            [
+                                                'label' => 'Batch Learning Quizzes',
+                                                'route' => 'batch-learning-quizzes.index',
+                                                'active' => ['batch-learning-quizzes.*'],
+                                                'icon' => 'bi bi-ui-checks-grid',
+                                                'desc' => 'Assign quiz ke batch tertentu.',
+                                            ],
+                                            [
+                                                'label' => 'Quiz Attempts / Results',
+                                                'route' => 'learning-quiz-attempts.index',
+                                                'active' => ['learning-quiz-attempts.*'],
+                                                'icon' => 'bi bi-activity',
+                                                'desc' => 'Hasil pengerjaan quiz dan score student.',
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'title' => 'Evaluation',
+                                        'subtitle' => 'Assessment, nilai, dan report.',
+                                        'icon' => 'bi bi-clipboard-data-fill',
+                                        'items' => [
+                                            [
+                                                'label' => 'Assessment Templates',
+                                                'route' => 'academic.assessment-templates.index',
+                                                'active' => ['academic.assessment-templates.*'],
+                                                'icon' => 'bi bi-sliders2-vertical',
+                                                'desc' => 'Rubrik dan template penilaian.',
+                                            ],
+                                            [
+                                                'label' => 'Assessment Scores',
+                                                'route' => 'academic.assessment-scores.index',
+                                                'active' => ['academic.assessment-scores.*'],
+                                                'icon' => 'bi bi-pencil-square',
+                                                'desc' => 'Input dan review score assessment.',
+                                            ],
+                                            [
+                                                'label' => 'Report Cards',
+                                                'route' => 'academic.report-cards.index',
+                                                'active' => ['academic.report-cards.*'],
+                                                'icon' => 'bi bi-file-earmark-text-fill',
+                                                'desc' => 'Report card, grade, dan final evaluation.',
+                                            ],
+                                            [
+                                                'label' => 'Certificates',
+                                                'route' => 'academic.certificates.index',
+                                                'active' => ['academic.certificates.*'],
+                                                'icon' => 'bi bi-award-fill',
+                                                'desc' => 'Sementara dipending sampai QR/verifikasi stabil.',
+                                                'badge' => 'Pending',
+                                                'disabled' => true,
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'title' => 'Instructor Ops',
+                                        'subtitle' => 'Pengajar, jadwal, dan tracking kelas.',
+                                        'icon' => 'bi bi-person-video3',
+                                        'items' => [
+                                            [
+                                                'label' => 'Instructors',
+                                                'route' => 'instructors.index',
+                                                'active' => ['instructors.*'],
+                                                'icon' => 'bi bi-person-video3',
+                                                'desc' => 'Master data instructor.',
+                                            ],
+                                            [
+                                                'label' => 'Instructor Availability',
+                                                'route' => 'academic.instructor-availability.index',
+                                                'active' => ['academic.instructor-availability.*'],
+                                                'icon' => 'bi bi-calendar2-week-fill',
+                                                'desc' => 'Ketersediaan jadwal instructor.',
+                                            ],
+                                            [
+                                                'label' => 'Mentoring Sessions',
+                                                'route' => 'academic.mentoring-sessions.index',
+                                                'active' => ['academic.mentoring-sessions.*'],
+                                                'icon' => 'bi bi-chat-square-text-fill',
+                                                'desc' => 'Jadwal mentoring student.',
+                                            ],
+                                            [
+                                                'label' => 'Instructor Schedules',
+                                                'route' => 'instructor-schedules.index',
+                                                'active' => ['instructor-schedules.*'],
+                                                'icon' => 'bi bi-calendar-check-fill',
+                                                'desc' => 'Jadwal mengajar dan replacement.',
+                                            ],
+                                            [
+                                                'label' => 'Instructor Tracking',
+                                                'route' => 'instructor-tracking.index',
+                                                'active' => ['instructor-tracking.*'],
+                                                'icon' => 'bi bi-clipboard-data-fill',
+                                                'desc' => 'Tracking coverage materi per sesi.',
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'title' => 'Trial & Workshops',
+                                        'subtitle' => 'Trial class dan event akademik.',
+                                        'icon' => 'bi bi-easel2-fill',
+                                        'items' => [
+                                            [
+                                                'label' => 'Trial Themes',
+                                                'route' => 'trial-themes.index',
+                                                'active' => ['trial-themes.*'],
+                                                'icon' => 'bi bi-lightbulb-fill',
+                                                'desc' => 'Tema trial class.',
+                                            ],
+                                            [
+                                                'label' => 'Trial Schedules',
+                                                'route' => 'trial-schedules.index',
+                                                'active' => ['trial-schedules.*'],
+                                                'icon' => 'bi bi-calendar2-week-fill',
+                                                'desc' => 'Jadwal trial class.',
+                                            ],
+                                            [
+                                                'label' => 'Trial Participants',
+                                                'route' => 'trial-participants.index',
+                                                'active' => ['trial-participants.*'],
+                                                'icon' => 'bi bi-people-fill',
+                                                'desc' => 'Peserta trial dan follow up.',
+                                            ],
+                                            [
+                                                'label' => 'Workshops',
+                                                'route' => 'academic.workshops.index',
+                                                'active' => ['academic.workshops.*'],
+                                                'icon' => 'bi bi-easel2-fill',
+                                                'desc' => 'Workshop public dan internal.',
+                                            ],
+                                        ],
+                                    ],
+                                ];
+                            @endphp
+
+                            <div class="dropdown dashboard-mega-dropdown">
                                 <button
-                                    class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
-                                        'programs.*',
-                                        'batches.*',
-                                        'enrollments.*',
-                                        'curriculum.*',
-                                        'assignments.*',
-                                        'batch-assignments.*',
-                                        'assignment-submissions.*',
-                                        'learning-quizzes.*',
-                                        'batch-learning-quizzes.*',
-                                        'learning-quiz-attempts.*',
-                                        'instructors.*',
-                                        'instructor-schedules.*',
-                                        'instructor-tracking.*',
-                                        'academic.instructor-availability.*',
-                                        'trial-themes.*',
-                                        'trial-schedules.*',
-                                        'trial-participants.*',
-                                        'academic.workshops.*',
-                                        'academic.mentoring-sessions.*',
-                                        'academic.announcements.*',
-                                        'academic.assessment-templates.*',
-                                        'academic.assessment-scores.*',
-                                        'academic.report-cards.*',
-                                        'academic.certificates.*'
-                                    ) ? 'active' : '' }}"
+                                    class="dropdown-toggle nav-btn no-arrow {{ $academicActive ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
                                     aria-expanded="false"
                                 >
                                     <i class="bi bi-mortarboard-fill"></i>
                                     <span>Academic</span>
                                 </button>
 
-                                <div class="dropdown-menu dropdown-menu-academic">
-                                    <div class="dropdown-section-title">Core Setup</div>
+                                <div class="dropdown-menu dropdown-menu-academic dropdown-menu-mega">
+                                    <div class="academic-mega-menu">
+                                        <aside class="academic-mega-hero">
+                                            <div class="academic-mega-hero-icon">
+                                                <i class="bi bi-mortarboard-fill"></i>
+                                            </div>
 
-                                    @if (Route::has('programs.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('programs.*') ? 'active' : '' }}"
-                                        href="{{ route('programs.index') }}">
-                                            <i class="bi bi-journal-bookmark-fill me-2"></i>Programs
-                                        </a>
-                                    @endif
+                                            <div>
+                                                <div class="academic-mega-kicker">Academic Center</div>
+                                                <h3>Learning Operations</h3>
+                                                <p>
+                                                   Centralized access to academic operations, learning management, assessment, and student development workflows.
+                                                </p>
+                                            </div>
 
-                                    @if (Route::has('batches.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('batches.*') ? 'active' : '' }}"
-                                        href="{{ route('batches.index') }}">
-                                            <i class="bi bi-collection-play-fill me-2"></i>Batches
-                                        </a>
-                                    @endif
+                                            
+                                        </aside>
 
-                                    @if (Route::has('curriculum.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('curriculum.*') ? 'active' : '' }}"
-                                        href="{{ route('curriculum.index') }}">
-                                            <i class="bi bi-diagram-3-fill me-2"></i>Curriculum
-                                        </a>
-                                    @endif
+                                        <div class="academic-mega-content">
+                                            @foreach ($academicMenuGroups as $group)
+                                                <section class="academic-mega-group">
+                                                    <div class="academic-mega-group-header">
+                                                        <div class="academic-mega-group-icon">
+                                                            <i class="{{ $group['icon'] }}"></i>
+                                                        </div>
 
-                                    @if (Route::has('enrollments.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('enrollments.*', 'batches.*', 'students.*') ? 'active' : '' }}"
-                                        href="{{ route('enrollments.index') }}">
-                                            <i class="bi bi-people me-2"></i>Student Enrollment
-                                        </a>
-                                    @endif
+                                                        <div>
+                                                            <h4>{{ $group['title'] }}</h4>
+                                                            <p>{{ $group['subtitle'] }}</p>
+                                                        </div>
+                                                    </div>
 
-                                    @if (Route::has('academic.announcements.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.announcements.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.announcements.index') }}"
-                                        >
-                                            <i class="bi bi-megaphone me-2"></i>
-                                            Announcements
-                                        </a>
-                                    @endif
+                                                    <div class="academic-mega-items">
+                                                        @foreach ($group['items'] as $item)
+                                                            @php
+                                                                $routeExists = Route::has($item['route']);
+                                                                $isDisabled = ($item['disabled'] ?? false) || ! $routeExists;
+                                                                $itemActive = request()->routeIs(...$item['active']);
+                                                            @endphp
 
-                                    <div class="dropdown-divider"></div>
+                                                            @if ($routeExists || ($item['disabled'] ?? false))
+                                                                <a
+                                                                    href="{{ $isDisabled ? 'javascript:void(0)' : route($item['route']) }}"
+                                                                    class="academic-mega-item {{ $itemActive ? 'active' : '' }} {{ $isDisabled ? 'disabled' : '' }}"
+                                                                    @if ($isDisabled) aria-disabled="true" tabindex="-1" @endif
+                                                                >
+                                                                    <span class="academic-mega-item-icon">
+                                                                        <i class="{{ $item['icon'] }}"></i>
+                                                                    </span>
 
-                                    <div class="dropdown-section-title">Learning Activities</div>
+                                                                    <span class="academic-mega-item-body">
+                                                                        <span class="academic-mega-item-title">
+                                                                            {{ $item['label'] }}
 
-                                    @if (Route::has('assignments.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('assignments.*') ? 'active' : '' }}"
-                                        href="{{ route('assignments.index') }}">
-                                            <i class="bi bi-journal-check me-2"></i>Assignments
-                                        </a>
-                                    @endif
+                                                                            @if (! empty($item['badge']))
+                                                                                <span class="academic-mega-badge">
+                                                                                    {{ $item['badge'] }}
+                                                                                </span>
+                                                                            @endif
+                                                                        </span>
 
-                                    @if (Route::has('batch-assignments.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('batch-assignments.*') ? 'active' : '' }}"
-                                        href="{{ route('batch-assignments.index') }}">
-                                            <i class="bi bi-clipboard-check me-2"></i>Batch Assignments
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('assignment-submissions.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('assignment-submissions.*') ? 'active' : '' }}"
-                                        href="{{ route('assignment-submissions.index') }}">
-                                            <i class="bi bi-inbox-fill me-2"></i>Assignment Submissions
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('learning-quizzes.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('learning-quizzes.*') ? 'active' : '' }}"
-                                        href="{{ route('learning-quizzes.index') }}">
-                                            <i class="bi bi-patch-question-fill me-2"></i>Learning Quizzes
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('batch-learning-quizzes.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('batch-learning-quizzes.*') ? 'active' : '' }}"
-                                        href="{{ route('batch-learning-quizzes.index') }}">
-                                            <i class="bi bi-ui-checks-grid me-2"></i>Batch Learning Quizzes
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('learning-quiz-attempts.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('learning-quiz-attempts.*') ? 'active' : '' }}"
-                                        href="{{ route('learning-quiz-attempts.index') }}">
-                                            <i class="bi bi-activity me-2"></i>Quiz Attempts / Results
-                                        </a>
-                                    @endif
-
-                                    <div class="dropdown-divider"></div>
-
-                                    <div class="dropdown-section-title">Evaluation & Certification</div>
-
-                                    @if (Route::has('academic.assessment-templates.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.assessment-templates.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.assessment-templates.index') }}"
-                                        >
-                                            <i class="bi bi-sliders2-vertical me-2"></i>
-                                            Assessment Templates
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.assessment-scores.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.assessment-scores.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.assessment-scores.index') }}"
-                                        >
-                                            <i class="bi bi-pencil-square me-2"></i>
-                                            Assessment Scores
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.report-cards.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.report-cards.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.report-cards.index') }}"
-                                        >
-                                            <i class="bi bi-file-earmark-text-fill me-2"></i>
-                                            Report Cards
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.certificates.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.certificates.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.certificates.index') }}"
-                                        >
-                                            <i class="bi bi-award-fill me-2"></i>
-                                            Certificates
-                                        </a>
-                                    @endif
-
-                                    <div class="dropdown-divider"></div>
-
-                                    <div class="dropdown-section-title">Instructor Operations</div>
-
-                                    @if (Route::has('instructors.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('instructors.*') ? 'active' : '' }}"
-                                        href="{{ route('instructors.index') }}">
-                                            <i class="bi bi-person-video3 me-2"></i>Instructors
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.instructor-availability.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.instructor-availability.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.instructor-availability.index') }}"
-                                        >
-                                            <i class="bi bi-calendar2-week me-2"></i>
-                                            Instructor Availability
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.mentoring-sessions.index'))
-                                        <a
-                                            class="dropdown-item {{ request()->routeIs('academic.mentoring-sessions.*') ? 'active' : '' }}"
-                                            href="{{ route('academic.mentoring-sessions.index') }}"
-                                        >
-                                            <i class="bi bi-chat-square-text me-2"></i>
-                                            Mentoring Sessions
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('instructor-schedules.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('instructor-schedules.*') ? 'active' : '' }}"
-                                        href="{{ route('instructor-schedules.index') }}">
-                                            <i class="bi bi-calendar-check-fill me-2"></i>Instructor Schedules
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('instructor-tracking.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('instructor-tracking.*') ? 'active' : '' }}"
-                                        href="{{ route('instructor-tracking.index') }}">
-                                            <i class="bi bi-clipboard-data-fill me-2"></i>Instructor Tracking
-                                        </a>
-                                    @endif
-
-                                    <div class="dropdown-divider"></div>
-
-                                    <div class="dropdown-section-title">Trial & Workshops</div>
-
-                                    @if (Route::has('trial-themes.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('trial-themes.*') ? 'active' : '' }}"
-                                        href="{{ route('trial-themes.index') }}">
-                                            <i class="bi bi-lightbulb-fill me-2"></i>Trial Themes
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('trial-schedules.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('trial-schedules.*') ? 'active' : '' }}"
-                                        href="{{ route('trial-schedules.index') }}">
-                                            <i class="bi bi-calendar2-week-fill me-2"></i>Trial Schedules
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('trial-participants.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('trial-participants.*') ? 'active' : '' }}"
-                                        href="{{ route('trial-participants.index') }}">
-                                            <i class="bi bi-people-fill me-2"></i>Trial Participants
-                                        </a>
-                                    @endif
-
-                                    @if (Route::has('academic.workshops.index'))
-                                        <a class="dropdown-item {{ request()->routeIs('academic.workshops.*') ? 'active' : '' }}"
-                                        href="{{ route('academic.workshops.index') }}">
-                                            <i class="bi bi-easel2-fill me-2"></i>Workshops
-                                        </a>
-                                    @endif
+                                                                        <span class="academic-mega-item-desc">
+                                                                            {{ $item['desc'] }}
+                                                                        </span>
+                                                                    </span>
+                                                                </a>
+                                                            @endif
+                                                        @endforeach
+                                                    </div>
+                                                </section>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -287,9 +367,7 @@
                                         'sales-daily-reports.*',
                                         'sales-performance.*',
                                         'sales-orders.*',
-                                        'orders.*',
-                                        'batches.*',
-                                        'students.*'
+                                        'orders.*'
                                     ) ? 'active' : '' }}"
                                     type="button"
                                     data-bs-toggle="dropdown"
@@ -302,30 +380,28 @@
                                 <div class="dropdown-menu">
                                     @if (Route::has('sales-daily-reports.index'))
                                         <a class="dropdown-item {{ request()->routeIs('sales-daily-reports.*') ? 'active' : '' }}"
-                                        href="{{ route('sales-daily-reports.index') }}">
+                                           href="{{ route('sales-daily-reports.index') }}">
                                             <i class="bi bi-journal-text me-2"></i>Daily Report
                                         </a>
                                     @endif
 
                                     @if (Route::has('sales-performance.index'))
                                         <a class="dropdown-item {{ request()->routeIs('sales-performance.*') ? 'active' : '' }}"
-                                        href="{{ route('sales-performance.index') }}">
+                                           href="{{ route('sales-performance.index') }}">
                                             <i class="bi bi-bar-chart-line me-2"></i>Performance
                                         </a>
                                     @endif
 
-                                    
-
                                     @if (Route::has('orders.index'))
                                         <a class="dropdown-item {{ request()->routeIs('orders.*') ? 'active' : '' }}"
-                                        href="{{ route('orders.index') }}">
+                                           href="{{ route('orders.index') }}">
                                             <i class="bi bi-receipt-cutoff me-2"></i>Sales Orders
                                         </a>
                                     @endif
                                 </div>
                             </div>
 
-                           <div class="dropdown">
+                            <div class="dropdown">
                                 <button
                                     class="dropdown-toggle nav-btn no-arrow {{ request()->routeIs(
                                         'marketing.*',
@@ -345,14 +421,14 @@
 
                                     @if (Route::has('marketing.dashboard'))
                                         <a class="dropdown-item {{ request()->routeIs('marketing.dashboard') ? 'active' : '' }}"
-                                        href="{{ route('marketing.dashboard') }}">
+                                           href="{{ route('marketing.dashboard') }}">
                                             <i class="bi bi-speedometer2 me-2"></i>Dashboard
                                         </a>
                                     @endif
 
                                     @if (Route::has('marketing.reports.index'))
                                         <a class="dropdown-item {{ request()->routeIs('marketing.reports.*') ? 'active' : '' }}"
-                                        href="{{ route('marketing.reports.index') }}">
+                                           href="{{ route('marketing.reports.index') }}">
                                             <i class="bi bi-bar-chart-line me-2"></i>Reports
                                         </a>
                                     @endif
@@ -363,14 +439,14 @@
 
                                     @if (Route::has('marketing.setup.campaigns.index'))
                                         <a class="dropdown-item {{ request()->routeIs('marketing.setup.campaigns.*') ? 'active' : '' }}"
-                                        href="{{ route('marketing.setup.campaigns.index') }}">
+                                           href="{{ route('marketing.setup.campaigns.index') }}">
                                             <i class="bi bi-bullseye me-2"></i>Campaign Setup
                                         </a>
                                     @endif
 
                                     @if (Route::has('marketing.setup.ads.index'))
                                         <a class="dropdown-item {{ request()->routeIs('marketing.setup.ads.*') ? 'active' : '' }}"
-                                        href="{{ route('marketing.setup.ads.index') }}">
+                                           href="{{ route('marketing.setup.ads.index') }}">
                                             <i class="bi bi-badge-ad me-2"></i>Ads Setup
                                         </a>
                                     @endif
@@ -381,7 +457,7 @@
 
                                     @if (Route::has('quiz.index'))
                                         <a class="dropdown-item {{ request()->routeIs('quiz.*') ? 'active' : '' }}"
-                                        href="{{ route('quiz.index') }}">
+                                           href="{{ route('quiz.index') }}">
                                             <i class="bi bi-ui-checks-grid me-2"></i>Quiz Management
                                         </a>
                                     @endif
@@ -406,39 +482,33 @@
                                 </button>
 
                                 <div class="dropdown-menu">
-
-                                    {{-- Sales Order --}}
                                     @if (Route::has('sales-orders.index'))
                                         <a class="dropdown-item {{ request()->routeIs('sales-orders.*') ? 'active' : '' }}"
-                                        href="{{ route('sales-orders.index') }}">
+                                           href="{{ route('sales-orders.index') }}">
                                             <i class="bi bi-receipt-cutoff me-2"></i>Sales Orders
                                         </a>
                                     @endif
 
-                                    {{-- Payment Schedule --}}
                                     @if (Route::has('payment-schedules.index'))
                                         <a class="dropdown-item {{ request()->routeIs('payment-schedules.*') ? 'active' : '' }}"
-                                        href="{{ route('payment-schedules.index') }}">
+                                           href="{{ route('payment-schedules.index') }}">
                                             <i class="bi bi-calendar-check me-2"></i>Payment Schedule
                                         </a>
                                     @endif
 
-                                    {{-- Invoices --}}
                                     @if (Route::has('invoices.index'))
                                         <a class="dropdown-item {{ request()->routeIs('invoices.*') ? 'active' : '' }}"
-                                        href="{{ route('invoices.index') }}">
+                                           href="{{ route('invoices.index') }}">
                                             <i class="bi bi-file-earmark-text me-2"></i>Invoices
                                         </a>
                                     @endif
 
-                                    {{-- Payments --}}
                                     @if (Route::has('payments.index'))
                                         <a class="dropdown-item {{ request()->routeIs('payments.*') ? 'active' : '' }}"
-                                        href="{{ route('payments.index') }}">
+                                           href="{{ route('payments.index') }}">
                                             <i class="bi bi-credit-card me-2"></i>Payments
                                         </a>
                                     @endif
-
                                 </div>
                             </div>
 
@@ -464,26 +534,11 @@
                                 </button>
 
                                 <div class="dropdown-menu dropdown-menu-operations">
-                                    <!--div class="dropdown-section-title">General Affairs</div>
-
-                                    @if (Route::has('internal-memos.index'))
-                                        <!--a class="dropdown-item {{ request()->routeIs('internal-memos.*') ? 'active' : '' }}"
-                                        href="{{ route('internal-memos.index') }}">
-                                            <i class="bi bi-journal-text me-2"></i>Internal Memo
-                                        </a>
-                                    @else
-                                        <span class="dropdown-item-text text-muted small px-3 py-2">
-                                            Internal Memo belum tersedia
-                                        </span>
-                                    @endif
-
-                                    <div class="dropdown-divider"></div-->
-
                                     <div class="dropdown-section-title">Meeting & Documents</div>
 
                                     @if (Route::has('operation.meeting-minutes.index'))
                                         <a class="dropdown-item {{ request()->routeIs('operation.meeting-minutes.*', 'operation.meeting-minute-action-items.*') ? 'active' : '' }}"
-                                        href="{{ route('operation.meeting-minutes.index') }}">
+                                           href="{{ route('operation.meeting-minutes.index') }}">
                                             <i class="bi bi-journal-text me-2"></i>Meeting Minutes / MOM
                                         </a>
                                     @else
@@ -498,7 +553,7 @@
 
                                     @if (Route::has('equipment.index'))
                                         <a class="dropdown-item {{ request()->routeIs('equipment.*') ? 'active' : '' }}"
-                                        href="{{ route('equipment.index') }}">
+                                           href="{{ route('equipment.index') }}">
                                             <i class="bi bi-pc-display-horizontal me-2"></i>Equipment
                                         </a>
                                     @else
@@ -509,19 +564,19 @@
 
                                     @if (Route::has('borrowings.index'))
                                         <a class="dropdown-item {{ request()->routeIs('borrowings.*') ? 'active' : '' }}"
-                                        href="{{ route('borrowings.index') }}">
+                                           href="{{ route('borrowings.index') }}">
                                             <i class="bi bi-box-arrow-up-right me-2"></i>Borrow Equipment
                                         </a>
                                     @endif
 
                                     @if (Route::has('inventory.atk-items.index'))
                                         <a class="dropdown-item {{ request()->routeIs('inventory.atk-items.*', 'atk-items.*') ? 'active' : '' }}"
-                                        href="{{ route('inventory.atk-items.index') }}">
+                                           href="{{ route('inventory.atk-items.index') }}">
                                             <i class="bi bi-box-seam me-2"></i>Master ATK
                                         </a>
                                     @elseif (Route::has('atk-items.index'))
                                         <a class="dropdown-item {{ request()->routeIs('atk-items.*') ? 'active' : '' }}"
-                                        href="{{ route('atk-items.index') }}">
+                                           href="{{ route('atk-items.index') }}">
                                             <i class="bi bi-box-seam me-2"></i>Master ATK
                                         </a>
                                     @else
@@ -536,12 +591,12 @@
 
                                     @if (Route::has('inventory.atk-requests.index'))
                                         <a class="dropdown-item {{ request()->routeIs('inventory.atk-requests.*', 'atk-requests.*') ? 'active' : '' }}"
-                                        href="{{ route('inventory.atk-requests.index') }}">
+                                           href="{{ route('inventory.atk-requests.index') }}">
                                             <i class="bi bi-pencil-square me-2"></i>ATK Request
                                         </a>
                                     @elseif (Route::has('atk-requests.index'))
                                         <a class="dropdown-item {{ request()->routeIs('atk-requests.*') ? 'active' : '' }}"
-                                        href="{{ route('atk-requests.index') }}">
+                                           href="{{ route('atk-requests.index') }}">
                                             <i class="bi bi-pencil-square me-2"></i>ATK Request
                                         </a>
                                     @else
@@ -556,10 +611,6 @@
 
                     <div class="col-12 col-xl-3">
                         <div class="dashboard-actions">
-                            <!--button class="dashboard-icon-btn" type="button">
-                                <i class="bi bi-bell"></i>
-                            </button-->
-
                             <div class="dropdown">
                                 <button
                                     class="btn dropdown-toggle dashboard-user-toggle d-inline-flex align-items-center gap-2"
@@ -624,8 +675,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-    @stack('scripts')
 
+    @stack('scripts')
 </body>
 </html>

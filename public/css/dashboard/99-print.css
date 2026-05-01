@@ -1,0 +1,24 @@
+/* =========================================================
+   Print styles
+   Generated from dashboard-cleaned-full-patch.css
+   ========================================================= */
+
+@media print {
+    .no-print, .btn, nav, aside, .sidebar, .app-sidebar, .app-header {
+        display: none !important;
+    }
+
+    .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    .invoice-page {
+        max-width: 100% !important;
+    }
+
+    .invoice-card {
+        box-shadow: none !important;
+    }
+}

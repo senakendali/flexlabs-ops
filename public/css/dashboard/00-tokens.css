@@ -1,0 +1,35 @@
+/* =========================================================
+   Design tokens / CSS variables
+   Generated from dashboard-cleaned-full-patch.css
+   ========================================================= */
+
+:root {
+    --primary: #5b3e8e;
+    --primary-dark: #452f6b;
+    --secondary: #ffbe04;
+    --soft-bg: #f4f5fb;
+    --white: #ffffff;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --border-soft: rgba(91, 62, 142, 0.12);
+    --border-light: #ececf4;
+    --border-lighter: #f0f1f6;
+    --border-input: #e7e8f0;
+    --purple-soft: #e8dbff;
+    --purple-soft-2: #f1e9ff;
+    --purple-soft-bg: #f3eeff;
+    --purple-soft-border: #e0d4ff;
+    --purple-soft-text: #5b3e8e;
+    --brand-purple: #5b3e8e;
+    --brand-purple-soft: #f4eeff;
+    --brand-purple-soft-border: #e2d6ff;
+    --brand-purple-soft-text: #5b3e8e;
+    --brand-purple-soft-muted: #7b6aab;
+    --success: #198754;
+    --warning-soft: rgba(255, 214, 106, 0.08);
+    --shadow-soft: 0 20px 60px rgba(23, 15, 41, 0.18);
+    --shadow-card: 0 8px 30px rgba(91, 62, 142, 0.08);
+    --shadow-dropdown: 0 16px 40px rgba(17, 24, 39, 0.16);
+    --shadow-modal: 0 18px 48px rgba(17, 24, 39, 0.16);
+    --topbar-content-gap: 6px;
+}

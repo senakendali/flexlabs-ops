@@ -1,0 +1,41 @@
+/* =========================================================
+   Reset, base element styles, global helpers
+   Generated from dashboard-cleaned-full-patch.css
+   ========================================================= */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html, body {
+    min-height: 100%;
+}
+
+a {
+    text-decoration: none;
+    transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+img {
+    max-width: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: "Noto Sans", sans-serif;
+    background: var(--primary);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+}
+
+html {
+    scroll-padding-top: 96px;
+}
+
+@media (max-width: 767.98px) {
+    html {
+        scroll-padding-top: 140px;
+    }
+}

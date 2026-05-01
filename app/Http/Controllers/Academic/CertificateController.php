@@ -10,6 +10,7 @@ use App\Services\Assessment\CertificatePdfService;
 use App\Services\Assessment\CertificateQrService;
 use App\Services\Assessment\CertificateService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class CertificateController extends Controller
@@ -93,11 +94,27 @@ class CertificateController extends Controller
                     'completed_date' => $validated['completed_date'] ?? null,
                 ]
             );
+
+            /**
+             * Optional:
+             * langsung generate QR saat certificate diterbitkan.
+             */
+            $certificate = $this->qrService->generate($certificate);
         } catch (RuntimeException $exception) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => $exception->getMessage(),
                 ], 422);
+            }
+
+            return back()->with('error', $exception->getMessage());
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], 500);
             }
 
             return back()->with('error', $exception->getMessage());
@@ -135,11 +152,27 @@ class CertificateController extends Controller
                     'completed_date' => $validated['completed_date'] ?? null,
                 ]
             );
+
+            /**
+             * Reissue berarti QR dan image sebaiknya dibikin ulang.
+             */
+            $this->deleteGeneratedImageIfExists($certificate);
+            $certificate = $this->qrService->regenerate($certificate);
         } catch (RuntimeException $exception) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => $exception->getMessage(),
                 ], 422);
+            }
+
+            return back()->with('error', $exception->getMessage());
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], 500);
             }
 
             return back()->with('error', $exception->getMessage());
@@ -197,39 +230,60 @@ class CertificateController extends Controller
 
     public function regenerateQr(Request $request, Certificate $certificate)
     {
-        $certificate = $this->qrService->regenerate($certificate);
+        try {
+            $certificate = $this->qrService->regenerate($certificate);
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'message' => 'Certificate QR code regenerated successfully.',
-                'data' => $certificate,
-            ]);
+            if ($certificate->image_path && Storage::disk('public')->exists($certificate->image_path)) {
+                Storage::disk('public')->delete($certificate->image_path);
+            }
+
+            $certificate->forceFill([
+                'image_path' => null,
+            ])->save();
+
+            return redirect()
+                ->route('academic.certificates.show', $certificate)
+                ->with('success', 'QR code berhasil diregenerate.');
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('academic.certificates.show', $certificate)
+                ->with('error', 'Gagal regenerate QR code: ' . $exception->getMessage());
         }
-
-        return back()->with('success', 'Certificate QR code regenerated successfully.');
     }
 
     public function generateImage(Request $request, Certificate $certificate)
     {
         try {
+            /**
+             * Penting:
+             * Jangan cuma cek qr_code_path kosong.
+             * Kalau QR lama masih SVG / file hilang / extension tidak bisa dibaca GD,
+             * harus regenerate QR dulu.
+             */
+            if (! $this->hasUsableQrImage($certificate)) {
+                $certificate = $this->qrService->regenerate($certificate);
+            }
+
             $certificate = $this->imageService->generate($certificate);
             $certificate->refresh();
 
             if (! $certificate->image_path) {
                 return redirect()
                     ->route('academic.certificates.show', $certificate)
-                    ->with('error', 'Generate image sudah dipanggil, tapi image_path masih kosong. Cek CertificateImageService bagian save image.');
+                    ->with('error', 'Generate image sudah dipanggil, tapi image_path masih kosong.');
             }
 
             return redirect()
                 ->route('academic.certificates.show', $certificate)
-                ->with('success', 'Certificate image generated successfully.');
+                ->with('success', 'Certificate image berhasil digenerate.');
         } catch (\Throwable $exception) {
             report($exception);
 
             return redirect()
                 ->route('academic.certificates.show', $certificate)
-                ->with('error', 'Failed to generate certificate image: ' . $exception->getMessage());
+                ->with('error', 'Gagal generate certificate image: ' . $exception->getMessage());
         }
     }
 
@@ -241,5 +295,27 @@ class CertificateController extends Controller
     public function downloadPdf(Certificate $certificate)
     {
         return $this->pdfService->download($certificate);
+    }
+
+    private function hasUsableQrImage(Certificate $certificate): bool
+    {
+        if (! $certificate->qr_code_path) {
+            return false;
+        }
+
+        if (! Storage::disk('public')->exists($certificate->qr_code_path)) {
+            return false;
+        }
+
+        $extension = strtolower(pathinfo($certificate->qr_code_path, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['png', 'jpg', 'jpeg', 'webp'], true);
+    }
+
+    private function deleteGeneratedImageIfExists(Certificate $certificate): void
+    {
+        if ($certificate->image_path && Storage::disk('public')->exists($certificate->image_path)) {
+            Storage::disk('public')->delete($certificate->image_path);
+        }
     }
 }
