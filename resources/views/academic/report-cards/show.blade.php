@@ -44,14 +44,14 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.report-cards.index') }}" class="btn btn-outline-secondary btn-modern">
+                <a href="{{ route('academic.report-cards.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-arrow-left me-2"></i>Back
                 </a>
 
                 <form method="POST" action="{{ route('academic.report-cards.regenerate', $reportCard) }}" class="d-inline"
                       onsubmit="return confirm('Regenerate report card ini? Snapshot nilai akan diperbarui.');">
                     @csrf
-                    <button type="submit" class="btn btn-outline-primary btn-modern">
+                    <button type="submit" class="btn btn-light btn-modern">
                         <i class="bi bi-arrow-repeat me-2"></i>Regenerate
                     </button>
                 </form>
@@ -59,14 +59,14 @@
                 @if($reportCard->status !== 'published' && $reportCard->status !== 'cancelled')
                     <form method="POST" action="{{ route('academic.report-cards.publish', $reportCard) }}" class="d-inline">
                         @csrf
-                        <button type="submit" class="btn btn-success btn-modern">
+                        <button type="submit" class="btn btn-light btn-modern">
                             <i class="bi bi-send-check me-2"></i>Publish
                         </button>
                     </form>
                 @endif
 
                 @if($certificate)
-                    <a href="{{ route('academic.certificates.show', $certificate) }}" class="btn btn-primary btn-modern">
+                    <a href="{{ route('academic.certificates.show', $certificate) }}" class="btn btn-light btn-modern">
                         <i class="bi bi-award me-2"></i>View Certificate
                     </a>
                 @elseif($reportCard->is_certificate_eligible)
@@ -440,16 +440,18 @@
                             <form method="POST" action="{{ route('academic.report-cards.cancel', $reportCard) }}"
                                   onsubmit="return confirm('Cancel report card ini?');">
                                 @csrf
-                                <button type="submit" class="btn btn-outline-danger btn-modern">
+                                <button type="submit" class="btn btn-danger btn-modern">
                                     <i class="bi bi-x-circle me-2"></i>Cancel Report
                                 </button>
                             </form>
                         @endif
 
-                        {{-- Nanti PDF route kita tambahkan di step berikutnya --}}
-                        <button type="button" class="btn btn-outline-secondary btn-modern" disabled>
-                            <i class="bi bi-filetype-pdf me-2"></i>Download PDF Soon
-                        </button>
+                        <a
+                            href="{{ route('academic.report-cards.download-pdf', $reportCard) }}"
+                            class="btn btn-success btn-modern"
+                        >
+                            <i class="bi bi-filetype-pdf me-2"></i>Download PDF
+                        </a>
                     </div>
                 </div>
             </div>

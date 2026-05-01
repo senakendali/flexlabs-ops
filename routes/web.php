@@ -854,6 +854,10 @@ Route::middleware('auth')->group(function () {
                     ->whereNumber('reportCard')
                     ->name('cancel');
 
+                Route::get('/{reportCard}/download-pdf', [ReportCardController::class, 'downloadPdf'])
+                    ->whereNumber('reportCard')
+                    ->name('download-pdf');
+
                 Route::get('/{reportCard}', [ReportCardController::class, 'show'])
                     ->whereNumber('reportCard')
                     ->name('show');

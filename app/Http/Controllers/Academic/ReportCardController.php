@@ -8,6 +8,8 @@ use App\Models\ReportCard;
 use App\Models\Student;
 use App\Services\Assessment\ReportCardService;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 
 class ReportCardController extends Controller
 {
@@ -169,5 +171,38 @@ class ReportCardController extends Controller
         }
 
         return back()->with('success', 'Report card cancelled successfully.');
+    }
+
+    public function downloadPdf(ReportCard $reportCard)
+    {
+        $reportCard->load([
+            'student',
+            'batch',
+            'program',
+            'template',
+            'certificate',
+        ]);
+
+        $student = $reportCard->student;
+
+        $studentName = $student->name
+            ?? $student->full_name
+            ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+
+        if (! $studentName) {
+            $studentName = $student->email ?? 'Student #' . $reportCard->student_id;
+        }
+
+        $safeStudentName = Str::slug($studentName ?: 'student');
+        $safeReportNo = Str::slug($reportCard->report_no ?: 'report-card');
+
+        $fileName = "report-card-{$safeReportNo}-{$safeStudentName}.pdf";
+
+        $pdf = Pdf::loadView('academic.report-cards.pdf', [
+            'reportCard' => $reportCard,
+            'studentName' => $studentName,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download($fileName);
     }
 }

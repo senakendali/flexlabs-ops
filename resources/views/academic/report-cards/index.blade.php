@@ -16,18 +16,32 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-outline-primary btn-modern">
+                <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-pencil-square me-2"></i>Assessment Scores
                 </a>
 
                 @if(Route::has('academic.certificates.index'))
-                    <a href="{{ route('academic.certificates.index') }}" class="btn btn-primary btn-modern">
+                    <a href="{{ route('academic.certificates.index') }}" class="btn btn-light btn-modern">
                         <i class="bi bi-award me-2"></i>Certificates
                     </a>
                 @endif
             </div>
         </div>
     </div>
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     @php
         $totalReports = $reportCards->total();
@@ -140,6 +154,7 @@
                             <a href="{{ route('academic.report-cards.index') }}" class="btn btn-outline-secondary btn-modern">
                                 <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                             </a>
+
                             <button type="submit" class="btn btn-primary btn-modern">
                                 <i class="bi bi-funnel me-2"></i>Apply Filter
                             </button>
@@ -162,33 +177,35 @@
 
         <div class="content-card-body">
             @if($reportCards->count())
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle admin-table">
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
                         <thead>
                             <tr>
                                 <th>Report No</th>
                                 <th>Student</th>
                                 <th>Program / Batch</th>
-                                <th class="text-end">Final Score</th>
-                                <th>Grade</th>
-                                <th>Status</th>
-                                <th>Certificate</th>
-                                <th class="text-end">Action</th>
+                                <th class="text-end text-nowrap">Final Score</th>
+                                <th class="text-nowrap">Grade</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-nowrap">Certificate</th>
+                                <th class="text-end text-nowrap">Action</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             @foreach($reportCards as $reportCard)
                                 @php
                                     $student = $reportCard->student;
+
                                     $studentName = $student->name
                                         ?? $student->full_name
                                         ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
 
-                                    if(!$studentName) {
+                                    if (!$studentName) {
                                         $studentName = $student->email ?? 'Student #' . $reportCard->student_id;
                                     }
 
-                                    $statusClass = match($reportCard->status) {
+                                    $statusClass = match ($reportCard->status) {
                                         'published' => 'status-published',
                                         'passed' => 'status-open',
                                         'not_passed' => 'status-closed',
@@ -197,6 +214,10 @@
                                     };
 
                                     $statusLabel = ucwords(str_replace('_', ' ', $reportCard->status));
+
+                                    $canPublish = !in_array($reportCard->status, ['published', 'cancelled'], true);
+                                    $canCancel = !in_array($reportCard->status, ['cancelled', 'published'], true);
+                                    $canRegenerate = !in_array($reportCard->status, ['published', 'cancelled'], true);
                                 @endphp
 
                                 <tr>
@@ -212,6 +233,7 @@
                                             <div class="table-avatar">
                                                 {{ strtoupper(substr($studentName, 0, 1)) }}
                                             </div>
+
                                             <div>
                                                 <div class="fw-semibold">{{ $studentName }}</div>
                                                 <div class="text-muted small">{{ $student->email ?? 'No email' }}</div>
@@ -226,26 +248,26 @@
                                         </div>
                                     </td>
 
-                                    <td class="text-end">
+                                    <td class="text-end text-nowrap">
                                         <div class="fw-bold">{{ number_format((float) $reportCard->final_score, 2) }}</div>
                                         <div class="text-muted small">
                                             Attendance {{ number_format((float) $reportCard->attendance_percent, 0) }}%
                                         </div>
                                     </td>
 
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="grade-badge grade-{{ strtolower($reportCard->grade ?? 'e') }}">
                                             {{ $reportCard->grade ?? '-' }}
                                         </span>
                                     </td>
 
-                                    <td>
+                                    <td class="text-nowrap">
                                         <span class="assignment-status-badge {{ $statusClass }}">
                                             {{ $statusLabel }}
                                         </span>
                                     </td>
 
-                                    <td>
+                                    <td class="text-nowrap">
                                         @if($reportCard->certificate)
                                             <span class="deadline-badge deadline-open">
                                                 <i class="bi bi-award me-1"></i>Issued
@@ -261,21 +283,81 @@
                                         @endif
                                     </td>
 
-                                    <td class="text-end">
-                                        <div class="d-inline-flex gap-2 flex-wrap justify-content-end">
-                                            <a href="{{ route('academic.report-cards.show', $reportCard) }}"
-                                               class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-eye me-1"></i>Detail
-                                            </a>
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
 
-                                            @if($reportCard->status !== 'published' && $reportCard->status !== 'cancelled')
-                                                <form method="POST" action="{{ route('academic.report-cards.publish', $reportCard) }}" class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-outline-success btn-sm">
-                                                        <i class="bi bi-send-check me-1"></i>Publish
-                                                    </button>
-                                                </form>
-                                            @endif
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <a
+                                                        href="{{ route('academic.report-cards.show', $reportCard) }}"
+                                                        class="dropdown-item"
+                                                    >
+                                                        <i class="bi bi-eye me-2"></i>Show Detail
+                                                    </a>
+                                                </li>
+
+                                                @if($canRegenerate && Route::has('academic.report-cards.regenerate'))
+                                                    <li>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('academic.report-cards.regenerate', $reportCard) }}"
+                                                            class="m-0"
+                                                        >
+                                                            @csrf
+
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="bi bi-arrow-clockwise me-2"></i>Regenerate
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endif
+
+                                                @if($canPublish)
+                                                    <li>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('academic.report-cards.publish', $reportCard) }}"
+                                                            class="m-0"
+                                                        >
+                                                            @csrf
+
+                                                            <button type="submit" class="dropdown-item text-success">
+                                                                <i class="bi bi-send-check me-2"></i>Publish
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endif
+
+                                                @if($canCancel && Route::has('academic.report-cards.cancel'))
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    <li>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('academic.report-cards.cancel', $reportCard) }}"
+                                                            class="m-0"
+                                                            onsubmit="return confirm('Cancel report card ini?')"
+                                                        >
+                                                            @csrf
+
+                                                            <button type="submit" class="dropdown-item text-danger">
+                                                                <i class="bi bi-x-circle me-2"></i>Cancel
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endif
+                                            </ul>
                                         </div>
                                     </td>
                                 </tr>
@@ -292,6 +374,7 @@
                     <div class="empty-state-icon">
                         <i class="bi bi-file-earmark-text"></i>
                     </div>
+
                     <h5 class="empty-state-title">Belum ada report card</h5>
                     <p class="empty-state-text mb-0">
                         Generate report card dari halaman Assessment Scores setelah nilai student diinput.

@@ -603,3 +603,27 @@
         padding-right: 10px;
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Dropdown inside responsive table
+|--------------------------------------------------------------------------
+| Prevent action dropdown from being clipped / creating inner scroll
+| on desktop table cards.
+*/
+@media (min-width: 992px) {
+    .dropdown-safe-table {
+        overflow: visible !important;
+    }
+
+    .dropdown-safe-table .dropdown-menu {
+        z-index: 1080;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .dropdown-safe-table {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
+}
