@@ -154,4 +154,9 @@ class InstructorSchedule extends Model
             return (string) $value;
         }
     }
+
+    public function studentAttendances(): HasMany
+    {
+        return $this->hasMany(StudentAttendance::class);
+    }
 }

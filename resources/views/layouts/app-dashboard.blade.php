@@ -60,7 +60,8 @@
                                     'academic.assessment-templates.*',
                                     'academic.assessment-scores.*',
                                     'academic.report-cards.*',
-                                    'academic.certificates.*'
+                                    'academic.certificates.*',
+                                    'academic.attendances.*'
                                 );
 
                                 $academicMenuGroups = [
@@ -194,7 +195,7 @@
                                     ],
                                     [
                                         'title' => 'Instructor Ops',
-                                        'subtitle' => 'Pengajar, jadwal, dan tracking kelas.',
+                                        'subtitle' => 'Pengajar, jadwal, attendance, dan tracking kelas.',
                                         'icon' => 'bi bi-person-video3',
                                         'items' => [
                                             [
@@ -224,6 +225,13 @@
                                                 'active' => ['instructor-schedules.*'],
                                                 'icon' => 'bi bi-calendar-check-fill',
                                                 'desc' => 'Jadwal mengajar dan replacement.',
+                                            ],
+                                            [
+                                                'label' => 'Student Attendance',
+                                                'route' => 'academic.attendances.index',
+                                                'active' => ['academic.attendances.*'],
+                                                'icon' => 'bi bi-check2-square',
+                                                'desc' => 'Catat kehadiran student online/offline per live session.',
                                             ],
                                             [
                                                 'label' => 'Instructor Tracking',

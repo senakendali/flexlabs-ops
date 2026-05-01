@@ -43,6 +43,7 @@ use App\Http\Controllers\Academic\AssessmentComponentController;
 use App\Http\Controllers\Academic\AssessmentRubricController;
 use App\Http\Controllers\Academic\AssessmentRubricCriteriaController;
 use App\Http\Controllers\Academic\AssessmentRubricLevelController;
+use App\Http\Controllers\Academic\StudentAttendanceController;
 use App\Http\Controllers\Academic\AssessmentScoreController;
 use App\Http\Controllers\Academic\ReportCardController;
 use App\Http\Controllers\Academic\CertificateController;
@@ -856,6 +857,27 @@ Route::middleware('auth')->group(function () {
                 Route::get('/{reportCard}', [ReportCardController::class, 'show'])
                     ->whereNumber('reportCard')
                     ->name('show');
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Academic - Student Attendances
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('attendances')
+            ->name('attendances.')
+            ->controller(StudentAttendanceController::class)
+            ->group(function () {
+                Route::get('/', 'index')
+                    ->name('index');
+
+                Route::get('/schedules/{instructorSchedule}', 'record')
+                    ->whereNumber('instructorSchedule')
+                    ->name('record');
+
+                Route::post('/schedules/{instructorSchedule}', 'store')
+                    ->whereNumber('instructorSchedule')
+                    ->name('store');
             });
 
         /*
