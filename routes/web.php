@@ -40,6 +40,9 @@ use App\Http\Controllers\Academic\AnnouncementController;
 use App\Http\Controllers\Academic\InstructorTrackingController;
 use App\Http\Controllers\Academic\AssessmentTemplateController;
 use App\Http\Controllers\Academic\AssessmentComponentController;
+use App\Http\Controllers\Academic\AssessmentRubricController;
+use App\Http\Controllers\Academic\AssessmentRubricCriteriaController;
+use App\Http\Controllers\Academic\AssessmentRubricLevelController;
 use App\Http\Controllers\Academic\AssessmentScoreController;
 use App\Http\Controllers\Academic\ReportCardController;
 use App\Http\Controllers\Academic\CertificateController;
@@ -667,7 +670,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Academic - Assessment Templates, Components, Scores, Report Cards, Certificates
+    | Academic - Assessment Templates, Components, Rubrics, Scores, Report Cards, Certificates
     |--------------------------------------------------------------------------
     */
     Route::prefix('academic')->name('academic.')->group(function () {
@@ -703,14 +706,8 @@ Route::middleware('auth')->group(function () {
 
                 /*
                 |--------------------------------------------------------------------------
-                | Assessment Template Components
+                | Assessment Template Components + Rubrics
                 |--------------------------------------------------------------------------
-                | Nested under assessment template.
-                |
-                | Final route names:
-                | - academic.assessment-templates.components.store
-                | - academic.assessment-templates.components.update
-                | - academic.assessment-templates.components.destroy
                 */
                 Route::prefix('/{assessmentTemplate}/components')
                     ->whereNumber('assessmentTemplate')
@@ -718,6 +715,75 @@ Route::middleware('auth')->group(function () {
                     ->group(function () {
                         Route::post('/', [AssessmentComponentController::class, 'store'])
                             ->name('store');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Component Rubric
+                        |--------------------------------------------------------------------------
+                        |
+                        | Final route names:
+                        | - academic.assessment-templates.components.rubric.show
+                        | - academic.assessment-templates.components.rubric.store
+                        | - academic.assessment-templates.components.rubric.update
+                        | - academic.assessment-templates.components.rubric.activate
+                        |
+                        */
+                        Route::prefix('/{component}/rubric')
+                            ->whereNumber('component')
+                            ->name('rubric.')
+                            ->group(function () {
+                                Route::get('/', [AssessmentRubricController::class, 'show'])
+                                    ->name('show');
+
+                                Route::post('/', [AssessmentRubricController::class, 'store'])
+                                    ->name('store');
+
+                                Route::put('/{rubric}', [AssessmentRubricController::class, 'update'])
+                                    ->whereNumber('rubric')
+                                    ->name('update');
+
+                                Route::patch('/{rubric}/activate', [AssessmentRubricController::class, 'activate'])
+                                    ->whereNumber('rubric')
+                                    ->name('activate');
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Rubric Criteria
+                                |--------------------------------------------------------------------------
+                                */
+                                Route::post('/{rubric}/criteria', [AssessmentRubricCriteriaController::class, 'store'])
+                                    ->whereNumber('rubric')
+                                    ->name('criteria.store');
+
+                                Route::put('/{rubric}/criteria/{criterion}', [AssessmentRubricCriteriaController::class, 'update'])
+                                    ->whereNumber('rubric')
+                                    ->whereNumber('criterion')
+                                    ->name('criteria.update');
+
+                                Route::delete('/{rubric}/criteria/{criterion}', [AssessmentRubricCriteriaController::class, 'destroy'])
+                                    ->whereNumber('rubric')
+                                    ->whereNumber('criterion')
+                                    ->name('criteria.destroy');
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Rubric Levels
+                                |--------------------------------------------------------------------------
+                                */
+                                Route::post('/{rubric}/levels', [AssessmentRubricLevelController::class, 'store'])
+                                    ->whereNumber('rubric')
+                                    ->name('levels.store');
+
+                                Route::put('/{rubric}/levels/{level}', [AssessmentRubricLevelController::class, 'update'])
+                                    ->whereNumber('rubric')
+                                    ->whereNumber('level')
+                                    ->name('levels.update');
+
+                                Route::delete('/{rubric}/levels/{level}', [AssessmentRubricLevelController::class, 'destroy'])
+                                    ->whereNumber('rubric')
+                                    ->whereNumber('level')
+                                    ->name('levels.destroy');
+                            });
 
                         Route::put('/{component}', [AssessmentComponentController::class, 'update'])
                             ->whereNumber('component')
@@ -732,8 +798,8 @@ Route::middleware('auth')->group(function () {
                 |--------------------------------------------------------------------------
                 | Show Template
                 |--------------------------------------------------------------------------
-                | Harus ditaruh setelah nested components supaya tidak bentrok
-                | dengan /{assessmentTemplate}/components.
+                | Harus di bawah nested components supaya /{assessmentTemplate}/components
+                | tidak kebaca sebagai show template.
                 */
                 Route::get('/{assessmentTemplate}', [AssessmentTemplateController::class, 'show'])
                     ->whereNumber('assessmentTemplate')

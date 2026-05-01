@@ -35,7 +35,7 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.assessment-templates.index') }}" class="btn btn-outline-secondary btn-modern">
+                <a href="{{ route('academic.assessment-templates.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-arrow-left me-2"></i>Back
                 </a>
 
@@ -392,13 +392,12 @@
                                                 </li>
 
                                                 <li>
-                                                    <button
-                                                        type="button"
+                                                    <a
+                                                        href="{{ route('academic.assessment-templates.components.rubric.show', [$template, $component]) }}"
                                                         class="dropdown-item"
-                                                        disabled
                                                     >
                                                         <i class="bi bi-ui-checks-grid me-2"></i>Manage Rubric
-                                                    </button>
+                                                    </a>
                                                 </li>
 
                                                 <li>
