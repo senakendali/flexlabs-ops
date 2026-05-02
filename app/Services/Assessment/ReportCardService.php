@@ -5,7 +5,9 @@ namespace App\Services\Assessment;
 use App\Models\Batch;
 use App\Models\ReportCard;
 use App\Models\Student;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ReportCardService
@@ -60,6 +62,7 @@ class ReportCardService
                 'batch',
                 'program',
                 'template',
+                'certificate',
             ]);
         });
     }
@@ -79,20 +82,57 @@ class ReportCardService
 
     public function publish(ReportCard $reportCard, ?int $publishedBy = null): ReportCard
     {
-        $reportCard->status = $reportCard->is_certificate_eligible
-            ? 'published'
-            : $reportCard->status;
+        return DB::transaction(function () use ($reportCard, $publishedBy) {
+            $reportCard->loadMissing([
+                'student',
+                'batch',
+                'program',
+                'template',
+                'certificate',
+            ]);
 
-        $reportCard->published_by = $publishedBy;
-        $reportCard->published_at = now();
-        $reportCard->save();
+            if ($reportCard->status === 'cancelled') {
+                throw new \RuntimeException('Cancelled report card cannot be published.');
+            }
 
-        return $reportCard->fresh([
-            'student',
-            'batch',
-            'program',
-            'template',
-        ]);
+            /*
+            |--------------------------------------------------------------------------
+            | Publish Report Card
+            |--------------------------------------------------------------------------
+            | Publish = dokumen report card dianggap final.
+            | Certificate eligibility tetap terpisah dari status publish.
+            */
+            $reportCard->status = 'published';
+            $reportCard->published_by = $publishedBy;
+            $reportCard->published_at = now();
+            $reportCard->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Generate / Update PDF
+            |--------------------------------------------------------------------------
+            | Storage::put akan overwrite file kalau path yang sama sudah ada.
+            | Jadi kalau publish berkali-kali, file PDF final akan ter-update.
+            */
+            $pdfPath = $this->generateAndStorePdf($reportCard->fresh([
+                'student',
+                'batch',
+                'program',
+                'template',
+                'certificate',
+            ]));
+
+            $reportCard->pdf_path = $pdfPath;
+            $reportCard->save();
+
+            return $reportCard->fresh([
+                'student',
+                'batch',
+                'program',
+                'template',
+                'certificate',
+            ]);
+        });
     }
 
     public function publishById(int $reportCardId, ?int $publishedBy = null): ReportCard
@@ -113,6 +153,7 @@ class ReportCardService
             'batch',
             'program',
             'template',
+            'certificate',
         ]);
     }
 
@@ -161,6 +202,62 @@ class ReportCardService
         }
 
         return $reportNo;
+    }
+
+    private function generateAndStorePdf(ReportCard $reportCard): string
+    {
+        $reportCard->loadMissing([
+            'student',
+            'batch',
+            'program',
+            'template',
+            'certificate',
+        ]);
+
+        $studentName = $this->resolveStudentName($reportCard);
+
+        $safeReportNo = Str::slug($reportCard->report_no ?: 'report-card');
+        $safeStudentName = Str::slug($studentName ?: 'student');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Stable Path
+        |--------------------------------------------------------------------------
+        | Path dibuat stabil berdasarkan report_no + student.
+        | Kalau publish ulang, Storage::put overwrite file yang sama.
+        */
+        $path = 'report-cards/'
+            . now()->format('Y')
+            . '/'
+            . "{$safeReportNo}-{$safeStudentName}.pdf";
+
+        $pdf = Pdf::loadView('academic.report-cards.pdf', [
+            'reportCard' => $reportCard,
+            'studentName' => $studentName,
+        ])->setPaper('a4', 'portrait');
+
+        Storage::disk('public')->put($path, $pdf->output());
+
+        return $path;
+    }
+
+    private function resolveStudentName(ReportCard $reportCard): string
+    {
+        $student = $reportCard->student;
+
+        if (! $student) {
+            return 'Student #' . $reportCard->student_id;
+        }
+
+        $studentName = $student->name
+            ?? $student->full_name
+            ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+
+        if (! $studentName) {
+            $studentName = $student->email ?? 'Student #' . $reportCard->student_id;
+        }
+
+        return $studentName;
     }
 
     private function resolveProgramCode(Batch $batch): string

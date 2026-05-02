@@ -3,9 +3,9 @@
 namespace App\Services\Assessment;
 
 use App\Models\Certificate;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Spatie\Browsershot\Browsershot;
 
 class CertificatePdfService
 {
@@ -24,38 +24,37 @@ class CertificatePdfService
             'issuer',
         ]);
 
-        if (! $certificate->qr_code_path) {
+        if (! $certificate->qr_code_path || ! Storage::disk('public')->exists($certificate->qr_code_path)) {
             $certificate = $this->qrService->generate($certificate);
+
+            $certificate->loadMissing([
+                'student',
+                'batch',
+                'program',
+                'reportCard',
+                'issuer',
+            ]);
         }
 
         $directory = 'certificates/pdf';
         $filename = $this->buildFilename($certificate);
         $path = "{$directory}/{$filename}";
-        $absolutePath = Storage::disk('public')->path($path);
 
         Storage::disk('public')->makeDirectory($directory);
 
-        $html = view('academic.certificates.pdf', [
+        $pdf = Pdf::loadView('academic.certificates.pdf', [
             'certificate' => $certificate,
             'logoDataUri' => $this->resolvePublicImageDataUri('images/logo-black.png'),
             'qrDataUri' => $this->resolveStorageImageDataUri($certificate->qr_code_path),
-        ])->render();
+        ])
+            ->setPaper('a4', 'landscape')
+            ->setWarnings(false);
 
-        $browser = Browsershot::html($html)
-            ->format('A4')
-            ->landscape()
-            ->showBackground()
-            ->margins(0, 0, 0, 0)
-            ->waitUntilNetworkIdle()
-            ->emulateMedia('screen');
+        Storage::disk('public')->put($path, $pdf->output());
 
-        // Kalau nanti di Linux/server ada issue sandbox, aktifkan ini:
-        // $browser->noSandbox();
-
-        $browser->savePdf($absolutePath);
-
-        $certificate->pdf_path = $path;
-        $certificate->save();
+        $certificate->forceFill([
+            'pdf_path' => $path,
+        ])->save();
 
         return $certificate->fresh([
             'student',
@@ -94,7 +93,7 @@ class CertificatePdfService
 
     private function buildFilename(Certificate $certificate): string
     {
-        $safeCertificateNo = Str::of($certificate->certificate_no)
+        $safeCertificateNo = Str::of($certificate->certificate_no ?: ('certificate-' . $certificate->id))
             ->lower()
             ->replaceMatches('/[^a-z0-9]+/', '-')
             ->trim('-')

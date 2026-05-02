@@ -3,9 +3,10 @@
 namespace App\Services\Assessment;
 
 use App\Models\Certificate;
+use chillerlan\QRCode\Common\EccLevel;
+use chillerlan\QRCode\Output\QRGdImagePNG;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
-use chillerlan\QRCode\Output\QROutputInterface;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -21,6 +22,12 @@ class CertificateQrService
             'reportCard',
         ]);
 
+        if (! extension_loaded('gd')) {
+            throw new RuntimeException(
+                'PHP GD extension belum aktif. Aktifkan extension=gd di php.ini, lalu restart Apache/PHP.'
+            );
+        }
+
         $publicToken = $certificate->public_token ?: Str::random(40);
         $verificationUrl = route('public.certificates.verify', $publicToken);
 
@@ -31,11 +38,17 @@ class CertificateQrService
         $relativePath = $directory . '/' . $filename;
         $absolutePath = Storage::disk('public')->path($relativePath);
 
+        /*
+         * NOTE:
+         * Jangan pakai QROutputInterface::GDIMAGE_PNG di sini.
+         * Di beberapa versi chillerlan/php-qrcode constant outputType sudah deprecated/berubah.
+         * Pakai outputInterface + QRGdImagePNG supaya lebih aman untuk versi baru.
+         */
         $options = new QROptions([
-            'outputType'       => QROutputInterface::GDIMAGE_PNG,
-            'eccLevel'         => QRCode::ECC_M,
+            'outputInterface'  => QRGdImagePNG::class,
+            'eccLevel'         => EccLevel::M,
             'scale'            => 8,
-            'imageBase64'      => false,
+            'outputBase64'     => false,
             'imageTransparent' => false,
             'addQuietzone'     => true,
             'quietzoneSize'    => 2,
@@ -43,13 +56,13 @@ class CertificateQrService
 
         $qrBinary = (new QRCode($options))->render($verificationUrl);
 
-        if (! $qrBinary) {
+        if (! is_string($qrBinary) || $qrBinary === '') {
             throw new RuntimeException('QR PNG gagal dibuat.');
         }
 
         file_put_contents($absolutePath, $qrBinary);
 
-        if (! file_exists($absolutePath)) {
+        if (! file_exists($absolutePath) || filesize($absolutePath) <= 0) {
             throw new RuntimeException('File QR PNG gagal disimpan.');
         }
 

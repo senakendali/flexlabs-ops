@@ -28,35 +28,44 @@
 
     $logoPath = public_path('images/logo-black.png');
 
+    $resultPassed = in_array($reportCard->status, ['passed', 'published'], true);
+
+    $issuedDate = optional($reportCard->published_at)->format('d M Y')
+        ?? optional($reportCard->generated_at)->format('d M Y')
+        ?? now()->format('d M Y');
+
     $rules = [
         [
             'label' => 'Passing Score',
-            'value' => number_format((float)($ruleSnapshot['passing_score'] ?? 0), 0),
+            'required' => number_format((float)($ruleSnapshot['passing_score'] ?? 0), 0),
+            'actual' => number_format((float) $reportCard->final_score, 2),
             'passed' => (bool)($ruleSnapshot['passes_score'] ?? false),
         ],
         [
             'label' => 'Minimum Attendance',
-            'value' => number_format((float)($ruleSnapshot['min_attendance_percent'] ?? 0), 0) . '%',
+            'required' => number_format((float)($ruleSnapshot['min_attendance_percent'] ?? 0), 0) . '%',
+            'actual' => number_format((float) $reportCard->attendance_percent, 0) . '%',
             'passed' => (bool)($ruleSnapshot['passes_attendance'] ?? false),
         ],
         [
             'label' => 'Minimum Progress',
-            'value' => number_format((float)($ruleSnapshot['min_progress_percent'] ?? 0), 0) . '%',
+            'required' => number_format((float)($ruleSnapshot['min_progress_percent'] ?? 0), 0) . '%',
+            'actual' => number_format((float) $reportCard->progress_percent, 0) . '%',
             'passed' => (bool)($ruleSnapshot['passes_progress'] ?? false),
         ],
         [
             'label' => 'Final Project',
-            'value' => !empty($ruleSnapshot['requires_final_project']) ? 'Required' : 'Not Required',
+            'required' => !empty($ruleSnapshot['requires_final_project']) ? 'Required' : 'Not Required',
+            'actual' => !empty($ruleSnapshot['passes_final_project']) ? 'Completed' : 'Not Completed',
             'passed' => (bool)($ruleSnapshot['passes_final_project'] ?? false),
         ],
         [
             'label' => 'Required Scores',
-            'value' => !empty($ruleSnapshot['has_missing_required_scores']) ? 'Missing' : 'Complete',
+            'required' => 'Complete',
+            'actual' => !empty($ruleSnapshot['has_missing_required_scores']) ? 'Incomplete' : 'Complete',
             'passed' => empty($ruleSnapshot['has_missing_required_scores']),
         ],
     ];
-
-    $resultPassed = in_array($reportCard->status, ['passed', 'published'], true);
 @endphp
 
 <!DOCTYPE html>
@@ -67,7 +76,7 @@
 
     <style>
         @page {
-            margin: 30px 34px 34px 34px;
+            margin: 32px 36px 38px 36px;
         }
 
         * {
@@ -76,284 +85,17 @@
 
         body {
             font-family: DejaVu Sans, sans-serif;
-            font-size: 11px;
-            color: #211936;
+            font-size: 10.5px;
+            color: #1f2937;
             line-height: 1.45;
             margin: 0;
             padding: 0;
             background: #ffffff;
         }
 
-        .header-table {
+        table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 18px;
-        }
-
-        .header-table td {
-            vertical-align: top;
-        }
-
-        .brand-logo {
-            width: 158px;
-            height: auto;
-        }
-
-        .brand-fallback {
-            font-size: 20px;
-            font-weight: bold;
-            color: #5B3E8E;
-        }
-
-        .doc-title {
-            text-align: right;
-        }
-
-        .doc-title h1 {
-            margin: 0;
-            font-size: 24px;
-            line-height: 1.05;
-            color: #5B3E8E;
-            letter-spacing: 0.45px;
-        }
-
-        .doc-title .meta {
-            margin-top: 7px;
-            color: #7a718d;
-            font-size: 10px;
-        }
-
-        .hero {
-            background: #5B3E8E;
-            color: #ffffff;
-            border-radius: 16px;
-            padding: 19px 20px;
-            margin-bottom: 14px;
-        }
-
-        .hero-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .hero-table td {
-            vertical-align: top;
-        }
-
-        .student-name {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .student-meta {
-            font-size: 10px;
-            color: #eee8ff;
-            line-height: 1.65;
-        }
-
-        .final-score-box {
-            text-align: right;
-            width: 190px;
-        }
-
-        .final-score-label {
-            font-size: 9px;
-            color: #eee8ff;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .final-score {
-            font-size: 34px;
-            font-weight: bold;
-            line-height: 1.05;
-            margin-top: 3px;
-        }
-
-        .grade {
-            display: inline-block;
-            margin-top: 7px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: #FFBE04;
-            color: #211936;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .result-badge {
-            display: inline-block;
-            margin-top: 7px;
-            margin-left: 5px;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: #E5F6EA;
-            color: #2f7d45;
-            font-size: 9px;
-            font-weight: bold;
-        }
-
-        .result-badge.failed {
-            background: #FCE8EA;
-            color: #b42335;
-        }
-
-        .section {
-            margin-top: 13px;
-            page-break-inside: avoid;
-        }
-
-        .section-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: #5B3E8E;
-            margin-bottom: 8px;
-        }
-
-        .section-caption {
-            color: #7a718d;
-            font-size: 9px;
-            margin-top: -4px;
-            margin-bottom: 8px;
-        }
-
-        .soft-card {
-            border: 1px solid #ece8f3;
-            border-radius: 14px;
-            padding: 10px;
-            background: #ffffff;
-        }
-
-        .info-grid {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-
-        .info-grid td {
-            width: 50%;
-            vertical-align: top;
-            padding: 8px 10px;
-            border: 1px solid #ece8f3;
-        }
-
-        .info-grid tr:first-child td:first-child {
-            border-top-left-radius: 12px;
-        }
-
-        .info-grid tr:first-child td:last-child {
-            border-top-right-radius: 12px;
-        }
-
-        .info-grid tr:last-child td:first-child {
-            border-bottom-left-radius: 12px;
-        }
-
-        .info-grid tr:last-child td:last-child {
-            border-bottom-right-radius: 12px;
-        }
-
-        .info-label {
-            color: #7a718d;
-            font-size: 9px;
-            margin-bottom: 3px;
-        }
-
-        .info-value {
-            font-weight: bold;
-            color: #211936;
-        }
-
-        .summary-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 8px 0;
-            margin-left: -8px;
-            margin-right: -8px;
-        }
-
-        .summary-table td {
-            width: 25%;
-            padding: 11px 10px;
-            border: 1px solid #ece8f3;
-            border-radius: 14px;
-            text-align: center;
-            vertical-align: middle;
-            background: #fbf8ff;
-        }
-
-        .summary-label {
-            font-size: 9px;
-            color: #7a718d;
-        }
-
-        .summary-value {
-            margin-top: 4px;
-            font-size: 17px;
-            font-weight: bold;
-            color: #211936;
-        }
-
-        .rules-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 6px;
-        }
-
-        .rules-table td {
-            padding: 8px 10px;
-            background: #fbf8ff;
-            border-top: 1px solid #ece8f3;
-            border-bottom: 1px solid #ece8f3;
-        }
-
-        .rules-table td:first-child {
-            border-left: 1px solid #ece8f3;
-            border-top-left-radius: 12px;
-            border-bottom-left-radius: 12px;
-        }
-
-        .rules-table td:last-child {
-            border-right: 1px solid #ece8f3;
-            border-top-right-radius: 12px;
-            border-bottom-right-radius: 12px;
-        }
-
-        .score-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 4px;
-            border: 1px solid #e6dff0;
-        }
-
-        .score-table th {
-            background: #5B3E8E;
-            color: #ffffff;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            border: 1px solid #5B3E8E;
-            padding: 8px 6px;
-        }
-
-        .score-table td {
-            border: 1px solid #ece8f3;
-            padding: 8px 6px;
-            vertical-align: top;
-        }
-
-        .score-table tbody tr:nth-child(even) td {
-            background: #fbf8ff;
-        }
-
-        .score-table tfoot th,
-        .score-table tfoot td {
-            background: #f4effb;
-            color: #211936;
-            font-weight: bold;
-            border: 1px solid #e1d8ee;
-            padding: 9px 6px;
         }
 
         .text-right {
@@ -364,129 +106,307 @@
             text-align: center;
         }
 
-        .muted {
-            color: #7a718d;
-            font-size: 9px;
+        .text-muted {
+            color: #6b7280;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 14px;
-            font-size: 9px;
-            font-weight: bold;
-        }
-
-        .badge-pass {
-            background: #E5F6EA;
-            color: #2f7d45;
-        }
-
-        .badge-fail {
-            background: #FCE8EA;
-            color: #b42335;
-        }
-
-        .badge-neutral {
-            background: #EEE9F7;
+        .text-primary {
             color: #5B3E8E;
         }
 
-        .badge-warning {
-            background: #FFF3CD;
-            color: #8a6400;
-        }
-
-        .rubric-box {
-            margin-top: 7px;
-            padding: 7px;
-            background: #ffffff;
-            border: 1px solid #e9e2f2;
-            border-radius: 9px;
-        }
-
-        .rubric-title {
-            font-size: 9px;
-            color: #5B3E8E;
+        .fw-bold {
             font-weight: bold;
-            margin-bottom: 4px;
         }
 
-        .rubric-item {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 3px;
+        .header-table {
+            margin-bottom: 18px;
         }
 
-        .rubric-item td {
-            border: 0 !important;
-            padding: 2px 0;
-            font-size: 9px;
-            background: transparent !important;
-        }
-
-        .note-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 8px;
-            margin-left: -8px;
-            margin-right: -8px;
-        }
-
-        .note-table td {
-            width: 50%;
+        .header-table td {
             vertical-align: top;
-            padding: 10px;
-            border: 1px solid #ece8f3;
-            border-radius: 14px;
-            background: #ffffff;
         }
 
-        .note-table .full {
-            width: 100%;
+        .brand-logo {
+            width: 150px;
+            height: auto;
         }
 
-        .note-title {
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.35px;
-            color: #5B3E8E;
+        .brand-fallback {
+            font-size: 20px;
             font-weight: bold;
+            color: #5B3E8E;
+        }
+
+        .document-title {
+            text-align: right;
+        }
+
+        .document-title h1 {
+            margin: 0;
+            padding: 0;
+            font-size: 24px;
+            line-height: 1.05;
+            letter-spacing: 0.8px;
+            color: #111827;
+            font-weight: bold;
+        }
+
+        .document-subtitle {
+            margin-top: 6px;
+            font-size: 10px;
+            color: #6b7280;
+        }
+
+        .accent-line {
+            height: 4px;
+            background: #5B3E8E;
+            margin-bottom: 16px;
+        }
+
+        .official-box {
+            border: 1px solid #d9d4e6;
+            background: #fbfafc;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+
+        .official-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #5B3E8E;
             margin-bottom: 5px;
         }
 
+        .official-text {
+            font-size: 10px;
+            color: #374151;
+        }
+
+        .section {
+            margin-top: 14px;
+            page-break-inside: avoid;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 7px;
+            text-transform: uppercase;
+            letter-spacing: 0.35px;
+        }
+
+        .info-table td {
+            border: 1px solid #e5e7eb;
+            padding: 7px 9px;
+            vertical-align: top;
+        }
+
+        .info-label {
+            display: block;
+            font-size: 8.5px;
+            color: #6b7280;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.25px;
+        }
+
+        .info-value {
+            font-size: 10.5px;
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .summary-table td {
+            border: 1px solid #d9d4e6;
+            padding: 9px 8px;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .summary-label {
+            font-size: 8.5px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.25px;
+            margin-bottom: 3px;
+        }
+
+        .summary-value {
+            font-size: 18px;
+            color: #111827;
+            font-weight: bold;
+        }
+
+        .summary-value.primary {
+            color: #5B3E8E;
+        }
+
+        .result-status {
+            display: inline-block;
+            padding: 4px 9px;
+            font-size: 9px;
+            font-weight: bold;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #374151;
+        }
+
+        .result-status.passed {
+            border-color: #b7dfc5;
+            background: #eefaf2;
+            color: #237a3b;
+        }
+
+        .result-status.failed {
+            border-color: #f2bec5;
+            background: #fff1f2;
+            color: #b42335;
+        }
+
+        .data-table {
+            border: 1px solid #e5e7eb;
+        }
+
+        .data-table th {
+            border: 1px solid #ded7ed;
+            background: #f3f0f8;
+            color: #3f2d64;
+            padding: 7px 6px;
+            font-size: 8.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.25px;
+            font-weight: bold;
+        }
+
+        .data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 7px 6px;
+            vertical-align: top;
+        }
+
+        .data-table tfoot td,
+        .data-table tfoot th {
+            background: #fbfafc;
+            border: 1px solid #ded7ed;
+            padding: 8px 6px;
+            font-weight: bold;
+        }
+
+        .component-name {
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .component-desc {
+            margin-top: 2px;
+            font-size: 8.5px;
+            color: #6b7280;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 3px 8px;
+            font-size: 8.5px;
+            font-weight: bold;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            background: #ffffff;
+        }
+
+        .status-pass {
+            color: #237a3b;
+            background: #eefaf2;
+            border-color: #b7dfc5;
+        }
+
+        .status-fail {
+            color: #b42335;
+            background: #fff1f2;
+            border-color: #f2bec5;
+        }
+
+        .rubric-block {
+            margin-top: 6px;
+            padding: 6px 7px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+        }
+
+        .rubric-title {
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #5B3E8E;
+            text-transform: uppercase;
+            letter-spacing: 0.25px;
+            margin-bottom: 4px;
+        }
+
+        .rubric-table td {
+            border: 0;
+            padding: 2px 0;
+            font-size: 8.5px;
+            background: transparent;
+        }
+
+        .note-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 9px;
+            vertical-align: top;
+        }
+
+        .note-title {
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #5B3E8E;
+            text-transform: uppercase;
+            letter-spacing: 0.25px;
+            margin-bottom: 4px;
+        }
+
+        .note-content {
+            font-size: 10px;
+            color: #374151;
+        }
+
         .signature-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 30px;
+            margin-top: 34px;
             page-break-inside: avoid;
         }
 
         .signature-table td {
             width: 50%;
-            vertical-align: top;
             text-align: center;
-            padding-top: 12px;
+            vertical-align: top;
+            padding-top: 6px;
         }
 
-        .signature-label {
-            color: #7a718d;
-            font-size: 10px;
+        .signature-role {
+            font-size: 9px;
+            color: #6b7280;
+            margin-bottom: 42px;
         }
 
         .signature-line {
-            margin: 42px auto 5px auto;
-            border-top: 1px solid #211936;
-            width: 175px;
+            border-top: 1px solid #111827;
+            width: 180px;
+            margin: 0 auto 5px auto;
         }
 
-        .mini-status {
-            font-size: 9px;
-            color: #7a718d;
-            margin-top: 2px;
+        .signature-name {
+            font-size: 10px;
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .small-note {
+            font-size: 8.5px;
+            color: #6b7280;
+            margin-top: 4px;
         }
     </style>
 </head>
+
 <body>
 
 <table class="header-table">
@@ -498,32 +418,88 @@
                 <span class="brand-fallback">FlexLabs</span>
             @endif
         </td>
-        <td class="doc-title">
+        <td class="document-title">
             <h1>REPORT CARD</h1>
-            <div class="meta">
-                {{ $reportCard->report_no }}<br>
-                {{ optional($reportCard->generated_at)->format('d M Y') ?? now()->format('d M Y') }}
+            <div class="document-subtitle">
+                Report No: {{ $reportCard->report_no }}<br>
+                Issue Date: {{ $issuedDate }}
             </div>
         </td>
     </tr>
 </table>
 
-<div class="hero">
-    <table class="hero-table">
+<div class="accent-line"></div>
+
+<div class="official-box">
+    <div class="official-title">Academic Performance Report</div>
+    <div class="official-text">
+        This report summarizes the student's academic performance based on attendance, learning progress,
+        assessment components, and program completion requirements.
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">Student Information</div>
+
+    <table class="info-table">
+        <tr>
+            <td style="width: 50%;">
+                <span class="info-label">Student Name</span>
+                <span class="info-value">{{ $studentName }}</span>
+            </td>
+            <td style="width: 50%;">
+                <span class="info-label">Email</span>
+                <span class="info-value">{{ $student->email ?? '-' }}</span>
+            </td>
+        </tr>
         <tr>
             <td>
-                <div class="student-name">{{ $studentName }}</div>
-                <div class="student-meta">
-                    {{ $student->email ?? 'No email' }}<br>
-                    {{ $reportCard->program->name ?? '-' }} - {{ $reportCard->batch->name ?? ('Batch #' . $reportCard->batch_id) }}
-                </div>
+                <span class="info-label">Program</span>
+                <span class="info-value">{{ $reportCard->program->name ?? '-' }}</span>
             </td>
-            <td class="final-score-box">
-                <div class="final-score-label">Final Score</div>
-                <div class="final-score">{{ number_format((float) $reportCard->final_score, 2) }}</div>
+            <td>
+                <span class="info-label">Batch</span>
+                <span class="info-value">{{ $reportCard->batch->name ?? ('Batch #' . $reportCard->batch_id) }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="info-label">Assessment Template</span>
+                <span class="info-value">{{ $reportCard->template->name ?? '-' }}</span>
+            </td>
+            <td>
+                <span class="info-label">Report Status</span>
+                <span class="info-value">{{ $statusLabel }}</span>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div class="section">
+    <div class="section-title">Result Summary</div>
+
+    <table class="summary-table">
+        <tr>
+            <td style="width: 20%;">
+                <div class="summary-label">Final Score</div>
+                <div class="summary-value primary">{{ number_format((float) $reportCard->final_score, 2) }}</div>
+            </td>
+            <td style="width: 20%;">
+                <div class="summary-label">Grade</div>
+                <div class="summary-value">{{ $reportCard->grade ?? '-' }}</div>
+            </td>
+            <td style="width: 20%;">
+                <div class="summary-label">Attendance</div>
+                <div class="summary-value">{{ number_format((float) $reportCard->attendance_percent, 0) }}%</div>
+            </td>
+            <td style="width: 20%;">
+                <div class="summary-label">Progress</div>
+                <div class="summary-value">{{ number_format((float) $reportCard->progress_percent, 0) }}%</div>
+            </td>
+            <td style="width: 20%;">
+                <div class="summary-label">Result</div>
                 <div>
-                    <span class="grade">Grade {{ $reportCard->grade ?? '-' }}</span>
-                    <span class="result-badge {{ $resultPassed ? '' : 'failed' }}">
+                    <span class="result-status {{ $resultPassed ? 'passed' : 'failed' }}">
                         {{ $resultPassed ? 'Passed' : 'Not Passed' }}
                     </span>
                 </div>
@@ -533,93 +509,37 @@
 </div>
 
 <div class="section">
-    <div class="section-title">Student & Program Information</div>
+    <div class="section-title">Completion Requirements</div>
 
-    <table class="info-grid">
-        <tr>
-            <td>
-                <div class="info-label">Student Name</div>
-                <div class="info-value">{{ $studentName }}</div>
-            </td>
-            <td>
-                <div class="info-label">Email</div>
-                <div class="info-value">{{ $student->email ?? '-' }}</div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <div class="info-label">Program</div>
-                <div class="info-value">{{ $reportCard->program->name ?? '-' }}</div>
-            </td>
-            <td>
-                <div class="info-label">Batch</div>
-                <div class="info-value">{{ $reportCard->batch->name ?? ('Batch #' . $reportCard->batch_id) }}</div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <div class="info-label">Assessment Template</div>
-                <div class="info-value">{{ $reportCard->template->name ?? '-' }}</div>
-            </td>
-            <td>
-                <div class="info-label">Report Status</div>
-                <div class="info-value">{{ $statusLabel }}</div>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<div class="section">
-    <div class="section-title">Performance Summary</div>
-
-    <table class="summary-table">
-        <tr>
-            <td>
-                <div class="summary-label">Final Score</div>
-                <div class="summary-value">{{ number_format((float) $reportCard->final_score, 2) }}</div>
-            </td>
-            <td>
-                <div class="summary-label">Grade</div>
-                <div class="summary-value">{{ $reportCard->grade ?? '-' }}</div>
-            </td>
-            <td>
-                <div class="summary-label">Attendance</div>
-                <div class="summary-value">{{ number_format((float) $reportCard->attendance_percent, 0) }}%</div>
-            </td>
-            <td>
-                <div class="summary-label">Progress</div>
-                <div class="summary-value">{{ number_format((float) $reportCard->progress_percent, 0) }}%</div>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<div class="section">
-    <div class="section-title">Passing Rule Check</div>
-    <div class="section-caption">Checklist kelulusan berdasarkan assessment template yang digunakan.</div>
-
-    <table class="rules-table">
-        @foreach($rules as $rule)
+    <table class="data-table">
+        <thead>
             <tr>
-                <td style="width: 45%;">
-                    <strong>{{ $rule['label'] }}</strong>
-                </td>
-                <td style="width: 35%;">
-                    {{ $rule['value'] }}
-                </td>
-                <td style="width: 20%; text-align: right;">
-                    @if($rule['passed'])
-                        <span class="badge badge-pass">Passed</span>
-                    @else
-                        <span class="badge badge-fail">Not Passed</span>
-                    @endif
-                </td>
+                <th style="width: 36%; text-align: left;">Requirement</th>
+                <th style="width: 24%;">Required</th>
+                <th style="width: 24%;">Actual</th>
+                <th style="width: 16%;">Status</th>
             </tr>
-        @endforeach
+        </thead>
+        <tbody>
+            @foreach($rules as $rule)
+                <tr>
+                    <td>{{ $rule['label'] }}</td>
+                    <td class="text-center">{{ $rule['required'] }}</td>
+                    <td class="text-center">{{ $rule['actual'] }}</td>
+                    <td class="text-center">
+                        @if($rule['passed'])
+                            <span class="status-pill status-pass">Passed</span>
+                        @else
+                            <span class="status-pill status-fail">Not Passed</span>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
     </table>
 
     @if(!empty($ruleSnapshot['missing_required_components']))
-        <div style="margin-top: 8px; color: #8a6400;">
+        <div class="small-note">
             <strong>Missing required components:</strong>
             @foreach($ruleSnapshot['missing_required_components'] as $missing)
                 {{ $missing['name'] ?? '-' }}{{ !$loop->last ? ', ' : '' }}
@@ -629,43 +549,44 @@
 </div>
 
 <div class="section">
-    <div class="section-title">Score Breakdown</div>
-    <div class="section-caption">Detail nilai setiap komponen assessment dan kontribusinya ke final score.</div>
+    <div class="section-title">Assessment Score Breakdown</div>
 
     @if(count($components))
-        <table class="score-table">
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 31%; text-align: left;">Component</th>
-                    <th style="width: 15%;">Type</th>
-                    <th style="width: 14%;" class="text-right">Raw Score</th>
-                    <th style="width: 12%;" class="text-right">Weight</th>
-                    <th style="width: 14%;" class="text-right">Final</th>
-                    <th style="width: 14%;">Status</th>
+                    <th style="width: 34%; text-align: left;">Component</th>
+                    <th style="width: 14%;">Type</th>
+                    <th style="width: 14%;">Raw Score</th>
+                    <th style="width: 12%;">Weight</th>
+                    <th style="width: 14%;">Weighted</th>
+                    <th style="width: 12%;">Status</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($components as $component)
                     <tr>
                         <td>
-                            <strong>{{ $component['name'] ?? '-' }}</strong>
+                            <div class="component-name">{{ $component['name'] ?? '-' }}</div>
 
                             @if(!empty($component['description']))
-                                <div class="muted">{{ $component['description'] }}</div>
+                                <div class="component-desc">{{ $component['description'] }}</div>
                             @endif
 
                             @if(!empty($component['rubric_scores']))
-                                <div class="rubric-box">
+                                <div class="rubric-block">
                                     <div class="rubric-title">Rubric Detail</div>
 
-                                    <table class="rubric-item">
+                                    <table class="rubric-table">
                                         @foreach($component['rubric_scores'] as $rubricScore)
                                             <tr>
                                                 <td>
                                                     <strong>{{ $rubricScore['criteria_name'] ?? '-' }}</strong>
-                                                    <div class="muted">{{ $rubricScore['note'] ?? 'No note' }}</div>
+                                                    @if(!empty($rubricScore['note']))
+                                                        <div class="text-muted">{{ $rubricScore['note'] }}</div>
+                                                    @endif
                                                 </td>
-                                                <td style="text-align: right; width: 75px;">
+                                                <td style="width: 75px;" class="text-right">
                                                     {{ number_format((float)($rubricScore['raw_score'] ?? 0), 2) }}
                                                 </td>
                                             </tr>
@@ -674,34 +595,28 @@
                                 </div>
                             @endif
                         </td>
-
                         <td class="text-center">
                             {{ ucwords(str_replace('_', ' ', $component['type'] ?? '-')) }}
                         </td>
-
                         <td class="text-right">
                             {{ number_format((float)($component['raw_score'] ?? 0), 2) }}
                         </td>
-
                         <td class="text-right">
                             {{ number_format((float)($component['weight'] ?? 0), 2) }}%
                         </td>
-
                         <td class="text-right">
-                            <strong>{{ number_format((float)($component['weighted_score'] ?? 0), 2) }}</strong>
+                            {{ number_format((float)($component['weighted_score'] ?? 0), 2) }}
                         </td>
-
                         <td class="text-center">
                             @if(!empty($component['has_score']))
-                                <span class="badge badge-pass">Filled</span>
+                                <span class="status-pill status-pass">Filled</span>
                             @else
-                                <span class="badge badge-fail">Missing</span>
+                                <span class="status-pill status-fail">Missing</span>
                             @endif
                         </td>
                     </tr>
                 @endforeach
             </tbody>
-
             <tfoot>
                 <tr>
                     <td colspan="4" class="text-right">Final Score</td>
@@ -711,40 +626,44 @@
             </tfoot>
         </table>
     @else
-        <div class="soft-card">
-            <span class="muted">Score snapshot is empty.</span>
-        </div>
+        <table class="info-table">
+            <tr>
+                <td>
+                    <span class="text-muted">Score snapshot is empty.</span>
+                </td>
+            </tr>
+        </table>
     @endif
 </div>
 
 <div class="section">
-    <div class="section-title">Notes & Feedback</div>
+    <div class="section-title">Academic Notes</div>
 
     <table class="note-table">
         <tr>
-            <td>
+            <td style="width: 50%;">
                 <div class="note-title">Summary</div>
-                {{ $reportCard->summary ?: 'No summary yet.' }}
+                <div class="note-content">{{ $reportCard->summary ?: 'No summary provided.' }}</div>
             </td>
-            <td>
+            <td style="width: 50%;">
                 <div class="note-title">Strengths</div>
-                {{ $reportCard->strengths ?: 'No strengths note yet.' }}
+                <div class="note-content">{{ $reportCard->strengths ?: 'No strengths note provided.' }}</div>
             </td>
         </tr>
         <tr>
             <td>
                 <div class="note-title">Improvements</div>
-                {{ $reportCard->improvements ?: 'No improvement note yet.' }}
+                <div class="note-content">{{ $reportCard->improvements ?: 'No improvement note provided.' }}</div>
             </td>
             <td>
                 <div class="note-title">Instructor Note</div>
-                {{ $reportCard->instructor_note ?: 'No instructor note yet.' }}
+                <div class="note-content">{{ $reportCard->instructor_note ?: 'No instructor note provided.' }}</div>
             </td>
         </tr>
         <tr>
-            <td colspan="2" class="full">
+            <td colspan="2">
                 <div class="note-title">Academic Note</div>
-                {{ $reportCard->academic_note ?: 'No academic note yet.' }}
+                <div class="note-content">{{ $reportCard->academic_note ?: 'No academic note provided.' }}</div>
             </td>
         </tr>
     </table>
@@ -753,16 +672,14 @@
 <table class="signature-table">
     <tr>
         <td>
-            <div class="signature-label">Academic Team</div>
+            <div class="signature-role">Academic Representative</div>
             <div class="signature-line"></div>
-            <strong>FlexLabs</strong>
-            <div class="mini-status">Academic Evaluation</div>
+            <div class="signature-name">FlexLabs Academic Team</div>
         </td>
         <td>
-            <div class="signature-label">Student</div>
+            <div class="signature-role">Student</div>
             <div class="signature-line"></div>
-            <strong>{{ $studentName }}</strong>
-            <div class="mini-status">Report Card Recipient</div>
+            <div class="signature-name">{{ $studentName }}</div>
         </td>
     </tr>
 </table>

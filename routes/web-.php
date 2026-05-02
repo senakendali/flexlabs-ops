@@ -930,6 +930,14 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Public Certificate Verification
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/certificates/verify/{token}', [CertificateController::class, 'verify'])
+        ->name('public.certificates.verify');
+
+    /*
+    |--------------------------------------------------------------------------
     | Announcements
     |--------------------------------------------------------------------------
     */

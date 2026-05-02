@@ -152,6 +152,7 @@ class ReportCardController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Report card published successfully.',
+                'redirect_url' => route('academic.report-cards.show', $reportCard),
                 'data' => $reportCard,
             ]);
         }

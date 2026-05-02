@@ -307,6 +307,10 @@
                                     class="btn btn-outline-primary btn-sm generate-report-btn"
                                     data-student-id="{{ $student->id }}"
                                     data-student-name="{{ $studentName }}"
+                                    data-student-email="{{ $student->email ?? 'No email' }}"
+                                    data-final-score="{{ number_format($totalWeighted, 2) }}"
+                                    data-grade="{{ $grade }}"
+                                    data-completion="{{ $completionPercent }}"
                                 >
                                     <i class="bi bi-file-earmark-text me-1"></i>Generate Report
                                 </button>
@@ -475,6 +479,66 @@
         </div>
     </div>
 </div>
+
+
+<div class="modal fade" id="generateReportConfirmModal" tabindex="-1" aria-labelledby="generateReportConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title" id="generateReportConfirmModalLabel">Generate Report Card</h5>
+                    <p class="text-muted mb-0">
+                        Buat report card berdasarkan assessment score terbaru.
+                    </p>
+                </div>
+
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body pt-4">
+                <div class="alert alert-danger d-none generate-report-alert" role="alert"></div>
+
+                <div class="alert alert-warning mb-3">
+                    Proses ini akan membuat atau memperbarui report card student menggunakan nilai final, grade, feedback, dan komponen assessment yang sudah terisi.
+                </div>
+
+                <div class="border rounded-3 p-3">
+                    <div class="text-muted small mb-1">Student</div>
+                    <div class="fw-bold text-dark" id="generateReportStudentName">-</div>
+                    <div class="text-muted small" id="generateReportStudentEmail">-</div>
+
+                    <div class="text-muted small mt-3 mb-1">Batch</div>
+                    <div class="fw-semibold text-dark">
+                        {{ $selectedBatch?->program?->name ?? 'Program' }} - {{ $selectedBatch?->name ?? '-' }}
+                    </div>
+
+                    <div class="text-muted small mt-3 mb-1">Assessment Template</div>
+                    <div class="fw-semibold text-dark">
+                        {{ $template?->name ?? '-' }}
+                    </div>
+
+                    <div class="text-muted small mt-3 mb-1">Current Assessment</div>
+                    <div class="fw-semibold text-dark">
+                        Score <span id="generateReportFinalScore">-</span>
+                        · Grade <span id="generateReportGrade">-</span>
+                        · <span id="generateReportCompletion">-</span>% filled
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+
+                <button type="button" class="btn btn-primary btn-modern" id="confirmGenerateReportBtn">
+                    <i class="bi bi-file-earmark-text me-2"></i>Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <form id="generateReportForm" class="d-none">
     @csrf
@@ -813,19 +877,113 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!modalEl || !content) return;
 
+        function normalizePreviewPayload(payload) {
+            return payload?.data && typeof payload.data === 'object'
+                ? payload.data
+                : (payload || {});
+        }
+
+        function formatScore(value, digits = 2) {
+            if (value === null || value === undefined || value === '') {
+                return '-';
+            }
+
+            const number = Number(value);
+            return Number.isFinite(number) ? number.toFixed(digits) : '-';
+        }
+
+        function calculateGrade(score) {
+            const value = Number(score || 0);
+
+            if (value >= 90) return 'A';
+            if (value >= 80) return 'B';
+            if (value >= 70) return 'C';
+            if (value >= 60) return 'D';
+
+            return 'E';
+        }
+
+        function resolvePreviewStatus(data) {
+            if (typeof data.is_passed === 'boolean') {
+                return data.is_passed ? 'Passed' : 'Not Passed';
+            }
+
+            return data.status || '-';
+        }
+
+        function renderScoreRows(rows) {
+            return rows.map(function (row) {
+                const componentName = row.component || row.name || row.component_name || '-';
+                const componentType = row.type || row.component_type || '-';
+                const hasScore = row.has_score ?? (
+                    row.raw_score !== null
+                    && row.raw_score !== undefined
+                    && row.raw_score !== ''
+                );
+
+                const rowStatus = row.status || (hasScore ? 'reviewed' : 'missing');
+                const badge = hasScore
+                    ? `<span class="assignment-status-badge status-published">${escapeHtml(rowStatus)}</span>`
+                    : '<span class="assignment-status-badge status-closed">Missing</span>';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="fw-semibold text-dark">${escapeHtml(componentName)}</div>
+                            ${row.feedback ? `<div class="text-muted small mt-1">${escapeHtml(row.feedback)}</div>` : ''}
+                        </td>
+                        <td>${escapeHtml(componentType)}</td>
+                        <td class="text-end">${formatScore(row.raw_score)}</td>
+                        <td class="text-end">${formatScore(row.weight)}%</td>
+                        <td class="text-end fw-semibold text-dark">${formatScore(row.weighted_score)}</td>
+                        <td>${badge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderMissingRows(rows) {
+            if (!rows.length) return '';
+
+            return rows.map(function (row) {
+                const componentName = typeof row === 'string'
+                    ? row
+                    : (row.component || row.name || row.component_name || '-');
+
+                const componentType = typeof row === 'string'
+                    ? '-'
+                    : (row.type || row.component_type || '-');
+
+                const weight = typeof row === 'string'
+                    ? '-'
+                    : formatScore(row.weight);
+
+                return `
+                    <tr>
+                        <td><div class="fw-semibold text-dark">${escapeHtml(componentName)}</div></td>
+                        <td>${escapeHtml(componentType)}</td>
+                        <td class="text-end">-</td>
+                        <td class="text-end">${weight === '-' ? '-' : `${weight}%`}</td>
+                        <td class="text-end fw-semibold text-dark">-</td>
+                        <td><span class="assignment-status-badge status-closed">Missing</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         document.querySelectorAll('.preview-score-btn').forEach(function (button) {
             button.addEventListener('click', async function () {
                 const studentId = button.dataset.studentId;
-                const studentName = button.dataset.studentName;
+                const fallbackStudentName = button.dataset.studentName || 'student';
 
-                content.innerHTML = `<div class="text-muted">Loading preview for ${escapeHtml(studentName)}...</div>`;
+                content.innerHTML = `<div class="text-muted">Loading preview for ${escapeHtml(fallbackStudentName)}...</div>`;
 
                 const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
                 modal.show();
 
                 const url = new URL(`{{ route('academic.assessment-scores.preview') }}`, window.location.origin);
                 url.searchParams.set('student_id', studentId);
-                url.searchParams.set('batch_id', selectedBatchId);
+                url.searchParams.set('batch_id', selectedBatchId || '');
 
                 try {
                     const response = await fetch(url.toString(), {
@@ -836,44 +994,87 @@ document.addEventListener('DOMContentLoaded', function () {
                         credentials: 'same-origin',
                     });
 
-                    const payload = await response.json();
-                    const data = payload.data || {};
+                    const payload = await response.json().catch(() => ({}));
 
-                    const rows = (data.components || []).map(function (row) {
-                        const badge = row.has_score
-                            ? '<span class="assignment-status-badge status-published">Filled</span>'
-                            : '<span class="assignment-status-badge status-closed">Missing</span>';
-
-                        return `
-                            <tr>
-                                <td>${escapeHtml(row.name)}</td>
-                                <td>${escapeHtml(row.type)}</td>
-                                <td class="text-end">${Number(row.raw_score || 0).toFixed(2)}</td>
-                                <td class="text-end">${Number(row.weight || 0).toFixed(2)}%</td>
-                                <td class="text-end">${Number(row.weighted_score || 0).toFixed(2)}</td>
-                                <td>${badge}</td>
-                            </tr>
+                    if (!response.ok) {
+                        content.innerHTML = `
+                            <div class="alert alert-danger mb-0">
+                                ${escapeHtml(payload.message || 'Gagal memuat preview score.')}
+                            </div>
                         `;
-                    }).join('');
+                        return;
+                    }
+
+                    const data = normalizePreviewPayload(payload);
+                    const student = data.student || {};
+                    const batch = data.batch || {};
+                    const template = data.template || {};
+                    const scoreRows = Array.isArray(data.components)
+                        ? data.components
+                        : (Array.isArray(data.scores) ? data.scores : []);
+                    const missingRows = Array.isArray(data.missing_components)
+                        ? data.missing_components
+                        : [];
+
+                    const studentName = student.name || fallbackStudentName;
+                    const studentEmail = student.email || '-';
+                    const batchName = batch.name || '-';
+                    const programName = batch.program || batch.program_name || '-';
+                    const templateName = template.name || '-';
+                    const passingScore = template.passing_score ?? '-';
+                    const finalScore = Number(data.final_score || 0);
+                    const grade = data.grade || calculateGrade(finalScore);
+                    const status = resolvePreviewStatus(data);
+                    const rows = renderScoreRows(scoreRows) + renderMissingRows(missingRows);
 
                     content.innerHTML = `
                         <div class="score-preview-header mb-4">
                             <div>
                                 <div class="score-preview-label">Student</div>
                                 <div class="score-preview-name">${escapeHtml(studentName)}</div>
+                                <div class="text-muted small mt-1">${escapeHtml(studentEmail)}</div>
                             </div>
                             <div class="score-preview-metrics">
                                 <div class="score-preview-metric">
                                     <span>Final Score</span>
-                                    <strong>${Number(data.final_score || 0).toFixed(2)}</strong>
+                                    <strong>${formatScore(finalScore)}</strong>
                                 </div>
                                 <div class="score-preview-metric">
                                     <span>Grade</span>
-                                    <strong>${escapeHtml(data.grade || '-')}</strong>
+                                    <strong>${escapeHtml(grade)}</strong>
                                 </div>
                                 <div class="score-preview-metric">
                                     <span>Status</span>
-                                    <strong>${escapeHtml(data.status || '-')}</strong>
+                                    <strong>${escapeHtml(status)}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded-3 p-3 mb-4 bg-light-subtle">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Batch</div>
+                                    <div class="fw-semibold text-dark">${escapeHtml(batchName)}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Program</div>
+                                    <div class="fw-semibold text-dark">${escapeHtml(programName)}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Assessment Template</div>
+                                    <div class="fw-semibold text-dark">${escapeHtml(templateName)}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Passing Score</div>
+                                    <div class="fw-semibold text-dark">${escapeHtml(passingScore)}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Completed Components</div>
+                                    <div class="fw-semibold text-dark">${scoreRows.length}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-muted small">Missing Components</div>
+                                    <div class="fw-semibold text-dark">${missingRows.length}</div>
                                 </div>
                             </div>
                         </div>
@@ -904,55 +1105,154 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setupGenerateReportButtons() {
-        document.querySelectorAll('.generate-report-btn').forEach(function (button) {
-            button.addEventListener('click', async function () {
-                const studentId = button.dataset.studentId;
-                const studentName = button.dataset.studentName;
+        const modalEl = document.getElementById('generateReportConfirmModal');
+        const confirmBtn = document.getElementById('confirmGenerateReportBtn');
+        const studentNameEl = document.getElementById('generateReportStudentName');
+        const studentEmailEl = document.getElementById('generateReportStudentEmail');
+        const finalScoreEl = document.getElementById('generateReportFinalScore');
+        const gradeEl = document.getElementById('generateReportGrade');
+        const completionEl = document.getElementById('generateReportCompletion');
+        const alertBox = modalEl?.querySelector('.generate-report-alert');
 
-                if (!confirm(`Generate report card untuk ${studentName}?`)) {
+        if (!modalEl || !confirmBtn || !studentNameEl) return;
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        let activeButton = null;
+        let activeStudentId = null;
+        let activeStudentName = null;
+        let activeButtonDefaultHtml = '';
+
+        function resetGenerateDialog() {
+            if (alertBox) {
+                alertBox.classList.add('d-none');
+                alertBox.innerHTML = '';
+            }
+
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="bi bi-file-earmark-text me-2"></i>Generate Report';
+        }
+
+        function showGenerateDialogError(message) {
+            if (!alertBox) {
+                showToast(message, 'error');
+                return;
+            }
+
+            alertBox.innerHTML = escapeHtml(message);
+            alertBox.classList.remove('d-none');
+        }
+
+        document.querySelectorAll('.generate-report-btn').forEach(function (button) {
+            button.addEventListener('click', function () {
+                activeButton = button;
+                activeStudentId = button.dataset.studentId;
+                activeStudentName = button.dataset.studentName || 'student';
+                activeButtonDefaultHtml = button.innerHTML;
+
+                resetGenerateDialog();
+
+                studentNameEl.textContent = activeStudentName;
+
+                if (studentEmailEl) {
+                    studentEmailEl.textContent = button.dataset.studentEmail || 'No email';
+                }
+
+                if (finalScoreEl) {
+                    finalScoreEl.textContent = button.dataset.finalScore || '0.00';
+                }
+
+                if (gradeEl) {
+                    gradeEl.textContent = button.dataset.grade || '-';
+                }
+
+                if (completionEl) {
+                    completionEl.textContent = button.dataset.completion || '0';
+                }
+
+                modal.show();
+            });
+        });
+
+        confirmBtn.addEventListener('click', async function () {
+            if (!activeButton || !activeStudentId) {
+                showGenerateDialogError('Data student tidak ditemukan. Silakan refresh halaman dan coba lagi.');
+                return;
+            }
+
+            if (!selectedBatchId) {
+                showGenerateDialogError('Batch belum dipilih. Silakan pilih batch terlebih dahulu.');
+                return;
+            }
+
+            resetGenerateDialog();
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Generating...';
+
+            activeButton.disabled = true;
+            activeButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Generating...';
+
+            const formData = new FormData();
+            formData.append('_token', csrfToken);
+            formData.append('student_id', activeStudentId);
+            formData.append('batch_id', selectedBatchId);
+
+            try {
+                const response = await fetch(`{{ route('academic.report-cards.generate') }}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                    credentials: 'same-origin',
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    const message = data.message || 'Gagal generate report card.';
+
+                    showGenerateDialogError(message);
+                    showToast(message, 'error');
+
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="bi bi-file-earmark-text me-2"></i>Generate Report';
+
+                    activeButton.disabled = false;
+                    activeButton.innerHTML = activeButtonDefaultHtml;
                     return;
                 }
 
-                button.disabled = true;
-                const originalText = button.innerHTML;
-                button.innerHTML = 'Generating...';
+                modal.hide();
+                showToast(data.message || 'Report card berhasil digenerate.', 'success');
 
-                const formData = new FormData();
-                formData.append('_token', csrfToken);
-                formData.append('student_id', studentId);
-                formData.append('batch_id', selectedBatchId);
-
-                try {
-                    const response = await fetch(`{{ route('academic.report-cards.generate') }}`, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                        },
-                        body: formData,
-                        credentials: 'same-origin',
-                    });
-
-                    const data = await response.json().catch(() => ({}));
-
-                    if (!response.ok) {
-                        showToast(data.message || 'Gagal generate report card.', 'error');
-                        button.disabled = false;
-                        button.innerHTML = originalText;
+                setTimeout(() => {
+                    if (data?.data?.id) {
+                        window.location.href = `/academic/report-cards/${data.data.id}`;
                         return;
                     }
 
-                    showToast(data.message || 'Report card berhasil digenerate.', 'success');
+                    window.location.reload();
+                }, 900);
+            } catch (error) {
+                showGenerateDialogError('Gagal menghubungi server.');
+                showToast('Gagal menghubungi server.', 'error');
 
-                    setTimeout(() => {
-                        window.location.href = `/academic/report-cards/${data.data.id}`;
-                    }, 900);
-                } catch (error) {
-                    showToast('Gagal menghubungi server.', 'error');
-                    button.disabled = false;
-                    button.innerHTML = originalText;
-                }
-            });
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-file-earmark-text me-2"></i>Generate Report';
+
+                activeButton.disabled = false;
+                activeButton.innerHTML = activeButtonDefaultHtml;
+            }
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            resetGenerateDialog();
+
+            if (activeButton && !activeButton.disabled) {
+                activeButton.innerHTML = activeButtonDefaultHtml;
+            }
         });
     }
 

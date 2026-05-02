@@ -1,440 +1,432 @@
 @php
-    $student = $certificate->student;
-
-    $studentName = $student->name
-        ?? $student->full_name
-        ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+    $studentName = data_get($certificate, 'student.name')
+        ?: data_get($certificate, 'student.full_name')
+        ?: data_get($certificate, 'student.student_name')
+        ?: data_get($certificate, 'reportCard.student.name')
+        ?: data_get($certificate, 'reportCard.student.full_name')
+        ?: data_get($certificate, 'reportCard.student.student_name')
+        ?: data_get($certificate, 'reportCard.student_name')
+        ?: data_get($certificate, 'student_name');
 
     if (! $studentName) {
-        $studentName = $student->email ?? 'Student #' . $certificate->student_id;
+        $firstName = data_get($certificate, 'student.first_name') ?: data_get($certificate, 'reportCard.student.first_name');
+        $middleName = data_get($certificate, 'student.middle_name') ?: data_get($certificate, 'reportCard.student.middle_name');
+        $lastName = data_get($certificate, 'student.last_name') ?: data_get($certificate, 'reportCard.student.last_name');
+        $studentName = trim(implode(' ', array_filter([$firstName, $middleName, $lastName])));
     }
 
-    $programName = $certificate->program->name ?? '-';
-    $batchName = $certificate->batch->name ?? ('Batch #' . $certificate->batch_id);
-    $issuedDate = optional($certificate->issued_date)->format('d F Y') ?? '-';
-    $completedDate = optional($certificate->completed_date)->format('d F Y') ?? '-';
-    $typeLabel = ucwords(str_replace('_', ' ', $certificate->type));
+    if (! $studentName) {
+        $studentName = data_get($certificate, 'student.email')
+            ?: data_get($certificate, 'reportCard.student.email')
+            ?: 'Student #' . ($certificate->student_id ?: '-');
+    }
 
-    $finalScore = $certificate->final_score !== null
-        ? number_format((float) $certificate->final_score, 2)
+    $studentEmail = data_get($certificate, 'student.email')
+        ?: data_get($certificate, 'reportCard.student.email')
+        ?: null;
+
+    $programName = data_get($certificate, 'program.name')
+        ?: data_get($certificate, 'batch.program.name')
+        ?: data_get($certificate, 'reportCard.program.name')
+        ?: data_get($certificate, 'reportCard.batch.program.name')
+        ?: 'Program Name';
+
+    $batchName = data_get($certificate, 'batch.name')
+        ?: data_get($certificate, 'reportCard.batch.name')
+        ?: ('Batch #' . ($certificate->batch_id ?: '-'));
+
+    $issuedDate = $certificate->issued_date
+        ? \Illuminate\Support\Carbon::parse($certificate->issued_date)->format('d M Y')
+        : ($certificate->issued_at ? \Illuminate\Support\Carbon::parse($certificate->issued_at)->format('d M Y') : '-');
+
+    $completedDate = $certificate->completed_date
+        ? \Illuminate\Support\Carbon::parse($certificate->completed_date)->format('d M Y')
         : '-';
 
-    $grade = $certificate->grade ?? '-';
-
-    $certificateNo = $certificate->certificate_no ?? '-';
+    $finalScore = is_null($certificate->final_score) ? '-' : number_format((float) $certificate->final_score, 2);
+    $grade = $certificate->grade ?: '-';
+    $issuerName = data_get($certificate, 'issuer.name', 'Academic Team');
 @endphp
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ $certificateNo }}</title>
-
+    <title>Certificate - {{ $studentName }}</title>
     <style>
         @page {
             size: A4 landscape;
-            margin: 0;
+            margin: 30px 36px 34px 36px;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        html,
         body {
-            width: 297mm;
-            height: 210mm;
             margin: 0;
             padding: 0;
-            background: #ffffff;
-            font-family: "DejaVu Sans", Arial, sans-serif;
-            color: #171327;
-            overflow: hidden;
-        }
-
-        body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-
-        .certificate-page {
-            position: relative;
-            width: 297mm;
-            height: 210mm;
-            padding: 8mm;
-            background: #ffffff;
-            overflow: hidden;
-        }
-
-        .certificate-shell {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            border: 2px solid #5B3E8E;
-            background: #ffffff;
-            overflow: hidden;
-        }
-
-        .certificate-inner-border {
-            position: absolute;
-            inset: 4mm;
-            border: 1px solid #D8C9F8;
-            z-index: 2;
-            pointer-events: none;
-        }
-
-        .decor-top {
-            position: absolute;
-            top: -38mm;
-            right: -38mm;
-            width: 92mm;
-            height: 92mm;
-            border-radius: 999px;
-            background: #F8F5FF;
-            z-index: 1;
-        }
-
-        .decor-bottom {
-            position: absolute;
-            bottom: -34mm;
-            left: -34mm;
-            width: 78mm;
-            height: 78mm;
-            border-radius: 999px;
-            background: #FFF6D8;
-            z-index: 1;
-        }
-
-        .content {
-            position: relative;
-            z-index: 3;
-            width: 100%;
-            height: 100%;
-            padding: 13mm 16mm 12mm;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 24px;
-            flex: 0 0 auto;
-        }
-
-        .logo {
-            width: 45mm;
-            height: auto;
-            display: block;
-        }
-
-        .logo-fallback {
-            font-size: 24px;
-            font-weight: 900;
-            color: #5B3E8E;
-            letter-spacing: -0.04em;
-        }
-
-        .header-meta {
-            text-align: right;
-            font-size: 10px;
-            line-height: 1.55;
-            color: #6f6879;
-            max-width: 95mm;
-        }
-
-        .header-meta strong {
-            color: #5f5870;
-            font-weight: 900;
-        }
-
-        .main {
-            text-align: center;
-            flex: 1 1 auto;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            padding-bottom: 6mm;
-        }
-
-        .eyebrow {
-            color: #5B3E8E;
-            font-size: 11px;
-            font-weight: 900;
-            letter-spacing: 5px;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .title {
-            color: #5B3E8E;
-            font-size: 43px;
-            line-height: 1.08;
-            font-weight: 900;
-            letter-spacing: -0.04em;
-            margin-bottom: 16px;
-        }
-
-        .subtitle {
-            color: #6f6879;
-            font-size: 15px;
+            font-family: DejaVu Sans, Arial, sans-serif;
+            font-size: 10.5px;
             line-height: 1.45;
-            margin-bottom: 10px;
+            color: #1f2937;
+            background: #ffffff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-muted { color: #6b7280; }
+        .text-primary { color: #5B3E8E; }
+        .fw-bold { font-weight: bold; }
+
+        .header-table {
+            margin-bottom: 14px;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .brand-logo {
+            width: 145px;
+            height: auto;
+        }
+
+        .brand-fallback {
+            font-size: 22px;
+            color: #5B3E8E;
+            font-weight: bold;
+        }
+
+        .document-title h1 {
+            margin: 0;
+            padding: 0;
+            font-size: 23px;
+            line-height: 1.08;
+            letter-spacing: .8px;
+            color: #111827;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .document-subtitle {
+            margin-top: 5px;
+            font-size: 9.3px;
+            color: #6b7280;
+        }
+
+        .accent-line {
+            height: 4px;
+            background: #5B3E8E;
+            margin-bottom: 14px;
+        }
+
+        .certificate-box {
+            border: 1px solid #d9d4e6;
+            background: #fbfafc;
+            padding: 16px 18px 17px;
+            margin-bottom: 13px;
+            position: relative;
+        }
+
+        .certificate-box:before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 5px;
+            background: #5B3E8E;
+        }
+
+        .certificate-label {
+            display: inline-block;
+            padding: 4px 12px;
+            border: 1px solid #d9d4e6;
+            background: #ffffff;
+            color: #5B3E8E;
+            font-size: 8.4px;
+            font-weight: bold;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            margin-top: 4px;
         }
 
         .student-name {
-            display: inline-block;
-            min-width: 150mm;
-            max-width: 210mm;
-            margin: 0 auto 14px;
-            padding-bottom: 9px;
-            border-bottom: 3px solid #FFBE04;
-            color: #171327;
-            font-size: 40px;
-            line-height: 1.12;
-            font-weight: 900;
-            letter-spacing: -0.04em;
+            margin: 10px 0 4px;
+            font-family: DejaVu Serif, Georgia, serif;
+            font-size: 29px;
+            line-height: 1.15;
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .student-email {
+            font-size: 9px;
+            color: #6b7280;
+            margin-bottom: 9px;
+        }
+
+        .certificate-statement {
+            width: 92%;
+            margin: 0 auto;
+            font-size: 11px;
+            color: #374151;
+            line-height: 1.65;
+        }
+
+        .certificate-statement strong {
+            color: #111827;
+        }
+
+        .section {
+            margin-top: 12px;
+            page-break-inside: avoid;
+        }
+
+        .section-title {
+            font-size: 11.5px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: .35px;
+        }
+
+        .info-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 9px;
+            vertical-align: top;
+            background: #ffffff;
+        }
+
+        .info-label {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 8px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: .25px;
+        }
+
+        .info-value {
+            display: block;
+            font-size: 10.2px;
+            color: #111827;
+            font-weight: bold;
             word-break: break-word;
         }
 
-        .description {
-            width: 222mm;
-            max-width: 100%;
-            margin: 0 auto;
-            color: #39324c;
-            font-size: 15px;
-            line-height: 1.7;
+        .summary-table td {
+            border: 1px solid #d9d4e6;
+            padding: 9px 8px;
+            vertical-align: middle;
+            text-align: center;
+            background: #ffffff;
         }
 
-        .program-name {
-            color: #5B3E8E;
-            font-weight: 900;
-        }
-
-        .type-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            align-self: center;
-            margin-top: 16px;
-            padding: 8px 24px;
-            border-radius: 999px;
-            background: #5B3E8E;
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 900;
-            min-width: 120px;
-        }
-
-        .meta-grid {
-            width: 205mm;
-            max-width: 100%;
-            margin: 22px auto 0;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-
-        .meta-card {
-            min-height: 56px;
-            padding: 12px 14px;
-            border: 1px solid #EEE7FF;
-            background: #F8F5FF;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .meta-label {
-            color: #777283;
-            font-size: 9px;
-            letter-spacing: 1.6px;
+        .summary-label {
+            margin-bottom: 3px;
+            font-size: 8px;
+            color: #6b7280;
             text-transform: uppercase;
-            margin-bottom: 6px;
+            letter-spacing: .25px;
         }
 
-        .meta-value {
-            color: #171327;
-            font-size: 12px;
-            line-height: 1.28;
-            font-weight: 900;
-            text-align: center;
+        .summary-value {
+            font-size: 18px;
+            color: #111827;
+            font-weight: bold;
+            line-height: 1.15;
         }
 
-        .footer {
-            flex: 0 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            align-items: end;
-            gap: 16px;
-            padding-top: 8mm;
+        .summary-value.primary {
+            color: #5B3E8E;
         }
 
-        .score-block {
-            text-align: left;
-            color: #777283;
-            font-size: 11px;
-            line-height: 1.6;
+        .footer-table {
+            margin-top: 16px;
         }
 
-        .score-block strong {
-            color: #171327;
-            font-weight: 900;
+        .footer-table td {
+            vertical-align: bottom;
         }
 
-        .signature {
-            text-align: center;
-        }
-
-        .signature-space {
-            height: 30px;
+        .signature-box {
+            height: 80px;
         }
 
         .signature-line {
-            width: 58mm;
-            height: 1px;
-            background: #171327;
-            margin: 0 auto 8px;
+            width: 190px;
+            height: 46px;
+            border-bottom: 1px solid #9ca3af;
+            margin-bottom: 5px;
         }
 
         .signature-name {
-            color: #171327;
-            font-size: 12px;
-            font-weight: 900;
-            line-height: 1.25;
+            font-size: 10px;
+            font-weight: bold;
+            color: #111827;
         }
 
         .signature-role {
-            color: #777283;
-            font-size: 10px;
-            line-height: 1.25;
+            margin-top: 2px;
+            font-size: 8.5px;
+            color: #6b7280;
         }
 
-        .qr-area {
-            text-align: right;
+        .verification-box {
+            width: 116px;
+            margin-left: auto;
+            border: 1px solid #d9d4e6;
+            background: #fbfafc;
+            padding: 8px 9px;
+            text-align: center;
         }
 
-        .qr-box {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-        }
-
-        .qr {
-            width: 24mm;
-            height: 24mm;
+        .qr-image {
+            width: 74px;
+            height: 74px;
             display: block;
-            object-fit: contain;
+            margin: 0 auto 5px;
         }
 
         .qr-placeholder {
-            width: 24mm;
-            height: 24mm;
-            border: 1px dashed #D8C9F8;
-            background: #F8F5FF;
+            width: 74px;
+            height: 74px;
+            line-height: 74px;
+            border: 1px dashed #9ca3af;
+            color: #6b7280;
+            font-size: 8px;
+            text-align: center;
+            margin: 0 auto 5px;
         }
 
-        .qr-caption {
-            color: #777283;
-            font-size: 9px;
-            line-height: 1.2;
+        .verify-title {
+            font-size: 8.8px;
+            color: #111827;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .verify-subtitle {
+            font-size: 7.4px;
+            color: #6b7280;
+            line-height: 1.25;
+        }
+
+        .note {
+            margin-top: 8px;
+            font-size: 8px;
+            color: #6b7280;
             text-align: center;
         }
     </style>
 </head>
-
 <body>
-    <div class="certificate-page">
-        <div class="certificate-shell">
-            <div class="decor-top"></div>
-            <div class="decor-bottom"></div>
-            <div class="certificate-inner-border"></div>
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%;">
+                @if($logoDataUri)
+                    <img src="{{ $logoDataUri }}" class="brand-logo" alt="FlexLabs">
+                @else
+                    <div class="brand-fallback">FlexLabs</div>
+                @endif
+            </td>
+            <td style="width: 50%;" class="document-title text-right">
+                <h1>Certificate</h1>
+                <div class="document-subtitle">Official academic achievement record</div>
+            </td>
+        </tr>
+    </table>
 
-            <div class="content">
-                <header class="header">
-                    <div>
-                        @if(!empty($logoDataUri))
-                            <img src="{{ $logoDataUri }}" class="logo" alt="FlexLabs Logo">
-                        @else
-                            <div class="logo-fallback">FlexLabs</div>
-                        @endif
-                    </div>
+    
 
-                    <div class="header-meta">
-                        Issued Date: {{ $issuedDate }}<br>
-                        Certificate No:<br>
-                        <strong>{{ $certificateNo }}</strong>
-                    </div>
-                </header>
+    <div class="certificate-box text-center">
+        <div class="certificate-label">Presented To</div>
 
-                <main class="main">
-                    <div class="eyebrow">Official Certificate</div>
+        <div class="student-name">{{ $studentName }}</div>
 
-                    <div class="title">{{ $certificate->title }}</div>
+        @if($studentEmail)
+            <div class="student-email">{{ $studentEmail }}</div>
+        @endif
 
-                    <div class="subtitle">This certificate is proudly presented to</div>
-
-                    <div class="student-name">{{ $studentName }}</div>
-
-                    <div class="description">
-                        For successfully completing
-                        <span class="program-name">{{ $programName }}</span>
-                        as part of FlexLabs learning program. This achievement reflects the student's
-                        commitment, participation, and completion of the required learning evaluation.
-                    </div>
-
-                    <div class="type-badge">{{ $typeLabel }}</div>
-
-                    <div class="meta-grid">
-                        <div class="meta-card">
-                            <div class="meta-label">Program</div>
-                            <div class="meta-value">{{ $programName }}</div>
-                        </div>
-
-                        <div class="meta-card">
-                            <div class="meta-label">Batch</div>
-                            <div class="meta-value">{{ $batchName }}</div>
-                        </div>
-
-                        <div class="meta-card">
-                            <div class="meta-label">Completed Date</div>
-                            <div class="meta-value">{{ $completedDate }}</div>
-                        </div>
-                    </div>
-                </main>
-
-                <footer class="footer">
-                    <div class="score-block">
-                        Final Score: <strong>{{ $finalScore }}</strong><br>
-                        Grade: <strong>{{ $grade }}</strong>
-                    </div>
-
-                    <div class="signature">
-                        <div class="signature-space"></div>
-                        <div class="signature-line"></div>
-                        <div class="signature-name">Sena Kendali</div>
-                        <div class="signature-role">Academic Manager</div>
-                    </div>
-
-                    <div class="qr-area">
-                        <div class="qr-box">
-                            @if(!empty($qrDataUri))
-                                <img src="{{ $qrDataUri }}" class="qr" alt="QR Verification">
-                            @else
-                                <div class="qr-placeholder"></div>
-                            @endif
-
-                            <div class="qr-caption">Scan to verify certificate</div>
-                        </div>
-                    </div>
-                </footer>
-            </div>
+        <div class="certificate-statement">
+            This certificate is awarded to recognize the successful completion of
+            <strong>{{ $programName }}</strong>. The recipient has demonstrated learning commitment,
+            competency, and academic performance in accordance with FlexLabs standards.
         </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Certificate Information</div>
+        <table class="info-table">
+            <tr>
+                <td style="width: 25%;">
+                    <span class="info-label">Program</span>
+                    <span class="info-value">{{ $programName }}</span>
+                </td>
+                <td style="width: 25%;">
+                    <span class="info-label">Batch</span>
+                    <span class="info-value">{{ $batchName }}</span>
+                </td>
+                <td style="width: 25%;">
+                    <span class="info-label">Completed Date</span>
+                    <span class="info-value">{{ $completedDate }}</span>
+                </td>
+                <td style="width: 25%;">
+                    <span class="info-label">Issued Date</span>
+                    <span class="info-value">{{ $issuedDate }}</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Final Result</div>
+        <table class="summary-table">
+            <tr>
+                <td style="width: 50%;">
+                    <div class="summary-label">Final Score</div>
+                    <div class="summary-value primary">{{ $finalScore }}</div>
+                </td>
+                <td style="width: 50%;">
+                    <div class="summary-label">Grade</div>
+                    <div class="summary-value">{{ $grade }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="footer-table">
+        <tr>
+            <td style="width: 60%;">
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div class="signature-name">{{ $issuerName }}</div>
+                    <div class="signature-role">Academic Representative</div>
+                </div>
+            </td>
+            <td style="width: 40%;">
+                <div class="verification-box">
+                    @if($qrDataUri)
+                        <img src="{{ $qrDataUri }}" class="qr-image" alt="Certificate QR Code">
+                    @else
+                        <div class="qr-placeholder">QR Code</div>
+                    @endif
+                    <div class="verify-title">Scan to Verify</div>
+                    <div class="verify-subtitle">Official verification QR</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="note">
+        This certificate is digitally generated by FlexLabs and can be verified through the QR code.
     </div>
 </body>
 </html>

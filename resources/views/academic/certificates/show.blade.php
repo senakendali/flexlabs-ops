@@ -35,9 +35,20 @@
         ? asset('storage/' . $certificate->qr_code_path) . '?v=' . optional($certificate->updated_at)->timestamp
         : null;
 
-    $imageUrl = $certificate->image_path
-        ? asset('storage/' . $certificate->image_path) . '?v=' . optional($certificate->updated_at)->timestamp
+    $pdfFileUrl = $certificate->pdf_path
+        ? asset('storage/' . $certificate->pdf_path) . '?v=' . optional($certificate->updated_at)->timestamp
         : null;
+
+    $hasGeneratePdfRoute = \Illuminate\Support\Facades\Route::has('academic.certificates.generate-pdf');
+    $hasStreamPdfRoute = \Illuminate\Support\Facades\Route::has('academic.certificates.stream-pdf');
+
+    $generatePdfUrl = $hasGeneratePdfRoute
+        ? route('academic.certificates.generate-pdf', $certificate)
+        : route('academic.certificates.regenerate-qr', $certificate);
+
+    $pdfPreviewUrl = $hasStreamPdfRoute
+        ? route('academic.certificates.stream-pdf', $certificate)
+        : $pdfFileUrl;
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -63,29 +74,26 @@
                     </a>
                 @endif
 
+                <a href="{{ route('academic.certificates.download-pdf', $certificate) }}" class="btn btn-light btn-modern shadow-sm">
+                    <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+                </a>
+
                 <form
                     method="POST"
-                    action="{{ route('academic.certificates.generate-image', $certificate) }}"
+                    action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
                     class="d-inline"
                 >
                     @csrf
 
-                    <button type="submit" class="btn btn-warning btn-modern shadow-sm">
-                        <i class="bi bi-magic me-2"></i>
-                        {{ $certificate->image_path ? 'Regenerate Image' : 'Generate Image' }}
+                    <button type="submit" class="btn btn-light btn-modern shadow-sm">
+                        <i class="bi bi-arrow-repeat me-2"></i>Regenerate QR & PDF
                     </button>
                 </form>
-
-                @if($certificate->image_path)
-                    <a href="{{ route('academic.certificates.download-image', $certificate) }}" class="btn btn-success btn-modern shadow-sm">
-                        <i class="bi bi-download me-2"></i>Download Image
-                    </a>
-                @endif
 
                 @if($certificate->status === 'issued')
                     <button
                         type="button"
-                        class="btn btn-danger btn-modern shadow-sm"
+                        class="btn btn-light btn-modern shadow-sm text-danger"
                         data-bs-toggle="modal"
                         data-bs-target="#revokeCertificateModal"
                     >
@@ -225,6 +233,15 @@
                         </div>
 
                         <div class="info-list-item">
+                            <span>PDF File</span>
+                            @if($certificate->pdf_path)
+                                <span class="assignment-status-badge status-published">Generated</span>
+                            @else
+                                <span class="assignment-status-badge status-draft">Not Generated</span>
+                            @endif
+                        </div>
+
+                        <div class="info-list-item">
                             <span>Issued By</span>
                             <strong>{{ $certificate->issuer->name ?? '-' }}</strong>
                         </div>
@@ -335,7 +352,7 @@
                                     </button>
                                 </div>
 
-                                <div class="mt-3">
+                                <div class="mt-3 d-flex gap-2 flex-wrap">
                                     <a
                                         href="{{ $certificate->verification_url }}"
                                         target="_blank"
@@ -343,52 +360,103 @@
                                     >
                                         <i class="bi bi-box-arrow-up-right me-2"></i>Open Verification Page
                                     </a>
+
+                                    <form
+                                        method="POST"
+                                        action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
+                                        class="d-inline"
+                                    >
+                                        @csrf
+
+                                        <button type="submit" class="btn btn-outline-primary btn-modern">
+                                            <i class="bi bi-arrow-repeat me-2"></i>Regenerate QR & PDF
+                                        </button>
+                                    </form>
                                 </div>
                             @else
                                 <div class="alert alert-warning mb-0">
-                                    Verification URL belum tersedia.
+                                    Verification URL belum tersedia. Generate QR terlebih dahulu agar public verification bisa digunakan.
                                 </div>
                             @endif
 
                             <div class="verification-token mt-3">
                                 <div class="verification-label">Public Token</div>
-                                <code>{{ $certificate->public_token }}</code>
+                                <code>{{ $certificate->public_token ?: '-' }}</code>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            @if($certificate->image_path)
-                <div class="content-card mb-4">
-                    <div class="content-card-header">
-                        <div>
-                            <h5 class="content-card-title mb-1">Certificate Image Preview</h5>
-                            <p class="content-card-subtitle mb-0">
-                                Preview hasil generate certificate image.
-                            </p>
-                        </div>
+            <div class="content-card mb-4">
+                <div class="content-card-header">
+                    <div>
+                        <h5 class="content-card-title mb-1">Certificate PDF</h5>
+                        <p class="content-card-subtitle mb-0">
+                            Output resmi certificate dalam format PDF.
+                        </p>
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                        <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                            @csrf
+
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-file-earmark-pdf me-1"></i>
+                                {{ $certificate->pdf_path ? 'Regenerate PDF' : 'Generate PDF' }}
+                            </button>
+                        </form>
 
                         <a
-                            href="{{ route('academic.certificates.download-image', $certificate) }}"
+                            href="{{ route('academic.certificates.download-pdf', $certificate) }}"
                             class="btn btn-primary btn-sm"
                         >
                             <i class="bi bi-download me-1"></i>
-                            Download Image
+                            Download PDF
                         </a>
                     </div>
+                </div>
 
-                    <div class="content-card-body">
-                        <div class="certificate-image-preview-wrap">
-                            <img
-                                src="{{ $imageUrl }}"
-                                alt="Certificate Image"
-                                class="certificate-image-preview"
-                            >
+                <div class="content-card-body">
+                    @if($pdfPreviewUrl)
+                        <div class="ratio ratio-16x9 rounded-3 overflow-hidden border bg-light">
+                            <iframe
+                                src="{{ $pdfPreviewUrl }}"
+                                title="Certificate PDF Preview"
+                                class="border-0"
+                            ></iframe>
+                        </div>
+                    @else
+                        <div class="empty-state py-5 text-center">
+                            <div class="empty-state-icon mb-3">
+                                <i class="bi bi-file-earmark-pdf"></i>
+                            </div>
+                            <h5 class="mb-2">PDF belum digenerate</h5>
+                            <p class="text-muted mb-3">
+                                Generate certificate PDF supaya file resmi bisa dipreview dan didownload.
+                            </p>
+
+                            <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                                @csrf
+
+                                <button type="submit" class="btn btn-primary btn-modern">
+                                    <i class="bi bi-file-earmark-pdf me-2"></i>Generate PDF
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+
+                    <div class="alert alert-light border mt-3 mb-0">
+                        <div class="d-flex gap-2 align-items-start">
+                            <i class="bi bi-info-circle text-primary mt-1"></i>
+                            <div>
+                                <strong>Catatan:</strong>
+                                tombol Download PDF akan otomatis membuat ulang file PDF kalau file belum tersedia atau perlu diperbarui dari data certificate terbaru.
+                            </div>
                         </div>
                     </div>
                 </div>
-            @endif
+            </div>
 
             <div class="content-card">
                 <div class="content-card-header">
@@ -404,37 +472,33 @@
                     <div class="certificate-action-grid">
                         <div class="certificate-action-card">
                             <div class="certificate-action-icon">
-                                <i class="bi bi-image"></i>
+                                <i class="bi bi-file-earmark-pdf"></i>
                             </div>
 
                             <div>
-                                <div class="certificate-action-title">Certificate Image</div>
+                                <div class="certificate-action-title">Certificate PDF</div>
                                 <div class="certificate-action-text">
-                                    Generate final certificate dalam format PNG dari background template.
+                                    Generate atau download certificate resmi dalam format PDF.
                                 </div>
 
-                                <form
-                                    method="POST"
-                                    action="{{ route('academic.certificates.generate-image', $certificate) }}"
-                                    class="mt-2"
-                                >
-                                    @csrf
+                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                    <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                                        @csrf
 
-                                    <button type="submit" class="btn btn-outline-primary btn-sm">
-                                        <i class="bi bi-magic me-1"></i>
-                                        {{ $certificate->image_path ? 'Regenerate Image' : 'Generate Image' }}
-                                    </button>
-                                </form>
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-file-earmark-pdf me-1"></i>
+                                            {{ $certificate->pdf_path ? 'Regenerate PDF' : 'Generate PDF' }}
+                                        </button>
+                                    </form>
 
-                                @if($certificate->image_path)
                                     <a
-                                        href="{{ route('academic.certificates.download-image', $certificate) }}"
-                                        class="btn btn-primary btn-sm mt-2"
+                                        href="{{ route('academic.certificates.download-pdf', $certificate) }}"
+                                        class="btn btn-primary btn-sm"
                                     >
                                         <i class="bi bi-download me-1"></i>
-                                        Download Image
+                                        Download PDF
                                     </a>
-                                @endif
+                                </div>
                             </div>
                         </div>
 
@@ -444,9 +508,9 @@
                             </div>
 
                             <div>
-                                <div class="certificate-action-title">QR Code</div>
+                                <div class="certificate-action-title">QR Code & Verification</div>
                                 <div class="certificate-action-text">
-                                    QR code diarahkan ke public verification URL certificate.
+                                    QR code diarahkan ke public verification URL certificate. Regenerate QR juga akan memperbarui PDF.
                                 </div>
 
                                 <form
@@ -458,11 +522,35 @@
 
                                     <button type="submit" class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-arrow-repeat me-1"></i>
-                                        {{ $certificate->qr_code_path ? 'Regenerate QR' : 'Generate QR' }}
+                                        {{ $certificate->qr_code_path ? 'Regenerate QR & PDF' : 'Generate QR & PDF' }}
                                     </button>
                                 </form>
                             </div>
                         </div>
+
+                        @if($certificate->verification_url)
+                            <div class="certificate-action-card">
+                                <div class="certificate-action-icon">
+                                    <i class="bi bi-shield-check"></i>
+                                </div>
+
+                                <div>
+                                    <div class="certificate-action-title">Public Verification</div>
+                                    <div class="certificate-action-text">
+                                        Buka halaman validasi publik untuk memastikan certificate bisa diverifikasi dari QR.
+                                    </div>
+
+                                    <a
+                                        href="{{ $certificate->verification_url }}"
+                                        target="_blank"
+                                        class="btn btn-outline-primary btn-sm mt-2"
+                                    >
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>
+                                        Open Verification
+                                    </a>
+                                </div>
+                            </div>
+                        @endif
 
                         @if($certificate->status === 'issued')
                             <div class="certificate-action-card is-danger">
@@ -550,18 +638,51 @@ document.addEventListener('DOMContentLoaded', function () {
     const copyBtn = document.getElementById('copyVerificationUrlBtn');
     const textEl = document.getElementById('verificationUrlText');
 
+    function showCopyFallback(message) {
+        if (window.bootstrap) {
+            const toastContainer = document.querySelector('.toast-container');
+
+            if (toastContainer) {
+                const toastEl = document.createElement('div');
+                toastEl.className = 'toast align-items-center text-bg-danger border-0';
+                toastEl.setAttribute('role', 'alert');
+                toastEl.setAttribute('aria-live', 'assertive');
+                toastEl.setAttribute('aria-atomic', 'true');
+                toastEl.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                `;
+                toastContainer.appendChild(toastEl);
+                const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+                toast.show();
+                toastEl.addEventListener('hidden.bs.toast', function () {
+                    toastEl.remove();
+                });
+                return;
+            }
+        }
+
+        console.warn(message);
+    }
+
     if (copyBtn && textEl) {
         copyBtn.addEventListener('click', async function () {
+            const originalHtml = copyBtn.innerHTML;
+
             try {
                 await navigator.clipboard.writeText(textEl.textContent.trim());
 
                 copyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied';
+                copyBtn.disabled = true;
 
                 setTimeout(function () {
-                    copyBtn.innerHTML = '<i class="bi bi-copy me-1"></i>Copy';
+                    copyBtn.innerHTML = originalHtml;
+                    copyBtn.disabled = false;
                 }, 1600);
             } catch (error) {
-                alert('Gagal copy verification URL.');
+                showCopyFallback('Gagal copy verification URL.');
             }
         });
     }
