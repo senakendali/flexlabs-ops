@@ -62,7 +62,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
-
+use App\Http\Controllers\Academic\AcademicDashboardController;
 
 
 
@@ -128,6 +128,14 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic Dashboard
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
+        ->name('academic.dashboard');
 
     /*
     |--------------------------------------------------------------------------

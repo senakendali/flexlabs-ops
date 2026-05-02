@@ -293,6 +293,12 @@
                                 <div class="dropdown-menu dropdown-menu-academic dropdown-menu-mega">
                                     <div class="academic-mega-menu">
                                         <aside class="academic-mega-hero">
+                                            @php
+                                                $academicDashboardRoute = 'academic.dashboard';
+                                                $academicDashboardRouteExists = Route::has($academicDashboardRoute);
+                                                $academicDashboardActive = request()->routeIs('academic.dashboard*');
+                                            @endphp
+
                                             <div class="academic-mega-hero-icon">
                                                 <i class="bi bi-mortarboard-fill"></i>
                                             </div>
@@ -301,11 +307,28 @@
                                                 <div class="academic-mega-kicker">Academic Center</div>
                                                 <h3>Learning Operations</h3>
                                                 <p>
-                                                   Centralized access to academic operations, learning management, assessment, and student development workflows.
+                                                    Centralized access to academic operations, learning management, assessment, and student development workflows.
                                                 </p>
                                             </div>
 
-                                            
+                                            <div class="academic-mega-hero-shortcut">
+                                                <a
+                                                    href="{{ $academicDashboardRouteExists ? route($academicDashboardRoute) : 'javascript:void(0)' }}"
+                                                    class="academic-dashboard-shortcut {{ $academicDashboardActive ? 'active' : '' }} {{ $academicDashboardRouteExists ? '' : 'disabled' }}"
+                                                    @if(! $academicDashboardRouteExists) aria-disabled="true" tabindex="-1" @endif
+                                                >
+                                                    <span class="academic-dashboard-shortcut-icon">
+                                                        <i class="bi bi-speedometer2"></i>
+                                                    </span>
+
+                                                    <span class="academic-dashboard-shortcut-body">
+                                                        <span class="academic-dashboard-shortcut-title">Academic Dashboard</span>
+                                                        <span class="academic-dashboard-shortcut-desc">
+                                                            Monitor batch capacity, instructor activity, learning progress, and academic readiness.
+                                                        </span>
+                                                    </span>
+                                                </a>
+                                            </div>
                                         </aside>
 
                                         <div class="academic-mega-content">
