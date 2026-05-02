@@ -8,10 +8,15 @@ use App\Models\Instructor;
 use App\Models\InstructorSchedule;
 use App\Models\Program;
 use App\Models\SubTopic;
+use App\Models\Topic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class InstructorScheduleController extends Controller
@@ -20,7 +25,7 @@ class InstructorScheduleController extends Controller
     {
         $perPage = (int) $request->input('per_page', 10);
 
-        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
             $perPage = 10;
         }
 
@@ -39,11 +44,14 @@ class InstructorScheduleController extends Controller
             ->with([
                 'instructor:id,name',
                 'replacementInstructor:id,name',
-                'batch:id,name',
+                'batch:id,name,program_id',
+                'batch.program:id,name',
                 'program:id,name',
-                'subTopic:id,name',
+                'subTopic:id,name,topic_id',
+                'subTopics:id,name,topic_id,lesson_type',
                 'rescheduledFrom:id,session_title,schedule_date,start_time,end_time',
             ])
+            ->withCount('subTopics as scheduled_materials_count')
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
                     $subQuery->where('session_title', 'like', '%' . $search . '%')
@@ -71,7 +79,7 @@ class InstructorScheduleController extends Controller
         return view('academic.instructor-schedules.index', [
             'schedules' => $schedules,
             'instructors' => Instructor::query()->orderBy('name')->get(['id', 'name']),
-            'batches' => Batch::query()->orderBy('name')->get(['id', 'name']),
+            'batches' => $this->batchOptions(),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
@@ -93,17 +101,28 @@ class InstructorScheduleController extends Controller
 
     public function create(): View
     {
+        $schedule = new InstructorSchedule([
+            'status' => 'scheduled',
+            'delivery_mode' => 'online',
+            'is_makeup_session' => false,
+        ]);
+
+        $programId = old('program_id');
+        $programId = $programId ? (int) $programId : null;
+
+        $materialTopics = $this->getMaterialTopics($programId);
+        $selectedSubTopicIds = $this->normalizeSubTopicIds(old('sub_topic_ids', []));
+
         return view('academic.instructor-schedules.form', [
-            'schedule' => new InstructorSchedule([
-                'status' => 'scheduled',
-                'delivery_mode' => 'online',
-                'is_makeup_session' => false,
-            ]),
+            'schedule' => $schedule,
             'instructors' => Instructor::query()->orderBy('name')->get(['id', 'name']),
             'replacementInstructors' => Instructor::query()->orderBy('name')->get(['id', 'name']),
-            'batches' => Batch::query()->orderBy('name')->get(['id', 'name', 'program_id']),
+            'batches' => $this->batchOptions(),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name']),
-            'subTopics' => SubTopic::query()->orderBy('name')->get(['id', 'name']),
+            'subTopics' => $this->getLiveSessionSubTopics($programId),
+            'materialTopics' => $materialTopics,
+            'materialTopicsPayload' => $this->materialTopicsPayload($materialTopics),
+            'selectedSubTopicIds' => $selectedSubTopicIds,
             'reschedulableSchedules' => $this->getReschedulableSchedules(),
             'statusOptions' => $this->statusOptions(),
             'deliveryModeOptions' => $this->deliveryModeOptions(),
@@ -117,9 +136,25 @@ class InstructorScheduleController extends Controller
 
         $this->ensureNoConflict($validated);
 
-        $schedule = new InstructorSchedule();
-        $schedule->fill($this->buildPayload($validated));
-        $schedule->save();
+        $scheduledSubTopicIds = $this->validateScheduledMaterials(
+            $this->extractScheduledSubTopicIdsFromRequest($request),
+            $this->resolveProgramIdFromPayload($validated)
+        );
+
+        $this->ensureScheduledMaterialsSelected($scheduledSubTopicIds);
+
+        $payload = $this->buildPayload($validated);
+        $payload['sub_topic_id'] = $scheduledSubTopicIds->first();
+
+        $schedule = null;
+
+        DB::transaction(function () use (&$schedule, $payload, $scheduledSubTopicIds) {
+            $schedule = new InstructorSchedule();
+            $schedule->fill($payload);
+            $schedule->save();
+
+            $this->syncScheduledMaterials($schedule, $scheduledSubTopicIds->toArray());
+        });
 
         return $this->successResponse(
             $request,
@@ -134,11 +169,12 @@ class InstructorScheduleController extends Controller
         $instructorSchedule->load([
             'instructor',
             'replacementInstructor',
-            'batch',
+            'batch.program',
             'program',
-            'subTopic',
+            'subTopic.topic',
+            'subTopics.topic.module.stage',
             'rescheduledFrom.instructor',
-            'rescheduledFrom.batch',
+            'rescheduledFrom.batch.program',
         ]);
 
         return view('academic.instructor-schedules.show', [
@@ -151,19 +187,32 @@ class InstructorScheduleController extends Controller
         $instructorSchedule->load([
             'instructor',
             'replacementInstructor',
-            'batch',
+            'batch.program',
             'program',
-            'subTopic',
+            'subTopic.topic',
+            'subTopics.topic.module.stage',
             'rescheduledFrom',
         ]);
+
+        $programId = old('program_id')
+            ?: $instructorSchedule->program_id
+            ?: data_get($instructorSchedule, 'batch.program_id');
+
+        $programId = $programId ? (int) $programId : null;
+
+        $materialTopics = $this->getMaterialTopics($programId);
+        $selectedSubTopicIds = $this->getSelectedSubTopicIds($instructorSchedule);
 
         return view('academic.instructor-schedules.form', [
             'schedule' => $instructorSchedule,
             'instructors' => Instructor::query()->orderBy('name')->get(['id', 'name']),
             'replacementInstructors' => Instructor::query()->orderBy('name')->get(['id', 'name']),
-            'batches' => Batch::query()->orderBy('name')->get(['id', 'name', 'program_id']),
+            'batches' => $this->batchOptions(),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name']),
-            'subTopics' => SubTopic::query()->orderBy('name')->get(['id', 'name']),
+            'subTopics' => $this->getLiveSessionSubTopics($programId),
+            'materialTopics' => $materialTopics,
+            'materialTopicsPayload' => $this->materialTopicsPayload($materialTopics),
+            'selectedSubTopicIds' => $selectedSubTopicIds,
             'reschedulableSchedules' => $this->getReschedulableSchedules($instructorSchedule->id),
             'statusOptions' => $this->statusOptions(),
             'deliveryModeOptions' => $this->deliveryModeOptions(),
@@ -177,7 +226,21 @@ class InstructorScheduleController extends Controller
 
         $this->ensureNoConflict($validated, $instructorSchedule->id);
 
-        $instructorSchedule->update($this->buildPayload($validated));
+        $scheduledSubTopicIds = $this->validateScheduledMaterials(
+            $this->extractScheduledSubTopicIdsFromRequest($request),
+            $this->resolveProgramIdFromPayload($validated, $instructorSchedule)
+        );
+
+        $this->ensureScheduledMaterialsSelected($scheduledSubTopicIds);
+
+        $payload = $this->buildPayload($validated);
+        $payload['sub_topic_id'] = $scheduledSubTopicIds->first();
+
+        DB::transaction(function () use ($instructorSchedule, $payload, $scheduledSubTopicIds) {
+            $instructorSchedule->update($payload);
+
+            $this->syncScheduledMaterials($instructorSchedule, $scheduledSubTopicIds->toArray());
+        });
 
         return $this->successResponse(
             $request,
@@ -187,7 +250,7 @@ class InstructorScheduleController extends Controller
         );
     }
 
-   public function destroy(Request $request, InstructorSchedule $instructorSchedule): JsonResponse|RedirectResponse
+    public function destroy(Request $request, InstructorSchedule $instructorSchedule): JsonResponse|RedirectResponse
     {
         $instructorSchedule->delete();
 
@@ -196,6 +259,23 @@ class InstructorScheduleController extends Controller
             'Jadwal instruktur berhasil dihapus.',
             route('instructor-schedules.index')
         );
+    }
+
+    public function materialTopics(Request $request): JsonResponse
+    {
+        $programId = $request->integer('program_id') ?: null;
+
+        $topics = $this->materialTopicsPayload(
+            $this->getMaterialTopics($programId)
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => count($topics) > 0
+                ? 'Topic live session berhasil dimuat.'
+                : 'Belum ada topic live session untuk program ini.',
+            'topics' => $topics,
+        ]);
     }
 
     protected function validateRequest(Request $request, ?int $ignoreId = null): array
@@ -218,19 +298,17 @@ class InstructorScheduleController extends Controller
             'batch_id' => ['required', 'exists:batches,id'],
             'program_id' => ['nullable', 'exists:programs,id'],
             'sub_topic_id' => ['nullable', 'exists:sub_topics,id'],
+            'sub_topic_ids' => ['nullable', 'array'],
+            'sub_topic_ids.*' => ['integer', 'exists:sub_topics,id'],
             'rescheduled_from_id' => ['nullable', 'exists:instructor_schedules,id'],
-
             'session_title' => ['required', 'string', 'max:255'],
             'schedule_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
-
             'delivery_mode' => ['required', Rule::in(array_keys($this->deliveryModeOptions()))],
             'meeting_link' => ['nullable', 'url', 'max:255'],
             'location' => ['nullable', 'string', 'max:255'],
-
             'is_makeup_session' => ['nullable', 'boolean'],
-
             'status' => ['required', Rule::in(array_keys($this->statusOptions()))],
             'notes' => ['nullable', 'string'],
         ]);
@@ -239,13 +317,14 @@ class InstructorScheduleController extends Controller
         $validated['start_time'] = $this->normalizeTimeInput($validated['start_time']) ?? $validated['start_time'];
         $validated['end_time'] = $this->normalizeTimeInput($validated['end_time']) ?? $validated['end_time'];
 
-        if ($ignoreId && !empty($validated['rescheduled_from_id']) && (int) $validated['rescheduled_from_id'] === $ignoreId) {
-            abort(response()->json([
-                'message' => 'Validasi gagal.',
-                'errors' => [
-                    'rescheduled_from_id' => ['Sesi asal reschedule tidak boleh memilih jadwal yang sama.'],
-                ],
-            ], 422));
+        if (
+            $ignoreId
+            && ! empty($validated['rescheduled_from_id'])
+            && (int) $validated['rescheduled_from_id'] === $ignoreId
+        ) {
+            throw ValidationException::withMessages([
+                'rescheduled_from_id' => 'Sesi asal reschedule tidak boleh memilih jadwal yang sama.',
+            ]);
         }
 
         return $validated;
@@ -267,22 +346,16 @@ class InstructorScheduleController extends Controller
             return substr($value, 0, 5);
         }
 
-        try {
-            return \Illuminate\Support\Carbon::parse($value)->format('H:i');
-        } catch (\Throwable $th) {
-            return null;
-        }
+        return null;
     }
 
     protected function buildPayload(array $validated): array
     {
-        $batch = Batch::query()->find($validated['batch_id']);
-
         return [
             'instructor_id' => $validated['instructor_id'],
             'replacement_instructor_id' => $validated['replacement_instructor_id'] ?? null,
             'batch_id' => $validated['batch_id'],
-            'program_id' => $validated['program_id'] ?? $batch?->program_id,
+            'program_id' => $validated['program_id'] ?? null,
             'sub_topic_id' => $validated['sub_topic_id'] ?? null,
             'rescheduled_from_id' => $validated['rescheduled_from_id'] ?? null,
             'session_title' => $validated['session_title'],
@@ -300,133 +373,347 @@ class InstructorScheduleController extends Controller
 
     protected function ensureNoConflict(array $validated, ?int $ignoreId = null): void
     {
-        $this->ensureTeachingInstructorConflictFree($validated, $ignoreId);
-        $this->ensureBatchConflictFree($validated, $ignoreId);
-    }
+        $teachingInstructorId = $validated['replacement_instructor_id'] ?? $validated['instructor_id'];
 
-    /**
-     * Cek bentrok untuk instruktur yang benar-benar mengajar.
-     * Kalau ada replacement instructor, yang dicek replacement-nya.
-     * Kalau tidak ada, yang dicek instructor utama.
-     */
-    protected function ensureTeachingInstructorConflictFree(array $validated, ?int $ignoreId = null): void
-    {
-        $teachingInstructorId = !empty($validated['replacement_instructor_id'])
-            ? (int) $validated['replacement_instructor_id']
-            : (int) $validated['instructor_id'];
+        if (! $teachingInstructorId) {
+            return;
+        }
 
         $query = InstructorSchedule::query()
             ->whereDate('schedule_date', $validated['schedule_date'])
-            ->whereNotIn('status', ['cancelled'])
-            ->where(function ($mainQuery) use ($teachingInstructorId) {
-                $mainQuery
-                    ->where('instructor_id', $teachingInstructorId)
+            ->where(function ($query) use ($teachingInstructorId) {
+                $query->where('instructor_id', $teachingInstructorId)
                     ->orWhere('replacement_instructor_id', $teachingInstructorId);
             })
-            ->where(function ($subQuery) use ($validated) {
-                $subQuery
-                    ->where('start_time', '<', $validated['end_time'])
+            ->where(function ($query) use ($validated) {
+                $query->where('start_time', '<', $validated['end_time'])
                     ->where('end_time', '>', $validated['start_time']);
-            });
+            })
+            ->whereNotIn('status', ['cancelled', 'canceled']);
 
         if ($ignoreId) {
-            $query->where('id', '!=', $ignoreId);
+            $query->whereKeyNot($ignoreId);
         }
 
         if ($query->exists()) {
-            $field = !empty($validated['replacement_instructor_id'])
-                ? 'replacement_instructor_id'
-                : 'instructor_id';
-
-            $message = !empty($validated['replacement_instructor_id'])
-                ? 'Instruktur pengganti sudah memiliki jadwal lain pada waktu tersebut.'
-                : 'Instruktur sudah memiliki jadwal lain pada waktu tersebut.';
-
-            abort(response()->json([
-                'message' => 'Validasi gagal.',
-                'errors' => [
-                    $field => [$message],
-                ],
-            ], 422));
+            throw ValidationException::withMessages([
+                'start_time' => 'Instruktur sudah memiliki jadwal lain pada rentang waktu tersebut.',
+                'end_time' => 'Instruktur sudah memiliki jadwal lain pada rentang waktu tersebut.',
+            ]);
         }
     }
 
-    protected function ensureBatchConflictFree(array $validated, ?int $ignoreId = null): void
+    protected function batchOptions()
     {
-        $query = InstructorSchedule::query()
-            ->where('batch_id', $validated['batch_id'])
-            ->whereDate('schedule_date', $validated['schedule_date'])
-            ->whereNotIn('status', ['cancelled'])
-            ->where(function ($subQuery) use ($validated) {
-                $subQuery
-                    ->where('start_time', '<', $validated['end_time'])
-                    ->where('end_time', '>', $validated['start_time']);
-            });
-
-        if ($ignoreId) {
-            $query->where('id', '!=', $ignoreId);
-        }
-
-        if ($query->exists()) {
-            abort(response()->json([
-                'message' => 'Validasi gagal.',
-                'errors' => [
-                    'batch_id' => ['Batch sudah memiliki jadwal lain pada waktu tersebut.'],
-                ],
-            ], 422));
-        }
+        return Batch::query()
+            ->with('program:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'program_id']);
     }
 
-    protected function getReschedulableSchedules(?int $ignoreId = null)
+    protected function getReschedulableSchedules(?int $excludeId = null)
     {
         return InstructorSchedule::query()
             ->with([
                 'instructor:id,name',
                 'replacementInstructor:id,name',
-                'batch:id,name',
+                'batch:id,name,program_id',
+                'batch.program:id,name',
             ])
-            ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
+            ->when($excludeId, fn ($query) => $query->whereKeyNot($excludeId))
+            ->whereNotIn('status', ['cancelled', 'canceled'])
             ->orderByDesc('schedule_date')
             ->orderByDesc('start_time')
+            ->limit(80)
             ->get([
                 'id',
+                'instructor_id',
+                'replacement_instructor_id',
+                'batch_id',
                 'session_title',
                 'schedule_date',
                 'start_time',
                 'end_time',
-                'instructor_id',
-                'replacement_instructor_id',
-                'batch_id',
             ]);
     }
 
-    protected function successResponse(
-        Request $request,
-        string $message,
-        string $redirect,
-        ?InstructorSchedule $schedule = null
-    ): JsonResponse|RedirectResponse {
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'redirect' => $redirect,
-                'data' => $schedule ? [
-                    'id' => $schedule->id,
-                    'session_title' => $schedule->session_title,
-                    'schedule_date' => $schedule->schedule_date,
-                    'status' => $schedule->status,
-                ] : null,
+    private function getMaterialTopics(?int $programId = null)
+    {
+        $liveTypes = $this->liveSessionLessonTypes();
+
+        return Topic::query()
+            ->with([
+                'module.stage',
+                'subTopics' => function ($query) use ($liveTypes) {
+                    $query
+                        ->whereIn('lesson_type', $liveTypes)
+                        ->when(Schema::hasColumn('sub_topics', 'is_active'), function ($q) {
+                            $q->where('is_active', true);
+                        })
+                        ->when(Schema::hasColumn('sub_topics', 'sort_order'), function ($q) {
+                            $q->orderBy('sort_order');
+                        })
+                        ->orderBy('id');
+                },
+            ])
+            ->whereHas('subTopics', function ($query) use ($liveTypes) {
+                $query
+                    ->whereIn('lesson_type', $liveTypes)
+                    ->when(Schema::hasColumn('sub_topics', 'is_active'), function ($q) {
+                        $q->where('is_active', true);
+                    });
+            })
+            ->when($programId, function ($query) use ($programId) {
+                $query->where(function ($programQuery) use ($programId) {
+                    $programQuery->whereHas('module.stage', function ($stageQuery) use ($programId) {
+                        $stageQuery->where('program_id', $programId);
+                    });
+
+                    if (Schema::hasColumn('modules', 'program_id')) {
+                        $programQuery->orWhereHas('module', function ($moduleQuery) use ($programId) {
+                            $moduleQuery->where('program_id', $programId);
+                        });
+                    }
+                });
+            })
+            ->when(Schema::hasColumn('topics', 'sort_order'), function ($query) {
+                $query->orderBy('sort_order');
+            })
+            ->orderBy('id')
+            ->get()
+            ->filter(fn ($topic) => $topic->subTopics->isNotEmpty())
+            ->values();
+    }
+
+    private function materialTopicsPayload($topics): array
+    {
+        return collect($topics)
+            ->map(function ($topic) {
+                return [
+                    'id' => (string) $topic->id,
+                    'name' => $topic->name,
+                    'module' => data_get($topic, 'module.name'),
+                    'stage' => data_get($topic, 'module.stage.name'),
+                    'program_id' => (string) (
+                        data_get($topic, 'module.stage.program_id')
+                        ?? data_get($topic, 'program_id')
+                        ?? ''
+                    ),
+                    'sub_topics' => collect($topic->subTopics)
+                        ->map(function ($subTopic) {
+                            return [
+                                'id' => (string) $subTopic->id,
+                                'name' => $subTopic->name,
+                                'description' => $subTopic->description ?? null,
+                                'lesson_type' => $subTopic->lesson_type ?? null,
+                                'sort_order' => (int) ($subTopic->sort_order ?? 0),
+                            ];
+                        })
+                        ->values()
+                        ->toArray(),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function getLiveSessionSubTopics(?int $programId = null)
+    {
+        $liveTypes = $this->liveSessionLessonTypes();
+
+        return SubTopic::query()
+            ->with('topic.module.stage')
+            ->whereIn('lesson_type', $liveTypes)
+            ->when(Schema::hasColumn('sub_topics', 'is_active'), function ($query) {
+                $query->where('is_active', true);
+            })
+            ->when($programId, function ($query) use ($programId) {
+                $query->whereHas('topic', function ($topicQuery) use ($programId) {
+                    $topicQuery->where(function ($programQuery) use ($programId) {
+                        $programQuery->whereHas('module.stage', function ($stageQuery) use ($programId) {
+                            $stageQuery->where('program_id', $programId);
+                        });
+
+                        if (Schema::hasColumn('modules', 'program_id')) {
+                            $programQuery->orWhereHas('module', function ($moduleQuery) use ($programId) {
+                                $moduleQuery->where('program_id', $programId);
+                            });
+                        }
+                    });
+                });
+            })
+            ->when(Schema::hasColumn('sub_topics', 'sort_order'), function ($query) {
+                $query->orderBy('sort_order');
+            })
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function validateScheduledMaterials(array $subTopicIds, ?int $programId = null): Collection
+    {
+        $subTopicIds = $this->normalizeSubTopicIds($subTopicIds);
+
+        if ($subTopicIds->isEmpty()) {
+            return collect();
+        }
+
+        $liveTypes = $this->liveSessionLessonTypes();
+
+        $validSubTopicIds = SubTopic::query()
+            ->whereIn('id', $subTopicIds)
+            ->whereIn('lesson_type', $liveTypes)
+            ->when(Schema::hasColumn('sub_topics', 'is_active'), function ($query) {
+                $query->where('is_active', true);
+            })
+            ->when($programId, function ($query) use ($programId) {
+                $query->whereHas('topic', function ($topicQuery) use ($programId) {
+                    $topicQuery->where(function ($programQuery) use ($programId) {
+                        $programQuery->whereHas('module.stage', function ($stageQuery) use ($programId) {
+                            $stageQuery->where('program_id', $programId);
+                        });
+
+                        if (Schema::hasColumn('modules', 'program_id')) {
+                            $programQuery->orWhereHas('module', function ($moduleQuery) use ($programId) {
+                                $moduleQuery->where('program_id', $programId);
+                            });
+                        }
+                    });
+                });
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $invalidIds = $subTopicIds->diff($validSubTopicIds);
+
+        if ($invalidIds->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'sub_topic_ids' => 'Materi yang dipilih tidak valid atau bukan live session.',
             ]);
         }
 
-        return redirect($redirect)->with('success', $message);
+        return $subTopicIds;
+    }
+
+    private function ensureScheduledMaterialsSelected(Collection $scheduledSubTopicIds): void
+    {
+        if ($scheduledSubTopicIds->isNotEmpty()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'sub_topic_ids' => 'Pilih minimal satu sub topic live session untuk jadwal ini.',
+        ]);
+    }
+
+    private function extractScheduledSubTopicIdsFromRequest(Request $request): array
+    {
+        $ids = $request->input('sub_topic_ids', []);
+
+        if (empty($ids)) {
+            $ids = $request->input('sub_topic_ids[]', []);
+        }
+
+        if (! is_array($ids)) {
+            $ids = [$ids];
+        }
+
+        if (empty($ids) && $request->filled('sub_topic_id')) {
+            $ids = [$request->input('sub_topic_id')];
+        }
+
+        return $this->normalizeSubTopicIds($ids)->toArray();
+    }
+
+    private function syncScheduledMaterials(InstructorSchedule $schedule, array $subTopicIds): void
+    {
+        $syncData = $this->normalizeSubTopicIds($subTopicIds)
+            ->mapWithKeys(function ($subTopicId, $index) {
+                return [
+                    $subTopicId => [
+                        'sort_order' => $index + 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ];
+            })
+            ->toArray();
+
+        $schedule->subTopics()->sync($syncData);
+    }
+
+    private function getSelectedSubTopicIds(?InstructorSchedule $schedule = null): Collection
+    {
+        if (request()->old('sub_topic_ids') !== null) {
+            return $this->normalizeSubTopicIds(request()->old('sub_topic_ids', []));
+        }
+
+        if (! $schedule || ! $schedule->exists) {
+            return collect();
+        }
+
+        return $schedule->subTopics()
+            ->pluck('sub_topics.id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+    }
+
+    private function normalizeSubTopicIds(array $subTopicIds): Collection
+    {
+        return collect($subTopicIds)
+            ->flatten()
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+    }
+
+    private function resolveProgramIdFromPayload(array $validated, ?InstructorSchedule $schedule = null): ?int
+    {
+        if (! empty($validated['program_id'])) {
+            return (int) $validated['program_id'];
+        }
+
+        if (! empty($validated['batch_id'])) {
+            $batchProgramId = Batch::query()
+                ->whereKey($validated['batch_id'])
+                ->value('program_id');
+
+            return $batchProgramId ? (int) $batchProgramId : null;
+        }
+
+        if ($schedule?->program_id) {
+            return (int) $schedule->program_id;
+        }
+
+        if ($schedule?->batch_id) {
+            $batchProgramId = Batch::query()
+                ->whereKey($schedule->batch_id)
+                ->value('program_id');
+
+            return $batchProgramId ? (int) $batchProgramId : null;
+        }
+
+        return null;
+    }
+
+    private function liveSessionLessonTypes(): array
+    {
+        return [
+            'live_session',
+            'live',
+            'Live Session',
+            'live-session',
+        ];
     }
 
     protected function statusOptions(): array
     {
         return [
+            'draft' => 'Draft',
             'scheduled' => 'Scheduled',
+            'ongoing' => 'Ongoing',
             'completed' => 'Completed',
             'cancelled' => 'Cancelled',
             'rescheduled' => 'Rescheduled',
@@ -440,5 +727,24 @@ class InstructorScheduleController extends Controller
             'offline' => 'Offline',
             'hybrid' => 'Hybrid',
         ];
+    }
+
+    protected function successResponse(
+        Request $request,
+        string $message,
+        string $redirectUrl,
+        ?InstructorSchedule $schedule = null
+    ): JsonResponse|RedirectResponse {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'redirect' => $redirectUrl,
+                'redirect_url' => $redirectUrl,
+                'schedule' => $schedule,
+            ]);
+        }
+
+        return redirect($redirectUrl)->with('success', $message);
     }
 }

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 class InstructorSchedule extends Model
@@ -158,5 +160,23 @@ class InstructorSchedule extends Model
     public function studentAttendances(): HasMany
     {
         return $this->hasMany(StudentAttendance::class);
+    }
+
+    public function subTopics(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SubTopic::class,
+            'instructor_schedule_sub_topics',
+            'instructor_schedule_id',
+            'sub_topic_id'
+        )
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderBy('instructor_schedule_sub_topics.sort_order');
+    }
+
+    public function tracking(): HasOne
+    {
+        return $this->hasOne(InstructorSessionTracking::class);
     }
 }

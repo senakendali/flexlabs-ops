@@ -24,7 +24,7 @@
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('instructor-schedules.create') }}" class="btn btn-primary">
+                <a href="{{ route('instructor-schedules.create') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-plus-circle me-1"></i> Add Schedule
                 </a>
             </div>
