@@ -16,11 +16,11 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.report-cards.index') }}" class="btn btn-outline-primary btn-modern">
+                <a href="{{ route('academic.report-cards.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-file-earmark-text me-2"></i>Report Cards
                 </a>
 
-                <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-outline-secondary btn-modern">
+                <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-pencil-square me-2"></i>Assessment Scores
                 </a>
             </div>
@@ -160,18 +160,18 @@
 
         <div class="content-card-body">
             @if($certificates->count())
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle admin-table">
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
                         <thead>
                             <tr>
                                 <th>Certificate No</th>
                                 <th>Student</th>
                                 <th>Program / Batch</th>
-                                <th>Type</th>
+                                <th class="text-nowrap">Type</th>
                                 <th class="text-end">Score</th>
-                                <th>Status</th>
-                                <th>Issued Date</th>
-                                <th class="text-end">Action</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-nowrap">Issued Date</th>
+                                <th class="text-end text-nowrap">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -260,26 +260,91 @@
                                         </div>
                                     </td>
 
-                                    <td class="text-end">
-                                        <div class="d-inline-flex gap-2 flex-wrap justify-content-end">
-                                            <a href="{{ route('academic.certificates.show', $certificate) }}"
-                                               class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-eye me-1"></i>Detail
-                                            </a>
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
 
-                                            @if($certificate->status === 'issued')
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-outline-danger btn-sm"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#revokeCertificateModal"
-                                                    data-certificate-id="{{ $certificate->id }}"
-                                                    data-certificate-no="{{ $certificate->certificate_no }}"
-                                                    data-action="{{ route('academic.certificates.revoke', $certificate) }}"
-                                                >
-                                                    <i class="bi bi-x-circle me-1"></i>Revoke
-                                                </button>
-                                            @endif
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <a
+                                                        href="{{ route('academic.certificates.show', $certificate) }}"
+                                                        class="dropdown-item"
+                                                    >
+                                                        <i class="bi bi-eye me-2"></i>Show Detail
+                                                    </a>
+                                                </li>
+
+                                                @if(Route::has('academic.certificates.download-pdf'))
+                                                    <li>
+                                                        <a
+                                                            href="{{ route('academic.certificates.download-pdf', $certificate) }}"
+                                                            class="dropdown-item"
+                                                        >
+                                                            <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+                                                        </a>
+                                                    </li>
+                                                @endif
+
+                                                @if(Route::has('academic.certificates.regenerate-qr'))
+                                                    <li>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
+                                                            class="m-0"
+                                                        >
+                                                            @csrf
+
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="bi bi-arrow-clockwise me-2"></i>Regenerate QR & PDF
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endif
+
+                                                @if(Route::has('academic.certificates.reissue') && in_array($certificate->status, ['revoked', 'expired'], true))
+                                                    <li>
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('academic.certificates.reissue', $certificate) }}"
+                                                            class="m-0"
+                                                        >
+                                                            @csrf
+
+                                                            <button type="submit" class="dropdown-item text-success">
+                                                                <i class="bi bi-patch-check me-2"></i>Reissue Certificate
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endif
+
+                                                @if($certificate->status === 'issued' && Route::has('academic.certificates.revoke'))
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#revokeCertificateModal"
+                                                            data-certificate-id="{{ $certificate->id }}"
+                                                            data-certificate-no="{{ $certificate->certificate_no }}"
+                                                            data-action="{{ route('academic.certificates.revoke', $certificate) }}"
+                                                        >
+                                                            <i class="bi bi-x-circle me-2"></i>Revoke
+                                                        </button>
+                                                    </li>
+                                                @endif
+                                            </ul>
                                         </div>
                                     </td>
                                 </tr>

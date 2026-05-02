@@ -49,6 +49,10 @@
     $pdfPreviewUrl = $hasStreamPdfRoute
         ? route('academic.certificates.stream-pdf', $certificate)
         : $pdfFileUrl;
+
+    $downloadPdfUrl = route('academic.certificates.download-pdf', $certificate);
+    $regenerateQrUrl = route('academic.certificates.regenerate-qr', $certificate);
+    $downloadFilename = \Illuminate\Support\Str::slug($certificate->certificate_no ?: ('certificate-' . $certificate->id)) . '.pdf';
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -74,14 +78,22 @@
                     </a>
                 @endif
 
-                <a href="{{ route('academic.certificates.download-pdf', $certificate) }}" class="btn btn-light btn-modern shadow-sm">
+                <a
+                    href="{{ $downloadPdfUrl }}"
+                    class="btn btn-light btn-modern shadow-sm"
+                    data-certificate-download
+                    data-download-url="{{ $downloadPdfUrl }}"
+                    data-download-filename="{{ $downloadFilename }}"
+                >
                     <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
                 </a>
 
                 <form
                     method="POST"
-                    action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
+                    action="{{ $regenerateQrUrl }}"
                     class="d-inline"
+                    data-certificate-async-form
+                    data-success-message="QR dan certificate PDF berhasil diregenerate."
                 >
                     @csrf
 
@@ -325,7 +337,9 @@
                         <div class="verification-qr-placeholder verification-qr-top">
                             @if($qrUrl)
                                 <img
+                                    id="certificateQrImage"
                                     src="{{ $qrUrl }}"
+                                    data-qr-url="{{ $qrUrl }}"
                                     alt="Certificate QR Code"
                                     class="certificate-qr-image"
                                 >
@@ -363,8 +377,10 @@
 
                                     <form
                                         method="POST"
-                                        action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
+                                        action="{{ $regenerateQrUrl }}"
                                         class="d-inline"
+                                        data-certificate-async-form
+                                        data-success-message="QR dan certificate PDF berhasil diregenerate."
                                     >
                                         @csrf
 
@@ -398,7 +414,13 @@
                     </div>
 
                     <div class="d-flex gap-2 flex-wrap justify-content-end">
-                        <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                        <form
+                            method="POST"
+                            action="{{ $generatePdfUrl }}"
+                            class="d-inline"
+                            data-certificate-async-form
+                            data-success-message="Certificate PDF berhasil digenerate."
+                        >
                             @csrf
 
                             <button type="submit" class="btn btn-outline-primary btn-sm">
@@ -408,8 +430,11 @@
                         </form>
 
                         <a
-                            href="{{ route('academic.certificates.download-pdf', $certificate) }}"
+                            href="{{ $downloadPdfUrl }}"
                             class="btn btn-primary btn-sm"
+                            data-certificate-download
+                            data-download-url="{{ $downloadPdfUrl }}"
+                            data-download-filename="{{ $downloadFilename }}"
                         >
                             <i class="bi bi-download me-1"></i>
                             Download PDF
@@ -421,7 +446,9 @@
                     @if($pdfPreviewUrl)
                         <div class="ratio ratio-16x9 rounded-3 overflow-hidden border bg-light">
                             <iframe
+                                id="certificatePdfPreviewFrame"
                                 src="{{ $pdfPreviewUrl }}"
+                                data-preview-url="{{ $pdfPreviewUrl }}"
                                 title="Certificate PDF Preview"
                                 class="border-0"
                             ></iframe>
@@ -436,7 +463,13 @@
                                 Generate certificate PDF supaya file resmi bisa dipreview dan didownload.
                             </p>
 
-                            <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                            <form
+                                method="POST"
+                                action="{{ $generatePdfUrl }}"
+                                class="d-inline"
+                                data-certificate-async-form
+                                data-success-message="Certificate PDF berhasil digenerate."
+                            >
                                 @csrf
 
                                 <button type="submit" class="btn btn-primary btn-modern">
@@ -482,7 +515,13 @@
                                 </div>
 
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <form method="POST" action="{{ $generatePdfUrl }}" class="d-inline">
+                                    <form
+                                        method="POST"
+                                        action="{{ $generatePdfUrl }}"
+                                        class="d-inline"
+                                        data-certificate-async-form
+                                        data-success-message="Certificate PDF berhasil digenerate."
+                                    >
                                         @csrf
 
                                         <button type="submit" class="btn btn-outline-primary btn-sm">
@@ -492,8 +531,11 @@
                                     </form>
 
                                     <a
-                                        href="{{ route('academic.certificates.download-pdf', $certificate) }}"
+                                        href="{{ $downloadPdfUrl }}"
                                         class="btn btn-primary btn-sm"
+                                        data-certificate-download
+                                        data-download-url="{{ $downloadPdfUrl }}"
+                                        data-download-filename="{{ $downloadFilename }}"
                                     >
                                         <i class="bi bi-download me-1"></i>
                                         Download PDF
@@ -515,8 +557,10 @@
 
                                 <form
                                     method="POST"
-                                    action="{{ route('academic.certificates.regenerate-qr', $certificate) }}"
+                                    action="{{ $regenerateQrUrl }}"
                                     class="mt-2"
+                                    data-certificate-async-form
+                                    data-success-message="QR dan certificate PDF berhasil diregenerate."
                                 >
                                     @csrf
 
@@ -637,35 +681,205 @@
 document.addEventListener('DOMContentLoaded', function () {
     const copyBtn = document.getElementById('copyVerificationUrlBtn');
     const textEl = document.getElementById('verificationUrlText');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 
-    function showCopyFallback(message) {
-        if (window.bootstrap) {
-            const toastContainer = document.querySelector('.toast-container');
+    function ensureToastContainer() {
+        let container = document.querySelector('.toast-container');
 
-            if (toastContainer) {
-                const toastEl = document.createElement('div');
-                toastEl.className = 'toast align-items-center text-bg-danger border-0';
-                toastEl.setAttribute('role', 'alert');
-                toastEl.setAttribute('aria-live', 'assertive');
-                toastEl.setAttribute('aria-atomic', 'true');
-                toastEl.innerHTML = `
-                    <div class="d-flex">
-                        <div class="toast-body">${message}</div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                `;
-                toastContainer.appendChild(toastEl);
-                const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
-                toast.show();
-                toastEl.addEventListener('hidden.bs.toast', function () {
-                    toastEl.remove();
-                });
-                return;
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '1080';
+            document.body.appendChild(container);
+        }
+
+        return container;
+    }
+
+    function showToast(message, type = 'success') {
+        if (!window.bootstrap) {
+            console[type === 'danger' ? 'error' : 'log'](message);
+            return;
+        }
+
+        const toastContainer = ensureToastContainer();
+        const toastEl = document.createElement('div');
+        const bgClass = type === 'danger' ? 'text-bg-danger' : type === 'warning' ? 'text-bg-warning' : 'text-bg-success';
+
+        toastEl.className = `toast align-items-center ${bgClass} border-0`;
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+
+        toastContainer.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, { delay: 2800 });
+        toast.show();
+        toastEl.addEventListener('hidden.bs.toast', function () {
+            toastEl.remove();
+        });
+    }
+
+    function setButtonLoading(button, isLoading, loadingText = 'Processing...') {
+        if (!button) return;
+
+        if (isLoading) {
+            button.dataset.originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.classList.add('disabled');
+            button.setAttribute('aria-disabled', 'true');
+            button.innerHTML = `
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                ${loadingText}
+            `;
+            return;
+        }
+
+        button.disabled = false;
+        button.classList.remove('disabled');
+        button.removeAttribute('aria-disabled');
+        button.innerHTML = button.dataset.originalHtml || button.innerHTML;
+        delete button.dataset.originalHtml;
+    }
+
+    async function parseErrorResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            const json = await response.json().catch(() => null);
+            return json?.message || 'Request gagal diproses.';
+        }
+
+        const text = await response.text().catch(() => '');
+        const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+
+        return (cleanText || 'Request gagal diproses.').slice(0, 240);
+    }
+
+    function refreshPreviewAndAssets() {
+        const cacheKey = Date.now();
+        const previewFrame = document.getElementById('certificatePdfPreviewFrame');
+        const qrImage = document.getElementById('certificateQrImage');
+
+        if (previewFrame) {
+            const baseUrl = previewFrame.dataset.previewUrl || previewFrame.getAttribute('src');
+
+            if (baseUrl) {
+                previewFrame.setAttribute('src', `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}v=${cacheKey}`);
             }
         }
 
-        console.warn(message);
+        if (qrImage) {
+            const baseQrUrl = qrImage.dataset.qrUrl || qrImage.getAttribute('src');
+
+            if (baseQrUrl) {
+                qrImage.setAttribute('src', `${baseQrUrl}${baseQrUrl.includes('?') ? '&' : '?'}v=${cacheKey}`);
+            }
+        }
     }
+
+    document.querySelectorAll('[data-certificate-async-form]').forEach(function (form) {
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const button = form.querySelector('button[type="submit"]');
+            const successMessage = form.dataset.successMessage || 'Certificate berhasil diproses.';
+
+            setButtonLoading(button, true, 'Processing...');
+
+            try {
+                const response = await fetch(form.getAttribute('action'), {
+                    method: form.getAttribute('method') || 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: new FormData(form),
+                });
+
+                if (!response.ok) {
+                    throw new Error(await parseErrorResponse(response));
+                }
+
+                const payload = await response.json().catch(() => ({}));
+
+                showToast(payload.message || successMessage, 'success');
+                refreshPreviewAndAssets();
+            } catch (error) {
+                showToast(error.message || 'Certificate gagal diproses.', 'danger');
+            } finally {
+                setButtonLoading(button, false);
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-certificate-download]').forEach(function (trigger) {
+        trigger.addEventListener('click', async function (event) {
+            event.preventDefault();
+
+            const button = trigger;
+            const downloadUrl = trigger.dataset.downloadUrl || trigger.getAttribute('href');
+            const filename = trigger.dataset.downloadFilename || 'certificate.pdf';
+
+            if (!downloadUrl) {
+                showToast('URL download PDF tidak ditemukan.', 'danger');
+                return;
+            }
+
+            setButtonLoading(button, true, 'Downloading...');
+
+            try {
+                const response = await fetch(downloadUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/pdf, application/json;q=0.9, */*;q=0.8',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(await parseErrorResponse(response));
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+
+                if (contentType.includes('application/json')) {
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (payload.download_pdf_url) {
+                        window.location.href = payload.download_pdf_url;
+                        return;
+                    }
+
+                    throw new Error(payload.message || 'File PDF tidak tersedia.');
+                }
+
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+
+                link.href = blobUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(blobUrl);
+
+                showToast('Certificate PDF berhasil didownload.', 'success');
+                refreshPreviewAndAssets();
+            } catch (error) {
+                showToast(error.message || 'Download PDF gagal.', 'danger');
+            } finally {
+                setButtonLoading(button, false);
+            }
+        });
+    });
 
     if (copyBtn && textEl) {
         copyBtn.addEventListener('click', async function () {
@@ -682,7 +896,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     copyBtn.disabled = false;
                 }, 1600);
             } catch (error) {
-                showCopyFallback('Gagal copy verification URL.');
+                showToast('Gagal copy verification URL.', 'danger');
             }
         });
     }
