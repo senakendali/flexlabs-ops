@@ -52,9 +52,9 @@ class MrPioneerService
                     ],
                 ],
                 'generationConfig' => [
-                    'temperature' => 0.35,
+                    'temperature' => 0.25,
                     'topP' => 0.9,
-                    'maxOutputTokens' => 1400,
+                    'maxOutputTokens' => 1200,
                 ],
             ]);
 
@@ -74,7 +74,7 @@ class MrPioneerService
         return [
             'answer' => $answer,
             'question' => $question,
-            'scope' => 'topic_material',
+            'scope' => 'material_only',
             'provider' => 'gemini',
             'model' => $model,
             'can_save_to_notes' => true,
@@ -87,8 +87,6 @@ class MrPioneerService
         $courseId = $this->nullableId(
             Arr::get($frontendContext, 'course_id')
                 ?? Arr::get($frontendContext, 'courseId')
-                ?? Arr::get($frontendContext, 'program_id')
-                ?? Arr::get($frontendContext, 'programId')
         );
 
         $moduleId = $this->nullableId(
@@ -109,9 +107,7 @@ class MrPioneerService
         );
 
         $courseSlug = Arr::get($frontendContext, 'course_slug')
-            ?? Arr::get($frontendContext, 'courseSlug')
-            ?? Arr::get($frontendContext, 'program_slug')
-            ?? Arr::get($frontendContext, 'programSlug');
+            ?? Arr::get($frontendContext, 'courseSlug');
 
         $topicSlug = Arr::get($frontendContext, 'topic_slug')
             ?? Arr::get($frontendContext, 'topicSlug');
@@ -135,21 +131,9 @@ class MrPioneerService
 
         $module = $this->findRecord('modules', $moduleId);
 
-        if (!$courseId) {
-            $courseId = $this->resolveCourseId($topic, $module);
-        }
-
         $course = $this->findRecord('programs', $courseId, $courseSlug);
 
-        $relatedSubTopics = $this->getRelatedSubTopics($topicId, $subTopicId);
-
         return [
-            'scope' => [
-                'mode' => 'topic',
-                'label' => 'Current topic scope',
-                'description' => 'Jawaban dikunci ke topic aktif, bukan hanya sub topic aktif.',
-            ],
-
             'course' => [
                 'id' => $courseId,
                 'slug' => $courseSlug,
@@ -157,8 +141,6 @@ class MrPioneerService
                     $this->recordValue($course, ['name', 'title']),
                     Arr::get($frontendContext, 'course_title'),
                     Arr::get($frontendContext, 'courseTitle'),
-                    Arr::get($frontendContext, 'program_title'),
-                    Arr::get($frontendContext, 'programTitle'),
                     'Course',
                 ]),
                 'description' => $this->recordValue($course, ['description', 'summary']),
@@ -198,7 +180,7 @@ class MrPioneerService
                 ],
             ],
 
-            'current_sub_topic' => [
+            'sub_topic' => [
                 'id' => $subTopicId,
                 'slug' => $subTopicSlug,
                 'title' => $this->firstFilled([
@@ -218,8 +200,6 @@ class MrPioneerService
                 'lesson_type' => $this->recordValue($subTopic, ['lesson_type']),
                 'video_url' => $this->recordValue($subTopic, ['video_url']),
             ],
-
-            'related_sub_topics' => $relatedSubTopics,
         ];
     }
 
@@ -228,26 +208,23 @@ class MrPioneerService
         $course = $materialContext['course'] ?? [];
         $module = $materialContext['module'] ?? [];
         $topic = $materialContext['topic'] ?? [];
-        $subTopic = $materialContext['current_sub_topic'] ?? [];
-        $topicResources = $topic['resources'] ?? [];
-        $relatedSubTopics = $materialContext['related_sub_topics'] ?? [];
+        $subTopic = $materialContext['sub_topic'] ?? [];
 
-        $relatedSubTopicText = $this->formatRelatedSubTopicsForPrompt($relatedSubTopics);
+        $topicResources = $topic['resources'] ?? [];
 
         return trim("
             You are Mr. Pioneer, FlexLabs learning assistant.
 
             IMPORTANT RULES:
-            1. Use Indonesian language.
-            2. Use a casual, clear, helpful teaching style for beginner students.
-            3. The main scope is the CURRENT TOPIC, not only the current sub topic.
-            4. Use the current sub topic as the student's current learning position, but you may explain using other sub topics inside the same topic.
-            5. If the student's question is still related to the current topic/module, answer it helpfully even when the exact detail is not written in the context.
-            6. When using general knowledge to clarify a related concept, say it as conceptual explanation, not as a fixed FlexLabs curriculum statement.
-            7. If the question is completely outside the current topic/module, politely say that it is outside the current topic, then give a short bridge explaining what part might still be related.
-            8. Do not invent FlexLabs curriculum details, schedules, assessment rules, links, or internal data that are not provided in the context.
-            9. If code is needed, include short beginner-friendly examples only.
-            10. End with one short follow-up suggestion related to the current topic.
+            1. Answer only from the current learning material context.
+            2. The scope is strictly: current course, module, topic, and sub topic.
+            3. If the student's question is outside this material, politely say that it is outside the current material scope.
+            4. Do not invent curriculum details that are not provided in the context.
+            5. Use Indonesian language.
+            6. Use a casual, clear, helpful teaching style.
+            7. Keep the answer practical and easy for beginner students.
+            8. If code is needed, only include short examples that directly explain the current material.
+            9. End with one short follow-up suggestion related to this material.
 
             CURRENT MATERIAL CONTEXT:
 
@@ -268,14 +245,11 @@ class MrPioneerService
             - Supporting File URL: {$this->safeText($topicResources['supporting_file_url'] ?? '-')}
             - External Reference URL: {$this->safeText($topicResources['external_reference_url'] ?? '-')}
 
-            Current Sub Topic / Current Lesson:
+            Sub Topic:
             - Title: {$this->safeText($subTopic['title'] ?? '-')}
             - Description: {$this->safeText($subTopic['description'] ?? '-')}
             - Lesson Type: {$this->safeText($subTopic['lesson_type'] ?? '-')}
             - Video URL: {$this->safeText($subTopic['video_url'] ?? '-')}
-
-            Other Sub Topics Inside The Same Topic:
-            {$relatedSubTopicText}
 
             Student Question:
             {$this->safeText($question)}
@@ -306,8 +280,8 @@ class MrPioneerService
 
         $query = DB::table($table);
 
-        if ($id && is_numeric($id) && Schema::hasColumn($table, 'id')) {
-            return $query->where('id', (int) $id)->first();
+        if ($id && Schema::hasColumn($table, 'id')) {
+            return $query->where('id', $id)->first();
         }
 
         if ($slug && Schema::hasColumn($table, 'slug')) {
@@ -317,103 +291,7 @@ class MrPioneerService
         return null;
     }
 
-    private function getRelatedSubTopics(mixed $topicId, mixed $currentSubTopicId = null): array
-    {
-        if (!$topicId || !is_numeric($topicId) || !Schema::hasTable('sub_topics')) {
-            return [];
-        }
-
-        $query = DB::table('sub_topics')
-            ->where('topic_id', (int) $topicId);
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        if (Schema::hasColumn('sub_topics', 'sort_order')) {
-            $query->orderBy('sort_order');
-        } else {
-            $query->orderBy('id');
-        }
-
-        return $query
-            ->limit(30)
-            ->get()
-            ->map(function ($subTopic) use ($currentSubTopicId) {
-                return [
-                    'id' => $this->nullableId($subTopic->id ?? null),
-                    'title' => $this->recordValue($subTopic, ['name', 'title']),
-                    'description' => $this->recordValue($subTopic, [
-                        'description',
-                        'summary',
-                        'content',
-                        'learning_objectives',
-                    ]),
-                    'lesson_type' => $this->recordValue($subTopic, ['lesson_type']),
-                    'is_current' => $currentSubTopicId
-                        && (string) ($subTopic->id ?? '') === (string) $currentSubTopicId,
-                ];
-            })
-            ->values()
-            ->all();
-    }
-
-    private function formatRelatedSubTopicsForPrompt(array $relatedSubTopics): string
-    {
-        if (empty($relatedSubTopics)) {
-            return '- No related sub topics were found from database.';
-        }
-
-        return collect($relatedSubTopics)
-            ->map(function (array $subTopic, int $index) {
-                $number = $index + 1;
-                $currentMark = !empty($subTopic['is_current']) ? ' (current)' : '';
-                $title = $this->safeText($subTopic['title'] ?? '-');
-                $description = $this->safeText($subTopic['description'] ?? '-');
-                $lessonType = $this->safeText($subTopic['lesson_type'] ?? '-');
-
-                return "{$number}. {$title}{$currentMark}\n   - Lesson Type: {$lessonType}\n   - Description: {$description}";
-            })
-            ->implode("\n");
-    }
-
-    private function resolveCourseId(?object $topic = null, ?object $module = null): mixed
-    {
-        $directTopicCourseId = $this->firstFilled([
-            $this->recordRawValue($topic, ['program_id', 'course_id']),
-        ]);
-
-        if ($directTopicCourseId !== '') {
-            return $this->nullableId($directTopicCourseId);
-        }
-
-        $directModuleCourseId = $this->firstFilled([
-            $this->recordRawValue($module, ['program_id', 'course_id']),
-        ]);
-
-        if ($directModuleCourseId !== '') {
-            return $this->nullableId($directModuleCourseId);
-        }
-
-        $stageId = $this->nullableId($this->recordRawValue($module, ['stage_id']));
-
-        if (!$stageId || !Schema::hasTable('stages')) {
-            return null;
-        }
-
-        $stage = $this->findRecord('stages', $stageId);
-
-        return $this->nullableId($this->recordRawValue($stage, ['program_id', 'course_id']));
-    }
-
     private function recordValue(?object $record, array $keys): string
-    {
-        $value = $this->recordRawValue($record, $keys);
-
-        return trim((string) $value);
-    }
-
-    private function recordRawValue(?object $record, array $keys): mixed
     {
         if (!$record) {
             return '';
@@ -421,7 +299,7 @@ class MrPioneerService
 
         foreach ($keys as $key) {
             if (property_exists($record, $key) && filled($record->{$key})) {
-                return $record->{$key};
+                return trim((string) $record->{$key});
             }
         }
 
