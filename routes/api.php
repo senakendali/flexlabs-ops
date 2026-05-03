@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\PublicQuizController;
 use App\Http\Controllers\Api\Lms\StudentLearningNoteController;
 use App\Http\Controllers\Api\Lms\StudentAcademicDocumentController;
 use App\Http\Controllers\Api\Lms\StudentNotificationController;
+use App\Http\Controllers\Api\Lms\Student\MrPioneerController;
+use App\Http\Controllers\Api\Lms\Student\StudentProfileController;
+use App\Http\Controllers\Api\Lms\Student\StudentSearchController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -79,6 +82,13 @@ Route::prefix('lms/student')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
+        | Mr. Pioneer
+        |--------------------------------------------------------------------------
+        */
+        Route::post('/mr-pioneer/ask', [MrPioneerController::class, 'ask']);
+
+        /*
+        |--------------------------------------------------------------------------
         | Learning Notes
         |--------------------------------------------------------------------------
         | Notes bisa dibuat dari halaman learning dan difilter berdasarkan
@@ -101,6 +111,26 @@ Route::prefix('lms/student')->group(function () {
             ->whereNumber('note');
 
         Route::post('/learn/{courseSlug}/{lessonSlug}/notes', [StudentLearningNoteController::class, 'store']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Student Profile
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/profile', [StudentProfileController::class, 'show']);
+        Route::put('/profile', [StudentProfileController::class, 'update']);
+        Route::post('/profile/photo', [StudentProfileController::class, 'updatePhoto']);
+        Route::post('/profile/password', [StudentProfileController::class, 'changePassword']);
+        Route::put('/profile/preferences', [StudentProfileController::class, 'updatePreferences']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------------
+        | Pencarian gabungan untuk course, lesson, dan learning note berdasarkan
+        | keyword. Bisa ditambahkan filter berdasarkan course, topic, dan sub topic.
+        */ 
+        Route::get('/search', [StudentSearchController::class, 'index']);
 
         /*
         |--------------------------------------------------------------------------

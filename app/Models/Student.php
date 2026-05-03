@@ -5,20 +5,99 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Student extends Model
 {
     protected $fillable = [
         'user_id',
         'full_name',
+        'avatar_url',
         'email',
         'phone',
         'city',
         'current_status',
+        'bio',
         'goal',
         'source',
         'status',
     ];
+
+    protected $casts = [
+        'user_id' => 'integer',
+    ];
+
+    protected $appends = [
+        'avatarUrl',
+        'fullName',
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors
+    |--------------------------------------------------------------------------
+    |
+    | Jangan panggil $this->avatar_url di dalam getAvatarUrlAttribute(),
+    | karena itu akan memanggil accessor yang sama lagi.
+    |
+    */
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->attributes['avatar_url'] ?? null;
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return $this->attributes['full_name'] ?? '';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Preferences
+    |--------------------------------------------------------------------------
+    */
+
+    public function preferences(): HasMany
+    {
+        return $this->hasMany(StudentPreference::class);
+    }
+
+    public function getPreference(string $key, bool $default = true): bool
+    {
+        $preference = $this->relationLoaded('preferences')
+            ? $this->preferences->firstWhere('preference_key', $key)
+            : $this->preferences()->where('preference_key', $key)->first();
+
+        if (!$preference) {
+            return $default;
+        }
+
+        return (bool) $preference->enabled;
+    }
+
+    public function setPreference(string $key, bool $enabled): StudentPreference
+    {
+        return $this->preferences()->updateOrCreate(
+            [
+                'preference_key' => $key,
+            ],
+            [
+                'enabled' => $enabled,
+            ]
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function orders(): HasMany
     {
@@ -35,7 +114,7 @@ class Student extends Model
         return $this->hasMany(LearningQuizAttempt::class);
     }
 
-    public function learningQuizAnswers(): HasMany
+    public function learningQuizAnswers(): HasManyThrough
     {
         return $this->hasManyThrough(
             LearningQuizAnswer::class,
@@ -45,11 +124,6 @@ class Student extends Model
             'id',
             'id'
         );
-    }
-
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
     }
 
     public function enrollments(): HasMany
@@ -81,17 +155,17 @@ class Student extends Model
             ->latest('id');
     }
 
-    public function assessmentScores()
+    public function assessmentScores(): HasMany
     {
         return $this->hasMany(StudentAssessmentScore::class);
     }
 
-    public function reportCards()
+    public function reportCards(): HasMany
     {
         return $this->hasMany(ReportCard::class);
     }
 
-    public function certificates()
+    public function certificates(): HasMany
     {
         return $this->hasMany(Certificate::class);
     }
