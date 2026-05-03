@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Lms;
 
 use App\Http\Controllers\Controller;
+use App\Models\Instructor;
 use App\Models\AssignmentSubmission;
 use App\Models\BatchAssignment;
 use App\Models\BatchLearningQuiz;
@@ -16,6 +17,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class StudentCourseController extends Controller
 {
@@ -68,6 +72,326 @@ class StudentCourseController extends Controller
                 'courses' => $courses->toArray(),
             ],
         ]);
+    }
+
+    public function instructor(Request $request, string $slug): JsonResponse
+    {
+        $student = $this->resolveStudentFromRequest($request);
+
+        if (! $student) {
+            return response()->json([
+                'message' => 'Student profile tidak ditemukan.',
+            ], 422);
+        }
+
+        $course = $this->resolveCourseRecord($slug);
+
+        if (! $course) {
+            return response()->json([
+                'message' => 'Course tidak ditemukan.',
+            ], 404);
+        }
+
+        $enrollment = $this->resolveStudentEnrollment($student, $course);
+        $instructor = $this->resolveCourseInstructor($course, $enrollment);
+
+        if (! $instructor) {
+            return response()->json([
+                'message' => 'Instructor belum terhubung ke course ini.',
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Instructor detail berhasil dimuat.',
+            'data' => [
+                'instructor' => $this->formatInstructorForLms($instructor),
+            ],
+        ]);
+    }
+
+    private function resolveStudentFromRequest(Request $request): ?Student
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        if (isset($user->student_id) && $user->student_id) {
+            return Student::query()->find($user->student_id);
+        }
+
+        if (method_exists($user, 'student')) {
+            $student = $user->student;
+
+            if ($student?->id) {
+                return $student;
+            }
+        }
+
+        $studentTable = (new Student())->getTable();
+
+        $query = Student::query();
+
+        $query->where(function ($q) use ($user, $studentTable) {
+            if (Schema::hasColumn($studentTable, 'user_id')) {
+                $q->orWhere('user_id', $user->id);
+            }
+
+            if (($user->email ?? null) && Schema::hasColumn($studentTable, 'email')) {
+                $q->orWhere('email', $user->email);
+            }
+        });
+
+        return $query->first();
+    }
+
+    private function resolveCourseRecord(string $slug): ?object
+    {
+        foreach (['programs', 'courses'] as $table) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'slug')) {
+                continue;
+            }
+
+            $record = DB::table($table)
+                ->where('slug', $slug)
+                ->first();
+
+            if ($record) {
+                $record->_source_table = $table;
+
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveStudentEnrollment(Student $student, object $course): ?object
+    {
+        if (! Schema::hasTable('student_enrollments')) {
+            return null;
+        }
+
+        $query = DB::table('student_enrollments')
+            ->where('student_enrollments.student_id', $student->id);
+
+        $courseId = $course->id ?? null;
+        $courseTable = $course->_source_table ?? null;
+
+        if ($courseId && Schema::hasColumn('student_enrollments', 'program_id')) {
+            $query->where('student_enrollments.program_id', $courseId);
+        } elseif (
+            $courseId
+            && $courseTable === 'programs'
+            && Schema::hasColumn('student_enrollments', 'batch_id')
+            && Schema::hasTable('batches')
+            && Schema::hasColumn('batches', 'program_id')
+        ) {
+            $query
+                ->join('batches', 'student_enrollments.batch_id', '=', 'batches.id')
+                ->where('batches.program_id', $courseId)
+                ->select('student_enrollments.*');
+        }
+
+        if (Schema::hasColumn('student_enrollments', 'status')) {
+            $query->whereIn('student_enrollments.status', [
+                'active',
+                'ongoing',
+                'enrolled',
+                'approved',
+                'paid',
+                'completed',
+            ]);
+        }
+
+        return $query
+            ->orderByDesc('student_enrollments.id')
+            ->first();
+    }
+
+    private function resolveCourseInstructor(object $course, ?object $enrollment = null): ?Instructor
+    {
+        $instructorTable = (new Instructor())->getTable();
+
+        if (! Schema::hasTable($instructorTable)) {
+            return null;
+        }
+
+        $instructorId = null;
+        $courseTable = $course->_source_table ?? null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Direct instructor_id dari programs/courses
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $courseTable
+            && Schema::hasTable($courseTable)
+            && Schema::hasColumn($courseTable, 'instructor_id')
+            && ! empty($course->instructor_id)
+        ) {
+            $instructorId = $course->instructor_id;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Instructor dari batch student
+        |--------------------------------------------------------------------------
+        */
+        if (
+            ! $instructorId
+            && $enrollment
+            && ! empty($enrollment->batch_id)
+            && Schema::hasTable('batches')
+            && Schema::hasColumn('batches', 'instructor_id')
+        ) {
+            $batch = DB::table('batches')
+                ->where('id', $enrollment->batch_id)
+                ->first();
+
+            if ($batch?->instructor_id) {
+                $instructorId = $batch->instructor_id;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Instructor dari instructor_schedules
+        |--------------------------------------------------------------------------
+        */
+        if (! $instructorId && Schema::hasTable('instructor_schedules')) {
+            $scheduleQuery = DB::table('instructor_schedules')
+                ->whereNotNull('instructor_id');
+
+            $hasScheduleFilter = false;
+
+            if (
+                $enrollment
+                && ! empty($enrollment->batch_id)
+                && Schema::hasColumn('instructor_schedules', 'batch_id')
+            ) {
+                $scheduleQuery->where('batch_id', $enrollment->batch_id);
+                $hasScheduleFilter = true;
+            }
+
+            if (
+                ! $hasScheduleFilter
+                && ! empty($course->id)
+                && Schema::hasColumn('instructor_schedules', 'program_id')
+            ) {
+                $scheduleQuery->where('program_id', $course->id);
+                $hasScheduleFilter = true;
+            }
+
+            if (
+                ! $hasScheduleFilter
+                && ! empty($course->id)
+                && Schema::hasColumn('instructor_schedules', 'course_id')
+            ) {
+                $scheduleQuery->where('course_id', $course->id);
+                $hasScheduleFilter = true;
+            }
+
+            if ($hasScheduleFilter) {
+                foreach (['schedule_date', 'session_date', 'date', 'start_at', 'created_at', 'id'] as $column) {
+                    if (Schema::hasColumn('instructor_schedules', $column)) {
+                        $scheduleQuery->orderByDesc($column);
+                        break;
+                    }
+                }
+
+                $schedule = $scheduleQuery->first();
+
+                if ($schedule?->instructor_id) {
+                    $instructorId = $schedule->instructor_id;
+                }
+            }
+        }
+
+        if (! $instructorId) {
+            return null;
+        }
+
+        $query = Instructor::query()
+            ->whereKey($instructorId);
+
+        if (Schema::hasColumn($instructorTable, 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        return $query->first();
+    }
+
+    private function formatInstructorForLms(Instructor $instructor): array
+    {
+        $photoUrl = $this->resolveInstructorPhotoUrl($instructor);
+
+        return [
+            'id' => $instructor->id,
+
+            'name' => $instructor->name,
+            'full_name' => $instructor->name,
+            'fullName' => $instructor->name,
+
+            'slug' => $instructor->slug,
+
+            'role' => $this->formatEmploymentTypeLabel($instructor->employment_type),
+            'position' => $this->formatEmploymentTypeLabel($instructor->employment_type),
+
+            'email' => $instructor->email,
+            'phone' => $instructor->phone,
+
+            'specialization' => $instructor->specialization,
+            'bio' => $instructor->bio,
+
+            'employment_type' => $instructor->employment_type,
+            'employmentType' => $instructor->employment_type,
+            'employment_type_label' => $this->formatEmploymentTypeLabel($instructor->employment_type),
+            'employmentTypeLabel' => $this->formatEmploymentTypeLabel($instructor->employment_type),
+
+            'photo' => $photoUrl,
+            'photo_url' => $photoUrl,
+            'photoUrl' => $photoUrl,
+            'avatar_url' => $photoUrl,
+            'avatarUrl' => $photoUrl,
+
+            'is_active' => (bool) $instructor->is_active,
+            'isActive' => (bool) $instructor->is_active,
+        ];
+    }
+
+    private function resolveInstructorPhotoUrl(Instructor $instructor): string
+    {
+        $photo = $instructor->photo;
+
+        if (! $photo) {
+            return 'https://ui-avatars.com/api/?name='.urlencode($instructor->name ?: 'Instructor').'&background=5B3E8E&color=ffffff';
+        }
+
+        if (Str::startsWith($photo, ['http://', 'https://'])) {
+            return $photo;
+        }
+
+        $path = Str::of($photo)
+            ->replace('\\', '/')
+            ->replaceStart('public/', '')
+            ->replaceStart('/storage/', '')
+            ->replaceStart('storage/', '')
+            ->ltrim('/')
+            ->toString();
+
+        return Storage::disk('public')->url($path);
+    }
+
+    private function formatEmploymentTypeLabel(?string $employmentType): string
+    {
+        return match ($employmentType) {
+            'full_time' => 'Full-time Instructor',
+            'part_time' => 'Part-time Instructor',
+            default => 'Instructor',
+        };
     }
 
     public function show(Request $request, string $slug): JsonResponse

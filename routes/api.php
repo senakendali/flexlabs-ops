@@ -58,6 +58,7 @@ Route::prefix('lms/student')->group(function () {
         */
         Route::get('/courses', [StudentCourseController::class, 'index']);
         Route::get('/courses/{slug}', [StudentCourseController::class, 'show']);
+        Route::get('/courses/{slug}/instructor', [StudentCourseController::class, 'instructor']);
 
         /*
         |--------------------------------------------------------------------------
