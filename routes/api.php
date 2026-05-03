@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Lms\StudentQuizController;
 use App\Http\Controllers\Api\Lms\StudentScheduleController;
 use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
 use App\Http\Controllers\Api\PublicQuizController;
+use App\Http\Controllers\Api\Lms\StudentLearningNoteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -63,6 +64,31 @@ Route::prefix('lms/student')->group(function () {
         */
         Route::get('/learn/{courseSlug}/{lessonSlug}', [StudentLearningController::class, 'show']);
         Route::post('/learn/{courseSlug}/{lessonSlug}/progress', [StudentLearningController::class, 'saveProgress']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Learning Notes
+        |--------------------------------------------------------------------------
+        | Notes bisa dibuat dari halaman learning dan difilter berdasarkan
+        | course, topic, sub topic, lesson, keyword, dan status.
+        */
+        Route::get('/notes', [StudentLearningNoteController::class, 'index']);
+        Route::get('/notes/{note}', [StudentLearningNoteController::class, 'show'])
+            ->whereNumber('note');
+
+        Route::put('/notes/{note}', [StudentLearningNoteController::class, 'update'])
+            ->whereNumber('note');
+
+        Route::delete('/notes/{note}', [StudentLearningNoteController::class, 'destroy'])
+            ->whereNumber('note');
+
+        Route::patch('/notes/{note}/archive', [StudentLearningNoteController::class, 'archive'])
+            ->whereNumber('note');
+
+        Route::patch('/notes/{note}/restore', [StudentLearningNoteController::class, 'restore'])
+            ->whereNumber('note');
+
+        Route::post('/learn/{courseSlug}/{lessonSlug}/notes', [StudentLearningNoteController::class, 'store']);
 
         /*
         |--------------------------------------------------------------------------
