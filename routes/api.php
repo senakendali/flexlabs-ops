@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\Lms\StudentScheduleController;
 use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
 use App\Http\Controllers\Api\PublicQuizController;
 use App\Http\Controllers\Api\Lms\StudentLearningNoteController;
+use App\Http\Controllers\Api\Lms\StudentAcademicDocumentController;
+use App\Http\Controllers\Api\Lms\StudentNotificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -67,6 +69,15 @@ Route::prefix('lms/student')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
+        | Notifications
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/notifications', [StudentNotificationController::class, 'index']);
+        Route::patch('/notifications/read-all', [StudentNotificationController::class, 'markAllAsRead']);
+        Route::patch('/notifications/{notificationId}/read', [StudentNotificationController::class, 'markAsRead']);
+
+        /*
+        |--------------------------------------------------------------------------
         | Learning Notes
         |--------------------------------------------------------------------------
         | Notes bisa dibuat dari halaman learning dan difilter berdasarkan
@@ -89,6 +100,14 @@ Route::prefix('lms/student')->group(function () {
             ->whereNumber('note');
 
         Route::post('/learn/{courseSlug}/{lessonSlug}/notes', [StudentLearningNoteController::class, 'store']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Academic Documents
+        |--------------------------------------------------------------------------
+        | Gabungan report card dan certificate untuk halaman student certificates.
+        */
+        Route::get('/academic-documents', [StudentAcademicDocumentController::class, 'index']);
 
         /*
         |--------------------------------------------------------------------------
