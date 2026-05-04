@@ -3,16 +3,35 @@
 @section('title', 'Payment Schedules')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Payment Schedules</h4>
-            <small class="text-muted">Manage payment plans and due dates for each order</small>
-        </div>
+@php
+    $statusBadgeClass = function ($status) {
+        return match($status) {
+            'pending' => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+            'paid' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            'overdue' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'cancelled' => 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+        };
+    };
+@endphp
 
-        <button type="button" class="btn btn-primary" onclick="openCreateModal()">
-            <i class="bi bi-plus-lg me-1"></i> Add Schedule
-        </button>
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Finance</div>
+                <h1 class="page-title mb-2">Payment Schedules</h1>
+                <p class="page-subtitle mb-0">
+                    Manage payment plans, installment titles, due dates, remaining balances, and payment schedule status for each order.
+                </p>
+            </div>
+
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,9 +40,16 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
-            <form method="GET" class="d-flex align-items-center gap-2">
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Payment Schedule List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review student payment schedule details, installment amount, due date, and current schedule status.
+                </p>
+            </div>
+
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -42,89 +68,142 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Student</th>
-                        <th>Program / Batch</th>
-                        <th>Title</th>
-                        <th>Amount</th>
-                        <th>Due Date</th>
-                        <th>Status</th>
-                        <th style="width: 170px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($paymentSchedules as $schedule)
-                        <tr>
-                            <td>
-                                {{ ($paymentSchedules->currentPage() - 1) * $paymentSchedules->perPage() + $loop->iteration }}
-                            </td>
-                            <td>
-                                <div class="fw-semibold">{{ $schedule->order->student->full_name ?? '-' }}</div>
-                                <div class="small text-muted">
-                                    {{ $schedule->order->student->email ?: ($schedule->order->student->phone ?: '-') }}
-                                </div>
-                            </td>
-                            <td>
-                                <div class="fw-semibold">{{ $schedule->order->batch->program->name ?? '-' }}</div>
-                                <div class="small text-muted">{{ $schedule->order->batch->name ?? '-' }}</div>
-                            </td>
-                            <td>{{ $schedule->title }}</td>
-                            <td class="fw-semibold">Rp {{ number_format((float) $schedule->amount, 0, ',', '.') }}</td>
-                            <td>{{ $schedule->due_date?->format('d M Y') ?: '-' }}</td>
-                            <td>
-                                @php
-                                    $statusClass = match($schedule->status) {
-                                        'pending' => 'bg-secondary',
-                                        'paid' => 'bg-success',
-                                        'overdue' => 'bg-warning text-dark',
-                                        'cancelled' => 'bg-danger',
-                                        default => 'bg-secondary',
-                                    };
-                                @endphp
-                                <span class="badge {{ $statusClass }}">
-                                    {{ ucfirst($schedule->status) }}
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        onclick="editSchedule({{ $schedule->id }})"
-                                    >
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+        <div class="content-card-body">
+            @if($paymentSchedules->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Student</th>
+                                <th class="text-nowrap">Program / Batch</th>
+                                <th class="text-nowrap">Title</th>
+                                <th class="text-end text-nowrap">Amount</th>
+                                <th class="text-nowrap">Due Date</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
 
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $schedule->id }}, @js(($schedule->order->student->full_name ?? 'Unknown') . ' - ' . $schedule->title))"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                No payment schedules found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                        <tbody>
+                            @foreach ($paymentSchedules as $schedule)
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($paymentSchedules->currentPage() - 1) * $paymentSchedules->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->order->student->full_name ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $schedule->order->student->email ?: ($schedule->order->student->phone ?: '-') }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->order->batch->program->name ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $schedule->order->batch->name ?? '-' }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->title }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            Payment installment
+                                        </div>
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="fw-bold text-dark">
+                                            Rp {{ number_format((float) $schedule->amount, 0, ',', '.') }}
+                                        </div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        {{ $schedule->due_date?->format('d M Y') ?: '-' }}
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $statusBadgeClass($schedule->status) }}">
+                                            {{ ucfirst($schedule->status) }}
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editSchedule({{ $schedule->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Schedule
+                                                    </button>
+                                                </li>
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $schedule->id }}, @js(($schedule->order->student->full_name ?? 'Unknown') . ' - ' . $schedule->title))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($paymentSchedules->hasPages())
+                    <div class="mt-3">
+                        {{ $paymentSchedules->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-calendar2-check"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No payment schedules found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada payment schedule yang tercatat. Buat jadwal pembayaran untuk mulai mengatur installment order.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-
-        @if ($paymentSchedules->hasPages())
-            <div class="card-footer bg-white">
-                {{ $paymentSchedules->links() }}
-            </div>
-        @endif
     </div>
 </div>
 
@@ -137,7 +216,12 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="scheduleModalTitle">Add Schedule</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1" id="scheduleModalTitle">Add Schedule</h5>
+                        <div class="small text-muted">
+                            Complete order, installment amount, due date, and payment schedule status.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
@@ -145,115 +229,169 @@
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
                     <div id="amountWarning" class="alert alert-warning d-none mb-3"></div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="order_id" class="form-label">
-                                Order <span class="text-danger">*</span>
-                            </label>
-                            <select id="order_id" class="form-select">
-                                <option value="">Select Order</option>
-                                @foreach ($orders as $order)
-                                    <option
-                                        value="{{ $order->id }}"
-                                        data-student="{{ $order->student->full_name ?? '' }}"
-                                        data-program="{{ $order->batch->program->name ?? '' }}"
-                                        data-batch="{{ $order->batch->name ?? '' }}"
-                                        data-total="{{ (int) round((float) $order->final_price) }}"
-                                        data-scheduled="{{ (int) round((float) ($order->payment_schedules_sum_amount ?? 0)) }}"
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Order Information</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Select the order and review student, program, batch, and order total before creating the schedule.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="order_id" class="form-label">
+                                        Order <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="order_id" class="form-select">
+                                        <option value="">Select Order</option>
+                                        @foreach ($orders as $order)
+                                            <option
+                                                value="{{ $order->id }}"
+                                                data-student="{{ $order->student->full_name ?? '' }}"
+                                                data-program="{{ $order->batch->program->name ?? '' }}"
+                                                data-batch="{{ $order->batch->name ?? '' }}"
+                                                data-total="{{ (int) round((float) $order->final_price) }}"
+                                                data-scheduled="{{ (int) round((float) ($order->payment_schedules_sum_amount ?? 0)) }}"
+                                            >
+                                                {{ $order->student->full_name ?? '-' }} -
+                                                {{ $order->batch->name ?? '-' }}
+                                                @if ($order->batch && $order->batch->program)
+                                                    ({{ $order->batch->program->name }})
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_order_id"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="status" class="form-label">
+                                        Schedule Status <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="status" class="form-select">
+                                        <option value="pending">Pending</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="overdue">Overdue</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_status"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="student_name" class="form-label">Student</label>
+                                    <input type="text" id="student_name" class="form-control" readonly>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="program_name" class="form-label">Program</label>
+                                    <input type="text" id="program_name" class="form-control" readonly>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="batch_name" class="form-label">Batch</label>
+                                    <input type="text" id="batch_name" class="form-control" readonly>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Balance Preview</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Review order total, existing scheduled amount, and remaining balance before saving.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="order_total" class="form-label">Order Total</label>
+                                    <input type="number" id="order_total" class="form-control" readonly>
+                                    <div class="form-text" id="order_total_text">Rp 0</div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="total_scheduled" class="form-label">Total Scheduled</label>
+                                    <input type="number" id="total_scheduled" class="form-control" readonly>
+                                    <div class="form-text" id="total_scheduled_text">Rp 0</div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="remaining_balance" class="form-label">Remaining Balance</label>
+                                    <input type="number" id="remaining_balance" class="form-control" readonly>
+                                    <div class="form-text fw-semibold" id="remaining_balance_text">Rp 0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Schedule Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Define installment title, schedule amount, and due date for this payment schedule.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="amount" class="form-label">
+                                        Schedule Amount <span class="text-danger">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="amount"
+                                        class="form-control"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="e.g. 500000"
                                     >
-                                        {{ $order->student->full_name ?? '-' }} -
-                                        {{ $order->batch->name ?? '-' }}
-                                        @if ($order->batch && $order->batch->program)
-                                            ({{ $order->batch->program->name }})
-                                        @endif
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_order_id"></div>
+                                    <div class="form-text" id="amount_text">Rp 0</div>
+                                    <div class="invalid-feedback" id="error_amount"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="title" class="form-label">
+                                        Title <span class="text-danger">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="title"
+                                        class="form-control"
+                                        placeholder="e.g. DP, Termin 1, Pelunasan"
+                                    >
+                                    <div class="invalid-feedback" id="error_title"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="due_date" class="form-label">Due Date</label>
+                                    <input type="date" id="due_date" class="form-control">
+                                    <div class="invalid-feedback" id="error_due_date"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Internal Notes</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Add optional notes for finance, sales, or student payment follow-up.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="status" class="form-label">
-                                Schedule Status <span class="text-danger">*</span>
-                            </label>
-                            <select id="status" class="form-select">
-                                <option value="pending">Pending</option>
-                                <option value="paid">Paid</option>
-                                <option value="overdue">Overdue</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_status"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="student_name" class="form-label">Student</label>
-                            <input type="text" id="student_name" class="form-control" readonly>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="program_name" class="form-label">Program</label>
-                            <input type="text" id="program_name" class="form-control" readonly>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="batch_name" class="form-label">Batch</label>
-                            <input type="text" id="batch_name" class="form-control" readonly>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="order_total" class="form-label">Order Total</label>
-                            <input type="number" id="order_total" class="form-control" readonly>
-                            <div class="form-text" id="order_total_text">Rp 0</div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="total_scheduled" class="form-label">Total Scheduled</label>
-                            <input type="number" id="total_scheduled" class="form-control" readonly>
-                            <div class="form-text" id="total_scheduled_text">Rp 0</div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="remaining_balance" class="form-label">Remaining Balance</label>
-                            <input type="number" id="remaining_balance" class="form-control" readonly>
-                            <div class="form-text fw-semibold" id="remaining_balance_text">Rp 0</div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="amount" class="form-label">
-                                Schedule Amount <span class="text-danger">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                id="amount"
-                                class="form-control"
-                                min="0"
-                                step="0.01"
-                                placeholder="e.g. 500000"
-                            >
-                            <div class="form-text" id="amount_text">Rp 0</div>
-                            <div class="invalid-feedback" id="error_amount"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="title" class="form-label">
-                                Title <span class="text-danger">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="title"
-                                class="form-control"
-                                placeholder="e.g. DP, Termin 1, Pelunasan"
-                            >
-                            <div class="invalid-feedback" id="error_title"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="due_date" class="form-label">Due Date</label>
-                            <input type="date" id="due_date" class="form-control">
-                            <div class="invalid-feedback" id="error_due_date"></div>
-                        </div>
-
-                        <div class="col-12">
+                        <div class="content-card-body">
                             <label for="notes" class="form-label">Notes</label>
                             <textarea
                                 id="notes"
@@ -267,12 +405,17 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -285,24 +428,42 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Delete Payment Schedule</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Delete Payment Schedule</h5>
+                    <div class="small text-muted">
+                        This action will remove the selected payment schedule from the system.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deleteScheduleName"></strong>?
-                </p>
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this payment schedule?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteScheduleName"></strong>?
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
