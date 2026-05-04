@@ -3,6 +3,19 @@
 @section('title', 'Management Dashboard')
 
 @section('content')
+@php
+    $salesInsight = $salesInsight ?? [];
+
+    $salesLeads = (int) ($salesInsight['leads'] ?? 0);
+    $salesInteracted = (int) ($salesInsight['interacted'] ?? $salesInsight['trial'] ?? 0);
+    $salesClosing = (int) ($salesInsight['closing'] ?? $salesInsight['closed_deal'] ?? $salesInsight['join'] ?? 0);
+    $salesPaid = (int) ($salesInsight['paid'] ?? 0);
+
+    $salesInteractionRate = (float) ($salesInsight['interaction_rate'] ?? $salesInsight['conversion_trial'] ?? 0);
+    $salesClosingRate = (float) ($salesInsight['closing_rate'] ?? $salesInsight['deal_rate'] ?? $salesInsight['conversion_join'] ?? 0);
+    $salesPaidRate = (float) ($salesInsight['paid_rate'] ?? $salesInsight['conversion_paid'] ?? 0);
+@endphp
+
 <div class="container-fluid px-4 py-4">
 
     <div class="page-header-card mb-4">
@@ -11,7 +24,7 @@
                 <div class="page-eyebrow">Overview Dashboard</div>
                 <h1 class="page-title mb-2">Business & Academic Overview</h1>
                 <p class="page-subtitle mb-0">
-                    Pantau performa bisnis dan operasional dari sisi sales funnel, academic, kapasitas batch,
+                    Pantau performa bisnis dan operasional dari sisi sales performance, academic, kapasitas batch,
                     trial performance, serta pendapatan dalam satu dashboard.
                 </p>
             </div>
@@ -27,12 +40,13 @@
 
     <div class="dashboard-section-label mb-3">
         <div class="dashboard-section-eyebrow">Sales Overview</div>
-        <h4 class="dashboard-section-title mb-1">Demand & Conversion Funnel</h4>
-        <p class="dashboard-section-subtitle mb-0">Monitoring demand dan performa conversion funnel. Mulai dari leads, trial, dan join program.</p>
+        <h4 class="dashboard-section-title mb-1">Sales Performance Summary</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Monitoring performa sales berdasarkan total leads, interaksi, closing, dan pembayaran yang sudah berhasil dikonfirmasi.
+        </p>
     </div>
 
-    {{-- Sales Funnel --}}
-    
+    {{-- Sales Stats --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
             <div class="funnel-card">
@@ -42,27 +56,11 @@
                     </div>
                     <div>
                         <div class="funnel-title">Leads</div>
-                        <div class="funnel-value">{{ number_format($salesInsight['leads'] ?? 0) }}</div>
-                    </div>
-                </div>
-                <div class="funnel-description">Total calon student yang masuk ke funnel.</div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="funnel-card">
-                <div class="funnel-card-top">
-                    <div class="funnel-icon-wrap">
-                        <i class="bi bi-calendar2-check"></i>
-                    </div>
-                    <div>
-                        <div class="funnel-title">Trial</div>
-                        <div class="funnel-value">{{ number_format($salesInsight['trial'] ?? 0) }}</div>
+                        <div class="funnel-value">{{ number_format($salesLeads) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Conversion dari leads ke trial:
-                    <strong>{{ number_format($salesInsight['conversion_trial'] ?? 0) }}%</strong>
+                    Total leads yang tercatat dari sales daily report.
                 </div>
             </div>
         </div>
@@ -71,16 +69,36 @@
             <div class="funnel-card">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
-                        <i class="bi bi-mortarboard"></i>
+                        <i class="bi bi-chat-left-text"></i>
                     </div>
                     <div>
-                        <div class="funnel-title">Join Program</div>
-                        <div class="funnel-value">{{ number_format($salesInsight['join'] ?? 0) }}</div>
+                        <div class="funnel-title">Interacted</div>
+                        <div class="funnel-value">{{ number_format($salesInteracted) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Conversion dari trial ke join:
-                    <strong>{{ number_format($salesInsight['conversion_join'] ?? 0) }}%</strong>
+                    Interaction rate:
+                    <strong>{{ number_format($salesInteractionRate, 1) }}%</strong>
+                    dari total leads.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="funnel-card">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Closing</div>
+                        <div class="funnel-value">{{ number_format($salesClosing) }}</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Closing rate:
+                    <strong>{{ number_format($salesClosingRate, 1) }}%</strong>
+                    dari total leads.
                 </div>
             </div>
         </div>
@@ -93,12 +111,13 @@
                     </div>
                     <div>
                         <div class="funnel-title">Paid</div>
-                        <div class="funnel-value">{{ number_format($salesInsight['paid'] ?? 0) }}</div>
+                        <div class="funnel-value">{{ number_format($salesPaid) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Conversion dari join ke paid:
-                    <strong>{{ number_format($salesInsight['conversion_paid'] ?? 0) }}%</strong>
+                    Paid rate:
+                    <strong>{{ number_format($salesPaidRate, 1) }}%</strong>
+                    dari total closing.
                 </div>
             </div>
         </div>
@@ -116,7 +135,7 @@
 
             <div class="revenue-total-box sales-chart-summary-box">
                 <div class="revenue-total-label">Closed Deal</div>
-                <div class="revenue-total-value" id="salesPerformanceClosedDealValue">{{ number_format($salesInsight['paid'] ?? 0) }}</div>
+                <div class="revenue-total-value" id="salesPerformanceClosedDealValue">{{ number_format($salesClosing) }}</div>
             </div>
         </div>
 

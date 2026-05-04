@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Program;
+use App\Models\SalesDailyReport;
 use App\Models\TrialParticipant;
 use App\Models\TrialSchedule;
 use App\Models\TrialTheme;
@@ -192,43 +192,91 @@ class DashboardController extends Controller
 
     protected function getSalesInsight(): array
     {
-        // fallback kalau belum ada CRM integration
-        $totalLeads = DB::table('trial_participants')->count();
+        $dateFrom = now()->subDays(29)->toDateString();
+        $dateTo = now()->toDateString();
 
-        $trialParticipants = DB::table('trial_participants')->count();
+        $reports = collect();
 
-        // asumsi peserta yang join program
-        $joins = $this->getFilledSeatCount();
-
-        // asumsi paid dari payments
-        $paymentsTable = $this->findExistingTable(['payments']);
-        $paid = 0;
-
-        if ($paymentsTable) {
-            $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
-            $query = DB::table($paymentsTable);
-
-            if ($statusColumn === 'status') {
-                $query->whereIn('status', ['paid', 'success', 'settled']);
-            } elseif ($statusColumn === 'payment_status') {
-                $query->whereIn('payment_status', ['paid', 'success', 'settled']);
-            }
-
-            $paid = $query->count();
+        if (class_exists(SalesDailyReport::class) && Schema::hasTable((new SalesDailyReport())->getTable())) {
+            $reports = SalesDailyReport::query()
+                ->whereBetween('report_date', [$dateFrom, $dateTo])
+                ->get();
         }
 
+        $totalLeads = (int) $reports->sum('total_leads');
+        $interacted = (int) $reports->sum('interacted');
+        $closedDeal = (int) $reports->sum('closed_deal');
+        $revenue = (float) $reports->sum('revenue');
+
+        $paid = $this->getPaidPaymentCount($dateFrom, $dateTo);
+
+        $interactionRate = $totalLeads > 0
+            ? round(($interacted / $totalLeads) * 100, 1)
+            : 0;
+
+        $closingRate = $totalLeads > 0
+            ? round(($closedDeal / $totalLeads) * 100, 1)
+            : 0;
+
+        $paidRate = $closedDeal > 0
+            ? round(($paid / $closedDeal) * 100, 1)
+            : 0;
+
         return [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+
+            // Main dashboard stats.
             'leads' => $totalLeads,
-            'trial' => $trialParticipants,
-            'join' => $joins,
+            'interacted' => $interacted,
+            'closing' => $closedDeal,
+            'closed_deal' => $closedDeal,
             'paid' => $paid,
-            'conversion_trial' => $totalLeads > 0 ? round(($trialParticipants / $totalLeads) * 100) : 0,
-            'conversion_join' => $trialParticipants > 0 ? round(($joins / $trialParticipants) * 100) : 0,
-            'conversion_paid' => $joins > 0 ? round(($paid / $joins) * 100) : 0,
+            'revenue' => $revenue,
+
+            // KPI rates.
+            'interaction_rate' => $interactionRate,
+            'closing_rate' => $closingRate,
+            'deal_rate' => $closingRate,
+            'paid_rate' => $paidRate,
+
+            // Temporary aliases for existing Blade compatibility.
+            // Nanti pas Blade kita patch, key ini bisa dibersihin.
+            'trial' => $interacted,
+            'join' => $closedDeal,
+            'conversion_trial' => $interactionRate,
+            'conversion_join' => $closingRate,
+            'conversion_paid' => $paidRate,
         ];
     }
 
-   protected function getUpcomingBatches()
+    protected function getPaidPaymentCount(?string $dateFrom = null, ?string $dateTo = null): int
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        if (! $paymentsTable) {
+            return 0;
+        }
+
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+        $dateColumn = $this->findExistingColumn($paymentsTable, ['paid_at', 'payment_date', 'created_at']);
+
+        $query = DB::table($paymentsTable);
+
+        if ($statusColumn === 'status') {
+            $query->whereIn('status', ['paid', 'success', 'settled']);
+        } elseif ($statusColumn === 'payment_status') {
+            $query->whereIn('payment_status', ['paid', 'success', 'settled']);
+        }
+
+        if ($dateColumn && $dateFrom && $dateTo) {
+            $query->whereDate($dateColumn, '>=', $dateFrom)
+                ->whereDate($dateColumn, '<=', $dateTo);
+        }
+
+        return (int) $query->count();
+    }
+
+    protected function getUpcomingBatches()
     {
         $batchesTable = $this->findExistingTable(['batches']);
         if (! $batchesTable) {
@@ -276,6 +324,7 @@ class DashboardController extends Controller
             ->map(function ($batch) {
                 $batch->filled_seats = $this->getFilledSeatCountForBatch((int) $batch->id);
                 $batch->remaining_seats = max(((int) $batch->capacity) - ((int) $batch->filled_seats), 0);
+
                 return $batch;
             });
     }
