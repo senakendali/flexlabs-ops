@@ -3,16 +3,67 @@
 @section('title', 'Equipment')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Equipment</h4>
-            <small class="text-muted">Manage equipment master data, assignments, and borrowings</small>
-        </div>
+@php
+    $typeBadgeClass = function ($type) {
+        return match($type ?? 'borrowable') {
+            'assigned' => 'bg-info-subtle text-info-emphasis border border-info-subtle',
+            default => 'bg-dark-subtle text-dark-emphasis border border-dark-subtle',
+        };
+    };
 
-        <button type="button" class="btn btn-primary" onclick="openCreateModal()">
-            <i class="bi bi-plus-lg me-1"></i> Add Equipment
-        </button>
+    $conditionBadgeClass = function ($condition) {
+        return match($condition) {
+            'good' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            'minor_damage' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'damaged' => 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+        };
+    };
+
+    $statusBadgeClass = function ($status) {
+        return match($status) {
+            'available' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            'borrowed' => 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
+            'maintenance' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+        };
+    };
+
+    $formatCondition = function ($condition) {
+        return match($condition) {
+            'good' => 'Good',
+            'minor_damage' => 'Minor Damage',
+            'damaged' => 'Damaged',
+            default => ucfirst((string) $condition),
+        };
+    };
+
+    $formatType = function ($type) {
+        return ($type ?? 'borrowable') === 'assigned' ? 'Assigned' : 'Borrowable';
+    };
+
+    $formatStatus = function ($status) {
+        return ucfirst((string) $status);
+    };
+@endphp
+
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Operations</div>
+                <h1 class="page-title mb-2">Equipment</h1>
+                <p class="page-subtitle mb-0">
+                    Manage equipment master data, asset assignment, borrowing activity, return condition, and equipment history in one place.
+                </p>
+            </div>
+
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Equipment
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,9 +72,16 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
-            <form method="GET" class="d-flex align-items-center gap-2">
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Equipment List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review equipment code, type, condition, availability status, holder, and borrowing/assignment history.
+                </p>
+            </div>
+
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -42,175 +100,210 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Name</th>
-                        <th>Code</th>
-                        <th>Type</th>
-                        <th>Serial Number</th>
-                        <th>Brand / Model</th>
-                        <th>Condition</th>
-                        <th>Status</th>
-                        <th>Holder</th>
-                        <th style="width: 210px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($equipments as $equipment)
-                        @php
-                            $activeBorrowing = $equipment->activeBorrowing;
-                        @endphp
-                        <tr>
-                            <td>
-                                {{ ($equipments->currentPage() - 1) * $equipments->perPage() + $loop->iteration }}
-                            </td>
+        <div class="content-card-body">
+            @if($equipments->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Equipment</th>
+                                <th class="text-nowrap">Code</th>
+                                <th class="text-nowrap">Type</th>
+                                <th class="text-nowrap">Serial Number</th>
+                                <th class="text-nowrap">Brand / Model</th>
+                                <th class="text-nowrap">Condition</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-nowrap">Holder</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
 
-                            <td>
-                                <div class="fw-semibold">{{ $equipment->name }}</div>
-                                @if ($equipment->description)
-                                    <small class="text-muted">{{ \Illuminate\Support\Str::limit($equipment->description, 50) }}</small>
-                                @endif
-                            </td>
+                        <tbody>
+                            @foreach ($equipments as $equipment)
+                                @php
+                                    $activeBorrowing = $equipment->activeBorrowing;
+                                    $equipmentType = $equipment->type ?? 'borrowable';
+                                @endphp
 
-                            <td><code>{{ $equipment->code }}</code></td>
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($equipments->currentPage() - 1) * $equipments->perPage() + $loop->iteration }}
+                                    </td>
 
-                            <td>
-                                @if (($equipment->type ?? 'borrowable') === 'assigned')
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle">
-                                        Assigned
-                                    </span>
-                                @else
-                                    <span class="badge bg-dark-subtle text-dark border border-dark-subtle">
-                                        Borrowable
-                                    </span>
-                                @endif
-                            </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $equipment->name }}</div>
+                                        @if ($equipment->description)
+                                            <div class="small text-muted">
+                                                {{ \Illuminate\Support\Str::limit($equipment->description, 50) }}
+                                            </div>
+                                        @else
+                                            <div class="small text-muted">No description</div>
+                                        @endif
+                                    </td>
 
-                            <td>{{ $equipment->serial_number ?: '-' }}</td>
+                                    <td class="text-nowrap">
+                                        <code>{{ $equipment->code }}</code>
+                                    </td>
 
-                            <td>
-                                <div>{{ $equipment->brand ?: '-' }}</div>
-                                <small class="text-muted">{{ $equipment->model ?: '-' }}</small>
-                            </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $typeBadgeClass($equipmentType) }}">
+                                            {{ $formatType($equipmentType) }}
+                                        </span>
+                                    </td>
 
-                            <td>
-                                @if ($equipment->condition === 'good')
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                        Good
-                                    </span>
-                                @elseif ($equipment->condition === 'minor_damage')
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
-                                        Minor Damage
-                                    </span>
-                                @else
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
-                                        Damaged
-                                    </span>
-                                @endif
-                            </td>
+                                    <td class="text-nowrap">
+                                        {{ $equipment->serial_number ?: '-' }}
+                                    </td>
 
-                            <td>
-                                @if ($equipment->status === 'available')
-                                    <span class="badge bg-success">Available</span>
-                                @elseif ($equipment->status === 'borrowed')
-                                    <span class="badge bg-primary">Borrowed</span>
-                                @else
-                                    <span class="badge bg-secondary">Maintenance</span>
-                                @endif
-                            </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $equipment->brand ?: '-' }}</div>
+                                        <div class="small text-muted">{{ $equipment->model ?: '-' }}</div>
+                                    </td>
 
-                            <td>
-                                @if (($equipment->type ?? 'borrowable') === 'assigned')
-                                    @if ($equipment->assignedUser)
-                                        <div class="fw-semibold">{{ $equipment->assignedUser->name }}</div>
-                                        <small class="text-muted">Assigned User</small>
-                                    @else
-                                        <span class="text-muted">Not Assigned</span>
-                                    @endif
-                                @else
-                                    @if ($activeBorrowing && $activeBorrowing->user)
-                                        <div class="fw-semibold">{{ $activeBorrowing->user->name }}</div>
-                                        <small class="text-muted">
-                                            {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
-                                        </small>
-                                    @else
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                @endif
-                            </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $conditionBadgeClass($equipment->condition) }}">
+                                            {{ $formatCondition($equipment->condition) }}
+                                        </span>
+                                    </td>
 
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2 flex-wrap justify-content-center">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        onclick="openHistoryModal({{ $equipment->id }})"
-                                        title="View History"
-                                    >
-                                        <i class="bi bi-clock-history"></i>
-                                    </button>
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $statusBadgeClass($equipment->status) }}">
+                                            {{ $formatStatus($equipment->status) }}
+                                        </span>
+                                    </td>
 
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        onclick="editEquipment({{ $equipment->id }})"
-                                        title="Edit Equipment"
-                                    >
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+                                    <td>
+                                        @if ($equipmentType === 'assigned')
+                                            @if ($equipment->assignedUser)
+                                                <div class="fw-semibold text-dark">{{ $equipment->assignedUser->name }}</div>
+                                                <div class="small text-muted">Assigned User</div>
+                                            @else
+                                                <span class="text-muted">Not Assigned</span>
+                                            @endif
+                                        @else
+                                            @if ($activeBorrowing && $activeBorrowing->user)
+                                                <div class="fw-semibold text-dark">{{ $activeBorrowing->user->name }}</div>
+                                                <div class="small text-muted">
+                                                    {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
+                                                </div>
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        @endif
+                                    </td>
 
-                                    @if (($equipment->type ?? 'borrowable') === 'borrowable' && $equipment->status === 'available')
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-success"
-                                            onclick="openBorrowModal({{ $equipment->id }}, @js($equipment->name))"
-                                            title="Borrow Equipment"
-                                        >
-                                            <i class="bi bi-box-arrow-right"></i>
-                                        </button>
-                                    @endif
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
 
-                                    @if (($equipment->type ?? 'borrowable') === 'borrowable' && $equipment->status === 'borrowed' && $activeBorrowing)
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-warning"
-                                            onclick="openReturnModal({{ $activeBorrowing->id }}, @js($equipment->name), @js($equipment->condition))"
-                                            title="Return Equipment"
-                                        >
-                                            <i class="bi bi-box-arrow-in-left"></i>
-                                        </button>
-                                    @endif
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="openHistoryModal({{ $equipment->id }})"
+                                                    >
+                                                        <i class="bi bi-clock-history me-2"></i>View History
+                                                    </button>
+                                                </li>
 
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $equipment->id }}, @js($equipment->name))"
-                                        title="Delete Equipment"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="10" class="text-center py-4 text-muted">
-                                No equipment found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editEquipment({{ $equipment->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Equipment
+                                                    </button>
+                                                </li>
+
+                                                @if ($equipmentType === 'borrowable' && $equipment->status === 'available')
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-success"
+                                                            onclick="openBorrowModal({{ $equipment->id }}, @js($equipment->name))"
+                                                        >
+                                                            <i class="bi bi-box-arrow-right me-2"></i>Borrow Equipment
+                                                        </button>
+                                                    </li>
+                                                @endif
+
+                                                @if ($equipmentType === 'borrowable' && $equipment->status === 'borrowed' && $activeBorrowing)
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-warning"
+                                                            onclick="openReturnModal({{ $activeBorrowing->id }}, @js($equipment->name), @js($equipment->condition))"
+                                                        >
+                                                            <i class="bi bi-box-arrow-in-left me-2"></i>Return Equipment
+                                                        </button>
+                                                    </li>
+                                                @endif
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $equipment->id }}, @js($equipment->name))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($equipments->hasPages())
+                    <div class="mt-3">
+                        {{ $equipments->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-pc-display"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No equipment found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada equipment yang tercatat. Tambahkan equipment baru untuk mulai mengelola aset operasional.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Add Equipment
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-
-        @if ($equipments->hasPages())
-            <div class="card-footer bg-white">
-                {{ $equipments->links() }}
-            </div>
-        @endif
     </div>
 </div>
 
@@ -223,130 +316,189 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="equipmentModalTitle">Add Equipment</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1" id="equipmentModalTitle">Add Equipment</h5>
+                        <div class="small text-muted">
+                            Complete equipment identity, asset type, condition, status, assignment, and maintenance information.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="name" class="form-label">
-                                Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="name" class="form-control">
-                            <div class="invalid-feedback" id="error_name"></div>
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Basic Information</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Define equipment name, slug, generated code, type, and assigned user when needed.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="slug" class="form-label">Slug</label>
-                            <input type="text" id="slug" class="form-control">
-                            <div class="form-text">Optional. Will auto-generate from name if empty.</div>
-                            <div class="invalid-feedback" id="error_slug"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="name" class="form-label">
+                                        Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="name" class="form-control">
+                                    <div class="invalid-feedback" id="error_name"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="slug" class="form-label">Slug</label>
+                                    <input type="text" id="slug" class="form-control">
+                                    <div class="form-text">Optional. Will auto-generate from name if empty.</div>
+                                    <div class="invalid-feedback" id="error_slug"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="code_preview" class="form-label">Code</label>
+                                    <input type="text" id="code_preview" class="form-control" readonly>
+                                    <div class="form-text">Auto-generated by system.</div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="type" class="form-label">Asset Type</label>
+                                    <select id="type" class="form-select">
+                                        <option value="borrowable">Borrowable</option>
+                                        <option value="assigned">Assigned</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_type"></div>
+                                </div>
+
+                                <div class="col-md-4" id="assignedUserWrapper">
+                                    <label for="assigned_user_id" class="form-label">Assigned User</label>
+                                    <select id="assigned_user_id" class="form-select">
+                                        <option value="">Select User</option>
+                                        @foreach ($users as $user)
+                                            <option value="{{ $user->id }}">
+                                                {{ $user->name }}{{ $user->email ? ' - ' . $user->email : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="form-text">Used only for assigned asset type.</div>
+                                    <div class="invalid-feedback" id="error_assigned_user_id"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Asset Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Add serial number, location, brand, model, asset condition, availability status, and active status.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-4">
-                            <label for="code_preview" class="form-label">Code</label>
-                            <input type="text" id="code_preview" class="form-control" readonly>
-                            <div class="form-text">Auto-generated by system.</div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="serial_number" class="form-label">Serial Number</label>
+                                    <input type="text" id="serial_number" class="form-control">
+                                    <div class="invalid-feedback" id="error_serial_number"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="location" class="form-label">Location</label>
+                                    <input type="text" id="location" class="form-control" placeholder="e.g. Office Jakarta / Studio A">
+                                    <div class="invalid-feedback" id="error_location"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="brand" class="form-label">Brand</label>
+                                    <input type="text" id="brand" class="form-control">
+                                    <div class="invalid-feedback" id="error_brand"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="model" class="form-label">Model</label>
+                                    <input type="text" id="model" class="form-control">
+                                    <div class="invalid-feedback" id="error_model"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="condition" class="form-label">Condition</label>
+                                    <select id="condition" class="form-select">
+                                        <option value="good">Good</option>
+                                        <option value="minor_damage">Minor Damage</option>
+                                        <option value="damaged">Damaged</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_condition"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="status" class="form-label">Status</label>
+                                    <select id="status" class="form-select">
+                                        <option value="available">Available</option>
+                                        <option value="borrowed">Borrowed</option>
+                                        <option value="maintenance">Maintenance</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_status"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="is_active" class="form-label">Status Active</label>
+                                    <select id="is_active" class="form-select">
+                                        <option value="1">Active</option>
+                                        <option value="0">Inactive</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_is_active"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Purchase & Maintenance</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Track purchase date, purchase price, and latest maintenance timestamp for asset history.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-4">
-                            <label for="type" class="form-label">Asset Type</label>
-                            <select id="type" class="form-select">
-                                <option value="borrowable">Borrowable</option>
-                                <option value="assigned">Assigned</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_type"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="purchase_date" class="form-label">Purchase Date</label>
+                                    <input type="date" id="purchase_date" class="form-control">
+                                    <div class="invalid-feedback" id="error_purchase_date"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="purchase_price" class="form-label">Purchase Price</label>
+                                    <input type="number" min="0" step="0.01" id="purchase_price" class="form-control">
+                                    <div class="invalid-feedback" id="error_purchase_price"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="last_maintenance_at" class="form-label">Last Maintenance</label>
+                                    <input type="datetime-local" id="last_maintenance_at" class="form-control">
+                                    <div class="invalid-feedback" id="error_last_maintenance_at"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Description</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Add optional description or important notes related to this equipment.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-4" id="assignedUserWrapper">
-                            <label for="assigned_user_id" class="form-label">Assigned User</label>
-                            <select id="assigned_user_id" class="form-select">
-                                <option value="">Select User</option>
-                                @foreach ($users as $user)
-                                    <option value="{{ $user->id }}">
-                                        {{ $user->name }}{{ $user->email ? ' - ' . $user->email : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="form-text">Used only for assigned asset type.</div>
-                            <div class="invalid-feedback" id="error_assigned_user_id"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="serial_number" class="form-label">Serial Number</label>
-                            <input type="text" id="serial_number" class="form-control">
-                            <div class="invalid-feedback" id="error_serial_number"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="location" class="form-label">Location</label>
-                            <input type="text" id="location" class="form-control" placeholder="e.g. Office Jakarta / Studio A">
-                            <div class="invalid-feedback" id="error_location"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="brand" class="form-label">Brand</label>
-                            <input type="text" id="brand" class="form-control">
-                            <div class="invalid-feedback" id="error_brand"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="model" class="form-label">Model</label>
-                            <input type="text" id="model" class="form-control">
-                            <div class="invalid-feedback" id="error_model"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="condition" class="form-label">Condition</label>
-                            <select id="condition" class="form-select">
-                                <option value="good">Good</option>
-                                <option value="minor_damage">Minor Damage</option>
-                                <option value="damaged">Damaged</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_condition"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="status" class="form-label">Status</label>
-                            <select id="status" class="form-select">
-                                <option value="available">Available</option>
-                                <option value="borrowed">Borrowed</option>
-                                <option value="maintenance">Maintenance</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_status"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="is_active" class="form-label">Status Active</label>
-                            <select id="is_active" class="form-select">
-                                <option value="1">Active</option>
-                                <option value="0">Inactive</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_is_active"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="purchase_date" class="form-label">Purchase Date</label>
-                            <input type="date" id="purchase_date" class="form-control">
-                            <div class="invalid-feedback" id="error_purchase_date"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="purchase_price" class="form-label">Purchase Price</label>
-                            <input type="number" min="0" step="0.01" id="purchase_price" class="form-control">
-                            <div class="invalid-feedback" id="error_purchase_price"></div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label for="last_maintenance_at" class="form-label">Last Maintenance</label>
-                            <input type="datetime-local" id="last_maintenance_at" class="form-control">
-                            <div class="invalid-feedback" id="error_last_maintenance_at"></div>
-                        </div>
-
-                        <div class="col-12">
+                        <div class="content-card-body">
                             <label for="description" class="form-label">Description</label>
                             <textarea id="description" rows="4" class="form-control"></textarea>
                             <div class="invalid-feedback" id="error_description"></div>
@@ -355,12 +507,17 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -377,61 +534,84 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title">Borrow Equipment</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">Borrow Equipment</h5>
+                        <div class="small text-muted">
+                            Assign this borrowable equipment to a borrower and define borrowing time.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="borrowFormAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="mb-3">
-                        <label for="borrow_equipment_name" class="form-label">Equipment</label>
-                        <input type="text" id="borrow_equipment_name" class="form-control" readonly>
-                    </div>
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Borrowing Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Select borrower, borrowed time, optional due date, and borrowing notes.
+                                </p>
+                            </div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="borrow_user_id" class="form-label">
-                            Borrower <span class="text-danger">*</span>
-                        </label>
-                        <select id="borrow_user_id" class="form-select">
-                            <option value="">Select User</option>
-                            @foreach ($users as $user)
-                                <option value="{{ $user->id }}">
-                                    {{ $user->name }}{{ $user->email ? ' - ' . $user->email : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="invalid-feedback" id="error_borrow_user_id"></div>
-                    </div>
+                        <div class="content-card-body">
+                            <div class="mb-3">
+                                <label for="borrow_equipment_name" class="form-label">Equipment</label>
+                                <input type="text" id="borrow_equipment_name" class="form-control" readonly>
+                            </div>
 
-                    <div class="mb-3">
-                        <label for="borrowed_at" class="form-label">
-                            Borrowed At <span class="text-danger">*</span>
-                        </label>
-                        <input type="datetime-local" id="borrowed_at" class="form-control">
-                        <div class="invalid-feedback" id="error_borrowed_at"></div>
-                    </div>
+                            <div class="mb-3">
+                                <label for="borrow_user_id" class="form-label">
+                                    Borrower <span class="text-danger">*</span>
+                                </label>
+                                <select id="borrow_user_id" class="form-select">
+                                    <option value="">Select User</option>
+                                    @foreach ($users as $user)
+                                        <option value="{{ $user->id }}">
+                                            {{ $user->name }}{{ $user->email ? ' - ' . $user->email : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback" id="error_borrow_user_id"></div>
+                            </div>
 
-                    <div class="mb-3">
-                        <label for="due_at" class="form-label">Due At</label>
-                        <input type="datetime-local" id="due_at" class="form-control">
-                        <div class="invalid-feedback" id="error_due_at"></div>
-                    </div>
+                            <div class="mb-3">
+                                <label for="borrowed_at" class="form-label">
+                                    Borrowed At <span class="text-danger">*</span>
+                                </label>
+                                <input type="datetime-local" id="borrowed_at" class="form-control">
+                                <div class="invalid-feedback" id="error_borrowed_at"></div>
+                            </div>
 
-                    <div class="mb-0">
-                        <label for="borrow_notes" class="form-label">Notes</label>
-                        <textarea id="borrow_notes" rows="3" class="form-control"></textarea>
-                        <div class="invalid-feedback" id="error_borrow_notes"></div>
+                            <div class="mb-3">
+                                <label for="due_at" class="form-label">Due At</label>
+                                <input type="datetime-local" id="due_at" class="form-control">
+                                <div class="invalid-feedback" id="error_due_at"></div>
+                            </div>
+
+                            <div class="mb-0">
+                                <label for="borrow_notes" class="form-label">Notes</label>
+                                <textarea id="borrow_notes" rows="3" class="form-control"></textarea>
+                                <div class="invalid-feedback" id="error_borrow_notes"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="borrowSubmitBtn">
-                        <span class="default-borrow-text">Save</span>
-                        <span class="loading-borrow-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="borrowSubmitBtn">
+                        <span class="default-borrow-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-borrow-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -448,50 +628,73 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title">Return Equipment</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">Return Equipment</h5>
+                        <div class="small text-muted">
+                            Record return time, condition after return, and return notes.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="returnFormAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="mb-3">
-                        <label for="return_equipment_name" class="form-label">Equipment</label>
-                        <input type="text" id="return_equipment_name" class="form-control" readonly>
-                    </div>
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Return Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Confirm returned equipment, return time, latest condition, and return notes.
+                                </p>
+                            </div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="returned_at" class="form-label">
-                            Returned At <span class="text-danger">*</span>
-                        </label>
-                        <input type="datetime-local" id="returned_at" class="form-control">
-                        <div class="invalid-feedback" id="error_returned_at"></div>
-                    </div>
+                        <div class="content-card-body">
+                            <div class="mb-3">
+                                <label for="return_equipment_name" class="form-label">Equipment</label>
+                                <input type="text" id="return_equipment_name" class="form-control" readonly>
+                            </div>
 
-                    <div class="mb-3">
-                        <label for="return_condition" class="form-label">Condition After Return</label>
-                        <select id="return_condition" class="form-select">
-                            <option value="good">Good</option>
-                            <option value="minor_damage">Minor Damage</option>
-                            <option value="damaged">Damaged</option>
-                        </select>
-                        <div class="invalid-feedback" id="error_return_condition"></div>
-                    </div>
+                            <div class="mb-3">
+                                <label for="returned_at" class="form-label">
+                                    Returned At <span class="text-danger">*</span>
+                                </label>
+                                <input type="datetime-local" id="returned_at" class="form-control">
+                                <div class="invalid-feedback" id="error_returned_at"></div>
+                            </div>
 
-                    <div class="mb-0">
-                        <label for="return_notes" class="form-label">Notes</label>
-                        <textarea id="return_notes" rows="3" class="form-control"></textarea>
-                        <div class="invalid-feedback" id="error_return_notes"></div>
+                            <div class="mb-3">
+                                <label for="return_condition" class="form-label">Condition After Return</label>
+                                <select id="return_condition" class="form-select">
+                                    <option value="good">Good</option>
+                                    <option value="minor_damage">Minor Damage</option>
+                                    <option value="damaged">Damaged</option>
+                                </select>
+                                <div class="invalid-feedback" id="error_return_condition"></div>
+                            </div>
+
+                            <div class="mb-0">
+                                <label for="return_notes" class="form-label">Notes</label>
+                                <textarea id="return_notes" rows="3" class="form-control"></textarea>
+                                <div class="invalid-feedback" id="error_return_notes"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="returnSubmitBtn">
-                        <span class="default-return-text">Save</span>
-                        <span class="loading-return-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="returnSubmitBtn">
+                        <span class="default-return-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-return-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -504,7 +707,12 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Equipment History</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Equipment History</h5>
+                    <div class="small text-muted">
+                        Review borrowing or assignment history for the selected equipment.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
@@ -522,24 +730,42 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Delete Equipment</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Delete Equipment</h5>
+                    <div class="small text-muted">
+                        This action will remove selected equipment from the system.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deleteEquipmentName"></strong>?
-                </p>
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this equipment?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteEquipmentName"></strong>?
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
@@ -866,11 +1092,13 @@
             let html = '';
 
             html += `
-                <div class="mb-3">
-                    <div class="fw-semibold fs-6">${data.name ?? '-'}</div>
-                    <small class="text-muted">
-                        ${data.code ?? '-'} · ${(data.type ?? 'borrowable') === 'assigned' ? 'Assigned Asset' : 'Borrowable Asset'}
-                    </small>
+                <div class="content-card mb-3">
+                    <div class="content-card-body">
+                        <div class="fw-semibold fs-6">${data.name ?? '-'}</div>
+                        <small class="text-muted">
+                            ${data.code ?? '-'} · ${(data.type ?? 'borrowable') === 'assigned' ? 'Assigned Asset' : 'Borrowable Asset'}
+                        </small>
+                    </div>
                 </div>
             `;
 
@@ -878,7 +1106,17 @@
                 html += `<h6 class="mb-3">Borrowing History</h6>`;
 
                 if (!data.borrowings || data.borrowings.length === 0) {
-                    html += `<div class="text-muted">No borrowing history found.</div>`;
+                    html += `
+                        <div class="empty-state-box">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <h5 class="empty-state-title">No borrowing history found</h5>
+                            <p class="empty-state-text mb-0">
+                                This equipment has no borrowing history yet.
+                            </p>
+                        </div>
+                    `;
                 } else {
                     html += `<div class="list-group">`;
 
@@ -902,7 +1140,17 @@
                 html += `<h6 class="mb-3">Assignment History</h6>`;
 
                 if (!data.assignments || data.assignments.length === 0) {
-                    html += `<div class="text-muted">No assignment history found.</div>`;
+                    html += `
+                        <div class="empty-state-box">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-person-badge"></i>
+                            </div>
+                            <h5 class="empty-state-title">No assignment history found</h5>
+                            <p class="empty-state-text mb-0">
+                                This equipment has no assignment history yet.
+                            </p>
+                        </div>
+                    `;
                 } else {
                     html += `<div class="list-group">`;
 
