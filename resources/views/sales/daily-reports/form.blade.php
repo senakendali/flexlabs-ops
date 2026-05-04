@@ -3,18 +3,23 @@
 @section('title', $isEdit ? 'Edit Sales Daily Report' : 'Create Sales Daily Report')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">{{ $isEdit ? 'Edit Sales Daily Report' : 'Create Sales Daily Report' }}</h4>
-            <small class="text-muted">
-                Input laporan harian sales secara terstruktur agar lebih mudah dipantau, dibandingkan, dan dianalisa oleh management.
-            </small>
-        </div>
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Sales Reporting</div>
+                <h1 class="page-title mb-2">{{ $isEdit ? 'Edit Sales Daily Report' : 'Create Sales Daily Report' }}</h1>
+                <p class="page-subtitle mb-0">
+                    Input laporan harian sales secara terstruktur agar lebih mudah dipantau, dibandingkan, dan dianalisa oleh management.
+                </p>
+            </div>
 
-        <a href="{{ route('sales-daily-reports.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Back
-        </a>
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <a href="{{ route('sales-daily-reports.index') }}" class="btn btn-light btn-modern">
+                    <i class="bi bi-arrow-left me-2"></i>Back
+                </a>
+            </div>
+        </div>
     </div>
 
     <div
@@ -23,30 +28,32 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body">
-            <form
-                id="salesDailyReportForm"
-                action="{{ $isEdit ? route('sales-daily-reports.update', $report) : route('sales-daily-reports.store') }}"
-                method="POST"
-                data-redirect="{{ route('sales-daily-reports.index') }}"
-            >
-                @csrf
-                @if ($isEdit)
-                    @method('PUT')
-                @endif
+    <form
+        id="salesDailyReportForm"
+        action="{{ $isEdit ? route('sales-daily-reports.update', $report) : route('sales-daily-reports.store') }}"
+        method="POST"
+        data-redirect="{{ route('sales-daily-reports.index') }}"
+    >
+        @csrf
+        @if ($isEdit)
+            @method('PUT')
+        @endif
 
-                <div id="formAlert" class="alert alert-danger d-none mb-4"></div>
+        <div id="formAlert" class="alert alert-danger d-none mb-4"></div>
 
-                <div class="mb-4">
-                    <h5 class="fw-bold mb-1">Report Information</h5>
-                    <p class="text-muted small mb-0">
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <div>
+                    <h5 class="content-card-title mb-1">Report Information</h5>
+                    <p class="content-card-subtitle mb-0">
                         Tentukan tanggal laporan dan gunakan angka yang sesuai dengan report sales pada hari tersebut.
                     </p>
                 </div>
+            </div>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-4">
+            <div class="content-card-body">
+                <div class="row g-3">
+                    <div class="col-xl-4 col-md-6">
                         <label for="report_date" class="form-label">
                             Report Date <span class="text-danger">*</span>
                         </label>
@@ -62,16 +69,22 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="mb-4">
-                    <h5 class="fw-bold mb-1">Lead Metrics</h5>
-                    <p class="text-muted small mb-0">
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <div>
+                    <h5 class="content-card-title mb-1">Lead Metrics</h5>
+                    <p class="content-card-subtitle mb-0">
                         Masukkan angka utama dari daily report untuk membantu membaca volume leads, kualitas interaksi, dan peluang konsultasi.
                     </p>
                 </div>
+            </div>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
+            <div class="content-card-body">
+                <div class="row g-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="total_leads" class="form-label">Total Leads <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -86,7 +99,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="interacted" class="form-label">Interacted <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -101,7 +114,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="ignored" class="form-label">Ignored <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -116,7 +129,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="closed_lost" class="form-label">Closed Lost <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -131,7 +144,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="not_related" class="form-label">Not Related <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -146,7 +159,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="warm_leads" class="form-label">Warm Leads <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -161,7 +174,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="hot_leads" class="form-label">Hot Leads <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -176,7 +189,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="consultation" class="form-label">Consultation <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -191,16 +204,22 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="mb-4">
-                    <h5 class="fw-bold mb-1">Sales Outcome</h5>
-                    <p class="text-muted small mb-0">
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <div>
+                    <h5 class="content-card-title mb-1">Sales Outcome</h5>
+                    <p class="content-card-subtitle mb-0">
                         Hasil akhir dari aktivitas sales hari ini. Bagian ini membantu management melihat performa nyata dalam bentuk deal dan revenue.
                     </p>
                 </div>
+            </div>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
+            <div class="content-card-body">
+                <div class="row g-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="closed_deal" class="form-label">Closed Deal <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -215,7 +234,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-md-6">
                         <label for="revenue" class="form-label">Revenue (Rp) <span class="text-danger">*</span></label>
                         <input
                             type="number"
@@ -231,14 +250,20 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="mb-4">
-                    <h5 class="fw-bold mb-1">Narrative Insight</h5>
-                    <p class="text-muted small mb-0">
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <div>
+                    <h5 class="content-card-title mb-1">Narrative Insight</h5>
+                    <p class="content-card-subtitle mb-0">
                         Tambahkan insight penting agar tidak hanya angka yang terlihat, tapi juga apa yang sebenarnya terjadi di lapangan hari ini.
                     </p>
                 </div>
+            </div>
 
+            <div class="content-card-body">
                 <div class="row g-3">
                     <div class="col-12">
                         <label for="summary" class="form-label">Leads Summary for Today</label>
@@ -282,14 +307,19 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="d-flex justify-content-end gap-2 mt-4">
-                    <a href="{{ route('sales-daily-reports.index') }}" class="btn btn-light border">
-                        Cancel
+        <div class="content-card">
+            <div class="content-card-body">
+                <div class="d-flex justify-content-end gap-2 flex-wrap">
+                    <a href="{{ route('sales-daily-reports.index') }}" class="btn btn-outline-secondary btn-modern">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </a>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
+
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
                         <span class="default-text">
-                            <i class="bi bi-check-circle me-1"></i>
+                            <i class="bi bi-check-circle me-2"></i>
                             {{ $isEdit ? 'Update Report' : 'Save Report' }}
                         </span>
                         <span class="loading-text d-none">
@@ -298,9 +328,9 @@
                         </span>
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
+    </form>
 </div>
 @endsection
 
