@@ -3,16 +3,31 @@
 @section('title', 'Programs')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Programs</h4>
-            <small class="text-muted">Manage master program data for all modules</small>
-        </div>
+@php
+    $statusBadgeClass = function ($isActive) {
+        return $isActive
+            ? 'bg-success-subtle text-success-emphasis border border-success-subtle'
+            : 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
+    };
+@endphp
 
-        <button type="button" class="btn btn-primary" onclick="openCreateModal()">
-            <i class="bi bi-plus-lg me-1"></i> Add Program
-        </button>
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Academic</div>
+                <h1 class="page-title mb-2">Programs</h1>
+                <p class="page-subtitle mb-0">
+                    Manage master program data, program slug, description, and active status for academic modules.
+                </p>
+            </div>
+
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Program
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,9 +36,16 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
-            <form method="GET" class="d-flex align-items-center gap-2">
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Program List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review academic programs, generated slug, description, and program availability status.
+                </p>
+            </div>
+
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -42,74 +64,120 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Name</th>
-                        <th>Slug</th>
-                        <th>Description</th>
-                        <th style="width: 120px;">Status</th>
-                        <th style="width: 170px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($programs as $program)
-                        <tr>
-                            <td>
-                                {{ ($programs->currentPage() - 1) * $programs->perPage() + $loop->iteration }}
-                            </td>
-                            <td class="fw-semibold">{{ $program->name }}</td>
-                            <td>
-                                <code>{{ $program->slug }}</code>
-                            </td>
-                            <td class="text-muted">
-                                {{ $program->description ?: '-' }}
-                            </td>
-                            <td>
-                                @if ($program->is_active)
-                                    <span class="badge bg-success">Active</span>
-                                @else
-                                    <span class="badge bg-secondary">Inactive</span>
-                                @endif
-                            </td>
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        onclick="editProgram({{ $program->id }})"
-                                    >
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+        <div class="content-card-body">
+            @if($programs->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Program</th>
+                                <th class="text-nowrap">Slug</th>
+                                <th class="text-nowrap">Description</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
 
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $program->id }}, @js($program->name))"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="text-center py-4 text-muted">
-                                No programs found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                        <tbody>
+                            @foreach ($programs as $program)
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($programs->currentPage() - 1) * $programs->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $program->name }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            Academic program
+                                        </div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <code>{{ $program->slug }}</code>
+                                    </td>
+
+                                    <td class="text-muted">
+                                        {{ $program->description ?: '-' }}
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $statusBadgeClass($program->is_active) }}">
+                                            {{ $program->is_active ? 'Active' : 'Inactive' }}
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editProgram({{ $program->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Program
+                                                    </button>
+                                                </li>
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $program->id }}, @js($program->name))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($programs->hasPages())
+                    <div class="mt-3">
+                        {{ $programs->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-journal-richtext"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No programs found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada program yang tercatat. Tambahkan program baru untuk mulai mengelola struktur akademik.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Add Program
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-
-        @if ($programs->hasPages())
-            <div class="card-footer bg-white">
-                {{ $programs->links() }}
-            </div>
-        @endif
     </div>
 </div>
 
@@ -122,54 +190,82 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="programModalTitle">Add Program</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1" id="programModalTitle">Add Program</h5>
+                        <div class="small text-muted">
+                            Complete program identity, slug, description, and active status.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="name" class="form-label">
-                                Program Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="name" class="form-control">
-                            <div class="invalid-feedback" id="error_name"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="slug" class="form-label">Slug</label>
-                            <input type="text" id="slug" class="form-control">
-                            <div class="form-text">Optional. Will auto-generate from name if empty.</div>
-                            <div class="invalid-feedback" id="error_slug"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea id="description" rows="4" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_description"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_active" checked>
-                                <label class="form-check-label" for="is_active">
-                                    Active
-                                </label>
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Program Information</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Define the program name and slug used across academic modules.
+                                </p>
                             </div>
-                            <div class="invalid-feedback d-block" id="error_is_active"></div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="name" class="form-label">
+                                        Program Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="name" class="form-control">
+                                    <div class="invalid-feedback" id="error_name"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="slug" class="form-label">Slug</label>
+                                    <input type="text" id="slug" class="form-control">
+                                    <div class="form-text">Optional. Will auto-generate from name if empty.</div>
+                                    <div class="invalid-feedback" id="error_slug"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea id="description" rows="4" class="form-control" placeholder="Short description about this program"></textarea>
+                                    <div class="invalid-feedback" id="error_description"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="border rounded-3 p-3">
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" id="is_active" checked>
+                                            <label class="form-check-label fw-semibold" for="is_active">
+                                                Active Program
+                                            </label>
+                                        </div>
+                                        <div class="small text-muted mt-1">
+                                            Active programs can be used in related academic and enrollment modules.
+                                        </div>
+                                        <div class="invalid-feedback d-block" id="error_is_active"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -182,24 +278,42 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Delete Program</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Delete Program</h5>
+                    <div class="small text-muted">
+                        This action will remove selected program from the system.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deleteProgramName"></strong>?
-                </p>
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this program?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteProgramName"></strong>?
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
@@ -209,6 +323,8 @@
 
 @push('scripts')
 <script>
+    const programBaseUrl = @json(url('/programs'));
+
     const programModalEl = document.getElementById('programModal');
     const programModal = new bootstrap.Modal(programModalEl);
     const programForm = document.getElementById('programForm');
@@ -245,13 +361,15 @@
             info: 'bg-info text-dark'
         }[type] || 'bg-success';
 
+        const closeBtnClass = type === 'warning' || type === 'info'
+            ? 'btn-close'
+            : 'btn-close btn-close-white';
+
         const html = `
             <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="${closeBtnClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
             </div>
         `;
@@ -259,15 +377,10 @@
         container.insertAdjacentHTML('beforeend', html);
 
         const toastEl = document.getElementById(id);
-        const toast = new bootstrap.Toast(toastEl, {
-            delay: 3000
-        });
-
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
         toast.show();
 
-        toastEl.addEventListener('hidden.bs.toast', () => {
-            toastEl.remove();
-        });
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
     }
 
     function scheduleReload() {
@@ -277,18 +390,16 @@
 
         reloadTimeout = setTimeout(() => {
             location.reload();
-        }, 3000);
+        }, 1500);
     }
 
-    function resetForm() {
-        programForm.reset();
-        fields.id.value = '';
-        fields.is_active.checked = true;
-        formAlert.classList.add('d-none');
-        formAlert.innerHTML = '';
-        clearValidationErrors();
-        setSubmitLoading(false);
-        autoSlug = true;
+    function slugify(text) {
+        return String(text || '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-');
     }
 
     function clearValidationErrors() {
@@ -300,10 +411,14 @@
 
         ['name', 'slug', 'description', 'is_active'].forEach(key => {
             const errorEl = document.getElementById(`error_${key}`);
+
             if (errorEl) {
                 errorEl.textContent = '';
             }
         });
+
+        formAlert.classList.add('d-none');
+        formAlert.innerHTML = '';
     }
 
     function setValidationErrors(errors = {}) {
@@ -313,7 +428,7 @@
             const field = fields[key];
             const errorEl = document.getElementById(`error_${key}`);
 
-            if (field && field.classList && key !== 'is_active') {
+            if (field && field.classList) {
                 field.classList.add('is-invalid');
             }
 
@@ -335,29 +450,36 @@
         confirmDeleteBtn.querySelector('.loading-delete-text').classList.toggle('d-none', !isLoading);
     }
 
-    function slugify(text) {
-        return String(text || '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-');
+    function resetForm() {
+        programForm.reset();
+
+        fields.id.value = '';
+        fields.name.value = '';
+        fields.slug.value = '';
+        fields.description.value = '';
+        fields.is_active.checked = true;
+
+        clearValidationErrors();
+        setSubmitLoading(false);
+
+        autoSlug = true;
+        isEditMode = false;
     }
 
     function openCreateModal() {
-        isEditMode = false;
         resetForm();
         modalTitle.textContent = 'Add Program';
         programModal.show();
     }
 
     async function editProgram(id) {
-        isEditMode = true;
         resetForm();
+        isEditMode = true;
+        autoSlug = false;
         modalTitle.textContent = 'Edit Program';
 
         try {
-            const response = await fetch(`/programs/${id}`, {
+            const response = await fetch(`${programBaseUrl}/${id}`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -373,13 +495,12 @@
 
             const data = result.data;
 
-            fields.id.value = data.id;
+            fields.id.value = data.id ?? '';
             fields.name.value = data.name ?? '';
             fields.slug.value = data.slug ?? '';
             fields.description.value = data.description ?? '';
-            fields.is_active.checked = !!data.is_active;
+            fields.is_active.checked = Boolean(data.is_active);
 
-            autoSlug = false;
             programModal.show();
         } catch (error) {
             formAlert.classList.remove('d-none');
@@ -409,11 +530,9 @@
         e.preventDefault();
 
         clearValidationErrors();
-        formAlert.classList.add('d-none');
-        formAlert.innerHTML = '';
 
         const id = fields.id.value;
-        const url = id ? `/programs/${id}` : `/programs`;
+        const url = id ? `${programBaseUrl}/${id}` : programBaseUrl;
 
         const payload = {
             name: fields.name.value.trim(),
@@ -448,7 +567,7 @@
             }
 
             programModal.hide();
-            showToast(result.message || 'Program saved successfully', 'success');
+            showToast(result.message || 'Program saved successfully.', 'success');
             scheduleReload();
         } catch (error) {
             if (error.message !== 'Validation failed.') {
@@ -466,7 +585,7 @@
         setDeleteLoading(true);
 
         try {
-            const response = await fetch(`/programs/${deleteProgramId}`, {
+            const response = await fetch(`${programBaseUrl}/${deleteProgramId}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
@@ -482,7 +601,7 @@
             }
 
             deleteModal.hide();
-            showToast(result.message || 'Program deleted successfully', 'danger');
+            showToast(result.message || 'Program deleted successfully.', 'danger');
             scheduleReload();
         } catch (error) {
             showToast(error.message || 'Failed to delete program.', 'danger');
