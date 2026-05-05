@@ -21,17 +21,17 @@
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border">
+                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border btn-modern">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
 
                 @if (Route::has('workshop.show'))
-                    <a href="{{ route('workshop.show', $workshop->slug) }}" target="_blank" class="btn btn-outline-secondary">
+                    <a href="{{ route('workshop.show', $workshop->slug) }}" target="_blank" class="btn btn-light btn-modern">
                         <i class="bi bi-box-arrow-up-right me-1"></i> Public Page
                     </a>
                 @endif
 
-                <a href="{{ route('academic.workshops.edit', $workshop) }}" class="btn btn-primary">
+                <a href="{{ route('academic.workshops.edit', $workshop) }}" class="btn btn-light btn-modern">
                     <i class="bi bi-pencil-square me-1"></i> Edit Workshop
                 </a>
             </div>

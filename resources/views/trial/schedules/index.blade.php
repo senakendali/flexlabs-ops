@@ -3,16 +3,23 @@
 @section('title', 'Trial Schedules')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Trial Schedules</h4>
-            <small class="text-muted">Manage trial schedules by program and theme</small>
-        </div>
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Academic</div>
+                <h1 class="page-title mb-2">Trial Schedules</h1>
+                <p class="page-subtitle mb-0">
+                    Manage trial class schedules by program, theme, date, session time, quota, and active status.
+                </p>
+            </div>
 
-        <button type="button" class="btn btn-primary" onclick="openCreateModal()">
-            <i class="bi bi-plus-lg me-1"></i> Add Schedule
-        </button>
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,9 +28,16 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
-            <form method="GET" class="d-flex align-items-center gap-2">
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Trial Schedule List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review schedule name, program, theme, date, session time, quota, and publication status.
+                </p>
+            </div>
+
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -42,99 +56,175 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Schedule</th>
-                        <th>Program</th>
-                        <th>Theme</th>
-                        <th>Date</th>
-                        <th>Day</th>
-                        <th>Time</th>
-                        <th>Quota</th>
-                        <th>Status</th>
-                        <th style="width: 140px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($schedules as $schedule)
-                        @php
-                            $scheduleDate = $schedule->schedule_date
-                                ? \Carbon\Carbon::parse($schedule->schedule_date)
-                                : null;
-                        @endphp
-                        <tr>
-                            <td>
-                                {{ ($schedules->currentPage() - 1) * $schedules->perPage() + $loop->iteration }}
-                            </td>
-                            <td>
-                                <div class="fw-semibold">{{ $schedule->name }}</div>
-                                @if ($schedule->description)
-                                    <small class="text-muted">
-                                        {{ \Illuminate\Support\Str::limit($schedule->description, 60) }}
-                                    </small>
-                                @endif
-                            </td>
-                            <td>{{ $schedule->program->name ?? '-' }}</td>
-                            <td>{{ $schedule->trialTheme->name ?? '-' }}</td>
-                            <td>{{ $scheduleDate ? $scheduleDate->format('d M Y') : '-' }}</td>
-                            <td>{{ $scheduleDate ? $scheduleDate->format('l') : '-' }}</td>
-                            <td>
-                                {{ $schedule->start_time ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->start_time)->format('H:i') : '-' }}
-                                @if ($schedule->end_time)
-                                    - {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->end_time)->format('H:i') }}
-                                @endif
-                            </td>
-                            <td>{{ $schedule->quota ?? '-' }}</td>
-                            <td>
-                                @if ($schedule->is_active)
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                        Active
-                                    </span>
-                                @else
-                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-                                        Inactive
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        onclick="editSchedule({{ $schedule->id }})"
-                                    >
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
+        <div class="content-card-body">
+            @if ($schedules->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Schedule</th>
+                                <th class="text-nowrap">Program</th>
+                                <th class="text-nowrap">Theme</th>
+                                <th class="text-nowrap">Date</th>
+                                <th class="text-nowrap">Time</th>
+                                <th class="text-end text-nowrap">Quota</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
 
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $schedule->id }}, @js($schedule->name))"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="10" class="text-center py-4 text-muted">
-                                No trial schedules found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                        <tbody>
+                            @foreach ($schedules as $schedule)
+                                @php
+                                    $scheduleDate = $schedule->schedule_date
+                                        ? \Carbon\Carbon::parse($schedule->schedule_date)
+                                        : null;
+                                @endphp
+
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($schedules->currentPage() - 1) * $schedules->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->name }}
+                                        </div>
+
+                                        @if ($schedule->description)
+                                            <div class="small text-muted mt-1">
+                                                {{ \Illuminate\Support\Str::limit($schedule->description, 70) }}
+                                            </div>
+                                        @else
+                                            <div class="small text-muted mt-1">
+                                                Trial class session
+                                            </div>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->program->name ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">Academic program</div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->trialTheme->name ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">Trial theme</div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        @if ($scheduleDate)
+                                            <div class="fw-semibold text-dark">
+                                                {{ $scheduleDate->format('d M Y') }}
+                                            </div>
+                                            <div class="small text-muted">
+                                                {{ $scheduleDate->format('l') }}
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <div class="fw-semibold text-dark">
+                                            {{ $schedule->start_time ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->start_time)->format('H:i') : '-' }}
+                                            @if ($schedule->end_time)
+                                                - {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->end_time)->format('H:i') }}
+                                            @endif
+                                        </div>
+                                        <div class="small text-muted">Session time</div>
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        {{ $schedule->quota ? number_format((int) $schedule->quota) : '-' }}
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        @if ($schedule->is_active)
+                                            <span class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle">
+                                                Active
+                                            </span>
+                                        @else
+                                            <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                                Inactive
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editSchedule({{ $schedule->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Schedule
+                                                    </button>
+                                                </li>
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $schedule->id }}, @js($schedule->name))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($schedules->hasPages())
+                    <div class="mt-3">
+                        {{ $schedules->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-calendar2-week"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No trial schedules found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada jadwal trial class yang tercatat. Tambahkan jadwal baru untuk mulai mengatur sesi trial berdasarkan program dan tema.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-
-        @if ($schedules->hasPages())
-            <div class="card-footer bg-white">
-                {{ $schedules->links() }}
-            </div>
-        @endif
     </div>
 </div>
 
@@ -147,97 +237,151 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="scheduleModalTitle">Add Schedule</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1" id="scheduleModalTitle">Add Schedule</h5>
+                        <div class="small text-muted">
+                            Complete schedule information, selected program, theme, date, session time, and quota.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="program_id" class="form-label">
-                                Program <span class="text-danger">*</span>
-                            </label>
-                            <select id="program_id" class="form-select">
-                                <option value="">Select Program</option>
-                                @foreach ($programs as $program)
-                                    <option value="{{ $program->id }}">{{ $program->name }}</option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_program_id"></div>
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Program & Theme</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Choose the academic program and related trial theme for this session.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="trial_theme_id" class="form-label">Theme</label>
-                            <select id="trial_theme_id" class="form-select">
-                                <option value="">Select Theme</option>
-                            </select>
-                            <div class="form-text">Optional. Themes will follow selected program.</div>
-                            <div class="invalid-feedback" id="error_trial_theme_id"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="program_id" class="form-label">
+                                        Program <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="program_id" class="form-select">
+                                        <option value="">Select Program</option>
+                                        @foreach ($programs as $program)
+                                            <option value="{{ $program->id }}">{{ $program->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_program_id"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="trial_theme_id" class="form-label">Theme</label>
+                                    <select id="trial_theme_id" class="form-select">
+                                        <option value="">Select Theme</option>
+                                    </select>
+                                    <div class="form-text">Optional. Themes will follow selected program.</div>
+                                    <div class="invalid-feedback" id="error_trial_theme_id"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Schedule Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Define the session name, date, start time, end time, and available quota.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="name" class="form-label">
-                                Schedule Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="name" class="form-control">
-                            <div class="form-text">Example: Intro Web Dev - 15 Apr 2026</div>
-                            <div class="invalid-feedback" id="error_name"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="name" class="form-label">
+                                        Schedule Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="name" class="form-control">
+                                    <div class="form-text">Example: Intro Web Dev - 15 Apr 2026</div>
+                                    <div class="invalid-feedback" id="error_name"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="schedule_date" class="form-label">
+                                        Schedule Date <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" id="schedule_date" class="form-control">
+                                    <div class="invalid-feedback" id="error_schedule_date"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="start_time" class="form-label">
+                                        Start Time <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="time" id="start_time" class="form-control">
+                                    <div class="invalid-feedback" id="error_start_time"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="end_time" class="form-label">End Time</label>
+                                    <input type="time" id="end_time" class="form-control">
+                                    <div class="invalid-feedback" id="error_end_time"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="quota" class="form-label">Quota</label>
+                                    <input type="number" min="1" id="quota" class="form-control">
+                                    <div class="invalid-feedback" id="error_quota"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="is_active" class="form-label">Status Active</label>
+                                    <select id="is_active" class="form-select">
+                                        <option value="1">Active</option>
+                                        <option value="0">Inactive</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_is_active"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Description</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Add optional notes or context for this trial schedule.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="schedule_date" class="form-label">
-                                Schedule Date <span class="text-danger">*</span>
-                            </label>
-                            <input type="date" id="schedule_date" class="form-control">
-                            <div class="invalid-feedback" id="error_schedule_date"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="start_time" class="form-label">
-                                Start Time <span class="text-danger">*</span>
-                            </label>
-                            <input type="time" id="start_time" class="form-control">
-                            <div class="invalid-feedback" id="error_start_time"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="end_time" class="form-label">End Time</label>
-                            <input type="time" id="end_time" class="form-control">
-                            <div class="invalid-feedback" id="error_end_time"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="quota" class="form-label">Quota</label>
-                            <input type="number" min="1" id="quota" class="form-control">
-                            <div class="invalid-feedback" id="error_quota"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="is_active" class="form-label">Status Active</label>
-                            <select id="is_active" class="form-select">
-                                <option value="1">Active</option>
-                                <option value="0">Inactive</option>
-                            </select>
-                            <div class="invalid-feedback" id="error_is_active"></div>
-                        </div>
-
-                        <div class="col-12">
+                        <div class="content-card-body">
                             <label for="description" class="form-label">Description</label>
-                            <textarea id="description" rows="4" class="form-control"></textarea>
+                            <textarea
+                                id="description"
+                                rows="4"
+                                class="form-control"
+                                placeholder="Short description about this trial schedule"
+                            ></textarea>
                             <div class="invalid-feedback" id="error_description"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -250,24 +394,42 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Delete Schedule</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Delete Schedule</h5>
+                    <div class="small text-muted">
+                        This action will remove selected trial schedule from the system.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deleteScheduleName"></strong>?
-                </p>
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this trial schedule?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteScheduleName"></strong>?
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
@@ -435,6 +597,11 @@
         return String(dateValue).substring(0, 10);
     }
 
+    function formatTimeForInput(timeValue) {
+        if (!timeValue) return '';
+        return String(timeValue).substring(0, 5);
+    }
+
     async function editSchedule(id) {
         resetForm();
         modalTitle.textContent = 'Edit Schedule';
@@ -480,11 +647,6 @@
         deleteScheduleNameEl.textContent = name || '-';
         setDeleteLoading(false);
         deleteModal.show();
-    }
-
-    function formatTimeForInput(timeValue) {
-        if (!timeValue) return '';
-        return String(timeValue).substring(0, 5);
     }
 
     fields.program_id.addEventListener('change', function () {

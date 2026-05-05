@@ -3,16 +3,23 @@
 @section('title', 'Trial Participants')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Trial Participants</h4>
-            <small class="text-muted">Manage participant data for trial sessions</small>
-        </div>
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Academic</div>
+                <h1 class="page-title mb-2">Trial Participants</h1>
+                <p class="page-subtitle mb-0">
+                    Manage participant registrations, schedule selection, trial theme, contact details, and attendance status.
+                </p>
+            </div>
 
-        <button type="button" class="btn btn-primary" onclick="openCreateModal()">
-            <i class="bi bi-plus-lg me-1"></i> Add Participant
-        </button>
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Participant
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,28 +28,37 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
+    <div class="content-card mb-4">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Filter Participants</h5>
+                <p class="content-card-subtitle mb-0">
+                    Search participant records by name, contact, schedule, or registration status.
+                </p>
+            </div>
+        </div>
+
+        <div class="content-card-body">
             <form method="GET">
-                <div class="row g-2 align-items-end">
+                <div class="row g-3 align-items-end">
                     <div class="col-md-4">
-                        <label for="search" class="form-label mb-1 small text-muted">Search</label>
+                        <label for="search" class="form-label">Search</label>
                         <input
                             type="text"
                             name="search"
                             id="search"
-                            class="form-control form-control-sm"
+                            class="form-control"
                             value="{{ request('search') }}"
                             placeholder="Name, email, phone"
                         >
                     </div>
 
                     <div class="col-md-3">
-                        <label for="trial_schedule_id" class="form-label mb-1 small text-muted">Schedule</label>
+                        <label for="trial_schedule_id" class="form-label">Schedule</label>
                         <select
                             name="trial_schedule_id"
                             id="trial_schedule_id"
-                            class="form-select form-select-sm"
+                            class="form-select"
                         >
                             <option value="">All Schedules</option>
                             @foreach ($trialSchedules as $schedule)
@@ -60,11 +76,11 @@
                     </div>
 
                     <div class="col-md-2">
-                        <label for="status" class="form-label mb-1 small text-muted">Status</label>
+                        <label for="status" class="form-label">Status</label>
                         <select
                             name="status"
                             id="status"
-                            class="form-select form-select-sm"
+                            class="form-select"
                         >
                             <option value="">All Status</option>
                             @foreach ($statusOptions as $value => $label)
@@ -76,11 +92,11 @@
                     </div>
 
                     <div class="col-md-1">
-                        <label for="per_page" class="form-label mb-1 small text-muted">Show</label>
+                        <label for="per_page" class="form-label">Show</label>
                         <select
                             name="per_page"
                             id="per_page"
-                            class="form-select form-select-sm"
+                            class="form-select"
                         >
                             @foreach ([10, 25, 50, 100] as $size)
                                 <option value="{{ $size }}" {{ (int) request('per_page', 10) === $size ? 'selected' : '' }}>
@@ -90,138 +106,200 @@
                         </select>
                     </div>
 
-                    <div class="col-md-1">
-                        <label class="form-label mb-1 small text-muted d-block">&nbsp;</label>
-                        <button type="submit" class="btn btn-sm btn-outline-primary w-100 filter-action-btn">
-                            <i class="bi bi-search"></i>
-                        </button>
-                    </div>
+                    <div class="col-md-2">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-modern flex-fill">
+                                <i class="bi bi-search me-2"></i>Filter
+                            </button>
 
-                    <div class="col-md-1">
-                        <label class="form-label mb-1 small text-muted d-block">&nbsp;</label>
-                        <a href="{{ route('trial-participants.index') }}" class="btn btn-sm btn-outline-secondary w-100 filter-action-btn">
-                            Reset
-                        </a>
+                            <a href="{{ route('trial-participants.index') }}" class="btn btn-outline-secondary btn-modern">
+                                Reset
+                            </a>
+                        </div>
                     </div>
                 </div>
             </form>
         </div>
+    </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Participant</th>
-                        <th>Schedule</th>
-                        <th>Theme</th>
-                        <th>Contact</th>
-                        <th>Domicile</th>
-                        <th>Status</th>
-                        <th style="width: 140px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($participants as $participant)
-                        <tr>
-                            <td>
-                                {{ ($participants->currentPage() - 1) * $participants->perPage() + $loop->iteration }}
-                            </td>
-
-                            <td>
-                                <div class="fw-semibold">{{ $participant->full_name }}</div>
-                                @if ($participant->current_activity)
-                                    <small class="text-muted d-block">
-                                        {{ $participant->current_activity }}
-                                    </small>
-                                @endif
-                                @if ($participant->goal)
-                                    <small class="text-muted d-block">
-                                        {{ \Illuminate\Support\Str::limit($participant->goal, 60) }}
-                                    </small>
-                                @endif
-                            </td>
-
-                            <td>
-                                @if ($participant->trialSchedule)
-                                    <div class="fw-semibold">{{ $participant->trialSchedule->name }}</div>
-                                    <small class="text-muted d-block">
-                                        {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->schedule_date)->format('d M Y') }}
-                                    </small>
-                                    <small class="text-muted d-block">
-                                        {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->start_time)->format('H:i') }}
-                                        - {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->end_time)->format('H:i') }}
-                                    </small>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-
-                            <td>
-                                {{ $participant->trialTheme->name ?? '-' }}
-                            </td>
-
-                            <td>
-                                <div>{{ $participant->email ?: '-' }}</div>
-                                <small class="text-muted d-block">{{ $participant->phone ?: '-' }}</small>
-                            </td>
-
-                            <td>{{ $participant->domicile_city ?: '-' }}</td>
-
-                            <td>
-                                @php
-                                    $statusClass = match($participant->status) {
-                                        'registered' => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
-                                        'contacted' => 'bg-info-subtle text-info border border-info-subtle',
-                                        'confirmed' => 'bg-primary-subtle text-primary border border-primary-subtle',
-                                        'attended' => 'bg-success-subtle text-success border border-success-subtle',
-                                        'cancelled' => 'bg-danger-subtle text-danger border border-danger-subtle',
-                                        'no_show' => 'bg-dark-subtle text-dark border border-dark-subtle',
-                                        default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
-                                    };
-                                @endphp
-
-                                <span class="badge {{ $statusClass }}">
-                                    {{ $statusOptions[$participant->status] ?? ucfirst(str_replace('_', ' ', $participant->status)) }}
-                                </span>
-                            </td>
-
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        onclick="editParticipant({{ $participant->id }})"
-                                    >
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="openDeleteModal({{ $participant->id }}, @js($participant->full_name))"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                No trial participants found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Participant List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review participant profile, selected schedule, contact details, domicile, and current progress status.
+                </p>
+            </div>
         </div>
 
-        @if ($participants->hasPages())
-            <div class="card-footer bg-white">
-                {{ $participants->links() }}
-            </div>
-        @endif
+        <div class="content-card-body">
+            @if ($participants->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Participant</th>
+                                <th class="text-nowrap">Schedule</th>
+                                <th class="text-nowrap">Theme</th>
+                                <th class="text-nowrap">Contact</th>
+                                <th class="text-nowrap">Domicile</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach ($participants as $participant)
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($participants->currentPage() - 1) * $participants->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $participant->full_name }}
+                                        </div>
+
+                                        @if ($participant->current_activity)
+                                            <div class="small text-muted mt-1">
+                                                {{ $participant->current_activity }}
+                                            </div>
+                                        @endif
+
+                                        @if ($participant->goal)
+                                            <div class="small text-muted mt-1">
+                                                {{ \Illuminate\Support\Str::limit($participant->goal, 60) }}
+                                            </div>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        @if ($participant->trialSchedule)
+                                            <div class="fw-semibold text-dark">
+                                                {{ $participant->trialSchedule->name }}
+                                            </div>
+
+                                            <div class="small text-muted mt-1">
+                                                {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->schedule_date)->format('d M Y') }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->start_time)->format('H:i') }}
+                                                - {{ \Illuminate\Support\Carbon::parse($participant->trialSchedule->end_time)->format('H:i') }}
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $participant->trialTheme->name ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">Trial theme</div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $participant->email ?: '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $participant->phone ?: '-' }}
+                                        </div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        {{ $participant->domicile_city ?: '-' }}
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        @php
+                                            $statusClass = match($participant->status) {
+                                                'registered' => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+                                                'contacted' => 'bg-info-subtle text-info-emphasis border border-info-subtle',
+                                                'confirmed' => 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
+                                                'attended' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+                                                'cancelled' => 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+                                                'no_show' => 'bg-dark-subtle text-dark-emphasis border border-dark-subtle',
+                                                default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+                                            };
+                                        @endphp
+
+                                        <span class="badge rounded-pill {{ $statusClass }}">
+                                            {{ $statusOptions[$participant->status] ?? ucfirst(str_replace('_', ' ', $participant->status)) }}
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editParticipant({{ $participant->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Participant
+                                                    </button>
+                                                </li>
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $participant->id }}, @js($participant->full_name))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($participants->hasPages())
+                    <div class="mt-3">
+                        {{ $participants->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-people"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No trial participants found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada peserta trial yang tercatat. Tambahkan participant baru atau ubah filter pencarian untuk melihat data lainnya.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Add Participant
+                        </button>
+                    </div>
+                </div>
+            @endif
+        </div>
     </div>
 </div>
 
@@ -234,123 +312,178 @@
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="participantModalTitle">Add Participant</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1" id="participantModalTitle">Add Participant</h5>
+                        <div class="small text-muted">
+                            Complete participant profile, selected schedule, contact details, and follow-up status.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="full_name" class="form-label">
-                                Full Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="full_name" class="form-control">
-                            <div class="invalid-feedback" id="error_full_name"></div>
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Participant Information</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Fill in the participant name, contact, domicile, and current activity.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="trial_schedule_id_form" class="form-label">
-                                Trial Schedule <span class="text-danger">*</span>
-                            </label>
-                            <select id="trial_schedule_id_form" class="form-select">
-                                <option value="">Select Schedule</option>
-                                @foreach ($trialSchedules as $schedule)
-                                    <option
-                                        value="{{ $schedule->id }}"
-                                        data-theme-id="{{ $schedule->trial_theme_id }}"
-                                    >
-                                        {{ $schedule->name }}
-                                        - {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
-                                        ({{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
-                                        - {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_trial_schedule_id"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="full_name" class="form-label">
+                                        Full Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="full_name" class="form-control">
+                                    <div class="invalid-feedback" id="error_full_name"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="input_source" class="form-label">Input Source</label>
+                                    <select id="input_source" class="form-select">
+                                        @foreach ($inputSourceOptions as $value => $label)
+                                            <option value="{{ $value }}" {{ $value === 'admin' ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_input_source"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="email" class="form-label">Email</label>
+                                    <input type="email" id="email" class="form-control">
+                                    <div class="invalid-feedback" id="error_email"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="phone" class="form-label">Phone</label>
+                                    <input type="text" id="phone" class="form-control">
+                                    <div class="invalid-feedback" id="error_phone"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="domicile_city" class="form-label">Domicile City</label>
+                                    <input type="text" id="domicile_city" class="form-control">
+                                    <div class="invalid-feedback" id="error_domicile_city"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="current_activity" class="form-label">Current Activity</label>
+                                    <input type="text" id="current_activity" class="form-control">
+                                    <div class="invalid-feedback" id="error_current_activity"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Trial Session</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Choose trial schedule, related theme, and registration progress status.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="trial_theme_id" class="form-label">Trial Theme</label>
-                            <select id="trial_theme_id" class="form-select">
-                                <option value="">Select Theme</option>
-                                @foreach ($trialThemes as $theme)
-                                    <option value="{{ $theme->id }}">{{ $theme->name }}</option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_trial_theme_id"></div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="trial_schedule_id_form" class="form-label">
+                                        Trial Schedule <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="trial_schedule_id_form" class="form-select">
+                                        <option value="">Select Schedule</option>
+                                        @foreach ($trialSchedules as $schedule)
+                                            <option
+                                                value="{{ $schedule->id }}"
+                                                data-theme-id="{{ $schedule->trial_theme_id }}"
+                                            >
+                                                {{ $schedule->name }}
+                                                - {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
+                                                ({{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
+                                                - {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_trial_schedule_id"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="trial_theme_id" class="form-label">Trial Theme</label>
+                                    <select id="trial_theme_id" class="form-select">
+                                        <option value="">Select Theme</option>
+                                        @foreach ($trialThemes as $theme)
+                                            <option value="{{ $theme->id }}">{{ $theme->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="form-text">Theme will be auto-selected when the selected schedule has a theme.</div>
+                                    <div class="invalid-feedback" id="error_trial_theme_id"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="status_form" class="form-label">Status</label>
+                                    <select id="status_form" class="form-select">
+                                        @foreach ($statusOptions as $value => $label)
+                                            <option value="{{ $value }}" {{ $value === 'registered' ? 'selected' : '' }}>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Goal & Notes</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Add participant learning goals and internal follow-up notes.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label for="input_source" class="form-label">Input Source</label>
-                            <select id="input_source" class="form-select">
-                                @foreach ($inputSourceOptions as $value => $label)
-                                    <option value="{{ $value }}" {{ $value === 'admin' ? 'selected' : '' }}>
-                                        {{ $label }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_input_source"></div>
-                        </div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="goal" class="form-label">Goal</label>
+                                    <textarea id="goal" rows="3" class="form-control"></textarea>
+                                    <div class="invalid-feedback" id="error_goal"></div>
+                                </div>
 
-                        <div class="col-md-6">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" id="email" class="form-control">
-                            <div class="invalid-feedback" id="error_email"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="phone" class="form-label">Phone</label>
-                            <input type="text" id="phone" class="form-control">
-                            <div class="invalid-feedback" id="error_phone"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="domicile_city" class="form-label">Domicile City</label>
-                            <input type="text" id="domicile_city" class="form-control">
-                            <div class="invalid-feedback" id="error_domicile_city"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="current_activity" class="form-label">Current Activity</label>
-                            <input type="text" id="current_activity" class="form-control">
-                            <div class="invalid-feedback" id="error_current_activity"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="status_form" class="form-label">Status</label>
-                            <select id="status_form" class="form-select">
-                                @foreach ($statusOptions as $value => $label)
-                                    <option value="{{ $value }}" {{ $value === 'registered' ? 'selected' : '' }}>
-                                        {{ $label }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="invalid-feedback" id="error_status"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="goal" class="form-label">Goal</label>
-                            <textarea id="goal" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_goal"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="notes" class="form-label">Notes</label>
-                            <textarea id="notes" rows="3" class="form-control"></textarea>
-                            <div class="invalid-feedback" id="error_notes"></div>
+                                <div class="col-12">
+                                    <label for="notes" class="form-label">Notes</label>
+                                    <textarea id="notes" rows="3" class="form-control"></textarea>
+                                    <div class="invalid-feedback" id="error_notes"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="default-text">Save</span>
-                        <span class="loading-text d-none">Saving...</span>
+
+                    <button type="submit" class="btn btn-primary btn-modern" id="submitBtn">
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -363,24 +496,43 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Delete Participant</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Delete Participant</h5>
+                    <div class="small text-muted">
+                        This action will remove selected trial participant from the system.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <p class="mb-0">
-                    Are you sure you want to delete
-                    <strong id="deleteParticipantName"></strong>?
-                </p>
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this participant?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteParticipantName"></strong>?
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <span class="default-delete-text">Delete</span>
-                    <span class="loading-delete-text d-none">Deleting...</span>
+
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
@@ -438,7 +590,9 @@
         const html = `
             <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
-                    <div class="toast-body">${message}</div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
                     <button type="button" class="${closeBtnClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
             </div>
@@ -448,6 +602,7 @@
 
         const toastEl = document.getElementById(id);
         const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+
         toast.show();
 
         toastEl.addEventListener('hidden.bs.toast', () => {
@@ -474,7 +629,7 @@
         clearValidationErrors();
 
         Object.keys(errors).forEach(key => {
-            const field = document.getElementById(key) || fields[key];
+            const field = fields[key] || document.getElementById(key);
             const errorEl = document.getElementById(`error_${key}`);
 
             if (field && field.classList) {

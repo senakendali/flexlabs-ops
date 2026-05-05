@@ -7,23 +7,25 @@
     $workshopCollection = $workshops->getCollection();
     $summaryActive = $workshopCollection->where('is_active', true)->count();
     $summaryInactive = $workshopCollection->where('is_active', false)->count();
-    $summaryDiscounted = $workshopCollection->filter(fn ($item) => !is_null($item->old_price) && $item->old_price > $item->price)->count();
+    $summaryDiscounted = $workshopCollection
+        ->filter(fn ($item) => !is_null($item->old_price) && $item->old_price > $item->price)
+        ->count();
 @endphp
 
-<div class="container-fluid px-4 py-4 workshops-index-page">
+<div class="container-fluid px-4 py-4">
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
                 <div class="page-eyebrow">Academic</div>
-                <h1 class="page-title mb-2">Workshop List</h1>
+                <h1 class="page-title mb-2">Workshops</h1>
                 <p class="page-subtitle mb-0">
-                    Kelola workshop yang tampil di landing page public beserta harga, preview video, benefit, dan status publikasinya.
+                    Manage public workshop programs, pricing, categories, benefits, preview content, and publication status.
                 </p>
             </div>
 
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.workshops.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle me-1"></i> Add Workshop
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <a href="{{ route('academic.workshops.create') }}" class="btn btn-light btn-modern">
+                    <i class="bi bi-plus-lg me-2"></i>Add Workshop
                 </a>
             </div>
         </div>
@@ -32,7 +34,7 @@
     <div
         id="toastContainer"
         class="toast-container position-fixed top-0 end-0 p-3"
-        style="z-index: 1090;"
+        style="z-index: 9999;"
     ></div>
 
     @if (session('success'))
@@ -54,7 +56,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Jumlah seluruh workshop berdasarkan hasil filter saat ini.
+                    Total workshop records based on the current filter.
                 </div>
             </div>
         </div>
@@ -71,7 +73,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Workshop yang sedang aktif dan siap ditampilkan di halaman public.
+                    Workshops currently published and available for public visitors.
                 </div>
             </div>
         </div>
@@ -88,7 +90,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Workshop yang disimpan tetapi belum ditampilkan ke user.
+                    Workshops saved in the system but not shown publicly.
                 </div>
             </div>
         </div>
@@ -105,7 +107,7 @@
                     </div>
                 </div>
                 <div class="stat-description">
-                    Workshop yang punya old price dan sedang memakai harga promo.
+                    Workshops using promotional pricing with an old price value.
                 </div>
             </div>
         </div>
@@ -116,7 +118,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Filter Workshops</h5>
                 <p class="content-card-subtitle mb-0">
-                    Gunakan pencarian dan filter berikut untuk menelusuri workshop berdasarkan judul, kategori, dan status.
+                    Search workshop records by title, slug, badge, category, or publication status.
                 </p>
             </div>
         </div>
@@ -125,10 +127,11 @@
             <form method="GET" action="{{ route('academic.workshops.index') }}">
                 <div class="row g-3 align-items-end">
                     <div class="col-xl-4 col-lg-4 col-md-6">
-                        <label class="form-label">Search</label>
+                        <label for="search" class="form-label">Search</label>
                         <input
                             type="text"
                             name="search"
+                            id="search"
                             class="form-control"
                             value="{{ $filters['search'] ?? '' }}"
                             placeholder="Search title, slug, badge, category..."
@@ -136,8 +139,8 @@
                     </div>
 
                     <div class="col-xl-3 col-lg-4 col-md-6">
-                        <label class="form-label">Category</label>
-                        <select name="category" class="form-select">
+                        <label for="category" class="form-label">Category</label>
+                        <select name="category" id="category" class="form-select">
                             <option value="">All Categories</option>
                             @foreach ($categories as $category)
                                 <option value="{{ $category }}" @selected(($filters['category'] ?? '') === $category)>
@@ -148,31 +151,37 @@
                     </div>
 
                     <div class="col-xl-2 col-lg-4 col-md-6">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
                             <option value="">All Status</option>
-                            <option value="1" @selected((string) ($filters['status'] ?? '') === '1')>Active</option>
-                            <option value="0" @selected((string) ($filters['status'] ?? '') === '0')>Inactive</option>
+                            <option value="1" @selected((string) ($filters['status'] ?? '') === '1')>
+                                Active
+                            </option>
+                            <option value="0" @selected((string) ($filters['status'] ?? '') === '0')>
+                                Inactive
+                            </option>
                         </select>
                     </div>
 
-                    <div class="col-xl-1 col-md-6">
-                        <label class="form-label">Rows</label>
-                        <select name="per_page" class="form-select">
+                    <div class="col-xl-1 col-lg-4 col-md-6">
+                        <label for="per_page" class="form-label">Show</label>
+                        <select name="per_page" id="per_page" class="form-select">
                             @foreach ([10, 25, 50, 100] as $size)
-                                <option value="{{ $size }}" @selected(($filters['per_page'] ?? 10) == $size)>{{ $size }}</option>
+                                <option value="{{ $size }}" @selected(($filters['per_page'] ?? 10) == $size)>
+                                    {{ $size }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
 
-                    <div class="col-xl-12">
-                        <div class="filter-action-row d-flex gap-2 flex-wrap justify-content-lg-end">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-funnel me-1"></i> Apply Filter
+                    <div class="col-xl-2 col-lg-8 col-md-6">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-modern flex-fill">
+                                <i class="bi bi-search me-2"></i>Filter
                             </button>
 
-                            <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border">
-                                <i class="bi bi-arrow-clockwise me-1"></i> Reset
+                            <a href="{{ route('academic.workshops.index') }}" class="btn btn-outline-secondary btn-modern">
+                                Reset
                             </a>
                         </div>
                     </div>
@@ -182,257 +191,250 @@
     </div>
 
     <div class="content-card">
-        <div class="content-card-header d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div class="content-card-header">
             <div>
-                <h5 class="content-card-title mb-1">Workshop Data</h5>
+                <h5 class="content-card-title mb-1">Workshop List</h5>
                 <p class="content-card-subtitle mb-0">
-                    Setiap baris menampilkan informasi inti workshop beserta status publikasi dan jumlah benefit.
+                    Review workshop details, category, pricing, benefits, sort order, and publication status.
                 </p>
             </div>
 
-            <div class="table-meta-info">
+            <div class="small text-muted">
                 Total: <strong>{{ $workshops->total() }}</strong> workshops
             </div>
         </div>
 
-        <div class="content-card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th class="ps-4" style="width: 60px;">#</th>
-                            <th>Workshop</th>
-                            <th>Category</th>
-                            <th>Pricing</th>
-                            <th>Benefits</th>
-                            <th>Status</th>
-                            <th>Order</th>
-                            <th class="text-center pe-4" style="width: 170px;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($workshops as $index => $workshop)
-                            <tr id="workshop-row-{{ $workshop->id }}">
-                                <td class="ps-4">{{ $workshops->firstItem() + $index }}</td>
-                                <td>
-                                    <div class="fw-semibold text-dark">{{ $workshop->title }}</div>
-                                    <div class="text-muted small mt-1">{{ $workshop->slug }}</div>
-                                    @if ($workshop->badge)
-                                        <div class="mt-2">
-                                            <span class="badge rounded-pill bg-light text-dark border">{{ $workshop->badge }}</span>
-                                        </div>
-                                    @endif
-                                </td>
-                                <td>
-                                    <div class="fw-semibold">{{ $workshop->category ?: '-' }}</div>
-                                    <div class="text-muted small mt-1">{{ $workshop->level ?: '-' }}</div>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold">Rp {{ number_format($workshop->price, 0, ',', '.') }}</div>
-                                    @if ($workshop->old_price)
-                                        <div class="text-danger small mt-1 text-decoration-line-through">
-                                            Rp {{ number_format($workshop->old_price, 0, ',', '.') }}
-                                        </div>
-                                    @endif
-                                </td>
-                                <td>
-                                    <span class="badge rounded-pill bg-light text-dark border">
-                                        {{ $workshop->benefits_count }} Benefits
-                                    </span>
-                                </td>
-                                <td>
-                                    @if ($workshop->is_active)
-                                        <span class="badge rounded-pill bg-success-subtle text-success-emphasis">
-                                            Active
-                                        </span>
-                                    @else
-                                        <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">
-                                            Inactive
-                                        </span>
-                                    @endif
-                                </td>
-                                <td>{{ $workshop->sort_order }}</td>
-                                <td class="text-center pe-4">
-                                    <div class="d-inline-flex gap-2">
-                                        <a
-                                            href="{{ route('academic.workshops.show', $workshop) }}"
-                                            class="btn btn-sm btn-outline-secondary"
-                                            title="View"
-                                        >
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-
-                                        <a
-                                            href="{{ route('academic.workshops.edit', $workshop) }}"
-                                            class="btn btn-sm btn-outline-primary"
-                                            title="Edit"
-                                        >
-                                            <i class="bi bi-pencil-square"></i>
-                                        </a>
-
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-danger delete-workshop-btn"
-                                            data-url="{{ route('academic.workshops.destroy', $workshop) }}"
-                                            data-title="{{ $workshop->title }}"
-                                            title="Delete"
-                                        >
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
+        <div class="content-card-body">
+            @if ($workshops->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
                             <tr>
-                                <td colspan="8" class="text-center py-5">
-                                    <div class="empty-state-box mx-4 my-3">
-                                        <div class="empty-state-icon">
-                                            <i class="bi bi-easel2"></i>
-                                        </div>
-                                        <div class="empty-state-title">No workshops found</div>
-                                        <div class="empty-state-subtitle">
-                                            Belum ada workshop yang sesuai dengan filter saat ini.
-                                        </div>
-                                        <div class="mt-3">
-                                            <a href="{{ route('academic.workshops.create') }}" class="btn btn-primary">
-                                                <i class="bi bi-plus-circle me-1"></i> Create Workshop
-                                            </a>
-                                        </div>
-                                    </div>
-                                </td>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Workshop</th>
+                                <th class="text-nowrap">Category</th>
+                                <th class="text-nowrap">Pricing</th>
+                                <th class="text-nowrap">Benefits</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap">Order</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
                             </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                        </thead>
 
-        @if ($workshops->hasPages())
-            <div class="content-card-footer d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
-                <div class="table-meta-info">
-                    Menampilkan <strong>{{ $workshops->firstItem() }}</strong> - <strong>{{ $workshops->lastItem() }}</strong>
-                    dari <strong>{{ $workshops->total() }}</strong> workshops
+                        <tbody>
+                            @foreach ($workshops as $index => $workshop)
+                                <tr id="workshop-row-{{ $workshop->id }}">
+                                    <td class="text-muted">
+                                        {{ $workshops->firstItem() + $index }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $workshop->title }}
+                                        </div>
+
+                                        <div class="small text-muted mt-1">
+                                            <code>{{ $workshop->slug }}</code>
+                                        </div>
+
+                                        @if ($workshop->badge)
+                                            <div class="mt-2">
+                                                <span class="badge rounded-pill bg-light text-dark border">
+                                                    {{ $workshop->badge }}
+                                                </span>
+                                            </div>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $workshop->category ?: '-' }}
+                                        </div>
+                                        <div class="small text-muted mt-1">
+                                            {{ $workshop->level ?: 'No level set' }}
+                                        </div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <div class="fw-semibold text-dark">
+                                            Rp {{ number_format($workshop->price, 0, ',', '.') }}
+                                        </div>
+
+                                        @if ($workshop->old_price)
+                                            <div class="text-danger small mt-1 text-decoration-line-through">
+                                                Rp {{ number_format($workshop->old_price, 0, ',', '.') }}
+                                            </div>
+                                        @else
+                                            <div class="small text-muted mt-1">
+                                                Regular price
+                                            </div>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill bg-light text-dark border">
+                                            {{ $workshop->benefits_count }} Benefits
+                                        </span>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        @if ($workshop->is_active)
+                                            <span class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle">
+                                                Active
+                                            </span>
+                                        @else
+                                            <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                                Inactive
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        {{ $workshop->sort_order }}
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <a
+                                                        href="{{ route('academic.workshops.show', $workshop) }}"
+                                                        class="dropdown-item"
+                                                    >
+                                                        <i class="bi bi-eye me-2"></i>View Detail
+                                                    </a>
+                                                </li>
+
+                                                <li>
+                                                    <a
+                                                        href="{{ route('academic.workshops.edit', $workshop) }}"
+                                                        class="dropdown-item"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Workshop
+                                                    </a>
+                                                </li>
+
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
+
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger delete-workshop-btn"
+                                                        data-url="{{ route('academic.workshops.destroy', $workshop) }}"
+                                                        data-title="{{ $workshop->title }}"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-                <div>
-                    {{ $workshops->links() }}
+
+                @if ($workshops->hasPages())
+                    <div class="mt-3 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+                        <div class="small text-muted">
+                            Showing
+                            <strong>{{ $workshops->firstItem() }}</strong>
+                            -
+                            <strong>{{ $workshops->lastItem() }}</strong>
+                            of
+                            <strong>{{ $workshops->total() }}</strong>
+                            workshops
+                        </div>
+
+                        <div>
+                            {{ $workshops->links() }}
+                        </div>
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-easel2"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No workshops found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada workshop yang sesuai dengan filter saat ini. Tambahkan workshop baru atau ubah filter pencarian.
+                    </p>
+
+                    <div class="mt-3">
+                        <a href="{{ route('academic.workshops.create') }}" class="btn btn-primary btn-modern">
+                            <i class="bi bi-plus-lg me-2"></i>Add Workshop
+                        </a>
+                    </div>
                 </div>
-            </div>
-        @endif
+            @endif
+        </div>
     </div>
 </div>
 
-<div class="modal fade" id="deleteWorkshopModal" tabindex="-1" aria-labelledby="deleteWorkshopModalLabel" aria-hidden="true">
+{{-- Delete Modal --}}
+<div class="modal fade" id="deleteWorkshopModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header border-0 pb-0">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
                 <div>
-                    <h5 class="modal-title fw-bold" id="deleteWorkshopModalLabel">Delete Workshop</h5>
-                    <p class="text-muted small mb-0 mt-1">Tindakan ini tidak bisa dibatalkan.</p>
+                    <h5 class="modal-title fw-bold mb-1">Delete Workshop</h5>
+                    <div class="small text-muted">
+                        This action will remove selected workshop from the system.
+                    </div>
                 </div>
+
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <div class="modal-body pt-3">
-                <div class="delete-workshop-modal-box">
-                    <div class="delete-workshop-modal-icon">
-                        <i class="bi bi-trash3"></i>
-                    </div>
-                    <div>
-                        <div class="fw-semibold text-dark mb-1">Yakin mau hapus workshop ini?</div>
-                        <div class="text-muted small">
-                            Workshop <span class="fw-semibold text-dark" id="deleteWorkshopTitle">-</span> akan dihapus permanen.
+            <div class="modal-body">
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex gap-2 align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                        <div>
+                            <div class="fw-semibold">Delete this workshop?</div>
+                            <div class="small mt-1">
+                                Are you sure you want to delete
+                                <strong id="deleteWorkshopTitle"></strong>?
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                    Cancel
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
                 </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteWorkshopBtn">
-                    <i class="bi bi-trash me-1"></i> Delete Workshop
+
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteWorkshopBtn">
+                    <span class="default-delete-text">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </span>
+                    <span class="loading-delete-text d-none">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deleting...
+                    </span>
                 </button>
             </div>
         </div>
     </div>
 </div>
 @endsection
-
-@push('styles')
-<style>
-    .workshops-index-page .table-meta-info {
-        font-size: .88rem;
-        color: #6b7280;
-    }
-
-    .workshops-index-page .empty-state-box {
-        padding: 28px 20px;
-        border-radius: 18px;
-        border: 1px dashed #d7dce3;
-        text-align: center;
-        background: #fcfcfd;
-    }
-
-    .workshops-index-page .empty-state-icon {
-        width: 58px;
-        height: 58px;
-        margin: 0 auto 12px;
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #eee7fb;
-        color: #5B3E8E;
-        font-size: 1.4rem;
-    }
-
-    .workshops-index-page .empty-state-title {
-        font-weight: 700;
-        color: #1f2937;
-        margin-bottom: 4px;
-    }
-
-    .workshops-index-page .empty-state-subtitle {
-        font-size: .85rem;
-        color: #6b7280;
-    }
-
-    .workshops-index-page .content-card-footer {
-        padding: 16px 20px;
-        border-top: 1px solid #eef2f7;
-        background: #fff;
-    }
-
-    .workshops-index-page .toast {
-        min-width: 280px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-    }
-
-    .delete-workshop-modal-box {
-        display: flex;
-        align-items: flex-start;
-        gap: 14px;
-        padding: 14px;
-        border-radius: 16px;
-        background: #fff5f5;
-        border: 1px solid #ffd9d9;
-    }
-
-    .delete-workshop-modal-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: #fee2e2;
-        color: #dc2626;
-        font-size: 1.15rem;
-        flex-shrink: 0;
-    }
-</style>
-@endpush
 
 @push('scripts')
 <script>
@@ -464,15 +466,17 @@ document.addEventListener('DOMContentLoaded', function () {
             info: 'bg-info text-dark'
         }[type] || 'bg-success';
 
-        const closeBtnClass = (type === 'warning' || type === 'info')
-            ? 'btn-close me-2 m-auto'
-            : 'btn-close btn-close-white me-2 m-auto';
+        const closeBtnClass = type === 'warning' || type === 'info'
+            ? 'btn-close'
+            : 'btn-close btn-close-white';
 
         const toastHtml = `
             <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="${closeBtnClass}" data-bs-dismiss="toast" aria-label="Close"></button>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="${closeBtnClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
             </div>
         `;
@@ -480,7 +484,7 @@ document.addEventListener('DOMContentLoaded', function () {
         toastContainer.insertAdjacentHTML('beforeend', toastHtml);
 
         const toastEl = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastEl, { delay: 1500 });
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
 
         toast.show();
 
@@ -489,11 +493,21 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function setDeleteLoading(isLoading) {
+        confirmDeleteWorkshopBtn.disabled = isLoading;
+        confirmDeleteWorkshopBtn.querySelector('.default-delete-text').classList.toggle('d-none', isLoading);
+        confirmDeleteWorkshopBtn.querySelector('.loading-delete-text').classList.toggle('d-none', !isLoading);
+
+        if (selectedDeleteTrigger) {
+            selectedDeleteTrigger.disabled = isLoading;
+        }
+    }
+
     function resetDeleteState() {
         selectedDeleteUrl = null;
         selectedDeleteTrigger = null;
-        confirmDeleteWorkshopBtn.disabled = false;
-        confirmDeleteWorkshopBtn.innerHTML = '<i class="bi bi-trash me-1"></i> Delete Workshop';
+        deleteWorkshopTitle.textContent = '';
+        setDeleteLoading(false);
     }
 
     function scheduleReload() {
@@ -503,7 +517,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         reloadTimeout = setTimeout(function () {
             window.location.reload();
-        }, 1200);
+        }, 1500);
     }
 
     async function parseResponse(response) {
@@ -526,7 +540,8 @@ document.addEventListener('DOMContentLoaded', function () {
             selectedDeleteUrl = this.dataset.url;
             selectedDeleteTrigger = this;
 
-            deleteWorkshopTitle.textContent = this.dataset.title || 'this workshop';
+            deleteWorkshopTitle.textContent = this.dataset.title || '-';
+            setDeleteLoading(false);
             deleteModal.show();
         });
     });
@@ -538,13 +553,7 @@ document.addEventListener('DOMContentLoaded', function () {
     confirmDeleteWorkshopBtn.addEventListener('click', async function () {
         if (!selectedDeleteUrl) return;
 
-        confirmDeleteWorkshopBtn.disabled = true;
-        confirmDeleteWorkshopBtn.innerHTML =
-            '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Deleting...';
-
-        if (selectedDeleteTrigger) {
-            selectedDeleteTrigger.disabled = true;
-        }
+        setDeleteLoading(true);
 
         try {
             const response = await fetch(selectedDeleteUrl, {
@@ -564,17 +573,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             deleteModal.hide();
-            showToast(result.message || 'Workshop deleted successfully.', 'success');
+            showToast(result.message || 'Workshop deleted successfully.', 'danger');
             scheduleReload();
         } catch (error) {
             showToast(error.message || 'Failed to delete workshop.', 'danger');
-
-            confirmDeleteWorkshopBtn.disabled = false;
-            confirmDeleteWorkshopBtn.innerHTML = '<i class="bi bi-trash me-1"></i> Delete Workshop';
-
-            if (selectedDeleteTrigger) {
-                selectedDeleteTrigger.disabled = false;
-            }
+            setDeleteLoading(false);
         }
     });
 });

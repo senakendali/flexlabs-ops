@@ -46,21 +46,21 @@
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border">
+                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border btn-modern">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
 
                 @if ($isEdit)
-                    <a href="{{ route('academic.workshops.show', $workshop) }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('academic.workshops.show', $workshop) }}" class="btn btn-light btn-modern">
                         <i class="bi bi-eye me-1"></i> Show
                     </a>
                 @endif
 
-                <button type="button" id="saveDraftBtn" class="btn btn-save-draft">
+                <button type="button" id="saveDraftBtn" class="btn btn-light btn-modern">
                     <i class="bi bi-save me-1"></i> Save Draft
                 </button>
 
-                <button type="button" id="submitWorkshopBtnTop" class="btn btn-primary">
+                <button type="button" id="submitWorkshopBtnTop" class="btn btn-light btn-modern">
                     <i class="bi bi-check-circle me-1"></i> {{ $isEdit ? 'Update Workshop' : 'Create Workshop' }}
                 </button>
             </div>
@@ -465,13 +465,13 @@
                             </div>
 
                             <div class="ms-auto d-flex gap-2 flex-wrap justify-content-end">
-                                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border">Cancel</a>
+                                <a href="{{ route('academic.workshops.index') }}" class="btn btn-light border btn-modern">Cancel</a>
 
-                                <button type="button" id="saveDraftBtnBottom" class="btn btn-save-draft">
+                                <button type="button" id="saveDraftBtnBottom" class="btn btn-light btn-modern">
                                     <i class="bi bi-save me-1"></i> Save Draft
                                 </button>
 
-                                <button type="button" id="submitWorkshopBtnBottom" class="btn btn-primary">
+                                <button type="button" id="submitWorkshopBtnBottom" class="btn btn-primary btn-modern">
                                     <i class="bi bi-check-circle me-1"></i> {{ $isEdit ? 'Update Workshop' : 'Create Workshop' }}
                                 </button>
                             </div>
