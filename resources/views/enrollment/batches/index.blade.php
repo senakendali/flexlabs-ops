@@ -432,8 +432,6 @@
 
 @push('scripts')
 <script>
-    const batchBaseUrl = @json(url('/batches'));
-
     const batchModalEl = document.getElementById('batchModal');
     const batchModal = new bootstrap.Modal(batchModalEl);
     const batchForm = document.getElementById('batchForm');
@@ -482,7 +480,9 @@
         const html = `
             <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
-                    <div class="toast-body">${message}</div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
                     <button type="button" class="${closeBtnClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
             </div>
@@ -491,10 +491,15 @@
         container.insertAdjacentHTML('beforeend', html);
 
         const toastEl = document.getElementById(id);
-        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        const toast = new bootstrap.Toast(toastEl, {
+            delay: 3000
+        });
+
         toast.show();
 
-        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
     }
 
     function scheduleReload() {
@@ -504,16 +509,30 @@
 
         reloadTimeout = setTimeout(() => {
             location.reload();
-        }, 1500);
+        }, 3000);
     }
 
-    function slugify(text) {
-        return String(text || '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-');
+    function resetForm() {
+        batchForm.reset();
+
+        fields.id.value = '';
+        fields.program_id.value = '';
+        fields.name.value = '';
+        fields.slug.value = '';
+        fields.start_date.value = '';
+        fields.end_date.value = '';
+        fields.quota.value = '';
+        fields.price.value = '';
+        fields.status.value = 'draft';
+        fields.description.value = '';
+
+        formAlert.classList.add('d-none');
+        formAlert.innerHTML = '';
+
+        clearValidationErrors();
+        setSubmitLoading(false);
+
+        autoSlug = true;
     }
 
     function clearValidationErrors() {
@@ -535,14 +554,10 @@
             'description'
         ].forEach(key => {
             const errorEl = document.getElementById(`error_${key}`);
-
             if (errorEl) {
                 errorEl.textContent = '';
             }
         });
-
-        formAlert.classList.add('d-none');
-        formAlert.innerHTML = '';
     }
 
     function setValidationErrors(errors = {}) {
@@ -574,41 +589,29 @@
         confirmDeleteBtn.querySelector('.loading-delete-text').classList.toggle('d-none', !isLoading);
     }
 
-    function resetForm() {
-        batchForm.reset();
-
-        fields.id.value = '';
-        fields.program_id.value = '';
-        fields.name.value = '';
-        fields.slug.value = '';
-        fields.start_date.value = '';
-        fields.end_date.value = '';
-        fields.quota.value = '';
-        fields.price.value = '';
-        fields.status.value = 'draft';
-        fields.description.value = '';
-
-        clearValidationErrors();
-        setSubmitLoading(false);
-
-        autoSlug = true;
-        isEditMode = false;
+    function slugify(text) {
+        return String(text || '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-');
     }
 
     function openCreateModal() {
+        isEditMode = false;
         resetForm();
         modalTitle.textContent = 'Add Batch';
         batchModal.show();
     }
 
     async function editBatch(id) {
-        resetForm();
         isEditMode = true;
-        autoSlug = false;
+        resetForm();
         modalTitle.textContent = 'Edit Batch';
 
         try {
-            const response = await fetch(`${batchBaseUrl}/${id}`, {
+            const response = await fetch(`/enrollment/batches/${id}`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -635,6 +638,7 @@
             fields.status.value = data.status ?? 'draft';
             fields.description.value = data.description ?? '';
 
+            autoSlug = false;
             batchModal.show();
         } catch (error) {
             formAlert.classList.remove('d-none');
@@ -664,9 +668,11 @@
         e.preventDefault();
 
         clearValidationErrors();
+        formAlert.classList.add('d-none');
+        formAlert.innerHTML = '';
 
         const id = fields.id.value;
-        const url = id ? `${batchBaseUrl}/${id}` : batchBaseUrl;
+        const url = id ? `/enrollment/batches/${id}` : `/enrollment/batches`;
 
         const payload = {
             program_id: fields.program_id.value,
@@ -674,8 +680,8 @@
             slug: fields.slug.value.trim(),
             start_date: fields.start_date.value || null,
             end_date: fields.end_date.value || null,
-            quota: fields.quota.value || null,
-            price: fields.price.value || 0,
+            quota: fields.quota.value ? parseInt(fields.quota.value, 10) : null,
+            price: fields.price.value ? parseFloat(fields.price.value) : 0,
             status: fields.status.value,
             description: fields.description.value.trim(),
         };
@@ -706,7 +712,7 @@
             }
 
             batchModal.hide();
-            showToast(result.message || 'Batch saved successfully.', 'success');
+            showToast(result.message || 'Batch saved successfully', 'success');
             scheduleReload();
         } catch (error) {
             if (error.message !== 'Validation failed.') {
@@ -724,7 +730,7 @@
         setDeleteLoading(true);
 
         try {
-            const response = await fetch(`${batchBaseUrl}/${deleteBatchId}`, {
+            const response = await fetch(`/enrollment/batches/${deleteBatchId}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
@@ -740,7 +746,7 @@
             }
 
             deleteModal.hide();
-            showToast(result.message || 'Batch deleted successfully.', 'danger');
+            showToast(result.message || 'Batch deleted successfully', 'danger');
             scheduleReload();
         } catch (error) {
             showToast(error.message || 'Failed to delete batch.', 'danger');
