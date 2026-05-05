@@ -3,16 +3,61 @@
 @section('title', 'Gear Borrowing')
 
 @section('content')
-<div class="container py-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-            <h4 class="mb-1">Gear Borrowing</h4>
-            <small class="text-muted">View available equipment from master data and manage your borrowing activity</small>
-        </div>
+@php
+    $conditionBadgeClass = function ($condition) {
+        return match($condition) {
+            'good' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            'minor_damage' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'damaged' => 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+        };
+    };
 
-        <button type="button" class="btn btn-primary" onclick="openBorrowModal()">
-            <i class="bi bi-plus-lg me-1"></i> Borrow Equipment
-        </button>
+    $statusBadgeClass = function ($status) {
+        return match($status) {
+            'available' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            'borrowed' => 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
+            'maintenance' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+        };
+    };
+
+    $formatCondition = function ($condition) {
+        return match($condition) {
+            'good' => 'Good',
+            'minor_damage' => 'Minor Damage',
+            'damaged' => 'Damaged',
+            default => ucfirst((string) $condition),
+        };
+    };
+
+    $formatStatus = function ($status) {
+        return match($status) {
+            'available' => 'Available',
+            'borrowed' => 'Borrowed',
+            'maintenance' => 'Maintenance',
+            default => ucfirst((string) $status),
+        };
+    };
+@endphp
+
+<div class="container-fluid px-4 py-4">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="page-eyebrow">Operations</div>
+                <h1 class="page-title mb-2">Gear Borrowing</h1>
+                <p class="page-subtitle mb-0">
+                    View available equipment from master data, manage borrowing activity, check active borrowers, and record equipment returns.
+                </p>
+            </div>
+
+            <div class="page-header-actions d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-light btn-modern" onclick="openBorrowModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Borrow Equipment
+                </button>
+            </div>
+        </div>
     </div>
 
     <div
@@ -21,9 +66,16 @@
         style="z-index: 9999;"
     ></div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body border-bottom">
-            <form method="GET" action="{{ route('borrowings.index') }}" class="d-flex align-items-center gap-2">
+    <div class="content-card">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Borrowing Equipment List</h5>
+                <p class="content-card-subtitle mb-0">
+                    Review equipment condition, current availability, active borrower, and return status.
+                </p>
+            </div>
+
+            <form method="GET" action="{{ route('borrowings.index') }}" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -42,197 +94,274 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 80px;">No</th>
-                        <th>Name</th>
-                        <th>Code</th>
-                        <th>Brand / Model</th>
-                        <th>Condition</th>
-                        <th>Status</th>
-                        <th>Borrower</th>
-                        <th style="width: 170px;" class="text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($equipments as $equipment)
-                        @php
-                            $activeBorrowing = $equipment->activeBorrowing;
-                            $isBorrowedByCurrentUser = $activeBorrowing
-                                && $activeBorrowing->user_id === auth()->id();
-                        @endphp
-                        <tr>
-                            <td>
-                                {{ ($equipments->currentPage() - 1) * $equipments->perPage() + $loop->iteration }}
-                            </td>
-                            <td>
-                                <div class="fw-semibold">{{ $equipment->name }}</div>
-                                @if ($equipment->description)
-                                    <small class="text-muted">{{ \Illuminate\Support\Str::limit($equipment->description, 50) }}</small>
-                                @endif
-                            </td>
-                            <td><code>{{ $equipment->code }}</code></td>
-                            <td>
-                                <div>{{ $equipment->brand ?: '-' }}</div>
-                                <small class="text-muted">{{ $equipment->model ?: '-' }}</small>
-                            </td>
-                            <td>
-                                @if ($equipment->condition === 'good')
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                        Good
-                                    </span>
-                                @elseif ($equipment->condition === 'minor_damage')
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
-                                        Minor Damage
-                                    </span>
-                                @else
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
-                                        Damaged
-                                    </span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($equipment->status === 'available')
-                                    <span class="badge bg-success">Available</span>
-                                @elseif ($equipment->status === 'borrowed')
-                                    <span class="badge bg-primary">Borrowed</span>
-                                @else
-                                    <span class="badge bg-secondary">Maintenance</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($activeBorrowing && $activeBorrowing->user)
-                                    <div class="fw-semibold">
-                                        {{ $activeBorrowing->user->name }}
-                                        @if ($isBorrowedByCurrentUser)
-                                            <span class="badge bg-info text-dark ms-1">You</span>
+        <div class="content-card-body">
+            @if($equipments->count())
+                <div class="table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Equipment</th>
+                                <th class="text-nowrap">Code</th>
+                                <th class="text-nowrap">Brand / Model</th>
+                                <th class="text-nowrap">Condition</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-nowrap">Borrower</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach ($equipments as $equipment)
+                                @php
+                                    $activeBorrowing = $equipment->activeBorrowing;
+                                    $isBorrowedByCurrentUser = $activeBorrowing
+                                        && $activeBorrowing->user_id === auth()->id();
+                                @endphp
+
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($equipments->currentPage() - 1) * $equipments->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $equipment->name }}</div>
+                                        @if ($equipment->description)
+                                            <div class="small text-muted">
+                                                {{ \Illuminate\Support\Str::limit($equipment->description, 50) }}
+                                            </div>
+                                        @else
+                                            <div class="small text-muted">No description</div>
                                         @endif
-                                    </div>
-                                    <small class="text-muted">
-                                        {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
-                                    </small>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    @if ($equipment->status === 'available')
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-success"
-                                            onclick="openBorrowModal({{ $equipment->id }})"
-                                        >
-                                            <i class="bi bi-box-arrow-right"></i>
-                                        </button>
-                                    @endif
+                                    </td>
 
-                                    @if ($equipment->status === 'borrowed' && $activeBorrowing)
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-primary"
-                                            onclick="viewBorrowing({{ $activeBorrowing->id }})"
-                                        >
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                    @endif
+                                    <td class="text-nowrap">
+                                        <code>{{ $equipment->code }}</code>
+                                    </td>
 
-                                    @if ($equipment->status === 'borrowed' && $activeBorrowing && $isBorrowedByCurrentUser)
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-warning"
-                                            onclick="openReturnModal(
-                                                {{ $activeBorrowing->id }},
-                                                @js($equipment->name),
-                                                @js($activeBorrowing->user->name ?? '-')
-                                            )"
-                                        >
-                                            <i class="bi bi-box-arrow-in-left"></i>
-                                        </button>
-                                    @endif
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                No equipment found.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $equipment->brand ?: '-' }}</div>
+                                        <div class="small text-muted">{{ $equipment->model ?: '-' }}</div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $conditionBadgeClass($equipment->condition) }}">
+                                            {{ $formatCondition($equipment->condition) }}
+                                        </span>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $statusBadgeClass($equipment->status) }}">
+                                            {{ $formatStatus($equipment->status) }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        @if ($activeBorrowing && $activeBorrowing->user)
+                                            <div class="fw-semibold text-dark">
+                                                {{ $activeBorrowing->user->name }}
+
+                                                @if ($isBorrowedByCurrentUser)
+                                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">
+                                                        You
+                                                    </span>
+                                                @endif
+                                            </div>
+                                            <div class="small text-muted">
+                                                {{ $activeBorrowing->borrowed_at?->format('d M Y H:i') }}
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                @if ($equipment->status === 'available')
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-success"
+                                                            onclick="openBorrowModal({{ $equipment->id }})"
+                                                        >
+                                                            <i class="bi bi-box-arrow-right me-2"></i>Borrow Equipment
+                                                        </button>
+                                                    </li>
+                                                @endif
+
+                                                @if ($equipment->status === 'borrowed' && $activeBorrowing)
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item"
+                                                            onclick="viewBorrowing({{ $activeBorrowing->id }})"
+                                                        >
+                                                            <i class="bi bi-eye me-2"></i>View Detail
+                                                        </button>
+                                                    </li>
+                                                @endif
+
+                                                @if ($equipment->status === 'borrowed' && $activeBorrowing && $isBorrowedByCurrentUser)
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-warning"
+                                                            onclick="openReturnModal(
+                                                                {{ $activeBorrowing->id }},
+                                                                @js($equipment->name),
+                                                                @js($activeBorrowing->user->name ?? '-')
+                                                            )"
+                                                        >
+                                                            <i class="bi bi-box-arrow-in-left me-2"></i>Return Equipment
+                                                        </button>
+                                                    </li>
+                                                @endif
+
+                                                @if (
+                                                    $equipment->status !== 'available'
+                                                    && !($equipment->status === 'borrowed' && $activeBorrowing)
+                                                )
+                                                    <li>
+                                                        <span class="dropdown-item text-muted">
+                                                            <i class="bi bi-dash-circle me-2"></i>No action available
+                                                        </span>
+                                                    </li>
+                                                @endif
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($equipments->hasPages())
+                    <div class="mt-3">
+                        {{ $equipments->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No equipment found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada equipment yang tersedia untuk borrowing.
+                    </p>
+
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary btn-modern" onclick="openBorrowModal()">
+                            <i class="bi bi-plus-lg me-2"></i>Borrow Equipment
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-
-        @if ($equipments->hasPages())
-            <div class="card-footer bg-white">
-                {{ $equipments->links() }}
-            </div>
-        @endif
     </div>
 </div>
 
 {{-- Borrow Modal --}}
-<div class="modal fade gear-modal" id="borrowModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+<div class="modal fade" id="borrowModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="borrowForm" class="w-100">
             @csrf
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title">Borrow Equipment</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">Borrow Equipment</h5>
+                        <div class="small text-muted">
+                            Select available equipment and set borrowing date, expected return date, and borrowing notes.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="borrowFormAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="mb-3">
-                        <label for="equipment_id" class="form-label">
-                            Equipment <span class="text-danger">*</span>
-                        </label>
-                        <select id="equipment_id" class="form-select">
-                            <option value="">Select Equipment</option>
-                            @foreach ($equipments->getCollection()->where('status', 'available')->where('is_active', true) as $equipment)
-                                <option value="{{ $equipment->id }}">
-                                    {{ $equipment->name }} ({{ $equipment->code }})
-                                    @if ($equipment->brand || $equipment->model)
-                                        - {{ trim(($equipment->brand ?? '') . ' ' . ($equipment->model ?? '')) }}
-                                    @endif
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="invalid-feedback" id="error_equipment_id"></div>
-                    </div>
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Borrowing Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Complete the borrowing information before saving this request.
+                                </p>
+                            </div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="borrowed_at" class="form-label">Borrowed At</label>
-                        <input type="datetime-local" id="borrowed_at" class="form-control">
-                        <div class="invalid-feedback" id="error_borrowed_at"></div>
-                    </div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="equipment_id" class="form-label">
+                                        Equipment <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="equipment_id" class="form-select">
+                                        <option value="">Select Equipment</option>
+                                        @foreach ($equipments->getCollection()->where('status', 'available')->where('is_active', true) as $equipment)
+                                            <option value="{{ $equipment->id }}">
+                                                {{ $equipment->name }} ({{ $equipment->code }})
+                                                @if ($equipment->brand || $equipment->model)
+                                                    - {{ trim(($equipment->brand ?? '') . ' ' . ($equipment->model ?? '')) }}
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="error_equipment_id"></div>
+                                </div>
 
-                    <div class="mb-3">
-                        <label for="expected_return_at" class="form-label">Expected Return</label>
-                        <input type="datetime-local" id="expected_return_at" class="form-control">
-                        <div class="invalid-feedback" id="error_expected_return_at"></div>
-                    </div>
+                                <div class="col-md-6">
+                                    <label for="borrowed_at" class="form-label">Borrowed At</label>
+                                    <input type="datetime-local" id="borrowed_at" class="form-control">
+                                    <div class="invalid-feedback" id="error_borrowed_at"></div>
+                                </div>
 
-                    <div class="mb-0">
-                        <label for="notes" class="form-label">Notes</label>
-                        <textarea id="notes" rows="4" class="form-control"></textarea>
-                        <div class="invalid-feedback" id="error_notes"></div>
+                                <div class="col-md-6">
+                                    <label for="expected_return_at" class="form-label">Expected Return</label>
+                                    <input type="datetime-local" id="expected_return_at" class="form-control">
+                                    <div class="invalid-feedback" id="error_expected_return_at"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="notes" class="form-label">Notes</label>
+                                    <textarea id="notes" rows="4" class="form-control" placeholder="Add borrowing notes if needed"></textarea>
+                                    <div class="invalid-feedback" id="error_notes"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="borrowSubmitBtn">
-                        <span class="default-borrow-text">Save</span>
-                        <span class="loading-borrow-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="borrowSubmitBtn">
+                        <span class="default-borrow-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-borrow-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -241,56 +370,74 @@
 </div>
 
 {{-- Borrowing Detail Modal --}}
-<div class="modal fade gear-modal" id="detailModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h5 class="modal-title">Borrowing Detail</h5>
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Borrowing Detail</h5>
+                    <div class="small text-muted">
+                        Review active borrowing information, return status, notes, and borrower detail.
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
                 <div id="detailAlert" class="alert alert-danger d-none mb-3"></div>
 
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Equipment</label>
-                        <div class="fw-semibold" id="detail_equipment">-</div>
+                <div class="content-card">
+                    <div class="content-card-header">
+                        <div>
+                            <h5 class="content-card-title mb-1">Borrowing Information</h5>
+                            <p class="content-card-subtitle mb-0">
+                                Detail peminjaman equipment yang sedang dipilih.
+                            </p>
+                        </div>
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Borrower</label>
-                        <div class="fw-semibold" id="detail_user">-</div>
-                    </div>
+                    <div class="content-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Equipment</div>
+                                <div class="fw-semibold text-dark" id="detail_equipment">-</div>
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Borrowed At</label>
-                        <div id="detail_borrowed_at">-</div>
-                    </div>
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Borrower</div>
+                                <div class="fw-semibold text-dark" id="detail_user">-</div>
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Expected Return</label>
-                        <div id="detail_expected_return_at">-</div>
-                    </div>
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Borrowed At</div>
+                                <div class="fw-semibold text-dark" id="detail_borrowed_at">-</div>
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Returned At</label>
-                        <div id="detail_returned_at">-</div>
-                    </div>
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Expected Return</div>
+                                <div class="fw-semibold text-dark" id="detail_expected_return_at">-</div>
+                            </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label text-muted">Status</label>
-                        <div id="detail_status">-</div>
-                    </div>
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Returned At</div>
+                                <div class="fw-semibold text-dark" id="detail_returned_at">-</div>
+                            </div>
 
-                    <div class="col-12">
-                        <label class="form-label text-muted">Notes</label>
-                        <div id="detail_notes">-</div>
-                    </div>
+                            <div class="col-md-6">
+                                <div class="small text-muted mb-1">Status</div>
+                                <div id="detail_status">-</div>
+                            </div>
 
-                    <div class="col-12">
-                        <label class="form-label text-muted">Return Notes</label>
-                        <div id="detail_return_notes">-</div>
+                            <div class="col-12">
+                                <div class="small text-muted mb-1">Notes</div>
+                                <div class="fw-semibold text-dark" id="detail_notes">-</div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="small text-muted mb-1">Return Notes</div>
+                                <div class="fw-semibold text-dark" id="detail_return_notes">-</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -299,51 +446,76 @@
 </div>
 
 {{-- Return Modal --}}
-<div class="modal fade gear-modal" id="returnModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+<div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="returnForm" class="w-100">
             @csrf
             <input type="hidden" id="return_borrowing_id">
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title">Return Equipment</h5>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">Return Equipment</h5>
+                        <div class="small text-muted">
+                            Record returned time and return notes for the selected borrowing.
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <div id="returnFormAlert" class="alert alert-danger d-none mb-3"></div>
 
-                    <div class="mb-3">
-                        <label for="return_equipment_name" class="form-label">Equipment</label>
-                        <input type="text" id="return_equipment_name" class="form-control" readonly>
-                    </div>
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Return Detail</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Confirm returned equipment and complete return information.
+                                </p>
+                            </div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="return_borrower_name" class="form-label">Borrower</label>
-                        <input type="text" id="return_borrower_name" class="form-control" readonly>
-                    </div>
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="return_equipment_name" class="form-label">Equipment</label>
+                                    <input type="text" id="return_equipment_name" class="form-control" readonly>
+                                </div>
 
-                    <div class="mb-3">
-                        <label for="returned_at" class="form-label">Returned At</label>
-                        <input type="datetime-local" id="returned_at" class="form-control">
-                        <div class="invalid-feedback" id="error_returned_at"></div>
-                    </div>
+                                <div class="col-md-6">
+                                    <label for="return_borrower_name" class="form-label">Borrower</label>
+                                    <input type="text" id="return_borrower_name" class="form-control" readonly>
+                                </div>
 
-                    <div class="mb-0">
-                        <label for="return_notes" class="form-label">Notes</label>
-                        <textarea id="return_notes" rows="4" class="form-control"></textarea>
-                        <div class="invalid-feedback" id="error_return_notes"></div>
+                                <div class="col-12">
+                                    <label for="returned_at" class="form-label">Returned At</label>
+                                    <input type="datetime-local" id="returned_at" class="form-control">
+                                    <div class="invalid-feedback" id="error_returned_at"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="return_notes" class="form-label">Notes</label>
+                                    <textarea id="return_notes" rows="4" class="form-control" placeholder="Add return notes if needed"></textarea>
+                                    <div class="invalid-feedback" id="error_return_notes"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                        Cancel
+                    <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
                     </button>
-                    <button type="submit" class="btn btn-primary" id="returnSubmitBtn">
-                        <span class="default-return-text">Save</span>
-                        <span class="loading-return-text d-none">Saving...</span>
+                    <button type="submit" class="btn btn-primary btn-modern" id="returnSubmitBtn">
+                        <span class="default-return-text">
+                            <i class="bi bi-check-circle me-2"></i>Save
+                        </span>
+                        <span class="loading-return-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -351,46 +523,6 @@
     </div>
 </div>
 @endsection
-
-@push('styles')
-<style>
-    .gear-modal {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-    }
-
-    .gear-modal.show {
-        display: flex !important;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .gear-modal .modal-dialog {
-        margin: 0 auto !important;
-        width: min(1140px, calc(100vw - 2rem));
-        max-width: min(1140px, calc(100vw - 2rem));
-        position: relative;
-        left: auto !important;
-        right: auto !important;
-        transform: none !important;
-    }
-
-    .gear-modal .modal-content {
-        width: 100%;
-    }
-
-    body.modal-open {
-        overflow: hidden;
-    }
-
-    @media (max-width: 767.98px) {
-        .gear-modal .modal-dialog {
-            width: calc(100vw - 1rem);
-            max-width: calc(100vw - 1rem);
-        }
-    }
-</style>
-@endpush
 
 @push('scripts')
 <script>
@@ -481,6 +613,28 @@
         }).format(date);
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function renderStatusBadge(status) {
+        const normalizedStatus = status || '-';
+
+        const badgeClass = {
+            borrowed: 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
+            returned: 'bg-success-subtle text-success-emphasis border border-success-subtle',
+            overdue: 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            cancelled: 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+        }[normalizedStatus] || 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
+
+        return `<span class="badge rounded-pill ${badgeClass}">${escapeHtml(normalizedStatus)}</span>`;
+    }
+
     function clearValidationErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
         document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
@@ -517,28 +671,37 @@
 
     function resetBorrowForm(selectedEquipmentId = '') {
         borrowForm.reset();
-        document.getElementById('equipment_id').value = selectedEquipmentId;
+
+        document.getElementById('equipment_id').value = selectedEquipmentId || '';
         document.getElementById('borrowed_at').value = toDatetimeLocalValue();
+        document.getElementById('expected_return_at').value = '';
+        document.getElementById('notes').value = '';
+
         borrowFormAlert.classList.add('d-none');
         borrowFormAlert.innerHTML = '';
+
         clearValidationErrors();
         setBorrowLoading(false);
     }
 
     function resetReturnForm() {
         returnForm.reset();
+
         document.getElementById('return_borrowing_id').value = '';
         document.getElementById('return_equipment_name').value = '';
         document.getElementById('return_borrower_name').value = '';
         document.getElementById('returned_at').value = toDatetimeLocalValue();
+        document.getElementById('return_notes').value = '';
+
         returnFormAlert.classList.add('d-none');
         returnFormAlert.innerHTML = '';
+
         clearValidationErrors();
         setReturnLoading(false);
     }
 
-    function openBorrowModal(equipmentId = '') {
-        resetBorrowForm(String(equipmentId));
+    function openBorrowModal(selectedEquipmentId = '') {
+        resetBorrowForm(selectedEquipmentId);
         borrowModal.show();
     }
 
@@ -551,7 +714,7 @@
         document.getElementById('detail_borrowed_at').textContent = '-';
         document.getElementById('detail_expected_return_at').textContent = '-';
         document.getElementById('detail_returned_at').textContent = '-';
-        document.getElementById('detail_status').textContent = '-';
+        document.getElementById('detail_status').innerHTML = '-';
         document.getElementById('detail_notes').textContent = '-';
         document.getElementById('detail_return_notes').textContent = '-';
 
@@ -574,29 +737,27 @@
 
             const data = result.data;
 
-            document.getElementById('detail_equipment').textContent =
-                data.equipment ? `${data.equipment.name} (${data.equipment.code ?? '-'})` : '-';
-
-            document.getElementById('detail_user').textContent =
-                data.user ? `${data.user.name}${data.user.email ? ' - ' + data.user.email : ''}` : '-';
-
+            document.getElementById('detail_equipment').textContent = data.equipment?.name ?? '-';
+            document.getElementById('detail_user').textContent = data.user?.name ?? '-';
             document.getElementById('detail_borrowed_at').textContent = formatDateTime(data.borrowed_at);
             document.getElementById('detail_expected_return_at').textContent = formatDateTime(data.expected_return_at);
             document.getElementById('detail_returned_at').textContent = formatDateTime(data.returned_at);
-            document.getElementById('detail_status').textContent = data.status ?? '-';
-            document.getElementById('detail_notes').textContent = data.notes ?? '-';
-            document.getElementById('detail_return_notes').textContent = data.return_notes ?? '-';
+            document.getElementById('detail_status').innerHTML = renderStatusBadge(data.status);
+            document.getElementById('detail_notes').textContent = data.notes || '-';
+            document.getElementById('detail_return_notes').textContent = data.return_notes || '-';
         } catch (error) {
             detailAlert.classList.remove('d-none');
-            detailAlert.innerHTML = error.message || 'Failed to load detail.';
+            detailAlert.innerHTML = error.message || 'Failed to load borrowing detail.';
         }
     }
 
     function openReturnModal(id, equipmentName, borrowerName) {
         resetReturnForm();
+
         document.getElementById('return_borrowing_id').value = id;
         document.getElementById('return_equipment_name').value = equipmentName || '-';
         document.getElementById('return_borrower_name').value = borrowerName || '-';
+
         returnModal.show();
     }
 
@@ -609,8 +770,8 @@
 
         const payload = {
             equipment_id: document.getElementById('equipment_id').value,
-            borrowed_at: document.getElementById('borrowed_at').value,
-            expected_return_at: document.getElementById('expected_return_at').value,
+            borrowed_at: document.getElementById('borrowed_at').value || null,
+            expected_return_at: document.getElementById('expected_return_at').value || null,
             notes: document.getElementById('notes').value.trim(),
         };
 
@@ -640,7 +801,7 @@
             }
 
             borrowModal.hide();
-            showToast(result.message || 'Equipment borrowed successfully', 'success');
+            showToast(result.message || 'Equipment borrowed successfully.', 'success');
             scheduleReload();
         } catch (error) {
             if (error.message !== 'Validation failed.') {
@@ -662,7 +823,7 @@
         const borrowingId = document.getElementById('return_borrowing_id').value;
 
         const payload = {
-            returned_at: document.getElementById('returned_at').value,
+            returned_at: document.getElementById('returned_at').value || null,
             return_notes: document.getElementById('return_notes').value.trim(),
         };
 
@@ -692,7 +853,7 @@
             }
 
             returnModal.hide();
-            showToast(result.message || 'Equipment returned successfully', 'success');
+            showToast(result.message || 'Equipment returned successfully.', 'success');
             scheduleReload();
         } catch (error) {
             if (error.message !== 'Validation failed.') {
