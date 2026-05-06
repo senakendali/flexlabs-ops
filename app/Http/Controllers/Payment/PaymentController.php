@@ -166,7 +166,7 @@ class PaymentController extends Controller
         $payment = Payment::create([
             'order_id' => $validated['order_id'],
             'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
-            'invoice_number' => $this->generateInvoiceNumber(),
+            'invoice_number' => $this->generateInvoiceNumber($order),
             'public_token' => Str::uuid()->toString(),
             'payment_url' => null,
             'amount' => $validated['amount'],
@@ -404,20 +404,81 @@ class PaymentController extends Controller
         }
     }
 
-    private function generateInvoiceNumber(): string
+    private function generateInvoiceNumber(Order $order): string
     {
-        $prefix = 'FLX-INV-' . now()->format('Ymd');
-        $lastPayment = Payment::whereDate('created_at', now()->toDateString())
+        $programCode = $this->resolveInvoiceProgramCode($order);
+
+        // Format: FLX-SE-20260506-0001
+        $prefix = 'FLX-' . $programCode . '-' . now()->format('Ymd');
+
+        $lastPayment = Payment::where('invoice_number', 'like', $prefix . '-%')
             ->latest('id')
             ->first();
 
         $nextNumber = 1;
 
-        if ($lastPayment && preg_match('/(\d+)$/', $lastPayment->invoice_number, $matches)) {
+        if ($lastPayment && preg_match('/(\d+)$/', (string) $lastPayment->invoice_number, $matches)) {
             $nextNumber = ((int) $matches[1]) + 1;
         }
 
         return $prefix . '-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveInvoiceProgramCode(Order $order): string
+    {
+        $programName = (string) data_get($order, 'batch.program.name', '');
+
+        $normalizedProgramName = Str::of($programName)
+            ->lower()
+            ->replace(['/', '-', '&'], ' ')
+            ->replaceMatches('/[^a-z0-9\s]/', ' ')
+            ->squish()
+            ->toString();
+
+        if (Str::contains($normalizedProgramName, [
+            'software engineer',
+            'software engineering',
+        ])) {
+            return 'SE';
+        }
+
+        if (Str::contains($normalizedProgramName, [
+            'ui ux',
+            'ui ux design',
+            'ui ux designer',
+            'user interface user experience',
+            'user experience design',
+            'design',
+        ])) {
+            return 'UX';
+        }
+
+        return $this->makeProgramCodeFromName($programName);
+    }
+
+    private function makeProgramCodeFromName(?string $programName): string
+    {
+        $cleanName = Str::of($programName ?: 'Flexlabs')
+            ->replace(['/', '-', '&'], ' ')
+            ->replaceMatches('/[^A-Za-z0-9\s]/', ' ')
+            ->squish()
+            ->toString();
+
+        $words = collect(explode(' ', $cleanName))
+            ->filter()
+            ->values();
+
+        $code = $words
+            ->map(fn ($word) => Str::upper(Str::substr((string) $word, 0, 1)))
+            ->implode('');
+
+        if (strlen($code) < 2) {
+            $code = Str::upper(Str::substr(preg_replace('/[^A-Za-z0-9]/', '', $cleanName) ?: 'FLX', 0, 3));
+        }
+
+        $code = Str::substr($code, 0, 3);
+
+        return $code ?: 'FLX';
     }
 
     private function syncRelatedStatuses(Payment $payment): void
