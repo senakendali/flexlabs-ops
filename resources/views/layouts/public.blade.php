@@ -70,6 +70,8 @@
 
     <!-- App CSS -->
     <link rel="stylesheet" href="{{ asset('css/public.css?v=2') }}">
+    <link rel="stylesheet" href="{{ asset('css/public-invoice.css?v=3') }}">
+    
 </head>
 <body>
     <header class="public-navbar" id="publicNavbar">

@@ -1,0 +1,530 @@
+/* ==========================================================================
+   FlexLabs Payment Document Style
+   Scope:
+   - Invoice page
+   - Receipt page
+   - Public student payment page
+   Notes:
+   - Variables are scoped inside .invoice-shell so this CSS does not leak globally.
+   - Selectors are intentionally specific to avoid being overwritten by Bootstrap/admin CSS.
+   ========================================================================== */
+
+body .invoice-shell {
+    --flexlabs-purple: #5B3E8E;
+    --flexlabs-purple-soft: #ECE6F5;
+    --flexlabs-purple-soft-2: #F6F2FB;
+    --flexlabs-purple-border: #E5DEF0;
+    --invoice-text: #1f1f29;
+    --invoice-muted: #62646c;
+    --invoice-soft-text: #686a73;
+    --invoice-card-shadow: 0 24px 80px rgba(31, 31, 41, 0.12);
+
+    color: var(--invoice-text) !important;
+}
+
+/* ==========================================================================
+   Toolbar
+   ========================================================================== */
+
+body .invoice-shell .invoice-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+    margin-bottom: 24px !important;
+}
+
+body .invoice-shell .invoice-toolbar .btn,
+body .invoice-shell .invoice-toolbar a.btn,
+body .invoice-shell .invoice-toolbar button.btn {
+    border-radius: 999px !important;
+    font-weight: 750 !important;
+}
+
+body .invoice-shell .invoice-toolbar .btn-primary,
+body .invoice-shell .invoice-toolbar a.btn-primary,
+body .invoice-shell .invoice-toolbar button.btn-primary {
+    background: var(--flexlabs-purple) !important;
+    border-color: var(--flexlabs-purple) !important;
+    color: #ffffff !important;
+    box-shadow: 0 12px 28px rgba(91, 62, 142, 0.22) !important;
+}
+
+body .invoice-shell .invoice-toolbar .btn-primary:hover,
+body .invoice-shell .invoice-toolbar .btn-primary:focus,
+body .invoice-shell .invoice-toolbar a.btn-primary:hover,
+body .invoice-shell .invoice-toolbar a.btn-primary:focus,
+body .invoice-shell .invoice-toolbar button.btn-primary:hover,
+body .invoice-shell .invoice-toolbar button.btn-primary:focus {
+    background: #4d3479 !important;
+    border-color: #4d3479 !important;
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   Page / Card
+   ========================================================================== */
+
+body .invoice-shell .invoice-page {
+    display: flex !important;
+    justify-content: center !important;
+}
+
+body .invoice-shell .invoice-card {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 794px !important;
+    min-height: 1123px !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+    box-shadow: var(--invoice-card-shadow) !important;
+}
+
+body .invoice-shell .invoice-content {
+    position: relative !important;
+    z-index: 2 !important;
+    padding: 66px 76px 96px !important;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+body .invoice-shell .invoice-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 24px !important;
+    margin-bottom: 54px !important;
+}
+
+body .invoice-shell .invoice-logo-wrap {
+    min-width: 120px !important;
+}
+
+body .invoice-shell .invoice-logo {
+    width: 180px !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+}
+
+body .invoice-shell .invoice-number-box {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 5px !important;
+    color: var(--invoice-text) !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
+}
+
+body .invoice-shell .invoice-number-label {
+    font-weight: 800 !important;
+}
+
+body .invoice-shell .invoice-number-value {
+    font-weight: 700 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+/* ==========================================================================
+   Title / Info Lines
+   ========================================================================== */
+
+body .invoice-shell .invoice-title {
+    margin: 0 0 26px !important;
+    color: #111217 !important;
+    font-size: 58px !important;
+    line-height: 0.95 !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.055em !important;
+}
+
+body .invoice-shell .invoice-date-line {
+    margin-bottom: 28px !important;
+}
+
+body .invoice-shell .invoice-info-line {
+    display: grid !important;
+    grid-template-columns: 126px 12px minmax(0, 1fr) !important;
+    gap: 6px !important;
+    align-items: start !important;
+    color: #17181f !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+}
+
+body .invoice-shell .invoice-info-label {
+    font-weight: 850 !important;
+}
+
+body .invoice-shell .invoice-info-colon {
+    font-weight: 850 !important;
+    text-align: center !important;
+}
+
+body .invoice-shell .invoice-info-value {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+
+/* ==========================================================================
+   Parties
+   ========================================================================== */
+
+body .invoice-shell .invoice-parties {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 56px !important;
+    margin-bottom: 36px !important;
+}
+
+body .invoice-shell .invoice-party-card {
+    min-width: 0 !important;
+    color: var(--invoice-text) !important;
+    font-size: 12.5px !important;
+    line-height: 1.42 !important;
+}
+
+body .invoice-shell .invoice-party-card h2 {
+    margin: 0 0 8px !important;
+    color: #17181f !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 900 !important;
+}
+
+body .invoice-shell .invoice-party-name {
+    font-weight: 700 !important;
+}
+
+body .invoice-shell .invoice-company-address div {
+    margin: 0 !important;
+}
+
+/* ==========================================================================
+   Table
+   ========================================================================== */
+
+body .invoice-shell .invoice-table-section {
+    margin-top: 6px !important;
+}
+
+body .invoice-shell .invoice-table-wrap {
+    overflow: hidden !important;
+    background: #ffffff !important;
+    border: 1px solid var(--flexlabs-purple-border) !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+
+body .invoice-shell .invoice-table {
+    width: 100% !important;
+    margin: 0 !important;
+    color: var(--invoice-text) !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+}
+
+body .invoice-shell .invoice-table thead,
+body .invoice-shell .invoice-table thead tr {
+    background: var(--flexlabs-purple) !important;
+}
+
+body .invoice-shell .invoice-table thead th {
+    background: var(--flexlabs-purple) !important;
+    color: #ffffff !important;
+    border: 0 !important;
+    padding: 12px 16px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    vertical-align: middle !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body .invoice-shell .invoice-table tbody td {
+    padding: 13px 16px !important;
+    border: 0 !important;
+    color: #23242b !important;
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+    vertical-align: top !important;
+    background: #ffffff !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body .invoice-shell .invoice-table tbody tr,
+body .invoice-shell .invoice-table tbody tr:nth-child(odd),
+body .invoice-shell .invoice-table tbody tr:nth-child(even) {
+    background: #ffffff !important;
+}
+
+body .invoice-shell .invoice-table tbody tr:first-child td {
+    padding-top: 16px !important;
+}
+
+body .invoice-shell .invoice-table tbody tr:last-child td {
+    padding-bottom: 20px !important;
+    border-bottom: 0 !important;
+}
+
+body .invoice-shell .invoice-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 8px !important;
+}
+
+body .invoice-shell .invoice-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 8px !important;
+}
+
+body .invoice-shell .invoice-table-qty {
+    width: 105px !important;
+}
+
+body .invoice-shell .invoice-table-price,
+body .invoice-shell .invoice-table-amount {
+    width: 125px !important;
+}
+
+body .invoice-shell .invoice-item-title {
+    font-weight: 700 !important;
+}
+
+body .invoice-shell .invoice-item-subtitle {
+    margin-top: 3px !important;
+    color: var(--invoice-muted) !important;
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+}
+
+/* Reset possible Bootstrap/admin wrapper overwrite */
+body .invoice-shell .table-responsive,
+body .invoice-shell .card,
+body .invoice-shell .card-body {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body .invoice-shell table.table,
+body .invoice-shell .table {
+    margin-bottom: 0 !important;
+}
+
+/* ==========================================================================
+   Summary
+   ========================================================================== */
+
+body .invoice-shell .invoice-summary-wrap {
+    display: flex !important;
+    justify-content: flex-end !important;
+    margin-top: 28px !important;
+}
+
+body .invoice-shell .invoice-summary-table {
+    width: 320px !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+}
+
+body .invoice-shell .invoice-summary-table td {
+    padding: 7px 0 !important;
+    color: #17181f !important;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+body .invoice-shell .invoice-summary-table td:first-child {
+    font-weight: 800 !important;
+}
+
+body .invoice-shell .invoice-summary-table td:last-child {
+    text-align: right !important;
+    font-weight: 800 !important;
+}
+
+body .invoice-shell .invoice-summary-total td {
+    border-top: 1px solid var(--flexlabs-purple-border) !important;
+    padding-top: 12px !important;
+    font-weight: 950 !important;
+}
+
+/* ==========================================================================
+   Payment Detail
+   ========================================================================== */
+
+body .invoice-shell .invoice-payment-section {
+    display: grid !important;
+    gap: 6px !important;
+    margin-top: 54px !important;
+}
+
+body .invoice-shell .invoice-exporting {
+    box-shadow: none !important;
+}
+
+/* ==========================================================================
+   Public Payment Helper
+   Kept scoped so it will not affect other pages.
+   ========================================================================== */
+
+body .invoice-shell .public-payment-actions,
+body .invoice-shell .public-payment-bottom-action {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+}
+
+body .invoice-shell .public-payment-bottom-action {
+    justify-content: center !important;
+    margin-top: 28px !important;
+}
+
+body .invoice-shell .btn-brand {
+    background: var(--flexlabs-purple) !important;
+    border-color: var(--flexlabs-purple) !important;
+    color: #ffffff !important;
+    font-weight: 750 !important;
+    box-shadow: 0 12px 28px rgba(91, 62, 142, 0.24) !important;
+}
+
+body .invoice-shell .btn-brand:hover,
+body .invoice-shell .btn-brand:focus {
+    background: #4d3479 !important;
+    border-color: #4d3479 !important;
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (min-width: 768px) {
+    body .invoice-shell .invoice-toolbar {
+        flex-direction: row !important;
+        align-items: center !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    body .invoice-shell .invoice-card {
+        min-height: auto !important;
+    }
+
+    body .invoice-shell .invoice-content {
+        padding: 42px 28px 72px !important;
+    }
+
+    body .invoice-shell .invoice-header {
+        margin-bottom: 40px !important;
+    }
+
+    body .invoice-shell .invoice-title {
+        font-size: 44px !important;
+    }
+
+    body .invoice-shell .invoice-parties {
+        grid-template-columns: 1fr !important;
+        gap: 24px !important;
+    }
+
+    body .invoice-shell .invoice-info-line {
+        grid-template-columns: 118px 10px minmax(0, 1fr) !important;
+    }
+
+    body .invoice-shell .invoice-table-qty {
+        width: 88px !important;
+    }
+
+    body .invoice-shell .invoice-table-price,
+    body .invoice-shell .invoice-table-amount {
+        width: 112px !important;
+    }
+
+    body .invoice-shell .invoice-summary-table {
+        width: 100% !important;
+    }
+
+    body .invoice-shell .public-payment-actions,
+    body .invoice-shell .public-payment-bottom-action {
+        width: 100% !important;
+    }
+
+    body .invoice-shell .public-payment-actions .btn,
+    body .invoice-shell .public-payment-actions a.btn,
+    body .invoice-shell .public-payment-bottom-action .btn,
+    body .invoice-shell .public-payment-bottom-action a.btn {
+        width: 100% !important;
+    }
+}
+
+/* ==========================================================================
+   Print
+   ========================================================================== */
+
+@media print {
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
+    html,
+    body {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .no-print,
+    .navbar,
+    .sidebar,
+    .app-sidebar,
+    .app-header,
+    .dashboard-header {
+        display: none !important;
+    }
+
+    .container,
+    .invoice-shell {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .invoice-page {
+        display: block !important;
+        width: 210mm !important;
+        min-height: 297mm !important;
+    }
+
+    .invoice-card {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        min-height: 297mm !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .invoice-content {
+        padding: 18mm 20mm 28mm !important;
+    }
+}
