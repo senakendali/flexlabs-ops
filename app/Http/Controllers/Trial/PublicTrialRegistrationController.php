@@ -22,6 +22,7 @@ class PublicTrialRegistrationController extends Controller
                 'trialTheme:id,name',
             ])
             ->where('is_active', true)
+            ->whereDate('schedule_date', '>=', now()->toDateString())
             ->orderBy('schedule_date')
             ->orderBy('start_time')
             ->get([
