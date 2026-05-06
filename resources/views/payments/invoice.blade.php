@@ -209,11 +209,11 @@
                         </div>
                     @endif
 
-                    <div class="invoice-info-line">
+                    <!--div class="invoice-info-line">
                         <span class="invoice-info-label">Note</span>
                         <span class="invoice-info-colon">:</span>
                         <span class="invoice-info-value">{{ $payment->notes ?: 'Thank you for choosing FlexLabs.' }}</span>
-                    </div>
+                    </div-->
                 </section>
             </div>
         </div>
