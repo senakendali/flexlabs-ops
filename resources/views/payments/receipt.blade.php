@@ -1,6 +1,6 @@
 @extends('layouts.app-dashboard')
 
-@section('title', 'Invoice')
+@section('title', 'Receipt')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
@@ -8,12 +8,6 @@
 
 @section('content')
 @php
-    $publicPaymentLink = $payment->public_token
-        ? route('public.payments.show', $payment->public_token)
-        : null;
-
-    $invoiceDate = $invoiceDate ?? ($payment->payment_date ?: $payment->created_at);
-
     $formatDate = function ($date, string $format = 'd F Y') {
         if (empty($date)) {
             return '-';
@@ -26,8 +20,24 @@
         return 'Rp ' . number_format((float) $amount, 0, ',', '.');
     };
 
+    $resolvedReceiptNumber = $receiptNumber ?? null;
+
+    if (empty($resolvedReceiptNumber)) {
+        $invoiceNumber = (string) ($payment->invoice_number ?? '');
+
+        if ($invoiceNumber !== '' && \Illuminate\Support\Str::startsWith($invoiceNumber, 'FLX-')) {
+            $resolvedReceiptNumber = 'FLX-RCPT-' . \Illuminate\Support\Str::after($invoiceNumber, 'FLX-');
+        } elseif ($invoiceNumber !== '') {
+            $resolvedReceiptNumber = 'RCPT-' . $invoiceNumber;
+        } else {
+            $resolvedReceiptNumber = 'FLX-RCPT-' . now()->format('Ymd') . '-' . str_pad((string) ($payment->id ?? 0), 4, '0', STR_PAD_LEFT);
+        }
+    }
+
+    $receiptDate = $paidAt ?? $payment->paid_at ?? $payment->payment_date ?? $payment->updated_at ?? $payment->created_at;
+
     $paymentMethod = $payment->payment_method
-        ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
+        ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : '-');
 
     $studentAddressParts = collect([
         $student->city ?? null,
@@ -42,14 +52,14 @@
         'Tangerang 15345',
     ];
 
-    $invoicePdfFilename = 'invoice-' . \Illuminate\Support\Str::slug((string) ($payment->invoice_number ?? 'document')) . '.pdf';
+    $receiptPdfFilename = 'receipt-' . \Illuminate\Support\Str::slug((string) ($resolvedReceiptNumber ?? 'document')) . '.pdf';
 @endphp
 
 <div class="container py-4 invoice-shell">
     <div class="invoice-toolbar no-print">
         <div>
-            <h4 class="mb-1">Invoice</h4>
-            <small class="text-muted">{{ $payment->invoice_number }}</small>
+            <h4 class="mb-1">Receipt</h4>
+            <small class="text-muted">{{ $resolvedReceiptNumber }}</small>
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
@@ -61,28 +71,16 @@
                 type="button"
                 class="btn btn-primary"
                 data-pdf-download
-                data-pdf-target="#invoiceDocument"
-                data-pdf-filename="{{ $invoicePdfFilename }}"
+                data-pdf-target="#receiptDocument"
+                data-pdf-filename="{{ $receiptPdfFilename }}"
             >
                 <i class="bi bi-download me-1"></i> Download PDF
-            </button>
-
-            <button
-                type="button"
-                class="btn btn-outline-success"
-                onclick="sendPaymentLinkViaWhatsApp()"
-                @disabled(empty($student?->phone) || empty($publicPaymentLink))
-                title="{{ empty($student?->phone) ? 'Customer phone number is not available.' : (empty($publicPaymentLink) ? 'Payment link is not available yet.' : 'Send payment link via WhatsApp') }}"
-            >
-                <i class="bi bi-whatsapp me-1"></i> Send Payment Link
             </button>
         </div>
     </div>
 
-    <div id="waAlert" class="alert alert-warning d-none no-print mb-4"></div>
-
     <div class="invoice-page">
-        <div id="invoiceDocument" class="invoice-card">
+        <div id="receiptDocument" class="invoice-card">
             <div class="invoice-content">
                 <header class="invoice-header">
                     <div class="invoice-logo-wrap">
@@ -95,21 +93,21 @@
 
                     <div class="invoice-number-box">
                         <span class="invoice-number-label">No.</span>
-                        <span class="invoice-number-value">{{ $payment->invoice_number }}</span>
+                        <span class="invoice-number-value">{{ $resolvedReceiptNumber }}</span>
                     </div>
                 </header>
 
-                <h1 class="invoice-title">INVOICE</h1>
+                <h1 class="invoice-title">RECEIPT</h1>
 
                 <div class="invoice-date-line invoice-info-line">
                     <span class="invoice-info-label">Date</span>
                     <span class="invoice-info-colon">:</span>
-                    <span class="invoice-info-value">{{ $formatDate($invoiceDate) }}</span>
+                    <span class="invoice-info-value">{{ $formatDate($receiptDate) }}</span>
                 </div>
 
                 <section class="invoice-parties">
                     <div class="invoice-party-card">
-                        <h2>Billed to</h2>
+                        <h2>Received from</h2>
 
                         <div class="invoice-party-name">{{ $student->full_name ?? '-' }}</div>
 
@@ -127,7 +125,7 @@
                     </div>
 
                     <div class="invoice-party-card">
-                        <h2>From</h2>
+                        <h2>Received by</h2>
 
                         <div class="invoice-party-name">{{ $companyName }}</div>
                         <div class="invoice-company-address">
@@ -187,7 +185,7 @@
                             @endif
 
                             <tr class="invoice-summary-total">
-                                <td>Total</td>
+                                <td>Total Paid</td>
                                 <td>{{ $formatMoney($grandTotal ?? 0) }}</td>
                             </tr>
                         </table>
@@ -196,9 +194,21 @@
 
                 <section class="invoice-payment-section">
                     <div class="invoice-info-line">
+                        <span class="invoice-info-label">Invoice no</span>
+                        <span class="invoice-info-colon">:</span>
+                        <span class="invoice-info-value">{{ $payment->invoice_number ?? '-' }}</span>
+                    </div>
+
+                    <div class="invoice-info-line">
                         <span class="invoice-info-label">Payment method</span>
                         <span class="invoice-info-colon">:</span>
                         <span class="invoice-info-value">{{ $paymentMethod }}</span>
+                    </div>
+
+                    <div class="invoice-info-line">
+                        <span class="invoice-info-label">Paid at</span>
+                        <span class="invoice-info-colon">:</span>
+                        <span class="invoice-info-value">{{ $formatDate($receiptDate, 'd F Y H:i') }}</span>
                     </div>
 
                     @if (!empty($payment->reference_number))
@@ -209,10 +219,18 @@
                         </div>
                     @endif
 
+                    @if (!empty($payment->gateway_transaction_id))
+                        <div class="invoice-info-line">
+                            <span class="invoice-info-label">Transaction ID</span>
+                            <span class="invoice-info-colon">:</span>
+                            <span class="invoice-info-value">{{ $payment->gateway_transaction_id }}</span>
+                        </div>
+                    @endif
+
                     <div class="invoice-info-line">
                         <span class="invoice-info-label">Note</span>
                         <span class="invoice-info-colon">:</span>
-                        <span class="invoice-info-value">{{ $payment->notes ?: 'Thank you for choosing FlexLabs.' }}</span>
+                        <span class="invoice-info-value">{{ $payment->notes ?: 'Payment has been received. Thank you for choosing FlexLabs.' }}</span>
                     </div>
                 </section>
             </div>
@@ -225,93 +243,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
 <script>
-    function showWaAlert(message, type = 'warning') {
-        const alertEl = document.getElementById('waAlert');
-
-        alertEl.className = `alert alert-${type} no-print mb-4`;
-        alertEl.textContent = message;
-        alertEl.classList.remove('d-none');
-
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function normalizeWhatsAppNumber(phone) {
-        if (!phone) return '';
-
-        let normalized = String(phone).trim().replace(/[^\d+]/g, '');
-
-        if (!normalized) return '';
-
-        if (normalized.startsWith('+')) {
-            normalized = normalized.substring(1);
-        }
-
-        if (normalized.startsWith('0')) {
-            normalized = '62' + normalized.substring(1);
-        } else if (normalized.startsWith('8')) {
-            normalized = '62' + normalized;
-        }
-
-        return normalized;
-    }
-
-    function buildPaymentMessage() {
-        const customerName = {{ Js::from($student->full_name ?? 'Customer') }};
-        const programName = {{ Js::from($program->name ?? '-') }};
-        const batchName = {{ Js::from($batch->name ?? '-') }};
-        const invoiceNumber = {{ Js::from($payment->invoice_number ?? '-') }};
-        const amount = {{ Js::from($formatMoney($grandTotal ?? 0)) }};
-        const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
-
-        const lines = [];
-        lines.push(`Halo ${customerName},`);
-        lines.push('');
-        lines.push('Berikut link pembayaran untuk invoice Anda.');
-        lines.push('');
-        lines.push(`Invoice: ${invoiceNumber}`);
-        lines.push(`Program: ${programName}`);
-
-        if (batchName && batchName !== '-') {
-            lines.push(`Batch: ${batchName}`);
-        }
-
-        lines.push(`Nominal: ${amount}`);
-        lines.push('');
-        lines.push('Silakan lakukan pembayaran melalui link berikut:');
-        lines.push(paymentLink);
-        lines.push('');
-        lines.push('Terima kasih.');
-
-        return lines.join('\n');
-    }
-
-    function sendPaymentLinkViaWhatsApp() {
-        const customerPhone = {{ Js::from($student->phone ?? null) }};
-        const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
-
-        if (!customerPhone) {
-            showWaAlert('Nomor WhatsApp customer belum tersedia.');
-            return;
-        }
-
-        if (!paymentLink) {
-            showWaAlert('Link pembayaran belum tersedia untuk invoice ini.');
-            return;
-        }
-
-        const waNumber = normalizeWhatsAppNumber(customerPhone);
-
-        if (!waNumber) {
-            showWaAlert('Nomor WhatsApp customer tidak valid.');
-            return;
-        }
-
-        const message = buildPaymentMessage();
-        const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
-
-        window.open(waUrl, '_blank', 'noopener');
-    }
-
     document.addEventListener('DOMContentLoaded', function () {
         const A4_WIDTH_MM = 210;
         const A4_HEIGHT_MM = 297;
@@ -325,7 +256,7 @@
         }
 
         function sanitizeFilename(filename) {
-            const fallback = 'flexlabs-invoice.pdf';
+            const fallback = 'flexlabs-receipt.pdf';
 
             if (!filename) {
                 return fallback;
@@ -362,7 +293,7 @@
             const originalDisabled = button.disabled;
 
             if (!target) {
-                alert('Area invoice tidak ditemukan. Coba refresh halaman dulu, bro.');
+                alert('Area receipt tidak ditemukan. Coba refresh halaman dulu, bro.');
                 return;
             }
 

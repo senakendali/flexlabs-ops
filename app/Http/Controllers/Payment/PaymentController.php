@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Payment;
 
 use App\Http\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
@@ -318,6 +319,107 @@ class PaymentController extends Controller
 
     public function invoice(Payment $payment): View
     {
+        return view('payments.invoice', $this->buildInvoiceViewData($payment));
+    }
+
+    public function downloadInvoicePdf(Payment $payment)
+    {
+        $data = $this->buildInvoiceViewData($payment);
+        $invoiceDate = $data['invoiceDate'] ?? ($payment->payment_date ?: $payment->created_at);
+        $paymentMethod = $payment->payment_method
+            ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
+
+        $pdf = Pdf::loadView('payments.document-pdf', array_merge($data, [
+            'documentTitle' => 'INVOICE',
+            'documentNumber' => $payment->invoice_number,
+            'documentDate' => $invoiceDate,
+            'leftPartyTitle' => 'Billed to',
+            'rightPartyTitle' => 'From',
+            'totalLabel' => 'Total',
+            'paymentRows' => array_values(array_filter([
+                [
+                    'label' => 'Payment method',
+                    'value' => $paymentMethod,
+                ],
+                !empty($payment->reference_number) ? [
+                    'label' => 'Reference no',
+                    'value' => $payment->reference_number,
+                ] : null,
+                [
+                    'label' => 'Note',
+                    'value' => $payment->notes ?: 'Thank you for choosing FlexLabs.',
+                ],
+            ])),
+            'documentCss' => $this->paymentDocumentCss(),
+            'logoPath' => public_path('images/logo-black.png'),
+        ]))->setPaper('a4', 'portrait');
+
+        $fileName = Str::slug($payment->invoice_number ?: 'invoice-' . $payment->id) . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    public function receipt(Payment $payment): View
+    {
+        abort_unless($payment->status === 'paid', 404, 'Receipt is only available for paid payments.');
+
+        return view('payments.receipt', $this->buildReceiptViewData($payment));
+    }
+
+    public function downloadReceiptPdf(Payment $payment)
+    {
+        abort_unless($payment->status === 'paid', 404, 'Receipt is only available for paid payments.');
+
+        $data = $this->buildReceiptViewData($payment);
+        $receiptNumber = $data['receiptNumber'] ?? $this->resolveReceiptNumber($payment);
+        $receiptDate = $data['paidAt'] ?? $payment->paid_at ?? $payment->payment_date ?? $payment->updated_at ?? $payment->created_at;
+        $paymentMethod = $payment->payment_method
+            ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : '-');
+
+        $pdf = Pdf::loadView('payments.document-pdf', array_merge($data, [
+            'documentTitle' => 'RECEIPT',
+            'documentNumber' => $receiptNumber,
+            'documentDate' => $receiptDate,
+            'leftPartyTitle' => 'Received from',
+            'rightPartyTitle' => 'Received by',
+            'totalLabel' => 'Total Paid',
+            'paymentRows' => array_values(array_filter([
+                [
+                    'label' => 'Invoice no',
+                    'value' => $payment->invoice_number ?: '-',
+                ],
+                [
+                    'label' => 'Payment method',
+                    'value' => $paymentMethod,
+                ],
+                [
+                    'label' => 'Paid at',
+                    'value' => $receiptDate ? Carbon::parse($receiptDate)->format('d F Y H:i') : '-',
+                ],
+                !empty($payment->reference_number) ? [
+                    'label' => 'Reference no',
+                    'value' => $payment->reference_number,
+                ] : null,
+                !empty($payment->gateway_transaction_id) ? [
+                    'label' => 'Transaction ID',
+                    'value' => $payment->gateway_transaction_id,
+                ] : null,
+                [
+                    'label' => 'Note',
+                    'value' => $payment->notes ?: 'Payment has been received. Thank you for choosing FlexLabs.',
+                ],
+            ])),
+            'documentCss' => $this->paymentDocumentCss(),
+            'logoPath' => public_path('images/logo-black.png'),
+        ]))->setPaper('a4', 'portrait');
+
+        $fileName = Str::slug($receiptNumber ?: 'receipt-' . $payment->id) . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    private function buildInvoiceViewData(Payment $payment): array
+    {
         $payment->load([
             'order:id,student_id,batch_id,final_price,status,notes',
             'order.student:id,full_name,email,phone,city',
@@ -350,7 +452,7 @@ class PaymentController extends Controller
             ];
         }
 
-        return view('payments.invoice', [
+        return [
             'payment' => $payment,
             'order' => $order,
             'student' => $student,
@@ -361,7 +463,84 @@ class PaymentController extends Controller
             'subtotal' => (float) $payment->amount,
             'tax' => 0,
             'grandTotal' => (float) $payment->amount,
+            'invoiceDate' => $payment->payment_date ?: $payment->created_at,
+            'companyName' => 'FlexLabs',
+            'companyAddressLines' => $this->flexlabsAddressLines(),
+        ];
+    }
+
+    private function buildReceiptViewData(Payment $payment): array
+    {
+        $payment->load([
+            'order:id,student_id,batch_id,final_price,status,notes',
+            'order.student:id,full_name,email,phone,city',
+            'order.batch:id,program_id,name,start_date,end_date',
+            'order.batch.program:id,name',
+            'paymentSchedule:id,order_id,title,amount,due_date,status',
         ]);
+
+        $student = $payment->order?->student;
+        $batch = $payment->order?->batch;
+        $program = $batch?->program;
+        $schedule = $payment->paymentSchedule;
+        $order = $payment->order;
+
+        $items = [];
+
+        if ($schedule) {
+            $items[] = [
+                'description' => $schedule->title,
+                'qty' => 1,
+                'rate' => (float) $payment->amount,
+                'amount' => (float) $payment->amount,
+            ];
+        } else {
+            $items[] = [
+                'description' => 'Program Payment',
+                'qty' => 1,
+                'rate' => (float) $payment->amount,
+                'amount' => (float) $payment->amount,
+            ];
+        }
+
+        return [
+            'payment' => $payment,
+            'order' => $order,
+            'student' => $student,
+            'batch' => $batch,
+            'program' => $program,
+            'schedule' => $schedule,
+            'items' => $items,
+            'receiptNumber' => $this->resolveReceiptNumber($payment),
+            'subtotal' => (float) $payment->amount,
+            'tax' => 0,
+            'grandTotal' => (float) $payment->amount,
+            'paidAt' => $payment->paid_at ?: $payment->payment_date ?: $payment->updated_at,
+            'companyName' => 'FlexLabs',
+            'companyAddressLines' => $this->flexlabsAddressLines(),
+        ];
+    }
+
+    private function flexlabsAddressLines(): array
+    {
+        return [
+            'MyRepublic Plaza Wing B 2nd Floor',
+            'Jl. BSD Grand Boulevard',
+            'BSD Green Office Park BSD City',
+            'Desa Sampora, Kec. Cisauk',
+            'Tangerang 15345',
+        ];
+    }
+
+    private function paymentDocumentCss(): string
+    {
+        $cssPath = public_path('css/payments/invoice.css');
+
+        if (!is_file($cssPath)) {
+            return '';
+        }
+
+        return (string) file_get_contents($cssPath);
     }
 
     private function attachXenditPaymentLink(
@@ -450,7 +629,7 @@ class PaymentController extends Controller
             'user experience design',
             'design',
         ])) {
-            return 'UX';
+            return 'DS';
         }
 
         return $this->makeProgramCodeFromName($programName);
@@ -479,6 +658,27 @@ class PaymentController extends Controller
         $code = Str::substr($code, 0, 3);
 
         return $code ?: 'FLX';
+    }
+
+    private function resolveReceiptNumber(Payment $payment): string
+    {
+        $storedReceiptNumber = (string) ($payment->getAttribute('receipt_number') ?? '');
+
+        if ($storedReceiptNumber !== '') {
+            return $storedReceiptNumber;
+        }
+
+        $invoiceNumber = (string) $payment->invoice_number;
+
+        if ($invoiceNumber !== '') {
+            if (Str::startsWith($invoiceNumber, 'FLX-')) {
+                return 'FLX-RCPT-' . Str::after($invoiceNumber, 'FLX-');
+            }
+
+            return 'RCPT-' . $invoiceNumber;
+        }
+
+        return 'FLX-RCPT-' . now()->format('Ymd') . '-' . str_pad((string) $payment->id, 4, '0', STR_PAD_LEFT);
     }
 
     private function syncRelatedStatuses(Payment $payment): void

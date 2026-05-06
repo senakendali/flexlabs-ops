@@ -174,10 +174,23 @@
                                                             href="{{ route('payments.invoice', $payment->id) }}"
                                                             class="dropdown-item"
                                                         >
-                                                            <i class="bi bi-receipt me-2"></i>View Invoice
+                                                            <i class="bi bi-file-earmark-text me-2"></i>View Invoice
                                                         </a>
                                                     </li>
+                                                @endif
 
+                                                @if ($payment->status === 'paid')
+                                                    <li>
+                                                        <a
+                                                            href="{{ route('payments.receipt', $payment->id) }}"
+                                                            class="dropdown-item"
+                                                        >
+                                                            <i class="bi bi-receipt-cutoff me-2"></i>View Receipt
+                                                        </a>
+                                                    </li>
+                                                @endif
+
+                                                @if ($payment->invoice_number || $payment->status === 'paid')
                                                     <li>
                                                         <hr class="dropdown-divider">
                                                     </li>

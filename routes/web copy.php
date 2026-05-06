@@ -62,7 +62,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
-
+use App\Http\Controllers\Academic\AcademicDashboardController;
 
 
 
@@ -128,6 +128,14 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic Dashboard
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
+        ->name('academic.dashboard');
 
     /*
     |--------------------------------------------------------------------------
@@ -930,14 +938,6 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Public Certificate Verification
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/certificates/verify/{token}', [CertificateController::class, 'verify'])
-        ->name('public.certificates.verify');
-
-    /*
-    |--------------------------------------------------------------------------
     | Announcements
     |--------------------------------------------------------------------------
     */
@@ -987,6 +987,9 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('instructor-schedules')->name('instructor-schedules.')->group(function () {
+        Route::get('/material-topics', [InstructorScheduleController::class, 'materialTopics'])
+            ->name('material-topics');
+
         Route::get('/', [InstructorScheduleController::class, 'index'])->name('index');
         Route::get('/create', [InstructorScheduleController::class, 'create'])->name('create');
         Route::post('/', [InstructorScheduleController::class, 'store'])->name('store');
@@ -1036,20 +1039,42 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     | Academic - Instructor Tracking
     |--------------------------------------------------------------------------
+    |
+    | Route names follow the navigation configuration:
+    | - instructor-tracking.index
+    | - instructor-tracking.show
+    | - instructor-tracking.check-in
+    | - instructor-tracking.save-draft
+    | - instructor-tracking.check-out
+    |
+    | Important:
+    | The route parameter is {schedule} because the controller methods use
+    | InstructorSchedule $schedule for implicit route model binding.
+    |
     */
-    Route::prefix('instructor-tracking')->name('instructor-tracking.')->group(function () {
-        Route::get('/', [InstructorTrackingController::class, 'index'])->name('index');
+    Route::prefix('instructor-tracking')
+        ->name('instructor-tracking.')
+        ->controller(InstructorTrackingController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
 
-        // session flow
-        Route::post('/start', [InstructorTrackingController::class, 'startSession'])->name('start');
-        Route::post('/{session}/end', [InstructorTrackingController::class, 'endSession'])->name('end');
+            Route::get('/{schedule}', 'show')
+                ->whereNumber('schedule')
+                ->name('show');
 
-        // checklist sub topic
-        Route::post('/{session}/checklist', [InstructorTrackingController::class, 'updateChecklist'])->name('checklist');
+            Route::post('/{schedule}/check-in', 'checkIn')
+                ->whereNumber('schedule')
+                ->name('check-in');
 
-        // logs
-        Route::post('/{session}/logs', [InstructorTrackingController::class, 'storeLog'])->name('logs.store');
-    });
+            Route::post('/{schedule}/save-draft', 'saveDraft')
+                ->whereNumber('schedule')
+                ->name('save-draft');
+
+            Route::post('/{schedule}/check-out', 'checkOut')
+                ->whereNumber('schedule')
+                ->name('check-out');
+        });
 
     /*
     |--------------------------------------------------------------------------

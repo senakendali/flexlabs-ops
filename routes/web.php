@@ -256,7 +256,23 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/', [PaymentController::class, 'index'])->name('payments.index');
         Route::post('/', [PaymentController::class, 'store'])->name('payments.store');
-        Route::get('/{payment}/invoice', [PaymentController::class, 'invoice'])->name('payments.invoice');
+
+        Route::get('/{payment}/invoice', [PaymentController::class, 'invoice'])
+            ->whereNumber('payment')
+            ->name('payments.invoice');
+
+        Route::get('/{payment}/invoice/download-pdf', [PaymentController::class, 'downloadInvoicePdf'])
+            ->whereNumber('payment')
+            ->name('payments.invoice.download-pdf');
+
+        Route::get('/{payment}/receipt', [PaymentController::class, 'receipt'])
+            ->whereNumber('payment')
+            ->name('payments.receipt');
+
+        Route::get('/{payment}/receipt/download-pdf', [PaymentController::class, 'downloadReceiptPdf'])
+            ->whereNumber('payment')
+            ->name('payments.receipt.download-pdf');
+
         Route::get('/{payment}', [PaymentController::class, 'show'])->whereNumber('payment')->name('payments.show');
         Route::put('/{payment}', [PaymentController::class, 'update'])->whereNumber('payment')->name('payments.update');
         Route::delete('/{payment}', [PaymentController::class, 'destroy'])->whereNumber('payment')->name('payments.destroy');
