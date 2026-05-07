@@ -7,30 +7,38 @@
 @endpush
 
 @section('content')
+{{--
+    Fallback link supaya style invoice tetap kebaca walaupun layouts.public belum punya @stack('styles').
+    Kalau layout sudah support @stack('styles'), browser akan mengabaikan efek duplikasinya.
+--}}
+<link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
+
 @php
     $order = $order ?? $payment->order;
+
+    // Public invoice harus memakai full pricing columns dari orders.
+    // Ini mencegah Normal Program Fee kebaca dari final_price dan discount jadi Rp 0.
+    if (!empty($payment->order_id)) {
+        try {
+            $freshOrder = \App\Models\Order::with([
+                'student:id,full_name,email,phone,city',
+                'batch:id,program_id,name,start_date,end_date',
+                'batch.program:id,name',
+            ])->find($payment->order_id);
+
+            if ($freshOrder) {
+                $order = $freshOrder;
+                $payment->setRelation('order', $freshOrder);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     $student = $student ?? $order?->student;
     $batch = $batch ?? $order?->batch;
     $program = $program ?? $batch?->program;
     $schedule = $schedule ?? $payment->paymentSchedule;
-
-    $isPaid = $isPaid ?? $payment->status === 'paid';
-
-    if (!isset($isExpired)) {
-        $isExpired = false;
-
-        if ($payment->status === 'expired') {
-            $isExpired = true;
-        } elseif ($payment->status !== 'paid' && !empty($payment->expired_at)) {
-            $isExpired = \Carbon\Carbon::parse($payment->expired_at)->isPast();
-        }
-    }
-
-    $canPay = $canPay ?? (!$isPaid && !$isExpired && !empty($payment->payment_url));
-
-    $publicPaymentLink = $publicPaymentLink ?? ($payment->public_token
-        ? route('public.payments.show', $payment->public_token)
-        : null);
 
     $invoiceDate = $invoiceDate ?? ($payment->payment_date ?: $payment->created_at);
 
@@ -53,76 +61,112 @@
         return $prefix . number_format(abs($amount), 0, ',', '.');
     };
 
-    $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $currentDocumentAmount ?? $grandTotal ?? $payment->amount ?? 0);
-    $remainingBalance = isset($remainingBalance) ? (float) $remainingBalance : null;
-    $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
-    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
+    $isPaid = $isPaid ?? $payment->status === 'paid';
+    $isExpired = $isExpired ?? (!empty($payment->expired_at) && now()->greaterThan($payment->expired_at) && $payment->status !== 'paid');
+    $canPay = !$isPaid && !$isExpired && !empty($payment->payment_url);
 
-    $items = collect($items ?? $financialRows ?? $financialSummaryRows ?? $invoiceBreakdownRows ?? [])->values();
+    $rawOriginalPrice = (float) ($order?->original_price ?? 0);
+    $rawDiscount = (float) ($order?->discount ?? 0);
+    $rawFinalPrice = (float) ($order?->final_price ?? 0);
+    $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $payment->amount ?? $schedule?->amount ?? 0);
 
-    if ($items->isEmpty()) {
-        $normalProgramFee = (float) ($normalProgramFee ?? $order?->original_price ?? $order?->final_price ?? $payment->amount ?? 0);
-        $programDiscount = (float) ($programDiscount ?? $order?->discount ?? 0);
-        $finalTuitionFee = (float) ($finalTuitionFee ?? $order?->final_price ?? max($normalProgramFee - $programDiscount, 0));
-        $previousPaymentReceived = (float) ($previousPaymentReceived ?? 0);
-        $currentInvoiceAmount = (float) ($payment->amount ?? 0);
-        $remainingBalance = max($finalTuitionFee - $previousPaymentReceived - $currentInvoiceAmount, 0);
-
-        $detailDescription = collect([$program?->name, $batch?->name])
-            ->filter(fn ($value) => filled($value))
-            ->implode(' · ') ?: 'FlexLabs Program';
-
-        $items = collect([
-            [
-                'label' => 'Normal Program Fee',
-                'description' => 'Normal Program Fee',
-                'details' => $detailDescription,
-                'amount' => $normalProgramFee,
-                'is_negative' => false,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => 'Special Program Discount',
-                'description' => 'Special Program Discount',
-                'details' => 'Approved program discount or payment adjustment',
-                'amount' => -1 * abs($programDiscount),
-                'is_negative' => $programDiscount > 0,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => 'Final Tuition Fee',
-                'description' => 'Final Tuition Fee',
-                'details' => 'Program fee after discount or adjustment',
-                'amount' => $finalTuitionFee,
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
-            [
-                'label' => 'Previous Payment Received',
-                'description' => 'Previous Payment Received',
-                'details' => 'Confirmed paid amount recorded before this invoice',
-                'amount' => -1 * abs($previousPaymentReceived),
-                'is_negative' => $previousPaymentReceived > 0,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => 'Current Invoice Amount',
-                'description' => 'Current Invoice Amount',
-                'details' => $schedule?->title ?: 'Payment requested on this invoice',
-                'amount' => $currentInvoiceAmount,
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
-            [
-                'label' => $remainingBalanceLabel,
-                'description' => $remainingBalanceLabel,
-                'details' => 'Outstanding amount assuming this invoice is completed',
-                'amount' => $remainingBalance,
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
-        ]);
+    if ($rawFinalPrice <= 0) {
+        $rawFinalPrice = max($currentInvoiceAmount, 0);
     }
+
+    $programDiscount = $rawDiscount > 0
+        ? $rawDiscount
+        : max($rawOriginalPrice - $rawFinalPrice, 0);
+
+    $normalProgramFee = $rawOriginalPrice > 0
+        ? $rawOriginalPrice
+        : max($rawFinalPrice + $programDiscount, $rawFinalPrice, $currentInvoiceAmount);
+
+    $finalTuitionFee = $rawFinalPrice > 0
+        ? $rawFinalPrice
+        : max($normalProgramFee - $programDiscount, 0);
+
+    if ($programDiscount <= 0 && $normalProgramFee > $finalTuitionFee) {
+        $programDiscount = $normalProgramFee - $finalTuitionFee;
+    }
+
+    if (!isset($previousPaymentReceived)) {
+        $previousPaymentReceived = 0;
+
+        if (!empty($order?->id)) {
+            try {
+                $previousPaymentReceived = (float) \App\Models\Payment::query()
+                    ->where('order_id', $order->id)
+                    ->where('status', 'paid')
+                    ->where('id', '<', $payment->id)
+                    ->sum('amount');
+            } catch (\Throwable $e) {
+                report($e);
+                $previousPaymentReceived = 0;
+            }
+        }
+    }
+
+    $previousPaymentReceived = (float) $previousPaymentReceived;
+    $remainingBalance = max($finalTuitionFee - $previousPaymentReceived - $currentInvoiceAmount, 0);
+    $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
+
+    $programBatchLabel = collect([
+        $program?->name,
+        $batch?->name,
+    ])->filter()->implode(' · ');
+
+    $currentInvoiceDetail = $schedule?->title ?: 'Payment requested on this invoice';
+
+    if (!empty($schedule?->due_date)) {
+        $currentInvoiceDetail .= ' · Due ' . $formatDate($schedule->due_date);
+    }
+
+    // Dibuat mengikuti cara tulis data di invoice admin: Item | Price | Amount.
+    $items = collect([
+        [
+            'description' => 'Normal Program Fee',
+            'meta' => $programBatchLabel ?: 'FlexLabs Program',
+            'rate' => $normalProgramFee,
+            'amount' => $normalProgramFee,
+            'is_emphasis' => false,
+        ],
+        [
+            'description' => 'Special Program Discount',
+            'meta' => 'Approved program discount or payment adjustment',
+            'rate' => -abs($programDiscount),
+            'amount' => -abs($programDiscount),
+            'is_emphasis' => false,
+        ],
+        [
+            'description' => 'Final Tuition Fee',
+            'meta' => 'Program fee after discount or adjustment',
+            'rate' => $finalTuitionFee,
+            'amount' => $finalTuitionFee,
+            'is_emphasis' => true,
+        ],
+        [
+            'description' => 'Previous Payment Received',
+            'meta' => 'Confirmed paid amount recorded before this document',
+            'rate' => -abs($previousPaymentReceived),
+            'amount' => -abs($previousPaymentReceived),
+            'is_emphasis' => false,
+        ],
+        [
+            'description' => 'Current Invoice Amount',
+            'meta' => $currentInvoiceDetail,
+            'rate' => $currentInvoiceAmount,
+            'amount' => $currentInvoiceAmount,
+            'is_emphasis' => true,
+        ],
+        [
+            'description' => $remainingBalanceLabel,
+            'meta' => 'Outstanding amount assuming this invoice is completed',
+            'rate' => $remainingBalance,
+            'amount' => $remainingBalance,
+            'is_emphasis' => true,
+        ],
+    ])->values();
 
     $paymentMethod = $payment->payment_method
         ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
@@ -140,55 +184,40 @@
         'Tangerang 15345',
     ];
 
+    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
     $invoicePdfFilename = 'invoice-' . \Illuminate\Support\Str::slug((string) ($payment->invoice_number ?? 'document')) . '.pdf';
 @endphp
 
-<div class="container py-4 invoice-shell public-payment-wrapper">
+<div class="container py-4 invoice-shell">
     @if ($isPaid)
-        <div class="alert alert-success public-payment-alert no-print mb-4">
-            <div class="public-payment-alert-title">
-                <i class="bi bi-check-circle-fill me-1"></i>
-                Payment completed
-            </div>
-            <div class="public-payment-alert-text">
-                Pembayaran untuk invoice ini sudah berhasil diterima.
-            </div>
+        <div class="alert alert-success no-print mb-4">
+            <strong><i class="bi bi-check-circle-fill me-1"></i> Payment completed.</strong>
+            Pembayaran untuk invoice ini sudah berhasil diterima.
         </div>
     @elseif ($isExpired)
-        <div class="alert alert-warning public-payment-alert no-print mb-4">
-            <div class="public-payment-alert-title">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                Payment link expired
-            </div>
-            <div class="public-payment-alert-text">
-                Link pembayaran sudah tidak aktif. Silakan hubungi admin FlexLabs untuk mendapatkan link pembayaran baru.
-            </div>
+        <div class="alert alert-warning no-print mb-4">
+            <strong><i class="bi bi-exclamation-triangle-fill me-1"></i> Payment link expired.</strong>
+            Silakan hubungi admin FlexLabs untuk mendapatkan link pembayaran baru.
         </div>
-    @elseif (empty($payment->payment_url))
-        <div class="alert alert-secondary public-payment-alert no-print mb-4">
-            <div class="public-payment-alert-title">
-                <i class="bi bi-clock-history me-1"></i>
-                Payment link belum tersedia
-            </div>
-            <div class="public-payment-alert-text">
-                Link pembayaran untuk invoice ini belum aktif. Silakan hubungi admin FlexLabs.
-            </div>
+    @elseif (!$payment->payment_url)
+        <div class="alert alert-secondary no-print mb-4">
+            <strong><i class="bi bi-clock-history me-1"></i> Payment link belum tersedia.</strong>
+            Silakan hubungi admin FlexLabs.
         </div>
     @endif
 
     <div class="invoice-toolbar no-print">
         <div>
-            <div class="public-payment-eyebrow">FlexLabs Payment</div>
-            <h4 class="mb-1">Student Payment Invoice</h4>
-            <small class="text-muted">{{ $payment->invoice_number ?: '-' }}</small>
+            <h4 class="mb-1">Invoice</h4>
+            <small class="text-muted">{{ $payment->invoice_number }}</small>
         </div>
 
-        <div class="d-flex gap-2 flex-wrap public-payment-actions">
+        <div class="d-flex gap-2 flex-wrap">
             <button
                 type="button"
-                class="btn btn-light border"
+                class="btn btn-primary"
                 data-pdf-download
-                data-pdf-target="#publicInvoiceDocument"
+                data-pdf-target="#invoiceDocument"
                 data-pdf-filename="{{ $invoicePdfFilename }}"
             >
                 <i class="bi bi-download me-1"></i> Download PDF
@@ -203,7 +232,7 @@
                     <i class="bi bi-x-circle me-1"></i> Link Expired
                 </button>
             @elseif ($canPay)
-                <a href="{{ $payment->payment_url }}" rel="noopener noreferrer" class="btn btn-primary btn-brand">
+                <a href="{{ $payment->payment_url }}" rel="noopener noreferrer" class="btn btn-success">
                     <i class="bi bi-credit-card me-1"></i> Pay Now
                 </a>
             @else
@@ -215,7 +244,7 @@
     </div>
 
     <div class="invoice-page">
-        <div id="publicInvoiceDocument" class="invoice-card">
+        <div id="invoiceDocument" class="invoice-card">
             <div class="invoice-content">
                 <header class="invoice-header">
                     <div class="invoice-logo-wrap">
@@ -228,7 +257,7 @@
 
                     <div class="invoice-number-box">
                         <span class="invoice-number-label">No.</span>
-                        <span class="invoice-number-value">{{ $payment->invoice_number ?: '-' }}</span>
+                        <span class="invoice-number-value">{{ $payment->invoice_number }}</span>
                     </div>
                 </header>
 
@@ -276,16 +305,17 @@
                         <table class="table invoice-table align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>Description</th>
-                                    <th>Details</th>
+                                    <th>Item</th>
+                                    <th class="text-end invoice-table-price">Price</th>
                                     <th class="text-end invoice-table-amount">Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse ($items as $item)
                                     @php
-                                        $itemLabel = $item['label'] ?? $item['description'] ?? '-';
-                                        $itemDetails = $item['details'] ?? $item['meta'] ?? (($item['label'] ?? null) ? ($item['description'] ?? null) : null);
+                                        $itemTitle = $item['description'] ?? $item['label'] ?? '-';
+                                        $itemDetail = $item['meta'] ?? $item['details'] ?? null;
+                                        $itemRate = (float) ($item['rate'] ?? $item['amount'] ?? 0);
                                         $itemAmount = (float) ($item['amount'] ?? 0);
                                         $isEmphasis = (bool) ($item['is_emphasis'] ?? false);
                                     @endphp
@@ -293,31 +323,37 @@
                                         'fw-semibold' => $isEmphasis,
                                     ])>
                                         <td>
-                                            <div class="invoice-item-title">{{ $itemLabel }}</div>
-                                        </td>
-                                        <td>
-                                            @if (!empty($itemDetails) && $itemDetails !== $itemLabel)
-                                                <div class="invoice-item-subtitle">{{ $itemDetails }}</div>
+                                            <div class="invoice-item-title">{{ $itemTitle }}</div>
+
+                                            @if (!empty($itemDetail))
+                                                <div class="invoice-item-subtitle">{{ $itemDetail }}</div>
                                             @else
-                                                <span class="text-muted">-</span>
+                                                @if (!empty($program?->name))
+                                                    <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                                @endif
+
+                                                @if (!empty($batch?->name))
+                                                    <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                @endif
                                             @endif
                                         </td>
-                                        <td @class([
-                                            'text-end',
-                                            'text-nowrap',
-                                            'text-muted' => $itemAmount == 0,
-                                        ])>
-                                            {{ $formatSignedMoney($itemAmount) }}
-                                        </td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemRate) }}</td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemAmount) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
                                         <td>
                                             <div class="invoice-item-title">Program Payment</div>
+
+                                            @if (!empty($program?->name))
+                                                <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                            @endif
+
+                                            @if (!empty($batch?->name))
+                                                <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                            @endif
                                         </td>
-                                        <td>
-                                            <div class="invoice-item-subtitle">{{ $program->name ?? 'FlexLabs Program' }}</div>
-                                        </td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
                                         <td class="text-end text-nowrap">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
                                     </tr>
                                 @endforelse
@@ -332,23 +368,16 @@
                                 <td>{{ $formatMoney($currentInvoiceAmount) }}</td>
                             </tr>
 
-                            @if ((float) ($tax ?? 0) > 0)
-                                <tr>
-                                    <td>Tax</td>
-                                    <td>{{ $formatMoney($tax ?? 0) }}</td>
-                                </tr>
-                            @endif
-
                             <tr class="invoice-summary-total">
                                 <td>{{ $remainingBalanceLabel }}</td>
-                                <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
+                                <td>{{ $formatMoney($remainingBalance) }}</td>
                             </tr>
                         </table>
                     </div>
 
-                    <div class="invoice-note-box mt-3">
+                    <!--div class="invoice-note-box mt-3">
                         {{ $documentNote }}
-                    </div>
+                    </div-->
                 </section>
 
                 <section class="invoice-payment-section">
@@ -379,37 +408,9 @@
                         <span class="invoice-info-colon">:</span>
                         <span class="invoice-info-value">{{ \Illuminate\Support\Str::headline((string) $payment->status) }}</span>
                     </div>
-
-                    <div class="invoice-info-line">
-                        <span class="invoice-info-label">Note</span>
-                        <span class="invoice-info-colon">:</span>
-                        <span class="invoice-info-value">
-                            {{ $payment->notes ?: 'Please complete your payment using the Pay Now button above.' }}
-                        </span>
-                    </div>
                 </section>
             </div>
         </div>
-    </div>
-
-    <div class="public-payment-bottom-action no-print">
-        @if ($isPaid)
-            <button type="button" class="btn btn-success btn-lg px-5" disabled>
-                <i class="bi bi-check-circle me-1"></i> Already Paid
-            </button>
-        @elseif ($isExpired)
-            <button type="button" class="btn btn-secondary btn-lg px-5" disabled>
-                <i class="bi bi-x-circle me-1"></i> Link Expired
-            </button>
-        @elseif ($canPay)
-            <a href="{{ $payment->payment_url }}" rel="noopener noreferrer" class="btn btn-brand btn-primary btn-lg px-5">
-                <i class="bi bi-credit-card me-1"></i> Pay Now
-            </a>
-        @else
-            <button type="button" class="btn btn-outline-secondary btn-lg px-5" disabled>
-                <i class="bi bi-clock-history me-1"></i> Payment Link Not Ready
-            </button>
-        @endif
     </div>
 </div>
 @endsection
@@ -510,6 +511,7 @@
                 const imageData = canvas.toDataURL('image/png', 1.0);
                 const pdf = new JsPDF('p', 'mm', 'a4');
 
+                // Invoice memang didesain sebagai 1 halaman A4.
                 pdf.addImage(
                     imageData,
                     'PNG',

@@ -579,6 +579,8 @@ class PaymentController extends Controller
             'schedule' => $schedule,
             'items' => $summary['items'],
             'financialSummaryRows' => $summary['rows'],
+            'financialRows' => $summary['rows'],
+            'invoiceBreakdownRows' => $summary['rows'],
             'pricingRows' => $summary['pricing_rows'],
             'paymentSummaryRows' => $summary['payment_rows'],
             'normalProgramFee' => $summary['normal_program_fee'],
@@ -618,6 +620,9 @@ class PaymentController extends Controller
             'schedule' => $schedule,
             'items' => $summary['items'],
             'financialSummaryRows' => $summary['rows'],
+            'financialRows' => $summary['rows'],
+            'invoiceBreakdownRows' => $summary['rows'],
+            'receiptBreakdownRows' => $summary['rows'],
             'pricingRows' => $summary['pricing_rows'],
             'paymentSummaryRows' => $summary['payment_rows'],
             'receiptNumber' => $this->resolveReceiptNumber($payment),
@@ -640,17 +645,37 @@ class PaymentController extends Controller
 
     private function buildPaymentFinancialSummary(Payment $payment, string $documentType = 'invoice'): array
     {
-        $order = $payment->order;
+        $order = $this->resolveFullOrderForPayment($payment);
         $schedule = $payment->paymentSchedule;
 
         $normalProgramFee = $this->moneyValue($order?->original_price);
-        $programDiscount = $this->moneyValue($order?->discount);
+        $explicitDiscount = $this->moneyValue($order?->discount);
         $finalTuitionFee = $this->moneyValue($order?->final_price);
         $currentAmount = $this->moneyValue($payment->amount);
 
-        if ($normalProgramFee <= 0 && $finalTuitionFee > 0) {
-            $normalProgramFee = $finalTuitionFee + $programDiscount;
+        // Guard tambahan:
+        // - original_price kadang kosong, tapi discount + final_price ada
+        // - discount kadang kosong, tapi original_price > final_price
+        // - final_price kadang kosong pada data lama, fallback ke amount/payment schedule
+        if ($finalTuitionFee <= 0) {
+            $finalTuitionFee = $this->moneyValue($schedule?->amount) ?: $currentAmount;
         }
+
+        if ($normalProgramFee <= 0) {
+            $normalProgramFee = $finalTuitionFee + $explicitDiscount;
+        }
+
+        if ($normalProgramFee <= 0) {
+            $normalProgramFee = $finalTuitionFee ?: $currentAmount;
+        }
+
+        $derivedDiscount = 0;
+
+        if ($normalProgramFee > $finalTuitionFee && $finalTuitionFee > 0) {
+            $derivedDiscount = $normalProgramFee - $finalTuitionFee;
+        }
+
+        $programDiscount = max($explicitDiscount, $derivedDiscount, 0);
 
         if ($finalTuitionFee <= 0 && $normalProgramFee > 0) {
             $finalTuitionFee = max($normalProgramFee - $programDiscount, 0);
@@ -658,10 +683,6 @@ class PaymentController extends Controller
 
         if ($finalTuitionFee <= 0) {
             $finalTuitionFee = $currentAmount;
-        }
-
-        if ($programDiscount <= 0 && $normalProgramFee > $finalTuitionFee) {
-            $programDiscount = $normalProgramFee - $finalTuitionFee;
         }
 
         $previousPaymentReceived = $this->resolvePreviousPaidAmount($payment);
@@ -681,57 +702,54 @@ class PaymentController extends Controller
             ? trim($schedule->title . ($schedule->due_date ? ' · Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
             : 'Program payment installment';
 
+        $programDescription = $this->resolveProgramDescription($payment);
+
+        // Row diskon dibuat eksplisit dan selalu dikirim dari controller.
+        // Jadi view tidak perlu nebak lagi dan label "Special Program Discount" tidak hilang.
         $rows = [
-            [
-                'label' => 'Normal Program Fee',
-                'description' => $this->resolveProgramDescription($payment),
-                'amount' => $normalProgramFee,
-                'type' => 'normal_fee',
-                'is_negative' => false,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => 'Special Program Discount',
-                'description' => 'Approved program discount or payment adjustment',
-                'amount' => -1 * $programDiscount,
-                'type' => 'discount',
-                'is_negative' => $programDiscount > 0,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => 'Final Tuition Fee',
-                'description' => 'Program fee after discount or adjustment',
-                'amount' => $finalTuitionFee,
-                'type' => 'final_fee',
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
-            [
-                'label' => 'Previous Payment Received',
-                'description' => 'Confirmed paid amount recorded before this document',
-                'amount' => -1 * $previousPaymentReceived,
-                'type' => 'previous_payment',
-                'is_negative' => $previousPaymentReceived > 0,
-                'is_emphasis' => false,
-            ],
-            [
-                'label' => $currentLabel,
-                'description' => $currentDescription,
-                'amount' => $currentAmount,
-                'type' => $documentType === 'receipt' ? 'current_payment' : 'current_invoice',
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
-            [
-                'label' => $remainingLabel,
-                'description' => $documentType === 'receipt'
+            $this->makeFinancialRow(
+                label: 'Normal Program Fee',
+                details: $programDescription,
+                amount: $normalProgramFee,
+                type: 'normal_fee'
+            ),
+            $this->makeFinancialRow(
+                label: 'Special Program Discount',
+                details: 'Approved program discount or payment adjustment',
+                amount: -1 * abs($programDiscount),
+                type: 'discount',
+                isNegative: $programDiscount > 0
+            ),
+            $this->makeFinancialRow(
+                label: 'Final Tuition Fee',
+                details: 'Program fee after discount or adjustment',
+                amount: $finalTuitionFee,
+                type: 'final_fee',
+                isEmphasis: true
+            ),
+            $this->makeFinancialRow(
+                label: 'Previous Payment Received',
+                details: 'Confirmed paid amount recorded before this document',
+                amount: -1 * abs($previousPaymentReceived),
+                type: 'previous_payment',
+                isNegative: $previousPaymentReceived > 0
+            ),
+            $this->makeFinancialRow(
+                label: $currentLabel,
+                details: $currentDescription,
+                amount: $currentAmount,
+                type: $documentType === 'receipt' ? 'current_payment' : 'current_invoice',
+                isEmphasis: true
+            ),
+            $this->makeFinancialRow(
+                label: $remainingLabel,
+                details: $documentType === 'receipt'
                     ? 'Outstanding amount after this payment'
                     : 'Outstanding amount assuming this invoice is completed',
-                'amount' => $remainingBalance,
-                'type' => 'remaining_balance',
-                'is_negative' => false,
-                'is_emphasis' => true,
-            ],
+                amount: $remainingBalance,
+                type: 'remaining_balance',
+                isEmphasis: true
+            ),
         ];
 
         return [
@@ -749,18 +767,77 @@ class PaymentController extends Controller
         ];
     }
 
+    private function resolveFullOrderForPayment(Payment $payment): ?Order
+    {
+        $order = $payment->order;
+
+        $hasCompletePricingColumns = $order
+            && array_key_exists('original_price', $order->getAttributes())
+            && array_key_exists('discount', $order->getAttributes())
+            && array_key_exists('final_price', $order->getAttributes());
+
+        if ($hasCompletePricingColumns) {
+            return $order;
+        }
+
+        if (!$payment->order_id) {
+            return $order;
+        }
+
+        $freshOrder = Order::with([
+            'student:id,full_name,email,phone,city',
+            'batch:id,program_id,name,start_date,end_date',
+            'batch.program:id,name',
+        ])->find($payment->order_id);
+
+        if ($freshOrder) {
+            $payment->setRelation('order', $freshOrder);
+
+            return $freshOrder;
+        }
+
+        return $order;
+    }
+
+    private function makeFinancialRow(
+        string $label,
+        string $details,
+        float $amount,
+        string $type,
+        bool $isNegative = false,
+        bool $isEmphasis = false
+    ): array {
+        return [
+            'label' => $label,
+            'description' => $label,
+            'details' => $details,
+            'meta' => $details,
+            'amount' => $amount,
+            'rate' => $amount,
+            'type' => $type,
+            'is_negative' => $isNegative,
+            'is_emphasis' => $isEmphasis,
+        ];
+    }
+
     private function financialRowsToDocumentItems(array $rows): array
     {
         return collect($rows)
             ->map(function (array $row) {
+                $label = (string) ($row['label'] ?? $row['description'] ?? '-');
+                $details = (string) ($row['details'] ?? $row['meta'] ?? '');
+                $amount = $this->moneyValue($row['amount'] ?? 0);
+
                 return [
-                    'description' => $row['label'],
-                    'meta' => $row['description'] ?? null,
+                    'label' => $label,
+                    'description' => $label,
+                    'details' => $details,
+                    'meta' => $details,
                     'qty' => 1,
-                    'rate' => $row['amount'],
-                    'amount' => $row['amount'],
+                    'rate' => $amount,
+                    'amount' => $amount,
                     'type' => $row['type'] ?? null,
-                    'is_negative' => (bool) ($row['is_negative'] ?? false),
+                    'is_negative' => (bool) ($row['is_negative'] ?? $amount < 0),
                     'is_emphasis' => (bool) ($row['is_emphasis'] ?? false),
                 ];
             })
