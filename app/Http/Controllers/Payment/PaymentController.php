@@ -12,6 +12,8 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -31,7 +33,7 @@ class PaymentController extends Controller
         }
 
         $payments = Payment::with([
-                'order:id,student_id,batch_id,final_price,status',
+                'order:id,student_id,batch_id,original_price,discount,final_price,status',
                 'order.student:id,full_name,email,phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
@@ -48,10 +50,10 @@ class PaymentController extends Controller
             ])
             ->whereIn('status', ['pending', 'partial'])
             ->orderByDesc('id')
-            ->get(['id', 'student_id', 'batch_id', 'final_price', 'status']);
+            ->get(['id', 'student_id', 'batch_id', 'original_price', 'discount', 'final_price', 'status']);
 
         $paymentSchedules = PaymentSchedule::with([
-                'order:id,student_id,batch_id,final_price,status',
+                'order:id,student_id,batch_id,original_price,discount,final_price,status',
                 'order.student:id,full_name,email,phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
@@ -66,7 +68,7 @@ class PaymentController extends Controller
     public function show(Payment $payment): JsonResponse
     {
         $payment->load([
-            'order:id,student_id,batch_id,final_price,status',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
@@ -98,6 +100,8 @@ class PaymentController extends Controller
                     : null,
                 'order' => $payment->order ? [
                     'id' => $payment->order->id,
+                    'original_price' => (float) $payment->order->original_price,
+                    'discount' => (float) $payment->order->discount,
                     'final_price' => (float) $payment->order->final_price,
                     'status' => $payment->order->status,
                     'student' => $payment->order->student ? [
@@ -128,8 +132,15 @@ class PaymentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->has('invoice_number')) {
+            $request->merge([
+                'invoice_number' => $this->normalizeManualInvoiceNumber($request->input('invoice_number')),
+            ]);
+        }
+
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'invoice_number' => ['nullable', 'string', 'max:100', Rule::unique('payments', 'invoice_number')],
             'payment_schedule_id' => ['nullable', 'integer', 'exists:payment_schedules,id'],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['nullable', 'date'],
@@ -164,26 +175,30 @@ class PaymentController extends Controller
             }
         }
 
-        $payment = Payment::create([
-            'order_id' => $validated['order_id'],
-            'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
-            'invoice_number' => $this->generateInvoiceNumber($order),
-            'public_token' => Str::uuid()->toString(),
-            'payment_url' => null,
-            'amount' => $validated['amount'],
-            'payment_date' => $validated['payment_date'] ?? null,
-            'payment_method' => $validated['payment_method'] ?? null,
-            'reference_number' => $validated['reference_number'] ?? null,
-            'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? null,
-            'gateway_provider' => $validated['gateway_provider'] ?? null,
-            'gateway_payload' => null,
-            'status' => $validated['status'],
-            'expired_at' => !empty($validated['expired_at'])
-                ? Carbon::parse($validated['expired_at'])
-                : now()->addDay(),
-            'notes' => $validated['notes'] ?? null,
-            'paid_at' => $validated['status'] === 'paid' ? now() : null,
-        ]);
+        $payment = DB::transaction(function () use ($validated, $order) {
+            $manualInvoiceNumber = $validated['invoice_number'] ?? null;
+
+            return Payment::create([
+                'order_id' => $validated['order_id'],
+                'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
+                'invoice_number' => $manualInvoiceNumber ?: $this->generateInvoiceNumber($order),
+                'public_token' => Str::uuid()->toString(),
+                'payment_url' => null,
+                'amount' => $validated['amount'],
+                'payment_date' => $validated['payment_date'] ?? null,
+                'payment_method' => $validated['payment_method'] ?? null,
+                'reference_number' => $validated['reference_number'] ?? null,
+                'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? null,
+                'gateway_provider' => $validated['gateway_provider'] ?? null,
+                'gateway_payload' => null,
+                'status' => $validated['status'],
+                'expired_at' => !empty($validated['expired_at'])
+                    ? Carbon::parse($validated['expired_at'])
+                    : now()->addDay(),
+                'notes' => $validated['notes'] ?? null,
+                'paid_at' => $validated['status'] === 'paid' ? now() : null,
+            ]);
+        });
 
         if ($payment->status === 'pending') {
             $this->attachXenditPaymentLink($payment, $order, $paymentSchedule);
@@ -192,7 +207,7 @@ class PaymentController extends Controller
         $this->syncRelatedStatuses($payment);
 
         $payment->load([
-            'order:id,student_id,batch_id,final_price,status',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
@@ -208,8 +223,20 @@ class PaymentController extends Controller
 
     public function update(Request $request, Payment $payment): JsonResponse
     {
+        if ($request->has('invoice_number')) {
+            $request->merge([
+                'invoice_number' => $this->normalizeManualInvoiceNumber($request->input('invoice_number')),
+            ]);
+        }
+
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'invoice_number' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('payments', 'invoice_number')->ignore($payment->id),
+            ],
             'payment_schedule_id' => ['nullable', 'integer', 'exists:payment_schedules,id'],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['nullable', 'date'],
@@ -247,24 +274,35 @@ class PaymentController extends Controller
         $previousStatus = $payment->status;
         $hadPaymentUrl = !empty($payment->payment_url);
 
-        $payment->update([
-            'order_id' => $validated['order_id'],
-            'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
-            'amount' => $validated['amount'],
-            'payment_date' => $validated['payment_date'] ?? null,
-            'payment_method' => $validated['payment_method'] ?? null,
-            'reference_number' => $validated['reference_number'] ?? null,
-            'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
-            'gateway_provider' => $validated['gateway_provider'] ?? $payment->gateway_provider,
-            'status' => $validated['status'],
-            'expired_at' => !empty($validated['expired_at'])
-                ? Carbon::parse($validated['expired_at'])
-                : $payment->expired_at,
-            'notes' => $validated['notes'] ?? null,
-            'paid_at' => $validated['status'] === 'paid'
-                ? ($payment->paid_at ?? now())
-                : null,
-        ]);
+        $invoiceNumberWasSent = $request->has('invoice_number');
+
+        DB::transaction(function () use ($payment, $validated, $order, $invoiceNumberWasSent) {
+            $payload = [
+                'order_id' => $validated['order_id'],
+                'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
+                'amount' => $validated['amount'],
+                'payment_date' => $validated['payment_date'] ?? null,
+                'payment_method' => $validated['payment_method'] ?? null,
+                'reference_number' => $validated['reference_number'] ?? null,
+                'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
+                'gateway_provider' => $validated['gateway_provider'] ?? $payment->gateway_provider,
+                'status' => $validated['status'],
+                'expired_at' => !empty($validated['expired_at'])
+                    ? Carbon::parse($validated['expired_at'])
+                    : $payment->expired_at,
+                'notes' => $validated['notes'] ?? null,
+                'paid_at' => $validated['status'] === 'paid'
+                    ? ($payment->paid_at ?? now())
+                    : null,
+            ];
+
+            if ($invoiceNumberWasSent) {
+                $payload['invoice_number'] = $validated['invoice_number']
+                    ?: ($payment->invoice_number ?: $this->generateInvoiceNumber($order));
+            }
+
+            $payment->update($payload);
+        });
 
         $shouldGenerateLink = $payment->status === 'pending' && (
             !$hadPaymentUrl ||
@@ -278,7 +316,7 @@ class PaymentController extends Controller
         $this->syncRelatedStatuses($payment->fresh());
 
         $payment->load([
-            'order:id,student_id,batch_id,final_price,status',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
@@ -335,19 +373,23 @@ class PaymentController extends Controller
             'documentDate' => $invoiceDate,
             'leftPartyTitle' => 'Billed to',
             'rightPartyTitle' => 'From',
-            'totalLabel' => 'Total',
+            'totalLabel' => 'Current Invoice Amount',
             'paymentRows' => array_values(array_filter([
                 [
                     'label' => 'Payment method',
                     'value' => $paymentMethod,
                 ],
-                !empty($payment->reference_number) ? [
-                    'label' => 'Reference no',
-                    'value' => $payment->reference_number,
+                $payment->expired_at ? [
+                    'label' => 'Payment due',
+                    'value' => Carbon::parse($payment->expired_at)->format('d F Y H:i'),
                 ] : null,
                 [
+                    'label' => 'Status',
+                    'value' => Str::headline((string) $payment->status),
+                ],
+                [
                     'label' => 'Note',
-                    'value' => $payment->notes ?: 'Thank you for choosing FlexLabs.',
+                    'value' => $payment->notes ?: ($data['documentNote'] ?? 'Thank you for choosing FlexLabs.'),
                 ],
             ])),
             'documentCss' => $this->paymentDocumentCss(),
@@ -406,7 +448,7 @@ class PaymentController extends Controller
                 ] : null,
                 [
                     'label' => 'Note',
-                    'value' => $payment->notes ?: 'Payment has been received. Thank you for choosing FlexLabs.',
+                    'value' => $payment->notes ?: ($data['documentNote'] ?? 'Payment has been received. Thank you for choosing FlexLabs.'),
                 ],
             ])),
             'documentCss' => $this->paymentDocumentCss(),
@@ -418,39 +460,115 @@ class PaymentController extends Controller
         return $pdf->download($fileName);
     }
 
-    private function buildInvoiceViewData(Payment $payment): array
+
+    public function publicShow(string $token): View
     {
-        $payment->load([
-            'order:id,student_id,batch_id,final_price,status,notes',
+        $payment = $this->findPaymentByPublicToken($token);
+
+        return view('public.payments.show', $this->buildPublicPaymentViewData($payment));
+    }
+
+    public function showPublicPayment(string $token): View
+    {
+        return $this->publicShow($token);
+    }
+
+    public function publicPayment(string $token): View
+    {
+        return $this->publicShow($token);
+    }
+
+    public function pay(string $token): View
+    {
+        return $this->publicShow($token);
+    }
+
+    public function downloadPublicInvoicePdf(string $token)
+    {
+        $payment = $this->findPaymentByPublicToken($token);
+
+        return $this->downloadInvoicePdf($payment);
+    }
+
+
+    private function findPaymentByPublicToken(string $token): Payment
+    {
+        return Payment::query()
+            ->with($this->paymentDocumentRelations())
+            ->where('public_token', $token)
+            ->firstOrFail();
+    }
+
+    private function buildPublicPaymentViewData(Payment $payment): array
+    {
+        $data = $this->buildInvoiceViewData($payment);
+        $publicToken = (string) $payment->public_token;
+        $isPaid = $payment->status === 'paid';
+        $isExpired = $this->isPaymentExpired($payment);
+        $publicPaymentLink = $publicToken !== ''
+            ? route('public.payments.show', $publicToken)
+            : null;
+
+        return array_merge($data, [
+            'isPaid' => $isPaid,
+            'isExpired' => $isExpired,
+            'canPay' => !$isPaid && !$isExpired && filled($payment->payment_url),
+            'publicPaymentLink' => $publicPaymentLink,
+            'publicInvoicePdfLink' => $publicToken !== '' && Route::has('public.payments.invoice.download')
+                ? route('public.payments.invoice.download', $publicToken)
+                : null,
+
+            // Alias supaya public Blade bisa pakai struktur detail yang sama
+            // dengan admin invoice tanpa fallback manual di view.
+            'financialRows' => $data['financialSummaryRows'] ?? $data['items'] ?? [],
+            'invoiceBreakdownRows' => $data['financialSummaryRows'] ?? $data['items'] ?? [],
+            'currentDocumentAmount' => $data['currentInvoiceAmount'] ?? $data['grandTotal'] ?? 0,
+            'currentDocumentAmountLabel' => 'Current Invoice Amount',
+            'documentStatusLabel' => Str::headline((string) $payment->status),
+            'documentActionLabel' => $isPaid
+                ? 'Already Paid'
+                : ($isExpired ? 'Link Expired' : 'Pay Now'),
+        ]);
+    }
+
+    private function paymentDocumentRelations(): array
+    {
+        return [
+            'order:id,student_id,batch_id,original_price,discount,final_price,status,notes',
             'order.student:id,full_name,email,phone,city',
             'order.batch:id,program_id,name,start_date,end_date',
             'order.batch.program:id,name',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
-        ]);
+        ];
+    }
+
+    private function isPaymentExpired(Payment $payment): bool
+    {
+        if ($payment->status === 'expired') {
+            return true;
+        }
+
+        if ($payment->status === 'paid') {
+            return false;
+        }
+
+        if (empty($payment->expired_at)) {
+            return false;
+        }
+
+        return Carbon::parse($payment->expired_at)->isPast();
+    }
+
+    private function buildInvoiceViewData(Payment $payment): array
+    {
+        $payment->load($this->paymentDocumentRelations());
 
         $student = $payment->order?->student;
         $batch = $payment->order?->batch;
         $program = $batch?->program;
         $schedule = $payment->paymentSchedule;
         $order = $payment->order;
-
-        $items = [];
-
-        if ($schedule) {
-            $items[] = [
-                'description' => $schedule->title,
-                'qty' => 1,
-                'rate' => (float) $schedule->amount,
-                'amount' => (float) $schedule->amount,
-            ];
-        } else {
-            $items[] = [
-                'description' => 'Program Payment',
-                'qty' => 1,
-                'rate' => (float) $payment->amount,
-                'amount' => (float) $payment->amount,
-            ];
-        }
+        $summary = $this->buildPaymentFinancialSummary($payment, 'invoice');
 
         return [
             'payment' => $payment,
@@ -459,11 +577,22 @@ class PaymentController extends Controller
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
-            'items' => $items,
-            'subtotal' => (float) $payment->amount,
+            'items' => $summary['items'],
+            'financialSummaryRows' => $summary['rows'],
+            'pricingRows' => $summary['pricing_rows'],
+            'paymentSummaryRows' => $summary['payment_rows'],
+            'normalProgramFee' => $summary['normal_program_fee'],
+            'programDiscount' => $summary['program_discount'],
+            'finalTuitionFee' => $summary['final_tuition_fee'],
+            'previousPaymentReceived' => $summary['previous_payment_received'],
+            'currentInvoiceAmount' => $summary['current_amount'],
+            'remainingBalance' => $summary['remaining_balance'],
+            'remainingBalanceLabel' => $summary['remaining_balance_label'],
+            'subtotal' => $summary['current_amount'],
             'tax' => 0,
-            'grandTotal' => (float) $payment->amount,
+            'grandTotal' => $summary['current_amount'],
             'invoiceDate' => $payment->payment_date ?: $payment->created_at,
+            'documentNote' => 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.',
             'companyName' => 'FlexLabs',
             'companyAddressLines' => $this->flexlabsAddressLines(),
         ];
@@ -471,37 +600,14 @@ class PaymentController extends Controller
 
     private function buildReceiptViewData(Payment $payment): array
     {
-        $payment->load([
-            'order:id,student_id,batch_id,final_price,status,notes',
-            'order.student:id,full_name,email,phone,city',
-            'order.batch:id,program_id,name,start_date,end_date',
-            'order.batch.program:id,name',
-            'paymentSchedule:id,order_id,title,amount,due_date,status',
-        ]);
+        $payment->load($this->paymentDocumentRelations());
 
         $student = $payment->order?->student;
         $batch = $payment->order?->batch;
         $program = $batch?->program;
         $schedule = $payment->paymentSchedule;
         $order = $payment->order;
-
-        $items = [];
-
-        if ($schedule) {
-            $items[] = [
-                'description' => $schedule->title,
-                'qty' => 1,
-                'rate' => (float) $payment->amount,
-                'amount' => (float) $payment->amount,
-            ];
-        } else {
-            $items[] = [
-                'description' => 'Program Payment',
-                'qty' => 1,
-                'rate' => (float) $payment->amount,
-                'amount' => (float) $payment->amount,
-            ];
-        }
+        $summary = $this->buildPaymentFinancialSummary($payment, 'receipt');
 
         return [
             'payment' => $payment,
@@ -510,15 +616,188 @@ class PaymentController extends Controller
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
-            'items' => $items,
+            'items' => $summary['items'],
+            'financialSummaryRows' => $summary['rows'],
+            'pricingRows' => $summary['pricing_rows'],
+            'paymentSummaryRows' => $summary['payment_rows'],
             'receiptNumber' => $this->resolveReceiptNumber($payment),
-            'subtotal' => (float) $payment->amount,
+            'normalProgramFee' => $summary['normal_program_fee'],
+            'programDiscount' => $summary['program_discount'],
+            'finalTuitionFee' => $summary['final_tuition_fee'],
+            'previousPaymentReceived' => $summary['previous_payment_received'],
+            'currentPaymentReceived' => $summary['current_amount'],
+            'remainingBalance' => $summary['remaining_balance'],
+            'remainingBalanceLabel' => $summary['remaining_balance_label'],
+            'subtotal' => $summary['current_amount'],
             'tax' => 0,
-            'grandTotal' => (float) $payment->amount,
+            'grandTotal' => $summary['current_amount'],
             'paidAt' => $payment->paid_at ?: $payment->payment_date ?: $payment->updated_at,
+            'documentNote' => 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this payment.',
             'companyName' => 'FlexLabs',
             'companyAddressLines' => $this->flexlabsAddressLines(),
         ];
+    }
+
+    private function buildPaymentFinancialSummary(Payment $payment, string $documentType = 'invoice'): array
+    {
+        $order = $payment->order;
+        $schedule = $payment->paymentSchedule;
+
+        $normalProgramFee = $this->moneyValue($order?->original_price);
+        $programDiscount = $this->moneyValue($order?->discount);
+        $finalTuitionFee = $this->moneyValue($order?->final_price);
+        $currentAmount = $this->moneyValue($payment->amount);
+
+        if ($normalProgramFee <= 0 && $finalTuitionFee > 0) {
+            $normalProgramFee = $finalTuitionFee + $programDiscount;
+        }
+
+        if ($finalTuitionFee <= 0 && $normalProgramFee > 0) {
+            $finalTuitionFee = max($normalProgramFee - $programDiscount, 0);
+        }
+
+        if ($finalTuitionFee <= 0) {
+            $finalTuitionFee = $currentAmount;
+        }
+
+        if ($programDiscount <= 0 && $normalProgramFee > $finalTuitionFee) {
+            $programDiscount = $normalProgramFee - $finalTuitionFee;
+        }
+
+        $previousPaymentReceived = $this->resolvePreviousPaidAmount($payment);
+        $currentAmountAppliedToBalance = $documentType === 'receipt' && $payment->status !== 'paid'
+            ? 0
+            : $currentAmount;
+        $remainingBalance = max($finalTuitionFee - $previousPaymentReceived - $currentAmountAppliedToBalance, 0);
+
+        $currentLabel = $documentType === 'receipt'
+            ? 'Current Payment Received'
+            : 'Current Invoice Amount';
+        $remainingLabel = $documentType === 'receipt'
+            ? 'Remaining Balance'
+            : 'Remaining Balance After This Invoice';
+
+        $currentDescription = $schedule?->title
+            ? trim($schedule->title . ($schedule->due_date ? ' · Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
+            : 'Program payment installment';
+
+        $rows = [
+            [
+                'label' => 'Normal Program Fee',
+                'description' => $this->resolveProgramDescription($payment),
+                'amount' => $normalProgramFee,
+                'type' => 'normal_fee',
+                'is_negative' => false,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => 'Special Program Discount',
+                'description' => 'Approved program discount or payment adjustment',
+                'amount' => -1 * $programDiscount,
+                'type' => 'discount',
+                'is_negative' => $programDiscount > 0,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => 'Final Tuition Fee',
+                'description' => 'Program fee after discount or adjustment',
+                'amount' => $finalTuitionFee,
+                'type' => 'final_fee',
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+            [
+                'label' => 'Previous Payment Received',
+                'description' => 'Confirmed paid amount recorded before this document',
+                'amount' => -1 * $previousPaymentReceived,
+                'type' => 'previous_payment',
+                'is_negative' => $previousPaymentReceived > 0,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => $currentLabel,
+                'description' => $currentDescription,
+                'amount' => $currentAmount,
+                'type' => $documentType === 'receipt' ? 'current_payment' : 'current_invoice',
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+            [
+                'label' => $remainingLabel,
+                'description' => $documentType === 'receipt'
+                    ? 'Outstanding amount after this payment'
+                    : 'Outstanding amount assuming this invoice is completed',
+                'amount' => $remainingBalance,
+                'type' => 'remaining_balance',
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+        ];
+
+        return [
+            'normal_program_fee' => $normalProgramFee,
+            'program_discount' => $programDiscount,
+            'final_tuition_fee' => $finalTuitionFee,
+            'previous_payment_received' => $previousPaymentReceived,
+            'current_amount' => $currentAmount,
+            'remaining_balance' => $remainingBalance,
+            'remaining_balance_label' => $remainingLabel,
+            'rows' => $rows,
+            'pricing_rows' => array_slice($rows, 0, 3),
+            'payment_rows' => array_slice($rows, 3),
+            'items' => $this->financialRowsToDocumentItems($rows),
+        ];
+    }
+
+    private function financialRowsToDocumentItems(array $rows): array
+    {
+        return collect($rows)
+            ->map(function (array $row) {
+                return [
+                    'description' => $row['label'],
+                    'meta' => $row['description'] ?? null,
+                    'qty' => 1,
+                    'rate' => $row['amount'],
+                    'amount' => $row['amount'],
+                    'type' => $row['type'] ?? null,
+                    'is_negative' => (bool) ($row['is_negative'] ?? false),
+                    'is_emphasis' => (bool) ($row['is_emphasis'] ?? false),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function resolvePreviousPaidAmount(Payment $payment): float
+    {
+        if (!$payment->order_id) {
+            return 0;
+        }
+
+        return $this->moneyValue(
+            Payment::query()
+                ->where('order_id', $payment->order_id)
+                ->where('status', 'paid')
+                ->when($payment->id, function ($query) use ($payment) {
+                    $query->where('id', '<', $payment->id);
+                })
+                ->sum('amount')
+        );
+    }
+
+    private function resolveProgramDescription(Payment $payment): string
+    {
+        $programName = data_get($payment, 'order.batch.program.name');
+        $batchName = data_get($payment, 'order.batch.name');
+
+        return collect([$programName, $batchName])
+            ->filter(fn ($value) => filled($value))
+            ->implode(' · ') ?: 'FlexLabs Program';
+    }
+
+    private function moneyValue(mixed $value): float
+    {
+        return round((float) ($value ?? 0), 2);
     }
 
     private function flexlabsAddressLines(): array
@@ -583,24 +862,56 @@ class PaymentController extends Controller
         }
     }
 
+    private function normalizeManualInvoiceNumber(mixed $invoiceNumber): ?string
+    {
+        $invoiceNumber = trim((string) $invoiceNumber);
+
+        return $invoiceNumber !== '' ? $invoiceNumber : null;
+    }
+
     private function generateInvoiceNumber(Order $order): string
     {
+        $batchCode = $this->resolveInvoiceBatchCode($order);
         $programCode = $this->resolveInvoiceProgramCode($order);
+        $dateCode = now()->format('Ymd');
 
-        // Format: FLX-SE-20260506-0001
-        $prefix = 'FLX-' . $programCode . '-' . now()->format('Ymd');
+        // Format: FLX-B1-SE-20260507-0001
+        // Nomor urut dihitung per batch + program, bukan per tanggal/bulan.
+        $sequencePrefix = 'FLX-' . $batchCode . '-' . $programCode . '-';
+        $documentPrefix = $sequencePrefix . $dateCode . '-';
+        $pattern = '/^' . preg_quote($sequencePrefix, '/') . '\d{8}-(\d+)$/';
 
-        $lastPayment = Payment::where('invoice_number', 'like', $prefix . '-%')
-            ->latest('id')
-            ->first();
+        $maxSequence = Payment::where('invoice_number', 'like', $sequencePrefix . '%')
+            ->lockForUpdate()
+            ->pluck('invoice_number')
+            ->map(function ($invoiceNumber) use ($pattern) {
+                if (preg_match($pattern, (string) $invoiceNumber, $matches)) {
+                    return (int) $matches[1];
+                }
 
-        $nextNumber = 1;
+                return 0;
+            })
+            ->max() ?: 0;
 
-        if ($lastPayment && preg_match('/(\d+)$/', (string) $lastPayment->invoice_number, $matches)) {
-            $nextNumber = ((int) $matches[1]) + 1;
+        $nextNumber = $maxSequence + 1;
+
+        return $documentPrefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveInvoiceBatchCode(Order $order): string
+    {
+        $batchName = (string) data_get($order, 'batch.name', '');
+        $batchId = (int) data_get($order, 'batch.id', 0);
+
+        if (preg_match('/\bbatch\s*0*(\d+)\b/i', $batchName, $matches)) {
+            return 'B' . ((int) $matches[1]);
         }
 
-        return $prefix . '-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+        if (preg_match('/\bb\s*0*(\d+)\b/i', $batchName, $matches)) {
+            return 'B' . ((int) $matches[1]);
+        }
+
+        return 'B' . max(1, $batchId);
     }
 
     private function resolveInvoiceProgramCode(Order $order): string

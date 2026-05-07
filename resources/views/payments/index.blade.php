@@ -276,6 +276,35 @@
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
 
+                    <div class="content-card mb-3 d-none" id="invoiceNumberCard">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Invoice Number</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Update the invoice number manually when this payment record needs a custom reference.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="invoice_number" class="form-label">Invoice Number</label>
+                                    <input
+                                        type="text"
+                                        id="invoice_number"
+                                        class="form-control"
+                                        placeholder="e.g. FLX-B1-SE-20260507-0001"
+                                    >
+                                    <div class="form-text">
+                                        This field only appears when editing an existing payment. Leave it unchanged if the current invoice number is already correct.
+                                    </div>
+                                    <div class="invalid-feedback" id="error_invoice_number"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="content-card mb-3">
                         <div class="content-card-header">
                             <div>
@@ -584,6 +613,7 @@
     const submitBtn = document.getElementById('submitBtn');
     const modalTitle = document.getElementById('paymentModalTitle');
     const formAlert = document.getElementById('formAlert');
+    const invoiceNumberCard = document.getElementById('invoiceNumberCard');
 
     const deleteModalEl = document.getElementById('deleteModal');
     const deleteModal = new bootstrap.Modal(deleteModalEl);
@@ -594,6 +624,7 @@
         id: document.getElementById('payment_id'),
         order_id: document.getElementById('order_id'),
         payment_schedule_id: document.getElementById('payment_schedule_id'),
+        invoice_number: document.getElementById('invoice_number'),
         student_name: document.getElementById('student_name'),
         program_name: document.getElementById('program_name'),
         batch_name: document.getElementById('batch_name'),
@@ -762,6 +793,7 @@
         fields.id.value = '';
         fields.order_id.value = '';
         fields.payment_schedule_id.value = '';
+        fields.invoice_number.value = '';
         fields.student_name.value = '';
         fields.program_name.value = '';
         fields.batch_name.value = '';
@@ -780,6 +812,8 @@
         orderTotalText.textContent = 'Rp 0';
         scheduleAmountText.textContent = 'Rp 0';
         amountText.textContent = 'Rp 0';
+
+        invoiceNumberCard.classList.add('d-none');
 
         Array.from(fields.payment_schedule_id.options).forEach((option, index) => {
             option.hidden = false;
@@ -802,6 +836,7 @@
         [
             'order_id',
             'payment_schedule_id',
+            'invoice_number',
             'amount',
             'payment_date',
             'payment_method',
@@ -881,6 +916,8 @@
             fields.order_id.value = data.order_id ?? '';
             filterScheduleOptionsByOrder();
             fields.payment_schedule_id.value = data.payment_schedule_id ?? '';
+            fields.invoice_number.value = data.invoice_number ?? '';
+            invoiceNumberCard.classList.remove('d-none');
             fields.amount.value = roundCurrency(data.amount ?? 0);
             fields.payment_date.value = data.payment_date ?? '';
             fields.payment_method.value = data.payment_method ?? '';
@@ -951,6 +988,10 @@
             status: fields.status.value,
             notes: fields.notes.value.trim(),
         };
+
+        if (id) {
+            payload.invoice_number = fields.invoice_number.value.trim();
+        }
 
         setSubmitLoading(true);
 

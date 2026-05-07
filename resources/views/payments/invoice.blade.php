@@ -26,6 +26,17 @@
         return 'Rp ' . number_format((float) $amount, 0, ',', '.');
     };
 
+    $formatSignedMoney = function ($amount) {
+        $amount = (float) $amount;
+        $prefix = $amount < 0 ? '-Rp ' : 'Rp ';
+
+        return $prefix . number_format(abs($amount), 0, ',', '.');
+    };
+
+    $items = collect($items ?? $financialSummaryRows ?? [])->values();
+    $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
+    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
+
     $paymentMethod = $payment->payment_method
         ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
 
@@ -144,16 +155,44 @@
                             <thead>
                                 <tr>
                                     <th>Item</th>
-                                    <th class="text-center invoice-table-qty">Quantity</th>
                                     <th class="text-end invoice-table-price">Price</th>
                                     <th class="text-end invoice-table-amount">Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($items as $item)
+                                @forelse ($items as $item)
+                                    @php
+                                        $itemTitle = $item['description'] ?? $item['label'] ?? '-';
+                                        $itemDetail = $item['meta'] ?? $item['details'] ?? null;
+                                        $itemRate = (float) ($item['rate'] ?? $item['amount'] ?? 0);
+                                        $itemAmount = (float) ($item['amount'] ?? 0);
+                                        $isEmphasis = (bool) ($item['is_emphasis'] ?? false);
+                                    @endphp
+                                    <tr @class([
+                                        'fw-semibold' => $isEmphasis,
+                                    ])>
+                                        <td>
+                                            <div class="invoice-item-title">{{ $itemTitle }}</div>
+
+                                            @if (!empty($itemDetail))
+                                                <div class="invoice-item-subtitle">{{ $itemDetail }}</div>
+                                            @else
+                                                @if (!empty($program?->name))
+                                                    <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                                @endif
+
+                                                @if (!empty($batch?->name))
+                                                    <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                @endif
+                                            @endif
+                                        </td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemRate) }}</td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemAmount) }}</td>
+                                    </tr>
+                                @empty
                                     <tr>
                                         <td>
-                                            <div class="invoice-item-title">{{ $item['description'] ?? '-' }}</div>
+                                            <div class="invoice-item-title">Program Payment</div>
 
                                             @if (!empty($program?->name))
                                                 <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
@@ -163,11 +202,10 @@
                                                 <div class="invoice-item-subtitle">{{ $batch->name }}</div>
                                             @endif
                                         </td>
-                                        <td class="text-center">{{ $item['qty'] ?? 1 }}</td>
-                                        <td class="text-end">{{ $formatMoney($item['rate'] ?? 0) }}</td>
-                                        <td class="text-end">{{ $formatMoney($item['amount'] ?? 0) }}</td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($grandTotal ?? 0) }}</td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($grandTotal ?? 0) }}</td>
                                     </tr>
-                                @endforeach
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
@@ -175,8 +213,8 @@
                     <div class="invoice-summary-wrap">
                         <table class="invoice-summary-table">
                             <tr>
-                                <td>Sub Total</td>
-                                <td>{{ $formatMoney($subtotal ?? 0) }}</td>
+                                <td>Current Invoice Amount</td>
+                                <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
                             </tr>
 
                             @if ((float) ($tax ?? 0) > 0)
@@ -187,11 +225,15 @@
                             @endif
 
                             <tr class="invoice-summary-total">
-                                <td>Total</td>
-                                <td>{{ $formatMoney($grandTotal ?? 0) }}</td>
+                                <td>{{ $remainingBalanceLabel }}</td>
+                                <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
                             </tr>
                         </table>
                     </div>
+
+                    <!--div class="invoice-note-box mt-3">
+                        {{ $documentNote }}
+                    </div-->
                 </section>
 
                 <section class="invoice-payment-section">
@@ -209,11 +251,19 @@
                         </div>
                     @endif
 
-                    <!--div class="invoice-info-line">
-                        <span class="invoice-info-label">Note</span>
+                    @if (!empty($payment->expired_at))
+                        <div class="invoice-info-line">
+                            <span class="invoice-info-label">Payment due</span>
+                            <span class="invoice-info-colon">:</span>
+                            <span class="invoice-info-value">{{ $formatDate($payment->expired_at, 'd F Y H:i') }}</span>
+                        </div>
+                    @endif
+
+                    <div class="invoice-info-line">
+                        <span class="invoice-info-label">Status</span>
                         <span class="invoice-info-colon">:</span>
-                        <span class="invoice-info-value">{{ $payment->notes ?: 'Thank you for choosing FlexLabs.' }}</span>
-                    </div-->
+                        <span class="invoice-info-value">{{ \Illuminate\Support\Str::headline((string) $payment->status) }}</span>
+                    </div>
                 </section>
             </div>
         </div>
@@ -260,7 +310,8 @@
         const programName = {{ Js::from($program->name ?? '-') }};
         const batchName = {{ Js::from($batch->name ?? '-') }};
         const invoiceNumber = {{ Js::from($payment->invoice_number ?? '-') }};
-        const amount = {{ Js::from($formatMoney($grandTotal ?? 0)) }};
+        const amount = {{ Js::from($formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0)) }};
+        const remainingBalance = {{ Js::from($formatMoney($remainingBalance ?? 0)) }};
         const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
 
         const lines = [];
@@ -275,7 +326,8 @@
             lines.push(`Batch: ${batchName}`);
         }
 
-        lines.push(`Nominal: ${amount}`);
+        lines.push(`Nominal invoice: ${amount}`);
+        lines.push(`Sisa pembayaran setelah invoice ini: ${remainingBalance}`);
         lines.push('');
         lines.push('Silakan lakukan pembayaran melalui link berikut:');
         lines.push(paymentLink);

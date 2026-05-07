@@ -2,12 +2,137 @@
 
 @section('title', 'Payment Invoice')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
+@endpush
+
 @section('content')
 @php
-    $invoiceDate = $payment->payment_date ?: $payment->created_at;
-    $canPay = !$isPaid && !$isExpired && !empty($payment->payment_url);
-    $invoicePdfFilename = Str::slug(($payment->invoice_number ?: 'invoice-' . $payment->id)) . '.pdf';
-    $companyAddressLines = [
+    $order = $order ?? $payment->order;
+    $student = $student ?? $order?->student;
+    $batch = $batch ?? $order?->batch;
+    $program = $program ?? $batch?->program;
+    $schedule = $schedule ?? $payment->paymentSchedule;
+
+    $isPaid = $isPaid ?? $payment->status === 'paid';
+
+    if (!isset($isExpired)) {
+        $isExpired = false;
+
+        if ($payment->status === 'expired') {
+            $isExpired = true;
+        } elseif ($payment->status !== 'paid' && !empty($payment->expired_at)) {
+            $isExpired = \Carbon\Carbon::parse($payment->expired_at)->isPast();
+        }
+    }
+
+    $canPay = $canPay ?? (!$isPaid && !$isExpired && !empty($payment->payment_url));
+
+    $publicPaymentLink = $publicPaymentLink ?? ($payment->public_token
+        ? route('public.payments.show', $payment->public_token)
+        : null);
+
+    $invoiceDate = $invoiceDate ?? ($payment->payment_date ?: $payment->created_at);
+
+    $formatDate = function ($date, string $format = 'd F Y') {
+        if (empty($date)) {
+            return '-';
+        }
+
+        return \Carbon\Carbon::parse($date)->format($format);
+    };
+
+    $formatMoney = function ($amount) {
+        return 'Rp ' . number_format((float) $amount, 0, ',', '.');
+    };
+
+    $formatSignedMoney = function ($amount) {
+        $amount = (float) $amount;
+        $prefix = $amount < 0 ? '-Rp ' : 'Rp ';
+
+        return $prefix . number_format(abs($amount), 0, ',', '.');
+    };
+
+    $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $currentDocumentAmount ?? $grandTotal ?? $payment->amount ?? 0);
+    $remainingBalance = isset($remainingBalance) ? (float) $remainingBalance : null;
+    $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
+    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
+
+    $items = collect($items ?? $financialRows ?? $financialSummaryRows ?? $invoiceBreakdownRows ?? [])->values();
+
+    if ($items->isEmpty()) {
+        $normalProgramFee = (float) ($normalProgramFee ?? $order?->original_price ?? $order?->final_price ?? $payment->amount ?? 0);
+        $programDiscount = (float) ($programDiscount ?? $order?->discount ?? 0);
+        $finalTuitionFee = (float) ($finalTuitionFee ?? $order?->final_price ?? max($normalProgramFee - $programDiscount, 0));
+        $previousPaymentReceived = (float) ($previousPaymentReceived ?? 0);
+        $currentInvoiceAmount = (float) ($payment->amount ?? 0);
+        $remainingBalance = max($finalTuitionFee - $previousPaymentReceived - $currentInvoiceAmount, 0);
+
+        $detailDescription = collect([$program?->name, $batch?->name])
+            ->filter(fn ($value) => filled($value))
+            ->implode(' · ') ?: 'FlexLabs Program';
+
+        $items = collect([
+            [
+                'label' => 'Normal Program Fee',
+                'description' => 'Normal Program Fee',
+                'details' => $detailDescription,
+                'amount' => $normalProgramFee,
+                'is_negative' => false,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => 'Special Program Discount',
+                'description' => 'Special Program Discount',
+                'details' => 'Approved program discount or payment adjustment',
+                'amount' => -1 * abs($programDiscount),
+                'is_negative' => $programDiscount > 0,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => 'Final Tuition Fee',
+                'description' => 'Final Tuition Fee',
+                'details' => 'Program fee after discount or adjustment',
+                'amount' => $finalTuitionFee,
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+            [
+                'label' => 'Previous Payment Received',
+                'description' => 'Previous Payment Received',
+                'details' => 'Confirmed paid amount recorded before this invoice',
+                'amount' => -1 * abs($previousPaymentReceived),
+                'is_negative' => $previousPaymentReceived > 0,
+                'is_emphasis' => false,
+            ],
+            [
+                'label' => 'Current Invoice Amount',
+                'description' => 'Current Invoice Amount',
+                'details' => $schedule?->title ?: 'Payment requested on this invoice',
+                'amount' => $currentInvoiceAmount,
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+            [
+                'label' => $remainingBalanceLabel,
+                'description' => $remainingBalanceLabel,
+                'details' => 'Outstanding amount assuming this invoice is completed',
+                'amount' => $remainingBalance,
+                'is_negative' => false,
+                'is_emphasis' => true,
+            ],
+        ]);
+    }
+
+    $paymentMethod = $payment->payment_method
+        ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
+
+    $studentAddressParts = collect([
+        $student->city ?? null,
+    ])->filter()->implode(', ');
+
+    $companyName = $companyName ?? 'FlexLabs';
+    $companyAddressLines = $companyAddressLines ?? [
         'MyRepublic Plaza Wing B 2nd Floor',
         'Jl. BSD Grand Boulevard',
         'BSD Green Office Park BSD City',
@@ -15,23 +140,12 @@
         'Tangerang 15345',
     ];
 
-    $subtotal = (float) ($payment->amount ?? 0);
-    $tax = 0;
-    $grandTotal = $subtotal + $tax;
-
-    $itemTitle = $schedule?->title ?: 'Program Payment';
-    $itemSubtitleParts = array_values(array_filter([
-        $program?->name,
-        $batch?->name,
-    ]));
-    $itemSubtitle = implode(' / ', $itemSubtitleParts);
-    $paymentMethod = $payment->payment_method
-        ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
+    $invoicePdfFilename = 'invoice-' . \Illuminate\Support\Str::slug((string) ($payment->invoice_number ?? 'document')) . '.pdf';
 @endphp
 
-<div class="container py-5 public-payment-wrapper">
+<div class="container py-4 invoice-shell public-payment-wrapper">
     @if ($isPaid)
-        <div class="alert alert-success public-payment-alert mb-4">
+        <div class="alert alert-success public-payment-alert no-print mb-4">
             <div class="public-payment-alert-title">
                 <i class="bi bi-check-circle-fill me-1"></i>
                 Payment completed
@@ -41,7 +155,7 @@
             </div>
         </div>
     @elseif ($isExpired)
-        <div class="alert alert-warning public-payment-alert mb-4">
+        <div class="alert alert-warning public-payment-alert no-print mb-4">
             <div class="public-payment-alert-title">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
                 Payment link expired
@@ -50,8 +164,8 @@
                 Link pembayaran sudah tidak aktif. Silakan hubungi admin FlexLabs untuk mendapatkan link pembayaran baru.
             </div>
         </div>
-    @elseif (!$payment->payment_url)
-        <div class="alert alert-secondary public-payment-alert mb-4">
+    @elseif (empty($payment->payment_url))
+        <div class="alert alert-secondary public-payment-alert no-print mb-4">
             <div class="public-payment-alert-title">
                 <i class="bi bi-clock-history me-1"></i>
                 Payment link belum tersedia
@@ -62,278 +176,347 @@
         </div>
     @endif
 
-    <div class="invoice-shell">
-        <div class="invoice-toolbar no-print">
-            <div>
-                <div class="public-payment-eyebrow">FlexLabs Payment</div>
-                <h1 class="public-payment-heading">Student Payment Invoice</h1>
-                <p class="public-payment-subtitle mb-0">
-                    Review invoice ini sebelum melanjutkan pembayaran.
-                </p>
-            </div>
-
-            <div class="public-payment-actions">
-                <button
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    id="downloadInvoicePdfBtn"
-                    data-pdf-target="#publicInvoiceDocument"
-                    data-pdf-filename="{{ $invoicePdfFilename }}"
-                >
-                    <i class="bi bi-download me-1"></i>
-                    Download PDF
-                </button>
-
-                @if ($isPaid)
-                    <button type="button" class="btn btn-success" disabled>
-                        <i class="bi bi-check-circle me-1"></i>
-                        Already Paid
-                    </button>
-                @elseif ($isExpired)
-                    <button type="button" class="btn btn-secondary" disabled>
-                        <i class="bi bi-x-circle me-1"></i>
-                        Link Expired
-                    </button>
-                @elseif ($canPay)
-                    <a
-                        href="{{ $payment->payment_url }}"
-                        rel="noopener noreferrer"
-                        class="btn btn-brand"
-                    >
-                        <i class="bi bi-credit-card me-1"></i>
-                        Pay Now
-                    </a>
-                @else
-                    <button type="button" class="btn btn-outline-secondary" disabled>
-                        <i class="bi bi-clock-history me-1"></i>
-                        Payment Link Not Ready
-                    </button>
-                @endif
-            </div>
+    <div class="invoice-toolbar no-print">
+        <div>
+            <div class="public-payment-eyebrow">FlexLabs Payment</div>
+            <h4 class="mb-1">Student Payment Invoice</h4>
+            <small class="text-muted">{{ $payment->invoice_number ?: '-' }}</small>
         </div>
 
-        <div class="invoice-page">
-            <article class="invoice-card" id="publicInvoiceDocument">
-                <div class="invoice-content">
-                    <header class="invoice-header">
-                        <div class="invoice-logo-wrap">
-                            <img
-                                src="{{ asset('images/logo-black.png') }}"
-                                alt="FlexLabs Logo"
-                                class="invoice-logo"
-                            >
-                        </div>
+        <div class="d-flex gap-2 flex-wrap public-payment-actions">
+            <button
+                type="button"
+                class="btn btn-light border"
+                data-pdf-download
+                data-pdf-target="#publicInvoiceDocument"
+                data-pdf-filename="{{ $invoicePdfFilename }}"
+            >
+                <i class="bi bi-download me-1"></i> Download PDF
+            </button>
 
-                        <div class="invoice-number-box">
-                            <span class="invoice-number-label">Invoice No.</span>
-                            <span>:</span>
-                            <span class="invoice-number-value">{{ $payment->invoice_number ?: '-' }}</span>
-                        </div>
-                    </header>
-
-                    <main>
-                        <h1 class="invoice-title">INVOICE</h1>
-
-                        <div class="invoice-date-line">
-                            <div class="invoice-info-line">
-                                <div class="invoice-info-label">Date</div>
-                                <div class="invoice-info-colon">:</div>
-                                <div class="invoice-info-value">{{ $invoiceDate?->format('d F Y') ?? '-' }}</div>
-                            </div>
-                        </div>
-
-                        <section class="invoice-parties">
-                            <div class="invoice-party-card">
-                                <h2>Billed to</h2>
-                                <div class="invoice-party-name">{{ $student->full_name ?? '-' }}</div>
-
-                                @if (!empty($student?->email))
-                                    <div>{{ $student->email }}</div>
-                                @endif
-
-                                @if (!empty($student?->phone))
-                                    <div>{{ $student->phone }}</div>
-                                @endif
-
-                                @if (!empty($student?->city))
-                                    <div>{{ $student->city }}</div>
-                                @endif
-                            </div>
-
-                            <div class="invoice-party-card">
-                                <h2>From</h2>
-                                <div class="invoice-party-name">FlexLabs</div>
-                                <div class="invoice-company-address">
-                                    @foreach ($companyAddressLines as $addressLine)
-                                        <div>{{ $addressLine }}</div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="invoice-table-section">
-                            <div class="table-responsive invoice-table-wrap">
-                                <table class="table invoice-table align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Description</th>
-                                            <th class="text-center invoice-table-qty">Qty</th>
-                                            <th class="text-end invoice-table-price">Rate/Unit</th>
-                                            <th class="text-end invoice-table-amount">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>
-                                                <div class="invoice-item-title">{{ $itemTitle }}</div>
-                                                @if ($itemSubtitle !== '')
-                                                    <div class="invoice-item-subtitle">{{ $itemSubtitle }}</div>
-                                                @endif
-                                            </td>
-                                            <td class="text-center">1</td>
-                                            <td class="text-end">Rp {{ number_format((float) $subtotal, 0, ',', '.') }}</td>
-                                            <td class="text-end">Rp {{ number_format((float) $subtotal, 0, ',', '.') }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        <section class="invoice-summary-wrap">
-                            <table class="invoice-summary-table">
-                                <tr>
-                                    <td>Sub Total</td>
-                                    <td>Rp {{ number_format((float) $subtotal, 0, ',', '.') }}</td>
-                                </tr>
-                                <tr>
-                                    <td>Tax</td>
-                                    <td>Rp {{ number_format((float) $tax, 0, ',', '.') }}</td>
-                                </tr>
-                                <tr class="invoice-summary-total">
-                                    <td>Total</td>
-                                    <td>Rp {{ number_format((float) $grandTotal, 0, ',', '.') }}</td>
-                                </tr>
-                            </table>
-                        </section>
-
-                        <section class="invoice-payment-section">
-                            <div class="invoice-info-line">
-                                <div class="invoice-info-label">Payment method</div>
-                                <div class="invoice-info-colon">:</div>
-                                <div class="invoice-info-value">{{ $paymentMethod }}</div>
-                            </div>
-
-                            @if (!empty($payment->reference_number))
-                                <div class="invoice-info-line">
-                                    <div class="invoice-info-label">Reference no</div>
-                                    <div class="invoice-info-colon">:</div>
-                                    <div class="invoice-info-value">{{ $payment->reference_number }}</div>
-                                </div>
-                            @endif
-
-                            <div class="invoice-info-line">
-                                <div class="invoice-info-label">Note</div>
-                                <div class="invoice-info-colon">:</div>
-                                <div class="invoice-info-value">
-                                    {{ $payment->notes ?: 'Please complete your payment using the Pay Now button above.' }}
-                                </div>
-                            </div>
-                        </section>
-                    </main>
-                </div>
-            </article>
-        </div>
-
-        <div class="public-payment-bottom-action no-print">
             @if ($isPaid)
-                <button type="button" class="btn btn-success btn-lg px-5" disabled>
-                    <i class="bi bi-check-circle me-1"></i>
-                    Already Paid
+                <button type="button" class="btn btn-success" disabled>
+                    <i class="bi bi-check-circle me-1"></i> Already Paid
                 </button>
             @elseif ($isExpired)
-                <button type="button" class="btn btn-secondary btn-lg px-5" disabled>
-                    <i class="bi bi-x-circle me-1"></i>
-                    Link Expired
+                <button type="button" class="btn btn-secondary" disabled>
+                    <i class="bi bi-x-circle me-1"></i> Link Expired
                 </button>
             @elseif ($canPay)
-                <a
-                    href="{{ $payment->payment_url }}"
-                    rel="noopener noreferrer"
-                    class="btn btn-brand btn-lg px-5"
-                >
-                    <i class="bi bi-credit-card me-1"></i>
-                    Pay Now
+                <a href="{{ $payment->payment_url }}" rel="noopener noreferrer" class="btn btn-primary btn-brand">
+                    <i class="bi bi-credit-card me-1"></i> Pay Now
                 </a>
             @else
-                <button type="button" class="btn btn-outline-secondary btn-lg px-5" disabled>
-                    <i class="bi bi-clock-history me-1"></i>
-                    Payment Link Not Ready
+                <button type="button" class="btn btn-outline-secondary" disabled>
+                    <i class="bi bi-clock-history me-1"></i> Payment Link Not Ready
                 </button>
             @endif
         </div>
     </div>
+
+    <div class="invoice-page">
+        <div id="publicInvoiceDocument" class="invoice-card">
+            <div class="invoice-content">
+                <header class="invoice-header">
+                    <div class="invoice-logo-wrap">
+                        <img
+                            src="{{ asset('images/logo-black.png') }}"
+                            alt="FlexLabs Logo"
+                            class="invoice-logo"
+                        >
+                    </div>
+
+                    <div class="invoice-number-box">
+                        <span class="invoice-number-label">No.</span>
+                        <span class="invoice-number-value">{{ $payment->invoice_number ?: '-' }}</span>
+                    </div>
+                </header>
+
+                <h1 class="invoice-title">INVOICE</h1>
+
+                <div class="invoice-date-line invoice-info-line">
+                    <span class="invoice-info-label">Date</span>
+                    <span class="invoice-info-colon">:</span>
+                    <span class="invoice-info-value">{{ $formatDate($invoiceDate) }}</span>
+                </div>
+
+                <section class="invoice-parties">
+                    <div class="invoice-party-card">
+                        <h2>Billed to</h2>
+
+                        <div class="invoice-party-name">{{ $student->full_name ?? '-' }}</div>
+
+                        @if (!empty($studentAddressParts))
+                            <div>{{ $studentAddressParts }}</div>
+                        @endif
+
+                        @if (!empty($student?->email))
+                            <div>{{ $student->email }}</div>
+                        @endif
+
+                        @if (!empty($student?->phone))
+                            <div>{{ $student->phone }}</div>
+                        @endif
+                    </div>
+
+                    <div class="invoice-party-card">
+                        <h2>From</h2>
+
+                        <div class="invoice-party-name">{{ $companyName }}</div>
+                        <div class="invoice-company-address">
+                            @foreach ($companyAddressLines as $addressLine)
+                                <div>{{ $addressLine }}</div>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+
+                <section class="invoice-table-section">
+                    <div class="table-responsive invoice-table-wrap">
+                        <table class="table invoice-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Details</th>
+                                    <th class="text-end invoice-table-amount">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($items as $item)
+                                    @php
+                                        $itemLabel = $item['label'] ?? $item['description'] ?? '-';
+                                        $itemDetails = $item['details'] ?? $item['meta'] ?? (($item['label'] ?? null) ? ($item['description'] ?? null) : null);
+                                        $itemAmount = (float) ($item['amount'] ?? 0);
+                                        $isEmphasis = (bool) ($item['is_emphasis'] ?? false);
+                                    @endphp
+                                    <tr @class([
+                                        'fw-semibold' => $isEmphasis,
+                                    ])>
+                                        <td>
+                                            <div class="invoice-item-title">{{ $itemLabel }}</div>
+                                        </td>
+                                        <td>
+                                            @if (!empty($itemDetails) && $itemDetails !== $itemLabel)
+                                                <div class="invoice-item-subtitle">{{ $itemDetails }}</div>
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
+                                        <td @class([
+                                            'text-end',
+                                            'text-nowrap',
+                                            'text-muted' => $itemAmount == 0,
+                                        ])>
+                                            {{ $formatSignedMoney($itemAmount) }}
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td>
+                                            <div class="invoice-item-title">Program Payment</div>
+                                        </td>
+                                        <td>
+                                            <div class="invoice-item-subtitle">{{ $program->name ?? 'FlexLabs Program' }}</div>
+                                        </td>
+                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="invoice-summary-wrap">
+                        <table class="invoice-summary-table">
+                            <tr>
+                                <td>Current Invoice Amount</td>
+                                <td>{{ $formatMoney($currentInvoiceAmount) }}</td>
+                            </tr>
+
+                            @if ((float) ($tax ?? 0) > 0)
+                                <tr>
+                                    <td>Tax</td>
+                                    <td>{{ $formatMoney($tax ?? 0) }}</td>
+                                </tr>
+                            @endif
+
+                            <tr class="invoice-summary-total">
+                                <td>{{ $remainingBalanceLabel }}</td>
+                                <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="invoice-note-box mt-3">
+                        {{ $documentNote }}
+                    </div>
+                </section>
+
+                <section class="invoice-payment-section">
+                    <div class="invoice-info-line">
+                        <span class="invoice-info-label">Payment method</span>
+                        <span class="invoice-info-colon">:</span>
+                        <span class="invoice-info-value">{{ $paymentMethod }}</span>
+                    </div>
+
+                    @if (!empty($payment->reference_number))
+                        <div class="invoice-info-line">
+                            <span class="invoice-info-label">Reference no</span>
+                            <span class="invoice-info-colon">:</span>
+                            <span class="invoice-info-value">{{ $payment->reference_number }}</span>
+                        </div>
+                    @endif
+
+                    @if (!empty($payment->expired_at))
+                        <div class="invoice-info-line">
+                            <span class="invoice-info-label">Payment due</span>
+                            <span class="invoice-info-colon">:</span>
+                            <span class="invoice-info-value">{{ $formatDate($payment->expired_at, 'd F Y H:i') }}</span>
+                        </div>
+                    @endif
+
+                    <div class="invoice-info-line">
+                        <span class="invoice-info-label">Status</span>
+                        <span class="invoice-info-colon">:</span>
+                        <span class="invoice-info-value">{{ \Illuminate\Support\Str::headline((string) $payment->status) }}</span>
+                    </div>
+
+                    <div class="invoice-info-line">
+                        <span class="invoice-info-label">Note</span>
+                        <span class="invoice-info-colon">:</span>
+                        <span class="invoice-info-value">
+                            {{ $payment->notes ?: 'Please complete your payment using the Pay Now button above.' }}
+                        </span>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <div class="public-payment-bottom-action no-print">
+        @if ($isPaid)
+            <button type="button" class="btn btn-success btn-lg px-5" disabled>
+                <i class="bi bi-check-circle me-1"></i> Already Paid
+            </button>
+        @elseif ($isExpired)
+            <button type="button" class="btn btn-secondary btn-lg px-5" disabled>
+                <i class="bi bi-x-circle me-1"></i> Link Expired
+            </button>
+        @elseif ($canPay)
+            <a href="{{ $payment->payment_url }}" rel="noopener noreferrer" class="btn btn-brand btn-primary btn-lg px-5">
+                <i class="bi bi-credit-card me-1"></i> Pay Now
+            </a>
+        @else
+            <button type="button" class="btn btn-outline-secondary btn-lg px-5" disabled>
+                <i class="bi bi-clock-history me-1"></i> Payment Link Not Ready
+            </button>
+        @endif
+    </div>
 </div>
 @endsection
 
-@push('styles')
-    <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
-@endpush
-
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const downloadButton = document.getElementById('downloadInvoicePdfBtn');
+        const A4_WIDTH_MM = 210;
+        const A4_HEIGHT_MM = 297;
 
-        if (!downloadButton) {
-            return;
+        function getJsPdf() {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                return null;
+            }
+
+            return window.jspdf.jsPDF;
         }
 
-        downloadButton.addEventListener('click', async function () {
-            const targetSelector = downloadButton.dataset.pdfTarget;
-            const filename = downloadButton.dataset.pdfFilename || 'invoice.pdf';
+        function sanitizeFilename(filename) {
+            const fallback = 'flexlabs-invoice.pdf';
+
+            if (!filename) {
+                return fallback;
+            }
+
+            const cleaned = String(filename)
+                .trim()
+                .replace(/[\\/:*?"<>|]+/g, '-')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-');
+
+            if (!cleaned) {
+                return fallback;
+            }
+
+            return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`;
+        }
+
+        async function waitForFonts() {
+            if (document.fonts && typeof document.fonts.ready !== 'undefined') {
+                try {
+                    await document.fonts.ready;
+                } catch (error) {
+                    // Font readiness is optional. Export should still continue.
+                }
+            }
+        }
+
+        async function downloadElementAsPdf(button) {
+            const targetSelector = button.dataset.pdfTarget;
             const target = document.querySelector(targetSelector);
+            const filename = sanitizeFilename(button.dataset.pdfFilename);
+            const originalHtml = button.innerHTML;
+            const originalDisabled = button.disabled;
 
             if (!target) {
+                alert('Area invoice tidak ditemukan. Coba refresh halaman dulu, bro.');
                 return;
             }
 
-            if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
-                alert('PDF library belum siap. Silakan refresh halaman lalu coba lagi.');
+            if (typeof window.html2canvas === 'undefined') {
+                alert('Library html2canvas belum berhasil dimuat. Cek koneksi internet atau simpan library-nya secara lokal.');
                 return;
             }
 
-            const originalText = downloadButton.innerHTML;
-            downloadButton.disabled = true;
-            downloadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Preparing PDF...';
-            target.classList.add('invoice-exporting');
+            const JsPDF = getJsPdf();
+
+            if (!JsPDF) {
+                alert('Library jsPDF belum berhasil dimuat. Cek koneksi internet atau simpan library-nya secara lokal.');
+                return;
+            }
+
+            const previousBoxShadow = target.style.boxShadow;
 
             try {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Generating...';
+
+                await waitForFonts();
+
+                target.style.boxShadow = 'none';
+                target.classList.add('invoice-exporting');
+
                 const canvas = await window.html2canvas(target, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
                     backgroundColor: '#ffffff',
+                    scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+                    useCORS: true,
+                    allowTaint: false,
                     logging: false,
                     scrollX: 0,
-                    scrollY: 0,
-                    windowWidth: document.documentElement.offsetWidth,
-                    windowHeight: document.documentElement.offsetHeight,
+                    scrollY: -window.scrollY,
+                    windowWidth: document.documentElement.scrollWidth,
+                    windowHeight: document.documentElement.scrollHeight
                 });
 
-                const imageData = canvas.toDataURL('image/png');
-                const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
-                const a4Width = 210;
-                const a4Height = 297;
+                const imageData = canvas.toDataURL('image/png', 1.0);
+                const pdf = new JsPDF('p', 'mm', 'a4');
 
                 pdf.addImage(
                     imageData,
                     'PNG',
                     0,
                     0,
-                    a4Width,
-                    a4Height,
+                    A4_WIDTH_MM,
+                    A4_HEIGHT_MM,
                     undefined,
                     'FAST'
                 );
@@ -341,12 +524,24 @@
                 pdf.save(filename);
             } catch (error) {
                 console.error(error);
-                alert('PDF gagal dibuat. Silakan coba lagi.');
+                alert('Gagal generate PDF. Coba refresh halaman atau cek console browser.');
             } finally {
+                target.style.boxShadow = previousBoxShadow;
                 target.classList.remove('invoice-exporting');
-                downloadButton.disabled = false;
-                downloadButton.innerHTML = originalText;
+                button.disabled = originalDisabled;
+                button.innerHTML = originalHtml;
             }
+        }
+
+        document.addEventListener('click', function (event) {
+            const button = event.target.closest('[data-pdf-download]');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+            downloadElementAsPdf(button);
         });
     });
 </script>

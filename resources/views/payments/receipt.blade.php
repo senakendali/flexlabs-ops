@@ -142,7 +142,6 @@
                             <thead>
                                 <tr>
                                     <th>Item</th>
-                                    <th class="text-center invoice-table-qty">Quantity</th>
                                     <th class="text-end invoice-table-price">Price</th>
                                     <th class="text-end invoice-table-amount">Amount</th>
                                 </tr>
@@ -161,7 +160,6 @@
                                                 <div class="invoice-item-subtitle">{{ $batch->name }}</div>
                                             @endif
                                         </td>
-                                        <td class="text-center">{{ $item['qty'] ?? 1 }}</td>
                                         <td class="text-end">{{ $formatMoney($item['rate'] ?? 0) }}</td>
                                         <td class="text-end">{{ $formatMoney($item['amount'] ?? 0) }}</td>
                                     </tr>
