@@ -54,8 +54,8 @@ class DashboardController extends Controller
 
             if ($batchActiveColumn === 'is_active') {
                 $query->where('is_active', 1);
-            } elseif ($batchActiveColumn === 'status') {
-                $query->whereIn('status', ['active', 'open', 'running']);
+            }elseif ($batchActiveColumn === 'status') {
+                $query->whereIn('status', $this->getActiveBatchStatuses());
             }
 
             $activeBatches = (int) $query->count();
@@ -94,15 +94,22 @@ class DashboardController extends Controller
             ];
         }
 
-        $capacityColumn = $this->findExistingColumn($batchesTable, ['capacity', 'quota', 'max_seats', 'seat_capacity']);
+        $capacityColumn = $this->findExistingColumn($batchesTable, [
+            'capacity',
+            'seat_capacity',
+            'quota',
+            'max_students',
+            'max_seats',
+            'total_seats',
+        ]);
         $activeColumn = $this->findExistingColumn($batchesTable, ['is_active', 'status']);
 
         $batchQuery = DB::table($batchesTable);
 
         if ($activeColumn === 'is_active') {
             $batchQuery->where('is_active', 1);
-        } elseif ($activeColumn === 'status') {
-            $batchQuery->whereIn('status', ['active', 'open', 'running']);
+        }elseif ($activeColumn === 'status') {
+            $batchQuery->whereIn('status', $this->getActiveBatchStatuses());
         }
 
         $totalCapacity = 0;
@@ -285,7 +292,14 @@ class DashboardController extends Controller
 
         $nameColumn = $this->findExistingColumn($batchesTable, ['name', 'title']);
         $startDateColumn = $this->findExistingColumn($batchesTable, ['start_date', 'start_at', 'batch_start_date']);
-        $capacityColumn = $this->findExistingColumn($batchesTable, ['capacity', 'quota', 'max_seats', 'seat_capacity']);
+        $capacityColumn = $this->findExistingColumn($batchesTable, [
+            'capacity',
+            'seat_capacity',
+            'quota',
+            'max_students',
+            'max_seats',
+            'total_seats',
+        ]);
         $activeColumn = $this->findExistingColumn($batchesTable, ['is_active', 'status']);
         $programIdColumn = $this->findExistingColumn($batchesTable, ['program_id']);
 
@@ -313,20 +327,23 @@ class DashboardController extends Controller
 
         if ($activeColumn === 'is_active') {
             $query->where($batchesTable . '.is_active', 1);
-        } elseif ($activeColumn === 'status') {
-            $query->whereIn($batchesTable . '.status', ['active', 'open', 'running']);
+        }elseif ($activeColumn === 'status') {
+            $query->whereIn($batchesTable . '.status', $this->getActiveBatchStatuses());
         }
 
-        return $query
+        $batches = $query
             ->orderBy($batchesTable . '.' . $startDateColumn)
             ->limit(5)
-            ->get()
-            ->map(function ($batch) {
-                $batch->filled_seats = $this->getFilledSeatCountForBatch((int) $batch->id);
-                $batch->remaining_seats = max(((int) $batch->capacity) - ((int) $batch->filled_seats), 0);
+            ->get();
 
-                return $batch;
-            });
+        $filledMap = $this->getFilledSeatMap($batches->pluck('id')->all());
+
+        return $batches->map(function ($batch) use ($filledMap) {
+            $batch->filled_seats = (int) ($filledMap[$batch->id] ?? 0);
+            $batch->remaining_seats = max(((int) $batch->capacity) - ((int) $batch->filled_seats), 0);
+
+            return $batch;
+        });
     }
 
     protected function getTrialStats(): array
@@ -433,6 +450,7 @@ class DashboardController extends Controller
     protected function getFilledSeatCount(bool $activeBatchOnly = false): int
     {
         $pivotTable = $this->findExistingTable([
+            'student_enrollments',
             'batch_students',
             'student_batches',
             'enrollments',
@@ -444,25 +462,9 @@ class DashboardController extends Controller
         }
 
         $batchIdColumn = $this->findExistingColumn($pivotTable, ['batch_id']);
+
         if (! $batchIdColumn) {
             return 0;
-        }
-
-        $query = DB::table($pivotTable);
-
-        if ($activeBatchOnly) {
-            $batchesTable = $this->findExistingTable(['batches']);
-            $activeColumn = $this->findExistingColumn($batchesTable, ['is_active', 'status']);
-
-            if ($batchesTable) {
-                $query->join($batchesTable, $batchesTable . '.id', '=', $pivotTable . '.' . $batchIdColumn);
-
-                if ($activeColumn === 'is_active') {
-                    $query->where($batchesTable . '.is_active', 1);
-                } elseif ($activeColumn === 'status') {
-                    $query->whereIn($batchesTable . '.status', ['active', 'open', 'running']);
-                }
-            }
         }
 
         $studentColumn = $this->findExistingColumn($pivotTable, [
@@ -471,8 +473,41 @@ class DashboardController extends Controller
             'participant_id',
         ]);
 
+        $query = DB::table($pivotTable);
+
+        if ($this->findExistingColumn($pivotTable, ['status']) === 'status') {
+            $query->whereIn($pivotTable . '.status', $this->getFilledEnrollmentStatuses());
+        }
+
+        if ($activeBatchOnly) {
+            $batchesTable = $this->findExistingTable(['batches']);
+
+            if ($batchesTable) {
+                $activeColumn = $this->findExistingColumn($batchesTable, ['is_active', 'status']);
+
+                $query->join($batchesTable, $batchesTable . '.id', '=', $pivotTable . '.' . $batchIdColumn);
+
+                if ($activeColumn === 'is_active') {
+                    $query->where($batchesTable . '.is_active', 1);
+                } elseif ($activeColumn === 'status') {
+                    $query->whereIn($batchesTable . '.status', $this->getActiveBatchStatuses());
+                }
+            }
+        }
+
         if ($studentColumn) {
-            return (int) $query->distinct()->count($studentColumn);
+            $distinctQuery = clone $query;
+
+            $distinctQuery
+                ->select([
+                    $pivotTable . '.' . $batchIdColumn,
+                    $pivotTable . '.' . $studentColumn,
+                ])
+                ->distinct();
+
+            return (int) DB::query()
+                ->fromSub($distinctQuery, 'filled_seats')
+                ->count();
         }
 
         return (int) $query->count();
@@ -481,6 +516,7 @@ class DashboardController extends Controller
     protected function getFilledSeatCountForBatch(int $batchId): int
     {
         $pivotTable = $this->findExistingTable([
+            'student_enrollments',
             'batch_students',
             'student_batches',
             'enrollments',
@@ -492,11 +528,17 @@ class DashboardController extends Controller
         }
 
         $batchIdColumn = $this->findExistingColumn($pivotTable, ['batch_id']);
+
         if (! $batchIdColumn) {
             return 0;
         }
 
-        $query = DB::table($pivotTable)->where($batchIdColumn, $batchId);
+        $query = DB::table($pivotTable)
+            ->where($pivotTable . '.' . $batchIdColumn, $batchId);
+
+        if ($this->findExistingColumn($pivotTable, ['status']) === 'status') {
+            $query->whereIn($pivotTable . '.status', $this->getFilledEnrollmentStatuses());
+        }
 
         $studentColumn = $this->findExistingColumn($pivotTable, [
             'student_id',
@@ -505,10 +547,92 @@ class DashboardController extends Controller
         ]);
 
         if ($studentColumn) {
-            return (int) $query->distinct()->count($studentColumn);
+            return (int) $query
+                ->distinct()
+                ->count($pivotTable . '.' . $studentColumn);
         }
 
         return (int) $query->count();
+    }
+
+    protected function getFilledSeatMap(array $batchIds): array
+    {
+        if (empty($batchIds)) {
+            return [];
+        }
+
+        $pivotTable = $this->findExistingTable([
+            'student_enrollments',
+            'batch_students',
+            'student_batches',
+            'enrollments',
+            'batch_enrollments',
+        ]);
+
+        if (! $pivotTable) {
+            return [];
+        }
+
+        $batchIdColumn = $this->findExistingColumn($pivotTable, ['batch_id']);
+
+        if (! $batchIdColumn) {
+            return [];
+        }
+
+        $studentColumn = $this->findExistingColumn($pivotTable, [
+            'student_id',
+            'user_id',
+            'participant_id',
+        ]);
+
+        $query = DB::table($pivotTable)
+            ->whereIn($pivotTable . '.' . $batchIdColumn, $batchIds)
+            ->groupBy($pivotTable . '.' . $batchIdColumn);
+
+        if ($this->findExistingColumn($pivotTable, ['status']) === 'status') {
+            $query->whereIn($pivotTable . '.status', $this->getFilledEnrollmentStatuses());
+        }
+
+        if ($studentColumn) {
+            $query->select([
+                $pivotTable . '.' . $batchIdColumn . ' as batch_id',
+                DB::raw('COUNT(DISTINCT ' . $pivotTable . '.' . $studentColumn . ') as total'),
+            ]);
+        } else {
+            $query->select([
+                $pivotTable . '.' . $batchIdColumn . ' as batch_id',
+                DB::raw('COUNT(*) as total'),
+            ]);
+        }
+
+        return $query
+            ->pluck('total', 'batch_id')
+            ->map(fn ($value) => (int) $value)
+            ->all();
+    }
+
+    protected function getActiveBatchStatuses(): array
+    {
+        return [
+            'active',
+            'running',
+            'ongoing',
+            'open',
+            'preparing',
+            'scheduled',
+        ];
+    }
+
+    protected function getFilledEnrollmentStatuses(): array
+    {
+        return [
+            'active',
+            'ongoing',
+            'enrolled',
+            'approved',
+            'paid',
+            'completed',
+        ];
     }
 
     protected function safeCount(string $table): int
