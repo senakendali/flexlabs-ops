@@ -446,7 +446,7 @@ body.modal-open {
         }
     }
 
-    /*
+/*
 |--------------------------------------------------------------------------
 | Global Responsive Admin Table
 |--------------------------------------------------------------------------
@@ -474,12 +474,12 @@ body.modal-open {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Force table lebih lebar dari container agar scrollbar muncul */
+/* Full width saat data sedikit, tetap scroll saat kolom banyak */
 .content-card .table-responsive > table,
 .content-card .dropdown-safe-table > table,
 .content-card .table-responsive > .table,
 .content-card .dropdown-safe-table > .table {
-    width: max-content;
+    width: 100%;
     min-width: 1180px;
     max-width: none;
     margin-bottom: 0;
