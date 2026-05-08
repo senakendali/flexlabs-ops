@@ -8,6 +8,7 @@ use App\Models\TrialSchedule;
 use App\Models\TrialTheme;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -17,7 +18,7 @@ class TrialParticipantController extends Controller
     {
         $perPage = (int) $request->get('per_page', 10);
 
-        if (!in_array($perPage, [10, 25, 50, 100])) {
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
             $perPage = 10;
         }
 
@@ -39,15 +40,17 @@ class TrialParticipantController extends Controller
                         ->orWhere('current_activity', 'like', "%{$search}%");
                 });
             })
-            ->when($scheduleId, function ($query) use ($scheduleId) {
+            ->when(!empty($scheduleId), function ($query) use ($scheduleId) {
                 $query->where('trial_schedule_id', $scheduleId);
             })
-            ->when($status, function ($query) use ($status) {
+            ->when(!empty($status), function ($query) use ($status) {
                 $query->where('status', $status);
             })
-            ->latest()
+            ->latest('created_at')
             ->paginate($perPage)
             ->withQueryString();
+
+        $this->appendSubmittedAtLabels($participants);
 
         $trialSchedules = TrialSchedule::query()
             ->where('is_active', true)
@@ -89,6 +92,8 @@ class TrialParticipantController extends Controller
             'trialTheme:id,name',
         ]);
 
+        $this->appendSubmittedAtLabel($trialParticipant);
+
         return response()->json([
             'success' => true,
             'data' => $trialParticipant,
@@ -100,7 +105,10 @@ class TrialParticipantController extends Controller
         $validated = $this->validateRequest($request);
 
         if (empty($validated['trial_theme_id']) && !empty($validated['trial_schedule_id'])) {
-            $schedule = TrialSchedule::find($validated['trial_schedule_id']);
+            $schedule = TrialSchedule::query()
+                ->select(['id', 'trial_theme_id'])
+                ->find($validated['trial_schedule_id']);
+
             $validated['trial_theme_id'] = $schedule?->trial_theme_id;
         }
 
@@ -110,6 +118,8 @@ class TrialParticipantController extends Controller
             'trialSchedule:id,program_id,trial_theme_id,name,schedule_date,start_time,end_time,quota,is_active',
             'trialTheme:id,name',
         ]);
+
+        $this->appendSubmittedAtLabel($participant);
 
         return response()->json([
             'success' => true,
@@ -123,7 +133,10 @@ class TrialParticipantController extends Controller
         $validated = $this->validateRequest($request);
 
         if (empty($validated['trial_theme_id']) && !empty($validated['trial_schedule_id'])) {
-            $schedule = TrialSchedule::find($validated['trial_schedule_id']);
+            $schedule = TrialSchedule::query()
+                ->select(['id', 'trial_theme_id'])
+                ->find($validated['trial_schedule_id']);
+
             $validated['trial_theme_id'] = $schedule?->trial_theme_id;
         }
 
@@ -133,6 +146,8 @@ class TrialParticipantController extends Controller
             'trialSchedule:id,program_id,trial_theme_id,name,schedule_date,start_time,end_time,quota,is_active',
             'trialTheme:id,name',
         ]);
+
+        $this->appendSubmittedAtLabel($trialParticipant);
 
         return response()->json([
             'success' => true,
@@ -170,6 +185,40 @@ class TrialParticipantController extends Controller
             'trial_schedule_id.exists' => 'Selected trial schedule is invalid.',
             'trial_theme_id.exists' => 'Selected trial theme is invalid.',
         ]);
+    }
+
+    protected function appendSubmittedAtLabels(LengthAwarePaginator $participants): void
+    {
+        $participants->getCollection()->transform(function (TrialParticipant $participant) {
+            $this->appendSubmittedAtLabel($participant);
+
+            return $participant;
+        });
+    }
+
+    protected function appendSubmittedAtLabel(TrialParticipant $participant): void
+    {
+        $submittedAt = $participant->created_at;
+
+        $participant->setAttribute(
+            'submitted_at',
+            $submittedAt?->toDateTimeString()
+        );
+
+        $participant->setAttribute(
+            'submitted_at_label',
+            $submittedAt ? $submittedAt->format('d M Y H:i') : '-'
+        );
+
+        $participant->setAttribute(
+            'submitted_date_label',
+            $submittedAt ? $submittedAt->format('d M Y') : '-'
+        );
+
+        $participant->setAttribute(
+            'submitted_time_label',
+            $submittedAt ? $submittedAt->format('H:i') : '-'
+        );
     }
 
     protected function statusOptions(): array

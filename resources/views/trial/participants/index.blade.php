@@ -139,6 +139,7 @@
                         <thead>
                             <tr>
                                 <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap">Registered At</th>
                                 <th class="text-nowrap">Participant</th>
                                 <th class="text-nowrap">Schedule</th>
                                 <th class="text-nowrap">Theme</th>
@@ -154,6 +155,15 @@
                                 <tr>
                                     <td class="text-muted">
                                         {{ ($participants->currentPage() - 1) * $participants->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $participant->submitted_date_label ?? '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $participant->submitted_time_label ?? '-' }}
+                                        </div>
                                     </td>
 
                                     <td>
