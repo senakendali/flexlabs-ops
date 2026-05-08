@@ -445,3 +445,66 @@ body.modal-open {
             position: static;
         }
     }
+
+    /*
+|--------------------------------------------------------------------------
+| Global Responsive Admin Table
+|--------------------------------------------------------------------------
+*/
+
+.content-card {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.content-card .content-card-body {
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+}
+
+/* Support Bootstrap table-responsive dan wrapper custom existing */
+.content-card .table-responsive,
+.content-card .dropdown-safe-table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Force table lebih lebar dari container agar scrollbar muncul */
+.content-card .table-responsive > table,
+.content-card .dropdown-safe-table > table,
+.content-card .table-responsive > .table,
+.content-card .dropdown-safe-table > .table {
+    width: max-content;
+    min-width: 1180px;
+    max-width: none;
+    margin-bottom: 0;
+}
+
+/* Table admin tetap rapi */
+.content-card .admin-table th,
+.content-card .admin-table td {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Kolom panjang boleh wrap biar nggak terlalu gila lebarnya */
+.content-card .admin-table td:nth-child(2),
+.content-card .admin-table td:nth-child(3),
+.content-card .admin-table td:nth-child(4),
+.content-card .admin-table td:nth-child(6) {
+    white-space: normal;
+    min-width: 180px;
+    max-width: 280px;
+}
+
+/* Action column */
+.content-card .admin-table th:last-child,
+.content-card .admin-table td:last-child {
+    white-space: nowrap;
+    min-width: 120px;
+}

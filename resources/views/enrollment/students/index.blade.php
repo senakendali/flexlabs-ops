@@ -106,7 +106,7 @@
         </div>
     </div>
 
-    <div class="content-card">
+    <div class="content-card students-table-card">
         <div class="content-card-header">
             <div>
                 <h5 class="content-card-title mb-1">Student List</h5>
@@ -115,7 +115,7 @@
                 </p>
             </div>
 
-            <form method="GET" class="d-flex align-items-center gap-2">
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -134,161 +134,237 @@
             </form>
         </div>
 
-        <div class="content-card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 70px;">No</th>
-                            <th>Student</th>
-                            <th>Contact</th>
-                            <th>Profile</th>
-                            <th>Enrollment</th>
-                            <th style="width: 120px;">Status</th>
-                            <th style="width: 230px;" class="text-end">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($students as $student)
-                            @php
-                                $statusClass = match($student->status) {
-                                    'active' => 'ui-badge-success',
-                                    'inactive' => 'ui-badge-muted',
-                                    default => 'ui-badge-muted',
-                                };
-
-                                $activeEnrollments = $student->enrollments
-                                    ? $student->enrollments->where('status', 'active')->where('access_status', 'active')
-                                    : collect();
-
-                                $studentName = $student->full_name ?? $student->name ?? '-';
-                            @endphp
-
+        <div class="content-card-body">
+            @if($students->count())
+                <div class="student-table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table student-admin-table mb-0">
+                        <thead>
                             <tr>
-                                <td>
-                                    {{ ($students->currentPage() - 1) * $students->perPage() + $loop->iteration }}
-                                </td>
+                                <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap col-student">Student</th>
+                                <th class="text-nowrap col-contact">Contact</th>
+                                <th class="text-nowrap col-profile">Profile</th>
+                                <th class="text-nowrap">NIK</th>
+                                <th class="text-nowrap col-emergency">Emergency Contact</th>
+                                <th class="text-nowrap col-enrollment">Enrollment</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-end text-nowrap" style="width: 160px;">Action</th>
+                            </tr>
+                        </thead>
 
-                                <td>
-                                    <div class="fw-bold text-dark">{{ $studentName }}</div>
+                        <tbody>
+                            @foreach ($students as $student)
+                                @php
+                                    $statusClass = match($student->status) {
+                                        'active' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
+                                        'inactive' => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+                                        default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+                                    };
 
-                                    @if ($student->goal)
-                                        <div class="small text-muted text-truncate" style="max-width: 280px;" title="{{ $student->goal }}">
-                                            {{ $student->goal }}
+                                    $activeEnrollments = $student->enrollments
+                                        ? $student->enrollments->where('status', 'active')->where('access_status', 'active')
+                                        : collect();
+
+                                    $studentName = $student->full_name ?? $student->name ?? '-';
+
+                                    $studentNik = $student->nik ?: '-';
+
+                                    $emergencyContactName = $student->emergency_contact_name ?: null;
+                                    $emergencyContactPhone = $student->emergency_contact_phone ?: null;
+                                    $emergencyContactRelation = $student->emergency_contact_relation ?: null;
+                                @endphp
+
+                                <tr>
+                                    <td class="text-muted">
+                                        {{ ($students->currentPage() - 1) * $students->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $studentName }}
                                         </div>
-                                    @endif
 
-                                    @if($student->user)
-                                        <div class="mt-1">
-                                            <span class="ui-badge ui-badge-primary">
-                                                <i class="bi bi-person-check me-1"></i>Login Ready
-                                            </span>
-                                        </div>
-                                    @else
-                                        <div class="mt-1">
-                                            <span class="ui-badge ui-badge-muted">
-                                                <i class="bi bi-person-x me-1"></i>No Login Account
-                                            </span>
-                                        </div>
-                                    @endif
-                                </td>
+                                        @if ($student->goal)
+                                            <div
+                                                class="small text-muted text-truncate"
+                                                style="max-width: 260px;"
+                                                title="{{ $student->goal }}"
+                                            >
+                                                {{ $student->goal }}
+                                            </div>
+                                        @endif
 
-                                <td>
-                                    <div>{{ $student->email ?: '-' }}</div>
-                                    <div class="small text-muted">{{ $student->phone ?: '-' }}</div>
-                                </td>
-
-                                <td>
-                                    <div>{{ $student->city ?: '-' }}</div>
-                                    <div class="small text-muted">{{ $student->current_status ?: '-' }}</div>
-                                    <div class="small text-muted">Source: {{ $student->source ?: '-' }}</div>
-                                </td>
-
-                                <td>
-                                    @if($activeEnrollments->count())
-                                        <div class="d-flex flex-column gap-1">
-                                            @foreach($activeEnrollments->take(2) as $enrollment)
-                                                <div>
-                                                    <span class="ui-badge ui-badge-success">
-                                                        {{ $enrollment->batch->program->name ?? 'Program' }}
-                                                        -
-                                                        {{ $enrollment->batch->name ?? 'Batch' }}
-                                                    </span>
-                                                </div>
-                                            @endforeach
-
-                                            @if($activeEnrollments->count() > 2)
-                                                <small class="text-muted">
-                                                    +{{ $activeEnrollments->count() - 2 }} more enrollment
-                                                </small>
+                                        <div class="mt-2">
+                                            @if($student->user)
+                                                <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                                                    <i class="bi bi-person-check me-1"></i>Login Ready
+                                                </span>
+                                            @else
+                                                <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                                    <i class="bi bi-person-x me-1"></i>No Login Account
+                                                </span>
                                             @endif
                                         </div>
-                                    @else
-                                        <span class="ui-badge ui-badge-muted">
-                                            Not Enrolled
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $student->email ?: '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $student->phone ?: '-' }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            {{ $student->city ?: '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            {{ $student->current_status ?: '-' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            Source: {{ $student->source ?: '-' }}
+                                        </div>
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        @if($studentNik !== '-')
+                                            <div class="fw-semibold text-dark">
+                                                {{ $studentNik }}
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        @if($emergencyContactName || $emergencyContactPhone || $emergencyContactRelation)
+                                            <div class="fw-semibold text-dark">
+                                                {{ $emergencyContactName ?: '-' }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ $emergencyContactPhone ?: '-' }}
+                                            </div>
+
+                                            @if($emergencyContactRelation)
+                                                <div class="small text-muted">
+                                                    Relation: {{ $emergencyContactRelation }}
+                                                </div>
+                                            @endif
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td>
+                                        @if($activeEnrollments->count())
+                                            <div class="d-flex flex-column gap-1">
+                                                @foreach($activeEnrollments->take(2) as $enrollment)
+                                                    <div>
+                                                        <span class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle">
+                                                            {{ $enrollment->batch->program->name ?? 'Program' }}
+                                                            -
+                                                            {{ $enrollment->batch->name ?? 'Batch' }}
+                                                        </span>
+                                                    </div>
+                                                @endforeach
+
+                                                @if($activeEnrollments->count() > 2)
+                                                    <small class="text-muted">
+                                                        +{{ $activeEnrollments->count() - 2 }} more enrollment
+                                                    </small>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                                Not Enrolled
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <span class="badge rounded-pill {{ $statusClass }}">
+                                            {{ ucfirst($student->status) }}
                                         </span>
-                                    @endif
-                                </td>
+                                    </td>
 
-                                <td>
-                                    <span class="ui-badge {{ $statusClass }}">
-                                        {{ ucfirst($student->status) }}
-                                    </span>
-                                </td>
+                                    <td class="text-end text-nowrap">
+                                        <div class="dropdown">
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                            >
+                                                Actions
+                                            </button>
 
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-2 flex-wrap justify-content-end">
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-success"
-                                            onclick="openEnrollModal(
-                                                {{ $student->id }},
-                                                @js($studentName),
-                                                @js($student->email),
-                                                '{{ route('students.enroll', $student->id) }}'
-                                            )"
-                                        >
-                                            <i class="bi bi-mortarboard me-1"></i>Enroll
-                                        </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="openEnrollModal(
+                                                            {{ $student->id }},
+                                                            @js($studentName),
+                                                            @js($student->email),
+                                                            '{{ route('students.enroll', $student->id) }}'
+                                                        )"
+                                                    >
+                                                        <i class="bi bi-mortarboard me-2"></i>Enroll Student
+                                                    </button>
+                                                </li>
 
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-primary"
-                                            onclick="editStudent({{ $student->id }})"
-                                        >
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="editStudent({{ $student->id }})"
+                                                    >
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Student
+                                                    </button>
+                                                </li>
 
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-danger"
-                                            onclick="openDeleteModal({{ $student->id }}, @js($studentName))"
-                                        >
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-5">
-                                    <div class="empty-state-icon mx-auto">
-                                        <i class="bi bi-people"></i>
-                                    </div>
-                                    <h5 class="empty-state-title mt-3">No students found</h5>
-                                    <p class="empty-state-text mb-0">
-                                        Add confirmed student data first, then enroll them to a batch.
-                                    </p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                                <li>
+                                                    <hr class="dropdown-divider">
+                                                </li>
 
-            @if ($students->hasPages())
-                <div class="p-3 border-top">
-                    {{ $students->links() }}
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item text-danger"
+                                                        onclick="openDeleteModal({{ $student->id }}, @js($studentName))"
+                                                    >
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($students->hasPages())
+                    <div class="mt-3">
+                        {{ $students->links() }}
+                    </div>
+                @endif
+            @else
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-people"></i>
+                    </div>
+
+                    <h5 class="empty-state-title">No students found</h5>
+                    <p class="empty-state-text mb-0">
+                        Add confirmed student data first, then enroll them to a batch.
+                    </p>
                 </div>
             @endif
         </div>
@@ -344,6 +420,83 @@
                             <label for="phone" class="form-label">Phone</label>
                             <input type="text" id="phone" class="form-control">
                             <div class="invalid-feedback" id="error_phone"></div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border-top pt-3 mt-1">
+                                <div class="fw-semibold text-dark mb-1">Identity & Emergency Contact</div>
+                                <div class="small text-muted mb-3">
+                                    Optional data untuk identitas student dan kontak darurat.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="nik" class="form-label">
+                                NIK <span class="text-muted">(Optional)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="nik"
+                                class="form-control"
+                                maxlength="16"
+                                inputmode="numeric"
+                                pattern="[0-9]{16}"
+                                placeholder="16 digit NIK"
+                            >
+                            <div class="form-text">Isi 16 digit angka jika tersedia.</div>
+                            <div class="invalid-feedback" id="error_nik"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="emergency_contact_name" class="form-label">
+                                Emergency Contact Name <span class="text-muted">(Optional)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="emergency_contact_name"
+                                class="form-control"
+                                maxlength="255"
+                                placeholder="Nama kontak darurat"
+                            >
+                            <div class="invalid-feedback" id="error_emergency_contact_name"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="emergency_contact_phone" class="form-label">
+                                Emergency Contact Phone <span class="text-muted">(Optional)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="emergency_contact_phone"
+                                class="form-control"
+                                maxlength="30"
+                                placeholder="Nomor kontak darurat"
+                            >
+                            <div class="invalid-feedback" id="error_emergency_contact_phone"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="emergency_contact_relation" class="form-label">
+                                Emergency Contact Relation <span class="text-muted">(Optional)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="emergency_contact_relation"
+                                class="form-control"
+                                maxlength="100"
+                                placeholder="Contoh: Parent, Sibling, Guardian"
+                            >
+                            <div class="invalid-feedback" id="error_emergency_contact_relation"></div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border-top pt-3 mt-1">
+                                <div class="fw-semibold text-dark mb-1">Profile Information</div>
+                                <div class="small text-muted mb-3">
+                                    Data tambahan untuk segmentasi dan kebutuhan enrollment.
+                                </div>
+                            </div>
                         </div>
 
                         <div class="col-md-6">
@@ -547,6 +700,79 @@
 </div>
 @endsection
 
+
+@push('styles')
+<style>
+    .students-table-card,
+    .students-table-card .content-card-body {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .student-table-responsive {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+    }
+
+    .student-admin-table {
+        width: 100%;
+        min-width: 1180px;
+        table-layout: auto;
+    }
+
+    .student-admin-table th,
+    .student-admin-table td {
+        vertical-align: top;
+    }
+
+    .student-admin-table .col-student {
+        min-width: 220px;
+    }
+
+    .student-admin-table .col-contact {
+        min-width: 220px;
+    }
+
+    .student-admin-table .col-profile {
+        min-width: 190px;
+    }
+
+    .student-admin-table .col-emergency {
+        min-width: 220px;
+    }
+
+    .student-admin-table .col-enrollment {
+        min-width: 220px;
+    }
+
+    .student-admin-table .dropdown-menu {
+        z-index: 1080;
+    }
+
+    @media (max-width: 768px) {
+        .container-fluid.px-4 {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
+        .content-card-header {
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .student-admin-table {
+            min-width: 1080px;
+        }
+    }
+</style>
+@endpush
+
 @push('scripts')
 <script>
 let studentModal;
@@ -649,6 +875,10 @@ function openCreateModal() {
     document.getElementById('status').value = 'inactive';
     document.getElementById('email').value = '';
     document.getElementById('phone').value = '';
+    document.getElementById('nik').value = '';
+    document.getElementById('emergency_contact_name').value = '';
+    document.getElementById('emergency_contact_phone').value = '';
+    document.getElementById('emergency_contact_relation').value = '';
     document.getElementById('city').value = '';
     document.getElementById('current_status').value = '';
     document.getElementById('source').value = '';
@@ -687,6 +917,10 @@ async function editStudent(id) {
         document.getElementById('status').value = student.status || 'inactive';
         document.getElementById('email').value = student.email || '';
         document.getElementById('phone').value = student.phone || '';
+        document.getElementById('nik').value = student.nik || '';
+        document.getElementById('emergency_contact_name').value = student.emergency_contact_name || '';
+        document.getElementById('emergency_contact_phone').value = student.emergency_contact_phone || '';
+        document.getElementById('emergency_contact_relation').value = student.emergency_contact_relation || '';
         document.getElementById('city').value = student.city || '';
         document.getElementById('current_status').value = student.current_status || '';
         document.getElementById('source').value = student.source || '';
@@ -713,6 +947,10 @@ async function submitStudentForm(event) {
     formData.append('status', document.getElementById('status').value);
     formData.append('email', document.getElementById('email').value);
     formData.append('phone', document.getElementById('phone').value);
+    formData.append('nik', document.getElementById('nik').value);
+    formData.append('emergency_contact_name', document.getElementById('emergency_contact_name').value);
+    formData.append('emergency_contact_phone', document.getElementById('emergency_contact_phone').value);
+    formData.append('emergency_contact_relation', document.getElementById('emergency_contact_relation').value);
     formData.append('city', document.getElementById('city').value);
     formData.append('current_status', document.getElementById('current_status').value);
     formData.append('source', document.getElementById('source').value);

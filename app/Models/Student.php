@@ -15,6 +15,13 @@ class Student extends Model
         'avatar_url',
         'email',
         'phone',
+
+        // Identity & emergency contact
+        'nik',
+        'emergency_contact_name',
+        'emergency_contact_phone',
+        'emergency_contact_relation',
+
         'city',
         'current_status',
         'bio',

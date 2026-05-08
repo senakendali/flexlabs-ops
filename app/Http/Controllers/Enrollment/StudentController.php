@@ -82,6 +82,12 @@ class StudentController extends Controller
                 'full_name' => $student->full_name,
                 'email' => $student->email,
                 'phone' => $student->phone,
+
+                'nik' => $student->nik,
+                'emergency_contact_name' => $student->emergency_contact_name,
+                'emergency_contact_phone' => $student->emergency_contact_phone,
+                'emergency_contact_relation' => $student->emergency_contact_relation,
+
                 'city' => $student->city,
                 'current_status' => $student->current_status,
                 'goal' => $student->goal,
@@ -111,6 +117,30 @@ class StudentController extends Controller
                 'nullable',
                 'string',
                 'max:30',
+            ],
+
+            'nik' => [
+                'nullable',
+                'string',
+                'regex:/^\d{16}$/',
+            ],
+
+            'emergency_contact_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'emergency_contact_phone' => [
+                'nullable',
+                'string',
+                'max:30',
+            ],
+
+            'emergency_contact_relation' => [
+                'nullable',
+                'string',
+                'max:100',
             ],
 
             'city' => [
@@ -143,6 +173,8 @@ class StudentController extends Controller
                     'inactive',
                 ]),
             ],
+        ], [
+            'nik.regex' => 'NIK must contain exactly 16 digits.',
         ]);
 
         $student = Student::create($validated);
@@ -176,6 +208,30 @@ class StudentController extends Controller
                 'max:30',
             ],
 
+            'nik' => [
+                'nullable',
+                'string',
+                'regex:/^\d{16}$/',
+            ],
+
+            'emergency_contact_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'emergency_contact_phone' => [
+                'nullable',
+                'string',
+                'max:30',
+            ],
+
+            'emergency_contact_relation' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
             'city' => [
                 'nullable',
                 'string',
@@ -206,6 +262,8 @@ class StudentController extends Controller
                     'inactive',
                 ]),
             ],
+        ], [
+            'nik.regex' => 'NIK must contain exactly 16 digits.',
         ]);
 
         $student->update($validated);
