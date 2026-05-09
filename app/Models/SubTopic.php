@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SubTopic extends Model
 {
@@ -16,6 +17,11 @@ class SubTopic extends Model
         'topic_id',
         'name',
         'description',
+
+        // Lesson text material / reading content
+        'content',
+        'content_format',
+
         'sort_order',
         'is_active',
 
@@ -57,7 +63,12 @@ class SubTopic extends Model
 
     public function getHasVideoAttribute(): bool
     {
-        return !empty($this->video_url);
+        return ! empty($this->video_url);
+    }
+
+    public function getHasContentAttribute(): bool
+    {
+        return ! empty($this->content);
     }
 
     public function assignments(): HasMany

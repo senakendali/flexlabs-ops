@@ -42,7 +42,11 @@ class CurriculumController extends Controller
                                         ->orWhereHas('topics', function ($topicQuery) use ($search) {
                                             $topicQuery->where('name', 'like', '%' . $search . '%')
                                                 ->orWhereHas('subTopics', function ($subTopicQuery) use ($search) {
-                                                    $subTopicQuery->where('name', 'like', '%' . $search . '%');
+                                                    $subTopicQuery->where(function ($subTopicNameQuery) use ($search) {
+                                                        $subTopicNameQuery->where('name', 'like', '%' . $search . '%')
+                                                            ->orWhere('description', 'like', '%' . $search . '%')
+                                                            ->orWhere('content', 'like', '%' . $search . '%');
+                                                    });
                                                 });
                                         });
                                 });
@@ -67,7 +71,11 @@ class CurriculumController extends Controller
                                                             ->orderBy('id');
 
                                                         if ($search !== '') {
-                                                            $subTopicQuery->where('name', 'like', '%' . $search . '%');
+                                                            $subTopicQuery->where(function ($subTopicNameQuery) use ($search) {
+                                                        $subTopicNameQuery->where('name', 'like', '%' . $search . '%')
+                                                            ->orWhere('description', 'like', '%' . $search . '%')
+                                                            ->orWhere('content', 'like', '%' . $search . '%');
+                                                    });
                                                         }
                                                     },
                                                 ]);
@@ -76,7 +84,11 @@ class CurriculumController extends Controller
                                                 $topicQuery->where(function ($q) use ($search) {
                                                     $q->where('name', 'like', '%' . $search . '%')
                                                         ->orWhereHas('subTopics', function ($subTopicQuery) use ($search) {
-                                                            $subTopicQuery->where('name', 'like', '%' . $search . '%');
+                                                            $subTopicQuery->where(function ($subTopicNameQuery) use ($search) {
+                                                        $subTopicNameQuery->where('name', 'like', '%' . $search . '%')
+                                                            ->orWhere('description', 'like', '%' . $search . '%')
+                                                            ->orWhere('content', 'like', '%' . $search . '%');
+                                                    });
                                                         });
                                                 });
                                             }
@@ -89,7 +101,11 @@ class CurriculumController extends Controller
                                             ->orWhereHas('topics', function ($topicQuery) use ($search) {
                                                 $topicQuery->where('name', 'like', '%' . $search . '%')
                                                     ->orWhereHas('subTopics', function ($subTopicQuery) use ($search) {
-                                                        $subTopicQuery->where('name', 'like', '%' . $search . '%');
+                                                        $subTopicQuery->where(function ($subTopicNameQuery) use ($search) {
+                                                        $subTopicNameQuery->where('name', 'like', '%' . $search . '%')
+                                                            ->orWhere('description', 'like', '%' . $search . '%')
+                                                            ->orWhere('content', 'like', '%' . $search . '%');
+                                                    });
                                                     });
                                             });
                                     });
@@ -105,7 +121,11 @@ class CurriculumController extends Controller
                                         ->orWhereHas('topics', function ($topicQuery) use ($search) {
                                             $topicQuery->where('name', 'like', '%' . $search . '%')
                                                 ->orWhereHas('subTopics', function ($subTopicQuery) use ($search) {
-                                                    $subTopicQuery->where('name', 'like', '%' . $search . '%');
+                                                    $subTopicQuery->where(function ($subTopicNameQuery) use ($search) {
+                                                        $subTopicNameQuery->where('name', 'like', '%' . $search . '%')
+                                                            ->orWhere('description', 'like', '%' . $search . '%')
+                                                            ->orWhere('content', 'like', '%' . $search . '%');
+                                                    });
                                                 });
                                         });
                                 });
@@ -434,6 +454,8 @@ class CurriculumController extends Controller
                 'topic_id' => $validated['topic_id'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
+                'content' => $validated['content'] ?? null,
+                'content_format' => $validated['content_format'] ?? 'markdown',
                 'sort_order' => $validated['sort_order'] ?? 1,
                 'is_active' => (bool) $validated['is_active'],
 
@@ -469,6 +491,8 @@ class CurriculumController extends Controller
                 'topic_id' => $validated['topic_id'],
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
+                'content' => $validated['content'] ?? null,
+                'content_format' => $validated['content_format'] ?? 'markdown',
                 'sort_order' => $validated['sort_order'] ?? $subTopic->sort_order ?? 1,
                 'is_active' => (bool) $validated['is_active'],
 
@@ -552,6 +576,8 @@ class CurriculumController extends Controller
             'topic_id' => ['required', 'exists:topics,id'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'content' => ['nullable', 'string'],
+            'content_format' => ['nullable', 'string', 'in:markdown'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
 

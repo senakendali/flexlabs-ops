@@ -418,8 +418,15 @@ class StudentLearningController extends Controller
         $description = $this->getColumnValue($subTopic, [
             'description',
             'summary',
+        ]);
+
+        $content = $this->getColumnValue($subTopic, [
             'content',
         ]);
+
+        $contentFormat = $this->getColumnValue($subTopic, [
+            'content_format',
+        ]) ?: 'markdown';
 
         $isCompleted = (bool) ($progress?->is_completed ?? false);
 
@@ -437,6 +444,11 @@ class StudentLearningController extends Controller
             'name' => $title,
 
             'description' => $description,
+
+            // Lesson reading material / Markdown content
+            'content' => $content,
+            'content_format' => $contentFormat,
+            'has_content' => ! empty($content),
 
             'module_id' => $module->id ?? null,
             'module_title' => $module->name ?? $module->title ?? '-',
@@ -659,6 +671,10 @@ class StudentLearningController extends Controller
 
         $isCompleted = (bool) ($progress?->is_completed ?? false);
 
+        $hasContent = ! empty($this->getColumnValue($subTopic, [
+            'content',
+        ]));
+
         $status = match (true) {
             (int) $subTopic->id === $activeSubTopicId => 'active',
             $isCompleted => 'completed',
@@ -671,6 +687,9 @@ class StudentLearningController extends Controller
             'name' => $title,
             'slug' => $slug,
             'status' => $status,
+
+            'lesson_type' => $subTopic->lesson_type ?? 'video',
+            'has_content' => $hasContent,
 
             'progress_percentage' => (float) ($progress?->progress_percentage ?? 0),
             'last_position_seconds' => (int) ($progress?->last_position_seconds ?? 0),

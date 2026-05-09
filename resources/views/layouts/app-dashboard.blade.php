@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ asset('css/dashboard.css?' . time()) }}">
     <link rel="stylesheet" href="{{ asset('css/invoice.css?' . time()) }}">
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
@@ -705,6 +706,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', function () {

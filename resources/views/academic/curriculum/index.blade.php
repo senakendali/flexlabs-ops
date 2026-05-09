@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4" id="curriculumStatsRow">
         <div class="col-xl-3 col-md-6">
             <div class="stat-card">
                 <div class="stat-card-top">
@@ -161,7 +161,7 @@
             </div>
         </div>
 
-        <div class="content-card-body">
+        <div class="content-card-body" id="curriculumStructureBody">
             @php
                 $curriculumPrograms = $curriculumPrograms ?? collect();
             @endphp
@@ -493,6 +493,16 @@
                                                                                                                         <i class="bi bi-calendar-event me-1"></i>Live schedule mengikuti batch/session
                                                                                                                     </span>
                                                                                                                 @endif
+
+                                                                                                                @if(!empty($subTopic->content))
+                                                                                                                    <span class="text-success fw-semibold">
+                                                                                                                        <i class="bi bi-file-earmark-text me-1"></i>Lesson material ready
+                                                                                                                    </span>
+                                                                                                                @else
+                                                                                                                    <span class="text-muted">
+                                                                                                                        <i class="bi bi-file-earmark-text me-1"></i>No lesson material
+                                                                                                                    </span>
+                                                                                                                @endif
                                                                                                             </div>
                                                                                                         </div>
                                                                                                     </div>
@@ -514,6 +524,8 @@
                                                                                                             data-video-url="{{ $subTopic->video_url ?? '' }}"
                                                                                                             data-video-duration-minutes="{{ $subTopic->video_duration_minutes ?? '' }}"
                                                                                                             data-thumbnail-url="{{ $subTopic->thumbnail_url ?? '' }}"
+                                                                                                            data-content-base64="{{ base64_encode($subTopic->content ?? '') }}"
+                                                                                                            data-content-format="{{ $subTopic->content_format ?? 'markdown' }}"
                                                                                                         >
                                                                                                             <i class="bi bi-pencil-square me-1"></i>Edit
                                                                                                         </button>
@@ -993,6 +1005,39 @@
                             <label class="form-label">Description</label>
                             <textarea name="description" rows="4" class="form-control" placeholder="Catatan tambahan untuk sub topic..."></textarea>
                         </div>
+
+                        <div class="col-12">
+                            <div class="lesson-config-card lesson-material-editor-card">
+                                <div class="lesson-config-header">
+                                    <div>
+                                        <div class="lesson-config-title">
+                                            <i class="bi bi-file-earmark-richtext me-2"></i>Lesson Material
+                                        </div>
+                                        <div class="lesson-config-subtitle">
+                                            Materi bacaan untuk LMS. Gunakan Markdown untuk penjelasan, heading, list, dan code block yang bisa dicopy oleh student.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <input type="hidden" name="content_format" value="markdown">
+
+                                <textarea
+                                    name="content"
+                                    id="subTopicContentEditor"
+                                    rows="14"
+                                    class="form-control markdown-editor"
+                                    placeholder="Write lesson material using Markdown. You can mix explanation, headings, lists, and code blocks."
+                                ></textarea>
+
+                                <div class="markdown-helper-box mt-3">
+                                    <div class="fw-bold mb-2">Format cepat:</div>
+                                    <div><code># Title</code> untuk heading besar</div>
+                                    <div><code>## Section</code> untuk sub heading</div>
+                                    <div><code>`inline code`</code> untuk kode pendek</div>
+                                    <div><code>```html ... ```</code>, <code>```css ... ```</code>, <code>```js ... ```</code>, atau <code>```php ... ```</code> untuk code block.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1050,6 +1095,7 @@
 @endsection
 
 @push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
 <style>
     .program-stack {
         display: flex;
@@ -1594,6 +1640,58 @@
         overflow: hidden;
     }
 
+
+
+    .lesson-material-editor-card {
+        background: #ffffff;
+    }
+
+    .markdown-helper-box {
+        padding: .875rem 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #fbfaff;
+        color: #4b5563;
+        font-size: .86rem;
+        line-height: 1.65;
+    }
+
+    .markdown-helper-box code {
+        color: #5B3E8E;
+        background: #efe8ff;
+        border-radius: 6px;
+        padding: .1rem .35rem;
+    }
+
+    .EasyMDEContainer .CodeMirror {
+        border-color: #ece7f7;
+        border-radius: 14px;
+        min-height: 340px;
+        padding: .25rem;
+        color: #1f2937;
+    }
+
+    .EasyMDEContainer .editor-toolbar {
+        border-color: #ece7f7;
+        border-radius: 14px 14px 0 0;
+        background: #fbfaff;
+    }
+
+    .EasyMDEContainer .editor-toolbar button {
+        border-radius: 8px;
+    }
+
+    .EasyMDEContainer .editor-preview,
+    .EasyMDEContainer .editor-preview-side {
+        background: #ffffff;
+    }
+
+    .curriculum-refreshing {
+        opacity: .65;
+        pointer-events: none;
+        transition: opacity .2s ease;
+    }
+
     .toast.bg-success {
         background-color: #5B3E8E !important;
     }
@@ -1698,9 +1796,122 @@
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    let subTopicContentEditor = null;
+
+    function decodeBase64Unicode(value) {
+        if (!value) return '';
+
+        try {
+            const binary = atob(value);
+            const bytes = Uint8Array.from(binary, function (char) {
+                return char.charCodeAt(0);
+            });
+
+            return new TextDecoder('utf-8').decode(bytes);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function initSubTopicContentEditor() {
+        const textarea = document.getElementById('subTopicContentEditor');
+
+        if (!textarea || typeof EasyMDE === 'undefined') {
+            return;
+        }
+
+        if (subTopicContentEditor) {
+            return;
+        }
+
+        subTopicContentEditor = new EasyMDE({
+            element: textarea,
+            spellChecker: false,
+            status: false,
+            minHeight: '340px',
+            placeholder: 'Write lesson material using Markdown...',
+            toolbar: [
+                'bold',
+                'italic',
+                'heading',
+                '|',
+                'quote',
+                'unordered-list',
+                'ordered-list',
+                '|',
+                'link',
+                'code',
+                '|',
+                'preview',
+                'side-by-side',
+                'fullscreen',
+                '|',
+                'guide'
+            ]
+        });
+    }
+
+    function setSubTopicEditorValue(value) {
+        initSubTopicContentEditor();
+
+        if (subTopicContentEditor) {
+            subTopicContentEditor.value(value || '');
+            return;
+        }
+
+        const textarea = document.getElementById('subTopicContentEditor');
+        if (textarea) textarea.value = value || '';
+    }
+
+    function syncMarkdownEditors() {
+        if (subTopicContentEditor) {
+            subTopicContentEditor.codemirror.save();
+        }
+    }
+
+    async function refreshCurriculumView() {
+        const statsRow = document.getElementById('curriculumStatsRow');
+        const structureBody = document.getElementById('curriculumStructureBody');
+
+        if (!statsRow || !structureBody) {
+            return;
+        }
+
+        structureBody.classList.add('curriculum-refreshing');
+
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const html = await response.text();
+            const parser = new DOMParser();
+            const nextDocument = parser.parseFromString(html, 'text/html');
+
+            const nextStatsRow = nextDocument.getElementById('curriculumStatsRow');
+            const nextStructureBody = nextDocument.getElementById('curriculumStructureBody');
+
+            if (nextStatsRow) {
+                statsRow.innerHTML = nextStatsRow.innerHTML;
+            }
+
+            if (nextStructureBody) {
+                structureBody.innerHTML = nextStructureBody.innerHTML;
+            }
+        } catch (error) {
+            showToast('Data tersimpan, tapi gagal refresh tampilan. Silakan refresh manual jika perlu.', 'error');
+        } finally {
+            structureBody.classList.remove('curriculum-refreshing');
+        }
+    }
 
     function showToast(message, type = 'success') {
         const toastEl = document.getElementById('appToast');
@@ -1735,6 +1946,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function resetFormState(form) {
         form.reset();
+
+        if (form.id === 'subTopicForm') {
+            setSubTopicEditorValue('');
+        }
 
         const idInput = form.querySelector('input[name="id"]');
         const methodInput = form.querySelector('input[name="_method"]');
@@ -1788,6 +2003,8 @@ document.addEventListener('DOMContentLoaded', function () {
     async function bindAsyncForm(form, modalId, updateUrlBuilder) {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            syncMarkdownEditors();
 
             const submitBtn = form.querySelector('.submit-btn');
             const id = form.querySelector('input[name="id"]')?.value || '';
@@ -1852,10 +2069,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 showToast(data.message || 'Data berhasil disimpan.', 'success');
-
-                setTimeout(() => {
-                    window.location.reload();
-                }, 900);
+                resetFormState(form);
+                await refreshCurriculumView();
             } catch (error) {
                 showErrors(form, { general: ['Gagal menghubungi server.'] });
                 showToast('Gagal menghubungi server.', 'error');
@@ -1928,10 +2143,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 showToast(data.message || 'Data berhasil dihapus.', 'success');
-
-                setTimeout(() => {
-                    window.location.reload();
-                }, 900);
+                await refreshCurriculumView();
             } catch (error) {
                 showToast('Gagal menghubungi server.', 'error');
                 confirmBtn.disabled = false;
@@ -2141,6 +2353,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('input[name="video_url"]').value = button.dataset.videoUrl || '';
                 form.querySelector('input[name="video_duration_minutes"]').value = button.dataset.videoDurationMinutes || '';
                 form.querySelector('input[name="thumbnail_url"]').value = button.dataset.thumbnailUrl || '';
+                form.querySelector('input[name="content_format"]').value = button.dataset.contentFormat || 'markdown';
+                setSubTopicEditorValue(decodeBase64Unicode(button.dataset.contentBase64 || ''));
             } else {
                 title.textContent = 'Add Sub Topic';
                 subtitle.textContent = 'Tambahkan sub topic sebagai unit learning item dan checklist instructor.';
@@ -2148,6 +2362,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitBtn.dataset.defaultText = 'Save Sub Topic';
 
                 form.querySelector('select[name="lesson_type"]').value = 'video';
+                form.querySelector('input[name="content_format"]').value = 'markdown';
+                setSubTopicEditorValue('');
 
                 if (button?.dataset?.topicId) {
                     form.querySelector('select[name="topic_id"]').value = button.dataset.topicId;
@@ -2161,6 +2377,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return `{{ route('curriculum.sub-topics.update', ['subTopic' => '__ID__']) }}`.replace('__ID__', id);
         });
     }
+
+    initSubTopicContentEditor();
 
     setupStageModal();
     setupModuleModal();
