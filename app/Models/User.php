@@ -154,4 +154,36 @@ class User extends Authenticatable
     {
         return $this->hasMany(MeetingMinuteActionItem::class, 'pic_user_id');
     }
+
+    public function canAccess(?string $permission): bool
+    {
+        if (! $permission) {
+            return true;
+        }
+
+        $role = $this->role;
+
+        if (! $role) {
+            return false;
+        }
+
+        $permissions = config("flexops_access.permissions.{$role}", []);
+
+        if (in_array('*', $permissions, true)) {
+            return true;
+        }
+
+        return in_array($permission, $permissions, true);
+    }
+
+    public function hasAnyAccess(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($this->canAccess($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

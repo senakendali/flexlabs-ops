@@ -119,7 +119,7 @@ Route::post('/webhooks/xendit/invoice', [XenditWebhookController::class, 'handle
 |--------------------------------------------------------------------------
 */
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'permission:dashboard.view'])
+    ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
 
@@ -136,7 +136,6 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
-        ->middleware('permission:academic.dashboard.view')
         ->name('academic.dashboard');
 
     /*
@@ -144,12 +143,12 @@ Route::middleware('auth')->group(function () {
     | Master Data
     |--------------------------------------------------------------------------
     */
-    Route::prefix('programs')->name('programs.')->middleware('permission:programs.view')->group(function () {
+    Route::prefix('programs')->name('programs.')->group(function () {
         Route::get('/', [ProgramController::class, 'index'])->name('index');
         Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
-        Route::post('/', [ProgramController::class, 'store'])->middleware('permission:programs.create')->name('store');
-        Route::put('/{program}', [ProgramController::class, 'update'])->middleware('permission:programs.update')->name('update');
-        Route::delete('/{program}', [ProgramController::class, 'destroy'])->middleware('permission:programs.delete')->name('destroy');
+        Route::post('/', [ProgramController::class, 'store'])->name('store');
+        Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
+        Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
     });
 
 
@@ -165,33 +164,33 @@ Route::middleware('auth')->group(function () {
         | Trial Themes
         |--------------------------------------------------------------------------
         */
-        Route::get('/themes', [TrialThemeController::class, 'index'])->middleware('permission:trial_themes.view')->name('themes.index');
-        Route::get('/themes/{trialTheme}', [TrialThemeController::class, 'show'])->middleware('permission:trial_themes.view')->name('themes.show');
-        Route::post('/themes', [TrialThemeController::class, 'store'])->middleware('permission:trial_themes.create')->name('themes.store');
-        Route::put('/themes/{trialTheme}', [TrialThemeController::class, 'update'])->middleware('permission:trial_themes.update')->name('themes.update');
-        Route::delete('/themes/{trialTheme}', [TrialThemeController::class, 'destroy'])->middleware('permission:trial_themes.delete')->name('themes.destroy');
+        Route::get('/themes', [TrialThemeController::class, 'index'])->name('themes.index');
+        Route::get('/themes/{trialTheme}', [TrialThemeController::class, 'show'])->name('themes.show');
+        Route::post('/themes', [TrialThemeController::class, 'store'])->name('themes.store');
+        Route::put('/themes/{trialTheme}', [TrialThemeController::class, 'update'])->name('themes.update');
+        Route::delete('/themes/{trialTheme}', [TrialThemeController::class, 'destroy'])->name('themes.destroy');
 
         /*
         |--------------------------------------------------------------------------
         | Trial Schedules
         |--------------------------------------------------------------------------
         */
-        Route::get('/schedules', [TrialScheduleController::class, 'index'])->middleware('permission:trial_schedules.view')->name('schedules.index');
-        Route::get('/schedules/{trialSchedule}', [TrialScheduleController::class, 'show'])->middleware('permission:trial_schedules.view')->name('schedules.show');
-        Route::post('/schedules', [TrialScheduleController::class, 'store'])->middleware('permission:trial_schedules.create')->name('schedules.store');
-        Route::put('/schedules/{trialSchedule}', [TrialScheduleController::class, 'update'])->middleware('permission:trial_schedules.update')->name('schedules.update');
-        Route::delete('/schedules/{trialSchedule}', [TrialScheduleController::class, 'destroy'])->middleware('permission:trial_schedules.delete')->name('schedules.destroy');
+        Route::get('/schedules', [TrialScheduleController::class, 'index'])->name('schedules.index');
+        Route::get('/schedules/{trialSchedule}', [TrialScheduleController::class, 'show'])->name('schedules.show');
+        Route::post('/schedules', [TrialScheduleController::class, 'store'])->name('schedules.store');
+        Route::put('/schedules/{trialSchedule}', [TrialScheduleController::class, 'update'])->name('schedules.update');
+        Route::delete('/schedules/{trialSchedule}', [TrialScheduleController::class, 'destroy'])->name('schedules.destroy');
 
         /*
         |--------------------------------------------------------------------------
         | Trial Participants
         |--------------------------------------------------------------------------
         */
-        Route::get('/participants', [TrialParticipantController::class, 'index'])->middleware('permission:trial_participants.view')->name('participants.index');
-        Route::get('/participants/{trialParticipant}', [TrialParticipantController::class, 'show'])->middleware('permission:trial_participants.view')->name('participants.show');
-        Route::post('/participants', [TrialParticipantController::class, 'store'])->middleware('permission:trial_participants.create')->name('participants.store');
-        Route::put('/participants/{trialParticipant}', [TrialParticipantController::class, 'update'])->middleware('permission:trial_participants.update')->name('participants.update');
-        Route::delete('/participants/{trialParticipant}', [TrialParticipantController::class, 'destroy'])->middleware('permission:trial_participants.delete')->name('participants.destroy');
+        Route::get('/participants', [TrialParticipantController::class, 'index'])->name('participants.index');
+        Route::get('/participants/{trialParticipant}', [TrialParticipantController::class, 'show'])->name('participants.show');
+        Route::post('/participants', [TrialParticipantController::class, 'store'])->name('participants.store');
+        Route::put('/participants/{trialParticipant}', [TrialParticipantController::class, 'update'])->name('participants.update');
+        Route::delete('/participants/{trialParticipant}', [TrialParticipantController::class, 'destroy'])->name('participants.destroy');
     });
 
 
@@ -201,19 +200,19 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('enrollment')->group(function () {
-        Route::get('/', [StudentController::class, 'index'])->middleware('permission:enrollments.view')->name('enrollments.index');
+        Route::get('/', [StudentController::class, 'index'])->name('enrollments.index');
 
         /*
         |--------------------------------------------------------------------------
         | Batches
         |--------------------------------------------------------------------------
         */
-        Route::prefix('batches')->name('batches.')->middleware('permission:batches.view')->group(function () {
+        Route::prefix('batches')->name('batches.')->group(function () {
             Route::get('/', [BatchController::class, 'index'])->name('index');
             Route::get('/{batch}', [BatchController::class, 'show'])->name('show');
-            Route::post('/', [BatchController::class, 'store'])->middleware('permission:batches.create')->name('store');
-            Route::put('/{batch}', [BatchController::class, 'update'])->middleware('permission:batches.update')->name('update');
-            Route::delete('/{batch}', [BatchController::class, 'destroy'])->middleware('permission:batches.delete')->name('destroy');
+            Route::post('/', [BatchController::class, 'store'])->name('store');
+            Route::put('/{batch}', [BatchController::class, 'update'])->name('update');
+            Route::delete('/{batch}', [BatchController::class, 'destroy'])->name('destroy');
         });
 
         /*
@@ -221,15 +220,14 @@ Route::middleware('auth')->group(function () {
         | Students
         |--------------------------------------------------------------------------
         */
-        Route::prefix('students')->name('students.')->middleware('permission:students.view')->group(function () {
+        Route::prefix('students')->name('students.')->group(function () {
             Route::get('/', [StudentController::class, 'index'])->name('index');
             Route::get('/{student}', [StudentController::class, 'show'])->name('show');
-            Route::post('/', [StudentController::class, 'store'])->middleware('permission:students.create')->name('store');
-            Route::put('/{student}', [StudentController::class, 'update'])->middleware('permission:students.update')->name('update');
-            Route::delete('/{student}', [StudentController::class, 'destroy'])->middleware('permission:students.delete')->name('destroy');
+            Route::post('/', [StudentController::class, 'store'])->name('store');
+            Route::put('/{student}', [StudentController::class, 'update'])->name('update');
+            Route::delete('/{student}', [StudentController::class, 'destroy'])->name('destroy');
 
             Route::post('/{student}/enroll', [StudentController::class, 'enroll'])
-                ->middleware('permission:enrollments.create')
                 ->name('enroll');
         });
     });
@@ -241,48 +239,44 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('payments')->group(function () {
-        Route::prefix('orders')->name('orders.')->middleware('permission:orders.view')->group(function () {
+        Route::prefix('orders')->name('orders.')->group(function () {
             Route::get('/', [OrderController::class, 'index'])->name('index');
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
-            Route::post('/', [OrderController::class, 'store'])->middleware('permission:orders.create')->name('store');
-            Route::put('/{order}', [OrderController::class, 'update'])->middleware('permission:orders.update')->name('update');
-            Route::delete('/{order}', [OrderController::class, 'destroy'])->middleware('permission:orders.delete')->name('destroy');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
         });
 
-        Route::prefix('schedules')->name('payment-schedules.')->middleware('permission:payment_schedules.view')->group(function () {
+        Route::prefix('schedules')->name('payment-schedules.')->group(function () {
             Route::get('/', [PaymentScheduleController::class, 'index'])->name('index');
             Route::get('/{paymentSchedule}', [PaymentScheduleController::class, 'show'])->name('show');
-            Route::post('/', [PaymentScheduleController::class, 'store'])->middleware('permission:payment_schedules.create')->name('store');
-            Route::put('/{paymentSchedule}', [PaymentScheduleController::class, 'update'])->middleware('permission:payment_schedules.update')->name('update');
-            Route::delete('/{paymentSchedule}', [PaymentScheduleController::class, 'destroy'])->middleware('permission:payment_schedules.delete')->name('destroy');
+            Route::post('/', [PaymentScheduleController::class, 'store'])->name('store');
+            Route::put('/{paymentSchedule}', [PaymentScheduleController::class, 'update'])->name('update');
+            Route::delete('/{paymentSchedule}', [PaymentScheduleController::class, 'destroy'])->name('destroy');
         });
 
-        Route::get('/', [PaymentController::class, 'index'])->middleware('permission:payments.view')->name('payments.index');
-        Route::post('/', [PaymentController::class, 'store'])->middleware('permission:payments.create')->name('payments.store');
+        Route::get('/', [PaymentController::class, 'index'])->name('payments.index');
+        Route::post('/', [PaymentController::class, 'store'])->name('payments.store');
 
         Route::get('/{payment}/invoice', [PaymentController::class, 'invoice'])
-            ->middleware('permission:payments.view')
             ->whereNumber('payment')
             ->name('payments.invoice');
 
         Route::get('/{payment}/invoice/download-pdf', [PaymentController::class, 'downloadInvoicePdf'])
-            ->middleware('permission:payments.view')
             ->whereNumber('payment')
             ->name('payments.invoice.download-pdf');
 
         Route::get('/{payment}/receipt', [PaymentController::class, 'receipt'])
-            ->middleware('permission:payments.view')
             ->whereNumber('payment')
             ->name('payments.receipt');
 
         Route::get('/{payment}/receipt/download-pdf', [PaymentController::class, 'downloadReceiptPdf'])
-            ->middleware('permission:payments.view')
             ->whereNumber('payment')
             ->name('payments.receipt.download-pdf');
 
-        Route::get('/{payment}', [PaymentController::class, 'show'])->middleware('permission:payments.view')->whereNumber('payment')->name('payments.show');
-        Route::put('/{payment}', [PaymentController::class, 'update'])->middleware('permission:payments.update')->whereNumber('payment')->name('payments.update');
-        Route::delete('/{payment}', [PaymentController::class, 'destroy'])->middleware('permission:payments.delete')->whereNumber('payment')->name('payments.destroy');
+        Route::get('/{payment}', [PaymentController::class, 'show'])->whereNumber('payment')->name('payments.show');
+        Route::put('/{payment}', [PaymentController::class, 'update'])->whereNumber('payment')->name('payments.update');
+        Route::delete('/{payment}', [PaymentController::class, 'destroy'])->whereNumber('payment')->name('payments.destroy');
     });
 
    
@@ -298,14 +292,14 @@ Route::middleware('auth')->group(function () {
         | Daily Reports
         |--------------------------------------------------------------------------
         */
-        Route::prefix('daily-reports')->name('sales-daily-reports.')->middleware('permission:sales_daily_reports.view')->group(function () {
+        Route::prefix('daily-reports')->name('sales-daily-reports.')->group(function () {
             Route::get('/', [SalesDailyReportController::class, 'index'])->name('index');
-            Route::get('/create', [SalesDailyReportController::class, 'create'])->middleware('permission:sales_daily_reports.create')->name('create');
-            Route::post('/', [SalesDailyReportController::class, 'store'])->middleware('permission:sales_daily_reports.create')->name('store');
+            Route::get('/create', [SalesDailyReportController::class, 'create'])->name('create');
+            Route::post('/', [SalesDailyReportController::class, 'store'])->name('store');
             Route::get('/{salesDailyReport}', [SalesDailyReportController::class, 'show'])->name('show');
-            Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->middleware('permission:sales_daily_reports.update')->name('edit');
-            Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->middleware('permission:sales_daily_reports.update')->name('update');
-            Route::delete('/{salesDailyReport}', [SalesDailyReportController::class, 'destroy'])->middleware('permission:sales_daily_reports.delete')->name('destroy');
+            Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->name('edit');
+            Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->name('update');
+            Route::delete('/{salesDailyReport}', [SalesDailyReportController::class, 'destroy'])->name('destroy');
         });
 
         /*
@@ -313,7 +307,7 @@ Route::middleware('auth')->group(function () {
         | Performance Dashboard
         |--------------------------------------------------------------------------
         */
-        Route::prefix('performance')->name('sales-performance.')->middleware('permission:sales_performance.view')->group(function () {
+        Route::prefix('performance')->name('sales-performance.')->group(function () {
             Route::get('/', [SalesPerformanceController::class, 'index'])->name('index');
             Route::get('/chart-data', [SalesPerformanceController::class, 'chartData'])->name('chart-data');
         });
@@ -323,14 +317,14 @@ Route::middleware('auth')->group(function () {
         | Sales Orders
         |--------------------------------------------------------------------------
         */
-        Route::prefix('orders')->name('orders.')->middleware('permission:orders.view')->group(function () {
+        Route::prefix('orders')->name('orders.')->group(function () {
             Route::get('/', [OrderController::class, 'index'])->name('index');
-            Route::get('/create', [OrderController::class, 'create'])->middleware('permission:orders.create')->name('create');
-            Route::post('/', [OrderController::class, 'store'])->middleware('permission:orders.create')->name('store');
+            Route::get('/create', [OrderController::class, 'create'])->name('create');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
             Route::get('/{order}', [OrderController::class, 'show'])->name('show');
-            Route::get('/{order}/edit', [OrderController::class, 'edit'])->middleware('permission:orders.update')->name('edit');
-            Route::put('/{order}', [OrderController::class, 'update'])->middleware('permission:orders.update')->name('update');
-            Route::delete('/{order}', [OrderController::class, 'destroy'])->middleware('permission:orders.delete')->name('destroy');
+            Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
         });
 
     });
@@ -341,14 +335,13 @@ Route::middleware('auth')->group(function () {
     | Instructors
     |--------------------------------------------------------------------------
     */
-    Route::prefix('instructors')->name('instructors.')->middleware('permission:instructors.view')->group(function () {
+    Route::prefix('instructors')->name('instructors.')->group(function () {
         Route::get('/', [InstructorController::class, 'index'])->name('index');
         Route::get('/{instructor}', [InstructorController::class, 'show'])->name('show');
-        Route::post('/', [InstructorController::class, 'store'])->middleware('permission:instructors.create')->name('store');
-        Route::put('/{instructor}', [InstructorController::class, 'update'])->middleware('permission:instructors.update')->name('update');
-        Route::delete('/{instructor}', [InstructorController::class, 'destroy'])->middleware('permission:instructors.delete')->name('destroy');
+        Route::post('/', [InstructorController::class, 'store'])->name('store');
+        Route::put('/{instructor}', [InstructorController::class, 'update'])->name('update');
+        Route::delete('/{instructor}', [InstructorController::class, 'destroy'])->name('destroy');
         Route::post('/{instructor}/assign-teaching-scope', [InstructorController::class, 'assignTeachingScope'])
-        ->middleware('permission:instructors.update')
         ->name('assign-teaching-scope');
     });
 
@@ -358,15 +351,15 @@ Route::middleware('auth')->group(function () {
     | Equipment
     |--------------------------------------------------------------------------
     */
-    Route::prefix('equipment')->name('equipment.')->middleware('permission:equipment.view')->group(function () {
+    Route::prefix('equipment')->name('equipment.')->group(function () {
         Route::get('/', [EquipmentController::class, 'index'])->name('index');
         Route::get('/{equipment}', [EquipmentController::class, 'show'])->name('show');
-        Route::post('/', [EquipmentController::class, 'store'])->middleware('permission:equipment.create')->name('store');
-        Route::put('/{equipment}', [EquipmentController::class, 'update'])->middleware('permission:equipment.update')->name('update');
-        Route::delete('/{equipment}', [EquipmentController::class, 'destroy'])->middleware('permission:equipment.delete')->name('destroy');
+        Route::post('/', [EquipmentController::class, 'store'])->name('store');
+        Route::put('/{equipment}', [EquipmentController::class, 'update'])->name('update');
+        Route::delete('/{equipment}', [EquipmentController::class, 'destroy'])->name('destroy');
 
-        Route::post('/{equipment}/borrow', [EquipmentBorrowingController::class, 'borrow'])->middleware('permission:equipment_borrowings.create')->name('borrow');
-        Route::post('/borrowings/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->middleware('permission:equipment_borrowings.update')->name('return');
+        Route::post('/{equipment}/borrow', [EquipmentBorrowingController::class, 'borrow'])->name('borrow');
+        Route::post('/borrowings/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
     });
 
     /*
@@ -374,11 +367,11 @@ Route::middleware('auth')->group(function () {
     | Operations - Gear Borrowing
     |--------------------------------------------------------------------------
     */
-    Route::prefix('borrowings')->name('borrowings.')->middleware('permission:equipment_borrowings.view')->group(function () {
+    Route::prefix('borrowings')->name('borrowings.')->group(function () {
         Route::get('/', [EquipmentBorrowingController::class, 'index'])->name('index');
         Route::get('/{borrowing}', [EquipmentBorrowingController::class, 'show'])->name('show');
-        Route::post('/', [EquipmentBorrowingController::class, 'store'])->middleware('permission:equipment_borrowings.create')->name('store');
-        Route::post('/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->middleware('permission:equipment_borrowings.update')->name('return');
+        Route::post('/', [EquipmentBorrowingController::class, 'store'])->name('store');
+        Route::post('/{borrowing}/return', [EquipmentBorrowingController::class, 'returnEquipment'])->name('return');
     });
 
     /*
@@ -388,26 +381,25 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('operation/meeting-minutes')
         ->name('operation.meeting-minutes.')
-        ->middleware('permission:meeting_minutes.view')
         ->group(function () {
             Route::get('/', [MeetingMinuteController::class, 'index'])->name('index');
-            Route::get('/create', [MeetingMinuteController::class, 'create'])->middleware('permission:meeting_minutes.create')->name('create');
-            Route::post('/', [MeetingMinuteController::class, 'store'])->middleware('permission:meeting_minutes.create')->name('store');
+            Route::get('/create', [MeetingMinuteController::class, 'create'])->name('create');
+            Route::post('/', [MeetingMinuteController::class, 'store'])->name('store');
 
             // Download PDF harus sebelum route show
             Route::get('/{meetingMinute}/download-pdf', [MeetingMinuteController::class, 'downloadPdf'])
                 ->name('download-pdf');
 
             Route::get('/{meetingMinute}', [MeetingMinuteController::class, 'show'])->name('show');
-            Route::get('/{meetingMinute}/edit', [MeetingMinuteController::class, 'edit'])->middleware('permission:meeting_minutes.update')->name('edit');
-            Route::put('/{meetingMinute}', [MeetingMinuteController::class, 'update'])->middleware('permission:meeting_minutes.update')->name('update');
-            Route::delete('/{meetingMinute}', [MeetingMinuteController::class, 'destroy'])->middleware('permission:meeting_minutes.delete')->name('destroy');
+            Route::get('/{meetingMinute}/edit', [MeetingMinuteController::class, 'edit'])->name('edit');
+            Route::put('/{meetingMinute}', [MeetingMinuteController::class, 'update'])->name('update');
+            Route::delete('/{meetingMinute}', [MeetingMinuteController::class, 'destroy'])->name('destroy');
         });
 
     Route::patch(
         'operation/meeting-minute-action-items/{actionItem}/status',
         [MeetingMinuteController::class, 'updateActionItemStatus']
-    )->middleware('permission:meeting_minutes.update')->name('operation.meeting-minute-action-items.update-status');
+    )->name('operation.meeting-minute-action-items.update-status');
 
 
     /*
@@ -416,26 +408,26 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('auth')->group(function () {
-        Route::prefix('quiz')->name('quiz.')->middleware('permission:quizzes.view')->group(function () {
+        Route::prefix('quiz')->name('quiz.')->group(function () {
             Route::get('/', [QuizController::class, 'index'])->name('index');
             Route::get('/{quiz}', [QuizController::class, 'show'])->name('show');
-            Route::post('/', [QuizController::class, 'store'])->middleware('permission:quizzes.create')->name('store');
-            Route::put('/{quiz}', [QuizController::class, 'update'])->middleware('permission:quizzes.update')->name('update');
-            Route::delete('/{quiz}', [QuizController::class, 'destroy'])->middleware('permission:quizzes.delete')->name('destroy');
+            Route::post('/', [QuizController::class, 'store'])->name('store');
+            Route::put('/{quiz}', [QuizController::class, 'update'])->name('update');
+            Route::delete('/{quiz}', [QuizController::class, 'destroy'])->name('destroy');
 
             Route::get('/{quiz}/questions', [QuizQuestionController::class, 'index'])->name('questions.index');
-            Route::post('/{quiz}/questions', [QuizQuestionController::class, 'store'])->middleware('permission:quizzes.create')->name('questions.store');
+            Route::post('/{quiz}/questions', [QuizQuestionController::class, 'store'])->name('questions.store');
 
             Route::get('/questions/{question}', [QuizQuestionController::class, 'show'])->name('questions.show');
-            Route::put('/questions/{question}', [QuizQuestionController::class, 'update'])->middleware('permission:quizzes.update')->name('questions.update');
-            Route::delete('/questions/{question}', [QuizQuestionController::class, 'destroy'])->middleware('permission:quizzes.delete')->name('questions.destroy');
+            Route::put('/questions/{question}', [QuizQuestionController::class, 'update'])->name('questions.update');
+            Route::delete('/questions/{question}', [QuizQuestionController::class, 'destroy'])->name('questions.destroy');
 
             Route::get('/questions/{question}/options', [QuizOptionController::class, 'index'])->name('options.index');
-            Route::post('/questions/{question}/options', [QuizOptionController::class, 'store'])->middleware('permission:quizzes.create')->name('options.store');
+            Route::post('/questions/{question}/options', [QuizOptionController::class, 'store'])->name('options.store');
 
             Route::get('/options/{option}', [QuizOptionController::class, 'show'])->name('options.show');
-            Route::put('/options/{option}', [QuizOptionController::class, 'update'])->middleware('permission:quizzes.update')->name('options.update');
-            Route::delete('/options/{option}', [QuizOptionController::class, 'destroy'])->middleware('permission:quizzes.delete')->name('options.destroy');
+            Route::put('/options/{option}', [QuizOptionController::class, 'update'])->name('options.update');
+            Route::delete('/options/{option}', [QuizOptionController::class, 'destroy'])->name('options.destroy');
 
             //Route::get('/{quiz}/play', [QuizPlayController::class, 'show'])->name('play');
             Route::get('/{quiz}/leaderboard', [QuizLeaderboardController::class, 'index'])->name('leaderboard');
@@ -445,30 +437,30 @@ Route::middleware('auth')->group(function () {
 
     
 
-    Route::prefix('marketing/reports')->name('marketing.reports.')->middleware('permission:marketing_reports.view')->group(function () {
+    Route::prefix('marketing/reports')->name('marketing.reports.')->group(function () {
         Route::get('/', [MarketingReportController::class, 'index'])->name('index');
-        Route::get('/create', [MarketingReportController::class, 'create'])->middleware('permission:marketing_reports.create')->name('create');
-        Route::post('/', [MarketingReportController::class, 'store'])->middleware('permission:marketing_reports.create')->name('store');
+        Route::get('/create', [MarketingReportController::class, 'create'])->name('create');
+        Route::post('/', [MarketingReportController::class, 'store'])->name('store');
         Route::get('/{report}', [MarketingReportController::class, 'show'])->name('show');
-        Route::get('/{report}/edit', [MarketingReportController::class, 'edit'])->middleware('permission:marketing_reports.update')->name('edit');
-        Route::put('/{report}', [MarketingReportController::class, 'update'])->middleware('permission:marketing_reports.update')->name('update');
-        Route::delete('/{report}', [MarketingReportController::class, 'destroy'])->middleware('permission:marketing_reports.delete')->name('destroy');
+        Route::get('/{report}/edit', [MarketingReportController::class, 'edit'])->name('edit');
+        Route::put('/{report}', [MarketingReportController::class, 'update'])->name('update');
+        Route::delete('/{report}', [MarketingReportController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('marketing/setup')->name('marketing.setup.')->group(function () {
-        Route::prefix('campaigns')->name('campaigns.')->middleware('permission:campaigns.view')->group(function () {
+        Route::prefix('campaigns')->name('campaigns.')->group(function () {
             Route::get('/', [MarketingSetupCampaignController::class, 'index'])->name('index');
-            Route::post('/', [MarketingSetupCampaignController::class, 'store'])->middleware('permission:campaigns.create')->name('store');
-            Route::put('/{campaign}', [MarketingSetupCampaignController::class, 'update'])->middleware('permission:campaigns.update')->name('update');
-            Route::delete('/{campaign}', [MarketingSetupCampaignController::class, 'destroy'])->middleware('permission:campaigns.delete')->name('destroy');
+            Route::post('/', [MarketingSetupCampaignController::class, 'store'])->name('store');
+            Route::put('/{campaign}', [MarketingSetupCampaignController::class, 'update'])->name('update');
+            Route::delete('/{campaign}', [MarketingSetupCampaignController::class, 'destroy'])->name('destroy');
             Route::get('/options/by-period', [MarketingSetupCampaignController::class, 'options'])->name('options');
         });
 
-        Route::prefix('ads')->name('ads.')->middleware('permission:ads.view')->group(function () {
+        Route::prefix('ads')->name('ads.')->group(function () {
             Route::get('/', [MarketingSetupAdController::class, 'index'])->name('index');
-            Route::post('/', [MarketingSetupAdController::class, 'store'])->middleware('permission:ads.create')->name('store');
-            Route::put('/{ad}', [MarketingSetupAdController::class, 'update'])->middleware('permission:ads.update')->name('update');
-            Route::delete('/{ad}', [MarketingSetupAdController::class, 'destroy'])->middleware('permission:ads.delete')->name('destroy');
+            Route::post('/', [MarketingSetupAdController::class, 'store'])->name('store');
+            Route::put('/{ad}', [MarketingSetupAdController::class, 'update'])->name('update');
+            Route::delete('/{ad}', [MarketingSetupAdController::class, 'destroy'])->name('destroy');
             Route::get('/options/by-period', [MarketingSetupAdController::class, 'options'])->name('options');
         });
     });
@@ -481,20 +473,20 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/atk-items', [AtkItemController::class, 'index'])->middleware('permission:atk_items.view')->name('atk-items.index');
-        Route::post('/atk-items', [AtkItemController::class, 'store'])->middleware('permission:atk_items.create')->name('atk-items.store');
-        Route::put('/atk-items/{atkItem}', [AtkItemController::class, 'update'])->middleware('permission:atk_items.update')->name('atk-items.update');
-        Route::delete('/atk-items/{atkItem}', [AtkItemController::class, 'destroy'])->middleware('permission:atk_items.delete')->name('atk-items.destroy');
+        Route::get('/atk-items', [AtkItemController::class, 'index'])->name('atk-items.index');
+        Route::post('/atk-items', [AtkItemController::class, 'store'])->name('atk-items.store');
+        Route::put('/atk-items/{atkItem}', [AtkItemController::class, 'update'])->name('atk-items.update');
+        Route::delete('/atk-items/{atkItem}', [AtkItemController::class, 'destroy'])->name('atk-items.destroy');
 
-        Route::get('/atk-requests', [AtkRequestController::class, 'index'])->middleware('permission:atk_requests.view')->name('atk-requests.index');
-        Route::post('/atk-requests', [AtkRequestController::class, 'store'])->middleware('permission:atk_requests.create')->name('atk-requests.store');
-        Route::post('/atk-requests/{atkRequest}/approve', [AtkRequestController::class, 'approve'])->middleware('permission:atk_requests.approve')->name('atk-requests.approve');
-        Route::post('/atk-requests/{atkRequest}/reject', [AtkRequestController::class, 'reject'])->middleware('permission:atk_requests.approve')->name('atk-requests.reject');
-        Route::post('/atk-requests/{atkRequest}/cancel', [AtkRequestController::class, 'cancel'])->middleware('permission:atk_requests.update')->name('atk-requests.cancel');
+        Route::get('/atk-requests', [AtkRequestController::class, 'index'])->name('atk-requests.index');
+        Route::post('/atk-requests', [AtkRequestController::class, 'store'])->name('atk-requests.store');
+        Route::post('/atk-requests/{atkRequest}/approve', [AtkRequestController::class, 'approve'])->name('atk-requests.approve');
+        Route::post('/atk-requests/{atkRequest}/reject', [AtkRequestController::class, 'reject'])->name('atk-requests.reject');
+        Route::post('/atk-requests/{atkRequest}/cancel', [AtkRequestController::class, 'cancel'])->name('atk-requests.cancel');
     });
 
     //Route::get('/play-quiz/{quiz}', [QuizPlayController::class, 'show'])->name('quiz.play');
-    Route::get('quiz/{quiz}/play', [QuizPlayController::class, 'show'])->middleware('permission:quizzes.view')->name('quiz.play');
+    Route::get('quiz/{quiz}/play', [QuizPlayController::class, 'show'])->name('quiz.play');
 
     /*
     |--------------------------------------------------------------------------
@@ -502,7 +494,7 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('monitoring')->group(function () {
-        Route::get('/', fn () => view('monitoring.index'))->middleware('permission:dashboard.view')->name('monitoring.index');
+        Route::get('/', fn () => view('monitoring.index'))->name('monitoring.index');
     });
 
 
@@ -513,7 +505,6 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('settings')
     ->name('settings.')
-    ->middleware('permission:users.view')
     ->group(function () {
         Route::get('/', fn () => view('settings.index'))
             ->name('index');
@@ -528,19 +519,18 @@ Route::middleware('auth')->group(function () {
             ->controller(UserManagementController::class)
             ->group(function () {
                 Route::get('/', 'index')->name('index');
-                Route::get('/create', 'create')->middleware('permission:users.create')->name('create');
-                Route::post('/', 'store')->middleware('permission:users.create')->name('store');
+                Route::get('/create', 'create')->name('create');
+                Route::post('/', 'store')->name('store');
 
                 Route::get('/{user}', 'show')->name('show');
-                Route::get('/{user}/edit', 'edit')->middleware('permission:users.update')->name('edit');
-                Route::put('/{user}', 'update')->middleware('permission:users.update')->name('update');
-                Route::patch('/{user}', 'update')->middleware('permission:users.update')->name('patch');
+                Route::get('/{user}/edit', 'edit')->name('edit');
+                Route::put('/{user}', 'update')->name('update');
+                Route::patch('/{user}', 'update')->name('patch');
 
                 Route::patch('/{user}/password', 'updatePassword')
-                    ->middleware('permission:users.update')
                     ->name('password.update');
 
-                Route::delete('/{user}', 'destroy')->middleware('permission:users.delete')->name('destroy');
+                Route::delete('/{user}', 'destroy')->name('destroy');
             });
     });
 
@@ -549,24 +539,24 @@ Route::middleware('auth')->group(function () {
     | Academic - Curriculum
     |--------------------------------------------------------------------------
     */
-    Route::prefix('curriculum')->name('curriculum.')->middleware('permission:curriculum.view')->group(function () {
+    Route::prefix('curriculum')->name('curriculum.')->group(function () {
         Route::get('/', [CurriculumController::class, 'index'])->name('index');
 
-        Route::post('/stages', [CurriculumController::class, 'storeStage'])->middleware('permission:curriculum.create')->name('stages.store');
-        Route::put('/stages/{stage}', [CurriculumController::class, 'updateStage'])->middleware('permission:curriculum.update')->name('stages.update');
-        Route::delete('/stages/{stage}', [CurriculumController::class, 'destroyStage'])->middleware('permission:curriculum.delete')->name('stages.destroy');
+        Route::post('/stages', [CurriculumController::class, 'storeStage'])->name('stages.store');
+        Route::put('/stages/{stage}', [CurriculumController::class, 'updateStage'])->name('stages.update');
+        Route::delete('/stages/{stage}', [CurriculumController::class, 'destroyStage'])->name('stages.destroy');
 
-        Route::post('/modules', [CurriculumController::class, 'storeModule'])->middleware('permission:curriculum.create')->name('modules.store');
-        Route::put('/modules/{module}', [CurriculumController::class, 'updateModule'])->middleware('permission:curriculum.update')->name('modules.update');
-        Route::delete('/modules/{module}', [CurriculumController::class, 'destroyModule'])->middleware('permission:curriculum.delete')->name('modules.destroy');
+        Route::post('/modules', [CurriculumController::class, 'storeModule'])->name('modules.store');
+        Route::put('/modules/{module}', [CurriculumController::class, 'updateModule'])->name('modules.update');
+        Route::delete('/modules/{module}', [CurriculumController::class, 'destroyModule'])->name('modules.destroy');
 
-        Route::post('/topics', [CurriculumController::class, 'storeTopic'])->middleware('permission:curriculum.create')->name('topics.store');
-        Route::put('/topics/{topic}', [CurriculumController::class, 'updateTopic'])->middleware('permission:curriculum.update')->name('topics.update');
-        Route::delete('/topics/{topic}', [CurriculumController::class, 'destroyTopic'])->middleware('permission:curriculum.delete')->name('topics.destroy');
+        Route::post('/topics', [CurriculumController::class, 'storeTopic'])->name('topics.store');
+        Route::put('/topics/{topic}', [CurriculumController::class, 'updateTopic'])->name('topics.update');
+        Route::delete('/topics/{topic}', [CurriculumController::class, 'destroyTopic'])->name('topics.destroy');
 
-        Route::post('/sub-topics', [CurriculumController::class, 'storeSubTopic'])->middleware('permission:curriculum.create')->name('sub-topics.store');
-        Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->middleware('permission:curriculum.update')->name('sub-topics.update');
-        Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->middleware('permission:curriculum.delete')->name('sub-topics.destroy');
+        Route::post('/sub-topics', [CurriculumController::class, 'storeSubTopic'])->name('sub-topics.store');
+        Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->name('sub-topics.update');
+        Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->name('sub-topics.destroy');
 
         
     });
@@ -576,11 +566,11 @@ Route::middleware('auth')->group(function () {
     | Academic - Assignments
     |--------------------------------------------------------------------------
     */
-    Route::prefix('assignments')->name('assignments.')->middleware('permission:assignments.view')->group(function () {
+    Route::prefix('assignments')->name('assignments.')->group(function () {
         Route::get('/', [AssignmentController::class, 'index'])->name('index');
-        Route::post('/', [AssignmentController::class, 'store'])->middleware('permission:assignments.create')->name('store');
-        Route::put('/{assignment}', [AssignmentController::class, 'update'])->middleware('permission:assignments.update')->name('update');
-        Route::delete('/{assignment}', [AssignmentController::class, 'destroy'])->middleware('permission:assignments.delete')->name('destroy');
+        Route::post('/', [AssignmentController::class, 'store'])->name('store');
+        Route::put('/{assignment}', [AssignmentController::class, 'update'])->name('update');
+        Route::delete('/{assignment}', [AssignmentController::class, 'destroy'])->name('destroy');
     });
 
     /*
@@ -588,7 +578,7 @@ Route::middleware('auth')->group(function () {
     | Academic - Assignment Submissions
     |--------------------------------------------------------------------------
     */
-    Route::prefix('assignment-submissions')->name('assignment-submissions.')->middleware('permission:assignment_submissions.view')->group(function () {
+    Route::prefix('assignment-submissions')->name('assignment-submissions.')->group(function () {
         Route::get('/', [AssignmentSubmissionController::class, 'index'])->name('index');
 
         Route::post('/{assignmentSubmission}/review', [AssignmentSubmissionController::class, 'review'])
@@ -609,11 +599,11 @@ Route::middleware('auth')->group(function () {
     | Academic - Learning Quizzes
     |--------------------------------------------------------------------------
     */
-    Route::prefix('learning-quizzes')->name('learning-quizzes.')->middleware('permission:learning_quizzes.view')->group(function () {
+    Route::prefix('learning-quizzes')->name('learning-quizzes.')->group(function () {
         Route::get('/', [LearningQuizController::class, 'index'])->name('index');
-        Route::post('/', [LearningQuizController::class, 'store'])->middleware('permission:learning_quizzes.create')->name('store');
-        Route::put('/{learningQuiz}', [LearningQuizController::class, 'update'])->middleware('permission:learning_quizzes.update')->name('update');
-        Route::delete('/{learningQuiz}', [LearningQuizController::class, 'destroy'])->middleware('permission:learning_quizzes.delete')->name('destroy');
+        Route::post('/', [LearningQuizController::class, 'store'])->name('store');
+        Route::put('/{learningQuiz}', [LearningQuizController::class, 'update'])->name('update');
+        Route::delete('/{learningQuiz}', [LearningQuizController::class, 'destroy'])->name('destroy');
     });
 
     /*
@@ -652,11 +642,11 @@ Route::middleware('auth')->group(function () {
     | Academic - Batch Assignments
     |--------------------------------------------------------------------------
     */
-    Route::prefix('batch-assignments')->name('batch-assignments.')->middleware('permission:batch_assignments.view')->group(function () {
+    Route::prefix('batch-assignments')->name('batch-assignments.')->group(function () {
         Route::get('/', [BatchAssignmentController::class, 'index'])->name('index');
-        Route::post('/', [BatchAssignmentController::class, 'store'])->middleware('permission:batch_assignments.create')->name('store');
-        Route::put('/{batchAssignment}', [BatchAssignmentController::class, 'update'])->middleware('permission:batch_assignments.update')->name('update');
-        Route::delete('/{batchAssignment}', [BatchAssignmentController::class, 'destroy'])->middleware('permission:batch_assignments.delete')->name('destroy');
+        Route::post('/', [BatchAssignmentController::class, 'store'])->name('store');
+        Route::put('/{batchAssignment}', [BatchAssignmentController::class, 'update'])->name('update');
+        Route::delete('/{batchAssignment}', [BatchAssignmentController::class, 'destroy'])->name('destroy');
     });
 
     /*
@@ -664,11 +654,11 @@ Route::middleware('auth')->group(function () {
     | Academic - Batch Learning Quizzes
     |--------------------------------------------------------------------------
     */
-    Route::prefix('batch-learning-quizzes')->name('batch-learning-quizzes.')->middleware('permission:batch_learning_quizzes.view')->group(function () {
+    Route::prefix('batch-learning-quizzes')->name('batch-learning-quizzes.')->group(function () {
         Route::get('/', [BatchLearningQuizController::class, 'index'])->name('index');
-        Route::post('/', [BatchLearningQuizController::class, 'store'])->middleware('permission:batch_learning_quizzes.create')->name('store');
-        Route::put('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'update'])->middleware('permission:batch_learning_quizzes.update')->name('update');
-        Route::delete('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'destroy'])->middleware('permission:batch_learning_quizzes.delete')->name('destroy');
+        Route::post('/', [BatchLearningQuizController::class, 'store'])->name('store');
+        Route::put('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'update'])->name('update');
+        Route::delete('/{batchLearningQuiz}', [BatchLearningQuizController::class, 'destroy'])->name('destroy');
     });
 
     /*
@@ -676,7 +666,7 @@ Route::middleware('auth')->group(function () {
     | Academic - Learning Quiz Attempts / Results
     |--------------------------------------------------------------------------
     */
-    Route::prefix('learning-quiz-attempts')->name('learning-quiz-attempts.')->middleware('permission:learning_quiz_attempts.view')->group(function () {
+    Route::prefix('learning-quiz-attempts')->name('learning-quiz-attempts.')->group(function () {
         Route::get('/', [LearningQuizAttemptController::class, 'index'])
             ->name('index');
 
@@ -1007,7 +997,7 @@ Route::middleware('auth')->group(function () {
                     ->whereNumber('announcement')
                     ->name('show');
 
-                Route::post('/', 'store')->middleware('permission:users.create')->name('store');
+                Route::post('/', 'store')->name('store');
 
                 Route::put('/{announcement}', 'update')
                     ->whereNumber('announcement')
@@ -1040,7 +1030,7 @@ Route::middleware('auth')->group(function () {
     | Academic - Instructor Schedules
     |--------------------------------------------------------------------------
     */
-    Route::prefix('instructor-schedules')->name('instructor-schedules.')->middleware('permission:instructor_schedules.view')->group(function () {
+    Route::prefix('instructor-schedules')->name('instructor-schedules.')->group(function () {
         Route::get('/material-topics', [InstructorScheduleController::class, 'materialTopics'])
             ->name('material-topics');
 
@@ -1108,7 +1098,6 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('instructor-tracking')
         ->name('instructor-tracking.')
-        ->middleware('permission:instructor_tracking.view')
         ->controller(InstructorTrackingController::class)
         ->group(function () {
             Route::get('/', 'index')
@@ -1136,8 +1125,8 @@ Route::middleware('auth')->group(function () {
     | Marketing
     |--------------------------------------------------------------------------
     */
-    Route::prefix('marketing')->name('marketing.')->middleware('permission:marketing.view')->group(function () {
-        Route::get('/dashboard', [MarketingDashboardController::class, 'index'])->middleware('permission:marketing.dashboard.view')->name('dashboard');
+    Route::prefix('marketing')->name('marketing.')->group(function () {
+        Route::get('/dashboard', [MarketingDashboardController::class, 'index'])->name('dashboard');
 
         Route::prefix('plans')->name('plans.')->group(function () {
             Route::get('/', [MarketingPlanController::class, 'index'])->name('index');
@@ -1185,8 +1174,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/sync-period-data', [MarketingReportController::class, 'syncPeriodData'])->name('sync-period-data');
 
             Route::get('/', [MarketingReportController::class, 'index'])->name('index');
-            Route::get('/create', [MarketingReportController::class, 'create'])->middleware('permission:marketing_reports.create')->name('create');
-            Route::post('/', [MarketingReportController::class, 'store'])->middleware('permission:marketing_reports.create')->name('store');
+            Route::get('/create', [MarketingReportController::class, 'create'])->name('create');
+            Route::post('/', [MarketingReportController::class, 'store'])->name('store');
             Route::get('/{marketingReport}', [MarketingReportController::class, 'show'])->name('show');
             Route::get('/{marketingReport}/edit', [MarketingReportController::class, 'edit'])->name('edit');
             Route::put('/{marketingReport}', [MarketingReportController::class, 'update'])->name('update');

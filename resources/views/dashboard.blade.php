@@ -3,6 +3,7 @@
 @section('title', 'Management Dashboard')
 
 @section('content')
+
 @php
     $salesInsight = $salesInsight ?? [];
 
@@ -14,6 +15,13 @@
     $salesInteractionRate = (float) ($salesInsight['interaction_rate'] ?? $salesInsight['conversion_trial'] ?? 0);
     $salesClosingRate = (float) ($salesInsight['closing_rate'] ?? $salesInsight['deal_rate'] ?? $salesInsight['conversion_join'] ?? 0);
     $salesPaidRate = (float) ($salesInsight['paid_rate'] ?? $salesInsight['conversion_paid'] ?? 0);
+
+    $currentUser = auth()->user();
+
+    $canManageCurriculum = $currentUser
+        && method_exists($currentUser, 'canAccess')
+        && $currentUser->canAccess('curriculum.view')
+        && Route::has('curriculum.index');
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -29,11 +37,13 @@
                 </p>
             </div>
 
-            <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('curriculum.index') }}" class="btn btn-light btn-modern">
-                    <i class="bi bi-gear-fill"></i> Manage Curriculum
-                </a>
-            </div>
+            @if($canManageCurriculum)
+                <div class="page-header-actions d-flex gap-2 flex-wrap">
+                    <a href="{{ route('curriculum.index') }}" class="btn btn-light btn-modern">
+                        <i class="bi bi-gear-fill"></i> Manage Curriculum
+                    </a>
+                </div>
+            @endif
         </div>
     </div>
 
