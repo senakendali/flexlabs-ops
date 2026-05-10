@@ -87,4 +87,9 @@ class Batch extends Model
     {
         return $this->hasMany(StudentAttendance::class);
     }
+
+    public function communityGroups(): HasMany
+    {
+        return $this->hasMany(CommunityGroup::class, 'batch_id');
+    }
 }

@@ -1,27 +1,24 @@
 <?php
 
-use App\Http\Controllers\Api\Lms\LmsCommunityController;
 use App\Http\Controllers\Api\Lms\StudentAnnouncementController;
 use App\Http\Controllers\Api\Lms\StudentAssignmentController;
 use App\Http\Controllers\Api\Lms\StudentAuthController;
 use App\Http\Controllers\Api\Lms\StudentCourseController;
 use App\Http\Controllers\Api\Lms\StudentDashboardController;
 use App\Http\Controllers\Api\Lms\StudentLearningController;
-use App\Http\Controllers\Api\Lms\StudentLearningNoteController;
 use App\Http\Controllers\Api\Lms\StudentMentoringController;
 use App\Http\Controllers\Api\Lms\StudentQuizController;
 use App\Http\Controllers\Api\Lms\StudentScheduleController;
 use App\Http\Controllers\Api\Lms\StudentUpcomingSessionController;
+use App\Http\Controllers\Api\PublicQuizController;
+use App\Http\Controllers\Api\Lms\StudentLearningNoteController;
 use App\Http\Controllers\Api\Lms\StudentAcademicDocumentController;
 use App\Http\Controllers\Api\Lms\StudentNotificationController;
 use App\Http\Controllers\Api\Lms\Student\MrPioneerController;
 use App\Http\Controllers\Api\Lms\Student\StudentProfileController;
 use App\Http\Controllers\Api\Lms\Student\StudentSearchController;
-use App\Http\Controllers\Api\PublicQuizController;
-use App\Models\Student;
-use Illuminate\Support\Facades\Response;
+use App\Http\Controllers\Api\Lms\LmsCommunityController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -39,73 +36,6 @@ Route::prefix('public/quizzes/{quiz}')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('lms/student')->group(function () {
-    /*
-    |--------------------------------------------------------------------------
-    | Public Student Avatar Proxy
-    |--------------------------------------------------------------------------
-    |
-    | Dipakai Flutter Web untuk load profile picture tanpa kena CORS static
-    | file /storage. URL:
-    |
-    | GET /api/lms/student/avatar/{student}
-    |
-    */
-    Route::get('/avatar/{student}', function (Student $student) {
-        $studentArray = $student->toArray();
-
-        $avatarUrl = $student->avatar_url
-            ?? data_get($studentArray, 'avatar_url')
-            ?? data_get($studentArray, 'avatarUrl')
-            ?? data_get($studentArray, 'profile_photo_path')
-            ?? data_get($studentArray, 'profilePhotoPath')
-            ?? data_get($studentArray, 'photo_url')
-            ?? data_get($studentArray, 'photoUrl')
-            ?? data_get($studentArray, 'image_url')
-            ?? data_get($studentArray, 'imageUrl');
-
-        abort_if(!$avatarUrl, 404);
-
-        $avatarUrl = trim($avatarUrl);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Normalize Path
-        |--------------------------------------------------------------------------
-        |
-        | Support format:
-        | /storage/students/profile-photos/file.jpg
-        | storage/students/profile-photos/file.jpg
-        | students/profile-photos/file.jpg
-        | http://127.0.0.1:8007/storage/students/profile-photos/file.jpg
-        |
-        */
-        if (str_starts_with($avatarUrl, 'http://') || str_starts_with($avatarUrl, 'https://')) {
-            $parsedPath = parse_url($avatarUrl, PHP_URL_PATH);
-            $path = $parsedPath ?: $avatarUrl;
-        } else {
-            $path = $avatarUrl;
-        }
-
-        $path = str_replace('\\', '/', $path);
-        $path = str_replace('/storage/', '', $path);
-        $path = str_replace('storage/', '', $path);
-        $path = ltrim($path, '/');
-
-        abort_if(!$path, 404);
-        abort_if(!Storage::disk('public')->exists($path), 404);
-
-        $file = Storage::disk('public')->get($path);
-        $mime = Storage::disk('public')->mimeType($path) ?: 'image/jpeg';
-
-        return Response::make($file, 200, [
-            'Content-Type' => $mime,
-            'Cache-Control' => 'public, max-age=3600',
-            'Access-Control-Allow-Origin' => request()->headers->get('origin', '*'),
-            'Access-Control-Allow-Methods' => 'GET, OPTIONS',
-            'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept',
-        ]);
-    })->whereNumber('student');
-
     /*
     |--------------------------------------------------------------------------
     | Auth
@@ -162,9 +92,10 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         | Learning Notes
         |--------------------------------------------------------------------------
+        | Notes bisa dibuat dari halaman learning dan difilter berdasarkan
+        | course, topic, sub topic, lesson, keyword, dan status.
         */
         Route::get('/notes', [StudentLearningNoteController::class, 'index']);
-
         Route::get('/notes/{note}', [StudentLearningNoteController::class, 'show'])
             ->whereNumber('note');
 
@@ -197,13 +128,16 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         | Search
         |--------------------------------------------------------------------------
-        */
+        | Pencarian gabungan untuk course, lesson, dan learning note berdasarkan
+        | keyword. Bisa ditambahkan filter berdasarkan course, topic, dan sub topic.
+        */ 
         Route::get('/search', [StudentSearchController::class, 'index']);
 
         /*
         |--------------------------------------------------------------------------
         | Academic Documents
         |--------------------------------------------------------------------------
+        | Gabungan report card dan certificate untuk halaman student certificates.
         */
         Route::get('/academic-documents', [StudentAcademicDocumentController::class, 'index']);
 
@@ -242,33 +176,10 @@ Route::prefix('lms/student')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Community / Pioneer Hub
-        |--------------------------------------------------------------------------
-        */
-        Route::prefix('community')->group(function () {
-            Route::get('/home', [LmsCommunityController::class, 'home']);
-            Route::get('/channels', [LmsCommunityController::class, 'channels']);
-
-            Route::get('/channels/{channel}/posts', [LmsCommunityController::class, 'posts'])
-                ->whereNumber('channel');
-
-            Route::post('/channels/{channel}/posts', [LmsCommunityController::class, 'storePost'])
-                ->whereNumber('channel');
-
-            Route::get('/posts/{post}', [LmsCommunityController::class, 'showPost'])
-                ->whereNumber('post');
-
-            Route::post('/posts/{post}/comments', [LmsCommunityController::class, 'storeComment'])
-                ->whereNumber('post');
-
-            Route::post('/posts/{post}/solve', [LmsCommunityController::class, 'markAsSolved'])
-                ->whereNumber('post');
-        });
-
-        /*
-        |--------------------------------------------------------------------------
         | Schedule
         |--------------------------------------------------------------------------
+        | Gabungan live session dari instructor schedule dan mentoring session,
+        | termasuk one-on-one.
         */
         Route::get('/schedules', [StudentScheduleController::class, 'index']);
 
@@ -276,6 +187,7 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         | Upcoming Sessions
         |--------------------------------------------------------------------------
+        | Ringkasan upcoming session untuk dashboard student.
         */
         Route::get('/upcoming-sessions', [StudentUpcomingSessionController::class, 'index']);
 

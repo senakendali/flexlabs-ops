@@ -181,4 +181,19 @@ class Student extends Model
     {
         return $this->hasMany(StudentAttendance::class);
     }
+
+    public function communityPosts(): HasMany
+    {
+        return $this->hasMany(CommunityPost::class, 'student_id');
+    }
+
+    public function communityComments(): HasMany
+    {
+        return $this->hasMany(CommunityComment::class, 'student_id');
+    }
+
+    public function communityPostReads(): HasMany
+    {
+        return $this->hasMany(CommunityPostRead::class, 'student_id');
+    }
 }

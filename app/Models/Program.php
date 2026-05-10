@@ -77,5 +77,10 @@ class Program extends Model
         return $this->hasMany(Certificate::class);
     }
 
+    public function communityGroups(): HasMany
+    {
+        return $this->hasMany(CommunityGroup::class, 'program_id');
+    }
+
     
 }
