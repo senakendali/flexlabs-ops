@@ -44,11 +44,22 @@ class StudentProfileController extends Controller
         $user = $request->user();
         $student = $this->resolveStudent($user);
 
+        $this->normalizeProfileRequest($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
+            'nik' => ['nullable', 'digits:16'],
+            'emergency_contact_name' => ['nullable', 'string', 'max:255'],
+            'emergency_contact_phone' => ['nullable', 'string', 'max:30'],
+            'emergency_contact_relation' => ['nullable', 'string', 'max:100'],
             'bio' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'nik.digits' => 'NIK harus berisi 16 digit angka.',
+            'emergency_contact_name.max' => 'Nama emergency contact maksimal 255 karakter.',
+            'emergency_contact_phone.max' => 'Nomor emergency contact maksimal 30 karakter.',
+            'emergency_contact_relation.max' => 'Relasi emergency contact maksimal 100 karakter.',
         ]);
 
         DB::beginTransaction();
@@ -303,6 +314,10 @@ class StudentProfileController extends Controller
             $payload['email'] = $validated['email'];
         }
 
+        if (Schema::hasColumn('users', 'phone')) {
+            $payload['phone'] = $validated['phone'] ?? null;
+        }
+
         if (!empty($payload)) {
             $payload['updated_at'] = now();
 
@@ -329,11 +344,27 @@ class StudentProfileController extends Controller
         }
 
         if (Schema::hasColumn('students', 'phone')) {
-            $payload['phone'] = $validated['phone'];
+            $payload['phone'] = $validated['phone'] ?? null;
+        }
+
+        if (Schema::hasColumn('students', 'nik')) {
+            $payload['nik'] = $validated['nik'] ?? null;
+        }
+
+        if (Schema::hasColumn('students', 'emergency_contact_name')) {
+            $payload['emergency_contact_name'] = $validated['emergency_contact_name'] ?? null;
+        }
+
+        if (Schema::hasColumn('students', 'emergency_contact_phone')) {
+            $payload['emergency_contact_phone'] = $validated['emergency_contact_phone'] ?? null;
+        }
+
+        if (Schema::hasColumn('students', 'emergency_contact_relation')) {
+            $payload['emergency_contact_relation'] = $validated['emergency_contact_relation'] ?? null;
         }
 
         if (Schema::hasColumn('students', 'bio')) {
-            $payload['bio'] = $validated['bio'];
+            $payload['bio'] = $validated['bio'] ?? null;
         }
 
         if (!empty($payload)) {
@@ -364,6 +395,10 @@ class StudentProfileController extends Controller
         ]);
 
         $avatarUrl = $this->recordValue($student, ['avatar_url']);
+        $nik = $this->recordValue($student, ['nik']);
+        $emergencyContactName = $this->recordValue($student, ['emergency_contact_name', 'emergencyContactName']);
+        $emergencyContactPhone = $this->recordValue($student, ['emergency_contact_phone', 'emergencyContactPhone']);
+        $emergencyContactRelation = $this->recordValue($student, ['emergency_contact_relation', 'emergencyContactRelation']);
 
         return [
             'id' => $student->id ?? null,
@@ -376,6 +411,14 @@ class StudentProfileController extends Controller
 
             'email' => $email,
             'phone' => $this->recordValue($student, ['phone']),
+
+            'nik' => $nik,
+            'emergency_contact_name' => $emergencyContactName,
+            'emergencyContactName' => $emergencyContactName,
+            'emergency_contact_phone' => $emergencyContactPhone,
+            'emergencyContactPhone' => $emergencyContactPhone,
+            'emergency_contact_relation' => $emergencyContactRelation,
+            'emergencyContactRelation' => $emergencyContactRelation,
 
             'role' => 'FlexLabs Student',
             'bio' => $bio,
@@ -394,6 +437,13 @@ class StudentProfileController extends Controller
             'name' => $studentData['name'],
             'email' => $studentData['email'],
             'phone' => $studentData['phone'],
+            'nik' => $studentData['nik'],
+            'emergency_contact_name' => $studentData['emergency_contact_name'],
+            'emergencyContactName' => $studentData['emergency_contact_name'],
+            'emergency_contact_phone' => $studentData['emergency_contact_phone'],
+            'emergencyContactPhone' => $studentData['emergency_contact_phone'],
+            'emergency_contact_relation' => $studentData['emergency_contact_relation'],
+            'emergencyContactRelation' => $studentData['emergency_contact_relation'],
             'program' => $currentProgram,
             'bio' => $studentData['bio'],
         ];
@@ -743,6 +793,17 @@ class StudentProfileController extends Controller
         }
 
         if (
+            Schema::hasTable('program_stages')
+            && Schema::hasColumn('modules', 'program_stage_id')
+            && Schema::hasColumn('program_stages', 'program_id')
+        ) {
+            return DB::table('modules')
+                ->join('program_stages', 'modules.program_stage_id', '=', 'program_stages.id')
+                ->where('program_stages.program_id', $programId)
+                ->pluck('modules.id');
+        }
+
+        if (
             Schema::hasTable('stages')
             && Schema::hasColumn('modules', 'stage_id')
             && Schema::hasColumn('stages', 'program_id')
@@ -851,6 +912,48 @@ class StudentProfileController extends Controller
         } catch (Throwable) {
             return 0;
         }
+    }
+
+    private function normalizeProfileRequest(Request $request): void
+    {
+        $request->merge([
+            'name' => $this->nullableString($request->input('name')) ?? '',
+            'email' => $this->nullableString($request->input('email')) ?? '',
+            'phone' => $this->nullableString($request->input('phone')),
+            'nik' => $this->normalizeDigitValue($request->input('nik'), 16),
+            'emergency_contact_name' => $this->nullableString($request->input('emergency_contact_name')),
+            'emergency_contact_phone' => $this->nullableString($request->input('emergency_contact_phone')),
+            'emergency_contact_relation' => $this->nullableString($request->input('emergency_contact_relation')),
+            'bio' => $this->nullableString($request->input('bio')),
+        ]);
+    }
+
+    private function normalizeDigitValue(mixed $value, int $maxLength): ?string
+    {
+        $stringValue = $this->nullableString($value);
+
+        if ($stringValue === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $stringValue) ?: '';
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return substr($digits, 0, $maxLength);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $stringValue = trim((string) $value);
+
+        return $stringValue === '' ? null : $stringValue;
     }
 
     private function firstExistingColumn(string $table, array $columns): ?string
