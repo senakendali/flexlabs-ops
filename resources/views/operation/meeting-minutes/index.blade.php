@@ -16,7 +16,7 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('operation.meeting-minutes.create') }}" class="btn btn-primary btn-modern">
+                <a href="{{ route('operation.meeting-minutes.create') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-plus-circle me-2"></i>Create MOM
                 </a>
             </div>

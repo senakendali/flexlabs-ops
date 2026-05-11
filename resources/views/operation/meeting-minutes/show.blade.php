@@ -126,15 +126,15 @@
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('operation.meeting-minutes.index') }}" class="btn btn-light border">
+                <a href="{{ route('operation.meeting-minutes.index') }}" class="btn btn-light border btn-modern">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
 
-                <a href="{{ route('operation.meeting-minutes.edit', $meetingMinute) }}" class="btn btn-edit-accent">
+                <a href="{{ route('operation.meeting-minutes.edit', $meetingMinute) }}" class="btn btn-light btn-modern">
                     <i class="bi bi-pencil-square me-1"></i> Edit
                 </a>
 
-                <button type="button" class="btn btn-danger" id="openDeleteModalBtn">
+                <button type="button" class="btn btn-danger btn-modern" id="openDeleteModalBtn">
                     <i class="bi bi-trash me-1"></i> Delete
                 </button>
             </div>

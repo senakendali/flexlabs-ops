@@ -116,7 +116,7 @@
     };
 @endphp
 
-<div class="container-fluid px-4 py-4 meeting-minute-form-page">
+<div class="container-fluid px-4 py-4 meeting-minute-form-page workshops-form-page">
 
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -131,17 +131,17 @@
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('operation.meeting-minutes.index') }}" class="btn btn-light border">
+                <a href="{{ route('operation.meeting-minutes.index') }}" class="btn btn-light border btn-modern">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
 
                 @if($isEdit)
-                    <a href="{{ route('operation.meeting-minutes.show', $meetingMinute) }}" class="btn btn-light border">
+                    <a href="{{ route('operation.meeting-minutes.show', $meetingMinute) }}" class="btn btn-light btn-modern border">
                         <i class="bi bi-eye me-1"></i> View
                     </a>
                 @endif
 
-                <button type="button" id="saveDraftBtn" class="btn btn-save-draft">
+                <button type="button" id="saveDraftBtn" class="btn btn-light btn-modern">
                     <i class="bi bi-save me-1"></i> Save Draft
                 </button>
 
