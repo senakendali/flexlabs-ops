@@ -4,13 +4,58 @@
 
 @section('content')
 @php
-    $meetingDateLabel = $meetingMinute->meeting_date
-        ? \Illuminate\Support\Carbon::parse($meetingMinute->meeting_date)->format('d M Y')
-        : '-';
+    $formatDateLabel = function ($value) {
+        if (blank($value)) {
+            return '-';
+        }
 
-    $timeLabel = ($meetingMinute->start_time ? substr((string) $meetingMinute->start_time, 0, 5) : '-')
-        . ' - '
-        . ($meetingMinute->end_time ? substr((string) $meetingMinute->end_time, 0, 5) : '-');
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('d M Y');
+        } catch (\Throwable $e) {
+            return '-';
+        }
+    };
+
+    $formatTimeLabel = function ($value) {
+        if (blank($value)) {
+            return '-';
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return \Illuminate\Support\Carbon::instance($value)->format('H:i');
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '-';
+        }
+
+        foreach (['H:i', 'H:i:s'] as $format) {
+            try {
+                $time = \Illuminate\Support\Carbon::createFromFormat($format, $value);
+
+                if ($time !== false) {
+                    return $time->format('H:i');
+                }
+            } catch (\Throwable $e) {
+                // Continue to the next parser.
+            }
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('H:i');
+        } catch (\Throwable $e) {
+            return '-';
+        }
+    };
+
+    $meetingDateLabel = $formatDateLabel($meetingMinute->meeting_date);
+    $startTimeLabel = $formatTimeLabel($meetingMinute->start_time);
+    $endTimeLabel = $formatTimeLabel($meetingMinute->end_time);
+    $timeLabel = ($startTimeLabel !== '-' || $endTimeLabel !== '-')
+        ? $startTimeLabel . ' - ' . $endTimeLabel
+        : '-';
 
     $statusClass = match ($meetingMinute->status) {
         'draft' => 'bg-warning-subtle text-warning-emphasis',
@@ -219,7 +264,7 @@
                         </div>
 
                         <div class="snapshot-item">
-                            <span class="snapshot-label">Time</span>
+                            <span class="snapshot-label">Meeting Time</span>
                             <span class="snapshot-value">{{ $timeLabel }}</span>
                         </div>
 

@@ -207,16 +207,57 @@
 
 <body>
     @php
-        $meetingDate = $meetingMinute->meeting_date
-            ? \Illuminate\Support\Carbon::parse($meetingMinute->meeting_date)->format('d M Y')
-            : '-';
+        $formatDateLabel = function ($value) {
+            if (blank($value)) {
+                return '-';
+            }
 
-        $startTime = $meetingMinute->start_time
-            ? substr((string) $meetingMinute->start_time, 0, 5)
-            : '-';
+            try {
+                return \Illuminate\Support\Carbon::parse($value)->format('d M Y');
+            } catch (\Throwable $e) {
+                return '-';
+            }
+        };
 
-        $endTime = $meetingMinute->end_time
-            ? substr((string) $meetingMinute->end_time, 0, 5)
+        $formatTimeLabel = function ($value) {
+            if (blank($value)) {
+                return '-';
+            }
+
+            if ($value instanceof \DateTimeInterface) {
+                return \Illuminate\Support\Carbon::instance($value)->format('H:i');
+            }
+
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                return '-';
+            }
+
+            foreach (['H:i', 'H:i:s'] as $format) {
+                try {
+                    $time = \Illuminate\Support\Carbon::createFromFormat($format, $value);
+
+                    if ($time !== false) {
+                        return $time->format('H:i');
+                    }
+                } catch (\Throwable $e) {
+                    // Continue to the next parser.
+                }
+            }
+
+            try {
+                return \Illuminate\Support\Carbon::parse($value)->format('H:i');
+            } catch (\Throwable $e) {
+                return '-';
+            }
+        };
+
+        $meetingDate = $formatDateLabel($meetingMinute->meeting_date);
+        $startTime = $formatTimeLabel($meetingMinute->start_time);
+        $endTime = $formatTimeLabel($meetingMinute->end_time);
+        $meetingTime = ($startTime !== '-' || $endTime !== '-')
+            ? $startTime . ' - ' . $endTime
             : '-';
 
         $logoPath = public_path('assets/images/logo-black.png');
@@ -268,7 +309,7 @@
             </tr>
             <tr>
                 <td class="info-label">Time</td>
-                <td>{{ $startTime }} - {{ $endTime }}</td>
+                <td>{{ $meetingTime }}</td>
             </tr>
             <tr>
                 <td class="info-label">Organizer</td>

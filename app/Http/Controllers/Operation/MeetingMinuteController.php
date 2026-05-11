@@ -12,9 +12,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class MeetingMinuteController extends Controller
@@ -109,6 +112,7 @@ class MeetingMinuteController extends Controller
     public function store(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $this->validatePayload($request);
+        $timeData = $this->normalizeMeetingTimes($validated);
 
         DB::beginTransaction();
 
@@ -118,8 +122,8 @@ class MeetingMinuteController extends Controller
                 'title' => $validated['title'],
                 'meeting_type' => $validated['meeting_type'] ?? 'internal',
                 'meeting_date' => $validated['meeting_date'],
-                'start_time' => $validated['start_time'] ?? null,
-                'end_time' => $validated['end_time'] ?? null,
+                'start_time' => $timeData['start_time'],
+                'end_time' => $timeData['end_time'],
                 'location' => $validated['location'] ?? null,
                 'platform' => $validated['platform'] ?? null,
                 'department' => $validated['department'] ?? null,
@@ -238,6 +242,7 @@ class MeetingMinuteController extends Controller
     public function update(Request $request, MeetingMinute $meetingMinute): JsonResponse|RedirectResponse
     {
         $validated = $this->validatePayload($request);
+        $timeData = $this->normalizeMeetingTimes($validated);
 
         DB::beginTransaction();
 
@@ -246,8 +251,8 @@ class MeetingMinuteController extends Controller
                 'title' => $validated['title'],
                 'meeting_type' => $validated['meeting_type'] ?? 'internal',
                 'meeting_date' => $validated['meeting_date'],
-                'start_time' => $validated['start_time'] ?? null,
-                'end_time' => $validated['end_time'] ?? null,
+                'start_time' => $timeData['start_time'],
+                'end_time' => $timeData['end_time'],
                 'location' => $validated['location'] ?? null,
                 'platform' => $validated['platform'] ?? null,
                 'department' => $validated['department'] ?? null,
@@ -387,8 +392,8 @@ class MeetingMinuteController extends Controller
             ],
 
             'meeting_date' => ['required', 'date'],
-            'start_time' => ['nullable', 'date_format:H:i'],
-            'end_time' => ['nullable', 'date_format:H:i', 'after_or_equal:start_time'],
+            'start_time' => ['nullable', 'string', 'max:30'],
+            'end_time' => ['nullable', 'string', 'max:30'],
 
             'location' => ['nullable', 'string', 'max:255'],
             'platform' => ['nullable', 'string', 'max:255'],
@@ -554,6 +559,71 @@ class MeetingMinuteController extends Controller
                     : null,
                 'notes' => $actionItem['notes'] ?? null,
             ]);
+        }
+    }
+
+
+    private function normalizeMeetingTimes(array $validated): array
+    {
+        $startTime = $this->normalizeTimeValue($validated['start_time'] ?? null);
+        $endTime = $this->normalizeTimeValue($validated['end_time'] ?? null);
+
+        if (filled($validated['start_time'] ?? null) && blank($startTime)) {
+            throw ValidationException::withMessages([
+                'start_time' => 'Format start time tidak valid. Gunakan format HH:mm, contoh 09:30.',
+            ]);
+        }
+
+        if (filled($validated['end_time'] ?? null) && blank($endTime)) {
+            throw ValidationException::withMessages([
+                'end_time' => 'Format end time tidak valid. Gunakan format HH:mm, contoh 11:00.',
+            ]);
+        }
+
+        if ($startTime && $endTime && strcmp($endTime, $startTime) < 0) {
+            throw ValidationException::withMessages([
+                'end_time' => 'End time harus sama atau lebih besar dari start time.',
+            ]);
+        }
+
+        return [
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ];
+    }
+
+    private function normalizeTimeValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            return Carbon::instance($value)->format('H:i:s');
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        foreach (['H:i', 'H:i:s'] as $format) {
+            try {
+                $time = Carbon::createFromFormat($format, $value);
+
+                if ($time !== false) {
+                    return $time->format('H:i:s');
+                }
+            } catch (\Throwable $e) {
+                // Continue to the next parser.
+            }
+        }
+
+        try {
+            return Carbon::parse($value)->format('H:i:s');
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 
