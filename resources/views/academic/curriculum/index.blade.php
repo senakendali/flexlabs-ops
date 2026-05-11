@@ -169,7 +169,7 @@
             @if($curriculumPrograms->count())
                 <div class="program-stack">
                     @foreach($curriculumPrograms as $program)
-                        <div class="program-block">
+                        <div class="program-block" data-program-block-id="{{ $program->id }}">
                             <div class="program-block-header">
                                 <div class="program-block-info">
                                     <div class="program-badge">
@@ -207,7 +207,7 @@
                             @if($program->stages->count())
                                 <div class="stage-stack">
                                     @foreach($program->stages as $stage)
-                                        <div class="stage-card">
+                                        <div class="stage-card" data-stage-card-id="{{ $stage->id }}">
                                             <div class="stage-card-header">
                                                 <div>
                                                     <div class="stage-title">
@@ -253,7 +253,7 @@
                                             @if($stage->modules->count())
                                                 <div class="accordion curriculum-accordion" id="stageAccordion{{ $stage->id }}">
                                                     @foreach($stage->modules as $module)
-                                                        <div class="accordion-item curriculum-module-item">
+                                                        <div class="accordion-item curriculum-module-item" data-module-item-id="{{ $module->id }}">
                                                             <div class="accordion-header custom-module-header" id="moduleHeading{{ $module->id }}">
                                                                 <div class="module-row">
                                                                     <button
@@ -330,7 +330,7 @@
                                                                     @if($module->topics->count())
                                                                         <div class="topic-list">
                                                                             @foreach($module->topics as $topic)
-                                                                                <div class="topic-card">
+                                                                                <div class="topic-card" data-topic-card-id="{{ $topic->id }}">
                                                                                     <div class="topic-card-header">
                                                                                         <div>
                                                                                             <div class="topic-title">
@@ -432,7 +432,7 @@
                                                                                     @if($topic->subTopics->count())
                                                                                         <div class="subtopic-list">
                                                                                             @foreach($topic->subTopics as $subTopic)
-                                                                                                <div class="subtopic-item">
+                                                                                                <div class="subtopic-item" data-subtopic-item-id="{{ $subTopic->id }}">
                                                                                                     <div class="subtopic-left">
                                                                                                         <div class="subtopic-thumb">
                                                                                                             @if(($subTopic->lesson_type ?? 'video') === 'live_session')
@@ -1700,6 +1700,28 @@
         background-color: #dc3545 !important;
     }
 
+
+
+    .curriculum-focus-highlight {
+        animation: curriculumFocusPulse 1.6s ease;
+    }
+
+    @keyframes curriculumFocusPulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(91, 62, 142, .26);
+            border-color: rgba(91, 62, 142, .45);
+        }
+
+        55% {
+            box-shadow: 0 0 0 .35rem rgba(91, 62, 142, .08);
+            border-color: rgba(91, 62, 142, .35);
+        }
+
+        100% {
+            box-shadow: none;
+        }
+    }
+
     @media (max-width: 991.98px) {
         .program-block-header,
         .stage-card-header,
@@ -1873,13 +1895,158 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function refreshCurriculumView() {
+    function getExpandedCollapseIds() {
+        return Array.from(document.querySelectorAll('#curriculumStructureBody .accordion-collapse.show'))
+            .map(function (collapseEl) {
+                return collapseEl.id;
+            })
+            .filter(Boolean);
+    }
+
+    function setCollapseButtonState(collapseId, isOpen) {
+        const button = document.querySelector(`[data-bs-target="#${collapseId}"]`);
+
+        if (!button) return;
+
+        if (isOpen) {
+            button.classList.remove('collapsed');
+            button.setAttribute('aria-expanded', 'true');
+        } else {
+            button.classList.add('collapsed');
+            button.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    function closeCollapseEl(collapseEl) {
+        if (!collapseEl) return;
+
+        collapseEl.classList.remove('show');
+        collapseEl.classList.remove('collapsing');
+        collapseEl.style.height = '';
+
+        if (collapseEl.id) {
+            setCollapseButtonState(collapseEl.id, false);
+        }
+    }
+
+    function openCollapseById(collapseId) {
+        if (!collapseId) return;
+
+        const collapseEl = document.getElementById(collapseId);
+
+        if (!collapseEl) return;
+
+        const parentSelector = collapseEl.getAttribute('data-bs-parent');
+
+        if (parentSelector) {
+            document.querySelectorAll(`${parentSelector} .accordion-collapse.show`).forEach(function (siblingEl) {
+                if (siblingEl !== collapseEl) {
+                    closeCollapseEl(siblingEl);
+                }
+            });
+        }
+
+        collapseEl.classList.add('show');
+        collapseEl.classList.remove('collapsing');
+        collapseEl.style.height = '';
+
+        setCollapseButtonState(collapseId, true);
+    }
+
+    function restoreExpandedCollapses(collapseIds) {
+        document.querySelectorAll('#curriculumStructureBody .accordion-collapse.show').forEach(function (collapseEl) {
+            closeCollapseEl(collapseEl);
+        });
+
+        if (!Array.isArray(collapseIds)) return;
+
+        collapseIds.forEach(function (collapseId) {
+            openCollapseById(collapseId);
+        });
+    }
+
+    function focusSelectorFromPayload(focus) {
+        if (!focus || typeof focus !== 'object') return '';
+
+        if (focus.sub_topic_id) {
+            return `[data-subtopic-item-id="${focus.sub_topic_id}"]`;
+        }
+
+        if (focus.topic_id) {
+            return `[data-topic-card-id="${focus.topic_id}"]`;
+        }
+
+        if (focus.module_id) {
+            return `[data-module-item-id="${focus.module_id}"]`;
+        }
+
+        if (focus.stage_id) {
+            return `[data-stage-card-id="${focus.stage_id}"]`;
+        }
+
+        if (focus.program_id) {
+            return `[data-program-block-id="${focus.program_id}"]`;
+        }
+
+        return '';
+    }
+
+    function applyFocusPayload(focus) {
+        if (!focus || typeof focus !== 'object') return;
+
+        if (focus.collapse_id) {
+            openCollapseById(focus.collapse_id);
+        } else if (focus.module_id) {
+            openCollapseById(`moduleCollapse${focus.module_id}`);
+        }
+
+        const selector = focusSelectorFromPayload(focus);
+        const targetEl = selector ? document.querySelector(selector) : null;
+
+        if (!targetEl) return;
+
+        targetEl.classList.add('curriculum-focus-highlight');
+
+        window.setTimeout(function () {
+            targetEl.classList.remove('curriculum-focus-highlight');
+        }, 1700);
+    }
+
+    function replaceOptionsFromNextDocument(nextDocument, selector) {
+        const currentSelect = document.querySelector(selector);
+        const nextSelect = nextDocument.querySelector(selector);
+
+        if (!currentSelect || !nextSelect) return;
+
+        const currentValue = currentSelect.value;
+
+        currentSelect.innerHTML = nextSelect.innerHTML;
+
+        if (currentValue) {
+            currentSelect.value = currentValue;
+        }
+    }
+
+    function refreshDynamicModalOptions(nextDocument) {
+        replaceOptionsFromNextDocument(nextDocument, '#stageForm select[name="program_id"]');
+        replaceOptionsFromNextDocument(nextDocument, '#moduleForm select[name="program_stage_id"]');
+        replaceOptionsFromNextDocument(nextDocument, '#topicForm select[name="module_id"]');
+        replaceOptionsFromNextDocument(nextDocument, '#subTopicForm select[name="topic_id"]');
+    }
+
+    async function refreshCurriculumView(options = {}) {
         const statsRow = document.getElementById('curriculumStatsRow');
         const structureBody = document.getElementById('curriculumStructureBody');
 
         if (!statsRow || !structureBody) {
             return;
         }
+
+        const scrollY = Number.isFinite(options.scrollY) ? options.scrollY : window.scrollY;
+        const scrollX = Number.isFinite(options.scrollX) ? options.scrollX : window.scrollX;
+        const expandedCollapseIds = Array.isArray(options.expandedCollapseIds)
+            ? options.expandedCollapseIds
+            : getExpandedCollapseIds();
 
         structureBody.classList.add('curriculum-refreshing');
 
@@ -1891,6 +2058,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to refresh curriculum view.');
+            }
 
             const html = await response.text();
             const parser = new DOMParser();
@@ -1906,6 +2077,26 @@ document.addEventListener('DOMContentLoaded', function () {
             if (nextStructureBody) {
                 structureBody.innerHTML = nextStructureBody.innerHTML;
             }
+
+            refreshDynamicModalOptions(nextDocument);
+            restoreExpandedCollapses(expandedCollapseIds);
+            applyFocusPayload(options.focus || null);
+
+            requestAnimationFrame(function () {
+                window.scrollTo({
+                    left: scrollX,
+                    top: scrollY,
+                    behavior: 'auto',
+                });
+
+                requestAnimationFrame(function () {
+                    window.scrollTo({
+                        left: scrollX,
+                        top: scrollY,
+                        behavior: 'auto',
+                    });
+                });
+            });
         } catch (error) {
             showToast('Data tersimpan, tapi gagal refresh tampilan. Silakan refresh manual jika perlu.', 'error');
         } finally {
@@ -1968,6 +2159,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!submitBtn.dataset.defaultText) {
                 submitBtn.dataset.defaultText = submitBtn.innerHTML;
             }
+
             submitBtn.disabled = false;
             submitBtn.innerHTML = submitBtn.dataset.defaultText;
         }
@@ -1982,6 +2174,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (errors && typeof errors === 'object') {
             Object.keys(errors).forEach(function (key) {
                 const fieldErrors = errors[key];
+
                 if (Array.isArray(fieldErrors)) {
                     fieldErrors.forEach(function (message) {
                         messages.push(`<div>${escapeHtml(message)}</div>`);
@@ -2000,6 +2193,98 @@ document.addEventListener('DOMContentLoaded', function () {
         alertBox.classList.remove('d-none');
     }
 
+    function buildFallbackFocusFromForm(form) {
+        const id = form.querySelector('input[name="id"]')?.value || '';
+
+        if (form.id === 'stageForm') {
+            return {
+                type: 'stage',
+                stage_id: id || null,
+                program_id: form.querySelector('select[name="program_id"]')?.value || null,
+            };
+        }
+
+        if (form.id === 'moduleForm') {
+            if (id) {
+                return {
+                    type: 'module',
+                    module_id: id,
+                    collapse_id: `moduleCollapse${id}`,
+                };
+            }
+
+            return {
+                type: 'stage',
+                stage_id: form.querySelector('select[name="program_stage_id"]')?.value || null,
+            };
+        }
+
+        if (form.id === 'topicForm') {
+            const moduleId = form.querySelector('select[name="module_id"]')?.value || null;
+
+            if (id) {
+                return {
+                    type: 'topic',
+                    topic_id: id,
+                    module_id: moduleId,
+                    collapse_id: moduleId ? `moduleCollapse${moduleId}` : null,
+                };
+            }
+
+            return {
+                type: 'module',
+                module_id: moduleId,
+                collapse_id: moduleId ? `moduleCollapse${moduleId}` : null,
+            };
+        }
+
+        if (form.id === 'subTopicForm') {
+            if (id) {
+                return {
+                    type: 'sub_topic',
+                    sub_topic_id: id,
+                    topic_id: form.querySelector('select[name="topic_id"]')?.value || null,
+                };
+            }
+
+            return {
+                type: 'topic',
+                topic_id: form.querySelector('select[name="topic_id"]')?.value || null,
+            };
+        }
+
+        return null;
+    }
+
+    async function hideModalById(modalId) {
+        const modalEl = document.getElementById(modalId);
+
+        if (!modalEl) return;
+
+        const modalInstance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        if (!modalInstance) return;
+
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+
+        await new Promise(function (resolve) {
+            let resolved = false;
+
+            function done() {
+                if (resolved) return;
+                resolved = true;
+                resolve();
+            }
+
+            modalEl.addEventListener('hidden.bs.modal', done, { once: true });
+            modalInstance.hide();
+
+            window.setTimeout(done, 360);
+        });
+    }
+
     async function bindAsyncForm(form, modalId, updateUrlBuilder) {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -2013,6 +2298,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const actionUrl = method === 'PUT' ? updateUrlBuilder(id) : createUrl;
             const formData = new FormData(form);
 
+            const refreshContext = {
+                scrollY: window.scrollY,
+                scrollX: window.scrollX,
+                expandedCollapseIds: getExpandedCollapseIds(),
+            };
+
             const alertBox = form.querySelector('.form-alert');
             if (alertBox) {
                 alertBox.classList.add('d-none');
@@ -2023,6 +2314,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!submitBtn.dataset.defaultText) {
                     submitBtn.dataset.defaultText = submitBtn.innerHTML;
                 }
+
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = 'Saving...';
             }
@@ -2060,17 +2352,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
 
-                const modalEl = document.getElementById(modalId);
-                if (modalEl) {
-                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                    if (modalInstance) {
-                        modalInstance.hide();
-                    }
-                }
+                const focusPayload = data.focus || data.data?.focus || buildFallbackFocusFromForm(form);
+
+                await hideModalById(modalId);
 
                 showToast(data.message || 'Data berhasil disimpan.', 'success');
                 resetFormState(form);
-                await refreshCurriculumView();
+
+                await refreshCurriculumView({
+                    ...refreshContext,
+                    focus: focusPayload,
+                });
             } catch (error) {
                 showErrors(form, { general: ['Gagal menghubungi server.'] });
                 showToast('Gagal menghubungi server.', 'error');
@@ -2116,6 +2408,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            const refreshContext = {
+                scrollY: window.scrollY,
+                scrollX: window.scrollX,
+                expandedCollapseIds: getExpandedCollapseIds(),
+            };
+
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = 'Deleting...';
 
@@ -2137,13 +2435,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
 
-                const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                if (modalInstance) {
-                    modalInstance.hide();
-                }
+                await hideModalById('deleteConfirmModal');
 
                 showToast(data.message || 'Data berhasil dihapus.', 'success');
-                await refreshCurriculumView();
+
+                await refreshCurriculumView({
+                    ...refreshContext,
+                    focus: data.focus || null,
+                });
             } catch (error) {
                 showToast('Gagal menghubungi server.', 'error');
                 confirmBtn.disabled = false;

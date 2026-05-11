@@ -219,20 +219,21 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Stage berhasil ditambahkan.',
-                'data' => [
+            return $this->successResponse(
+                'Stage berhasil ditambahkan.',
+                [
                     'id' => $stage->id,
                     'name' => $stage->name,
                 ],
-            ]);
+                $this->stageFocusPayload($stage)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menambahkan stage.', $e);
         }
     }
+
 
     public function updateStage(Request $request, ProgramStage $stage): JsonResponse
     {
@@ -248,14 +249,16 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Stage berhasil diperbarui.',
-                'data' => [
+            $stage->refresh();
+
+            return $this->successResponse(
+                'Stage berhasil diperbarui.',
+                [
                     'id' => $stage->id,
                     'name' => $stage->name,
                 ],
-            ]);
+                $this->stageFocusPayload($stage)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -263,9 +266,15 @@ class CurriculumController extends Controller
         }
     }
 
+
     public function destroyStage(ProgramStage $stage): JsonResponse
     {
         try {
+            $focus = [
+                'type' => 'program',
+                'program_id' => (int) $stage->program_id,
+            ];
+
             DB::transaction(function () use ($stage) {
                 $stage->load('modules.topics.subTopics');
 
@@ -276,14 +285,16 @@ class CurriculumController extends Controller
                 $stage->delete();
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Stage berhasil dihapus.',
-            ]);
+            return $this->successResponse(
+                'Stage berhasil dihapus.',
+                [],
+                $focus
+            );
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus stage.', $e);
         }
     }
+
 
     public function storeModule(Request $request): JsonResponse
     {
@@ -298,20 +309,21 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Module berhasil ditambahkan.',
-                'data' => [
+            return $this->successResponse(
+                'Module berhasil ditambahkan.',
+                [
                     'id' => $module->id,
                     'name' => $module->name,
                 ],
-            ]);
+                $this->moduleFocusPayload($module)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menambahkan module.', $e);
         }
     }
+
 
     public function updateModule(Request $request, Module $module): JsonResponse
     {
@@ -326,14 +338,16 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Module berhasil diperbarui.',
-                'data' => [
+            $module->refresh();
+
+            return $this->successResponse(
+                'Module berhasil diperbarui.',
+                [
                     'id' => $module->id,
                     'name' => $module->name,
                 ],
-            ]);
+                $this->moduleFocusPayload($module)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -341,22 +355,30 @@ class CurriculumController extends Controller
         }
     }
 
+
     public function destroyModule(Module $module): JsonResponse
     {
         try {
+            $focus = [
+                'type' => 'stage',
+                'stage_id' => (int) $module->program_stage_id,
+            ];
+
             DB::transaction(function () use ($module) {
                 $module->load('topics.subTopics');
                 $this->deleteModuleTree($module);
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Module berhasil dihapus.',
-            ]);
+            return $this->successResponse(
+                'Module berhasil dihapus.',
+                [],
+                $focus
+            );
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus module.', $e);
         }
     }
+
 
     public function storeTopic(Request $request): JsonResponse
     {
@@ -377,20 +399,23 @@ class CurriculumController extends Controller
                 'practice_brief' => $validated['practice_brief'] ?? null,
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Topic berhasil ditambahkan.',
-                'data' => [
+            $topic->load('module:id,program_stage_id');
+
+            return $this->successResponse(
+                'Topic berhasil ditambahkan.',
+                [
                     'id' => $topic->id,
                     'name' => $topic->name,
                 ],
-            ]);
+                $this->topicFocusPayload($topic)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menambahkan topic.', $e);
         }
     }
+
 
     public function updateTopic(Request $request, Topic $topic): JsonResponse
     {
@@ -411,14 +436,16 @@ class CurriculumController extends Controller
                 'practice_brief' => $validated['practice_brief'] ?? null,
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Topic berhasil diperbarui.',
-                'data' => [
+            $topic->refresh()->load('module:id,program_stage_id');
+
+            return $this->successResponse(
+                'Topic berhasil diperbarui.',
+                [
                     'id' => $topic->id,
                     'name' => $topic->name,
                 ],
-            ]);
+                $this->topicFocusPayload($topic)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -426,22 +453,34 @@ class CurriculumController extends Controller
         }
     }
 
+
     public function destroyTopic(Topic $topic): JsonResponse
     {
         try {
+            $topic->load('module:id,program_stage_id');
+
+            $focus = [
+                'type' => 'module',
+                'stage_id' => (int) ($topic->module->program_stage_id ?? 0),
+                'module_id' => (int) $topic->module_id,
+                'collapse_id' => 'moduleCollapse' . $topic->module_id,
+            ];
+
             DB::transaction(function () use ($topic) {
                 $topic->load('subTopics');
                 $this->deleteTopicTree($topic);
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Topic berhasil dihapus.',
-            ]);
+            return $this->successResponse(
+                'Topic berhasil dihapus.',
+                [],
+                $focus
+            );
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus topic.', $e);
         }
     }
+
 
     public function storeSubTopic(Request $request): JsonResponse
     {
@@ -465,20 +504,26 @@ class CurriculumController extends Controller
                 'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sub topic berhasil ditambahkan.',
-                'data' => [
+            $subTopic->load([
+                'topic:id,module_id',
+                'topic.module:id,program_stage_id',
+            ]);
+
+            return $this->successResponse(
+                'Sub topic berhasil ditambahkan.',
+                [
                     'id' => $subTopic->id,
                     'name' => $subTopic->name,
                 ],
-            ]);
+                $this->subTopicFocusPayload($subTopic)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menambahkan sub topic.', $e);
         }
     }
+
 
     public function updateSubTopic(Request $request, SubTopic $subTopic): JsonResponse
     {
@@ -502,14 +547,19 @@ class CurriculumController extends Controller
                 'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sub topic berhasil diperbarui.',
-                'data' => [
+            $subTopic->refresh()->load([
+                'topic:id,module_id',
+                'topic.module:id,program_stage_id',
+            ]);
+
+            return $this->successResponse(
+                'Sub topic berhasil diperbarui.',
+                [
                     'id' => $subTopic->id,
                     'name' => $subTopic->name,
                 ],
-            ]);
+                $this->subTopicFocusPayload($subTopic)
+            );
         } catch (ValidationException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -517,19 +567,35 @@ class CurriculumController extends Controller
         }
     }
 
+
     public function destroySubTopic(SubTopic $subTopic): JsonResponse
     {
         try {
+            $subTopic->load([
+                'topic:id,module_id',
+                'topic.module:id,program_stage_id',
+            ]);
+
+            $focus = [
+                'type' => 'topic',
+                'stage_id' => (int) ($subTopic->topic?->module?->program_stage_id ?? 0),
+                'module_id' => (int) ($subTopic->topic?->module_id ?? 0),
+                'topic_id' => (int) $subTopic->topic_id,
+                'collapse_id' => 'moduleCollapse' . ($subTopic->topic?->module_id ?? 0),
+            ];
+
             $subTopic->delete();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Sub topic berhasil dihapus.',
-            ]);
+            return $this->successResponse(
+                'Sub topic berhasil dihapus.',
+                [],
+                $focus
+            );
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus sub topic.', $e);
         }
     }
+
 
     private function validateStage(Request $request): array
     {
@@ -629,6 +695,74 @@ class CurriculumController extends Controller
         }
 
         $topic->delete();
+    }
+
+
+    private function successResponse(string $message, array $data = [], ?array $focus = null): JsonResponse
+    {
+        $payload = [
+            'success' => true,
+            'message' => $message,
+            'data' => $data,
+        ];
+
+        if ($focus !== null) {
+            $payload['focus'] = $focus;
+        }
+
+        return response()->json($payload);
+    }
+
+    private function stageFocusPayload(ProgramStage $stage): array
+    {
+        return [
+            'type' => 'stage',
+            'program_id' => (int) $stage->program_id,
+            'stage_id' => (int) $stage->id,
+        ];
+    }
+
+    private function moduleFocusPayload(Module $module): array
+    {
+        return [
+            'type' => 'module',
+            'stage_id' => (int) $module->program_stage_id,
+            'module_id' => (int) $module->id,
+            'collapse_id' => 'moduleCollapse' . $module->id,
+        ];
+    }
+
+    private function topicFocusPayload(Topic $topic): array
+    {
+        $topic->loadMissing('module:id,program_stage_id');
+
+        return [
+            'type' => 'topic',
+            'stage_id' => (int) ($topic->module->program_stage_id ?? 0),
+            'module_id' => (int) $topic->module_id,
+            'topic_id' => (int) $topic->id,
+            'collapse_id' => 'moduleCollapse' . $topic->module_id,
+        ];
+    }
+
+    private function subTopicFocusPayload(SubTopic $subTopic): array
+    {
+        $subTopic->loadMissing([
+            'topic:id,module_id',
+            'topic.module:id,program_stage_id',
+        ]);
+
+        $topic = $subTopic->topic;
+        $module = $topic?->module;
+
+        return [
+            'type' => 'sub_topic',
+            'stage_id' => (int) ($module?->program_stage_id ?? 0),
+            'module_id' => (int) ($topic?->module_id ?? 0),
+            'topic_id' => (int) $subTopic->topic_id,
+            'sub_topic_id' => (int) $subTopic->id,
+            'collapse_id' => 'moduleCollapse' . ($topic?->module_id ?? 0),
+        ];
     }
 
     private function errorResponse(string $message, Throwable $e): JsonResponse
