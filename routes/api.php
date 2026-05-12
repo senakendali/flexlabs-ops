@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Lms\StudentNotificationController;
 use App\Http\Controllers\Api\Lms\Student\MrPioneerController;
 use App\Http\Controllers\Api\Lms\Student\StudentProfileController;
 use App\Http\Controllers\Api\Lms\Student\StudentSearchController;
+use App\Http\Controllers\Api\Lms\StudentGradeController;
 use App\Http\Controllers\Api\PublicQuizController;
 use App\Models\Student;
 use Illuminate\Support\Facades\Response;
@@ -206,6 +207,13 @@ Route::prefix('lms/student')->group(function () {
         |--------------------------------------------------------------------------
         */
         Route::get('/academic-documents', [StudentAcademicDocumentController::class, 'index']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Grades
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/grades', [StudentGradeController::class, 'index']);
 
         /*
         |--------------------------------------------------------------------------
