@@ -88,4 +88,9 @@ class AssignmentSubmission extends Model
             || !empty($this->answer_url)
             || !empty($this->submitted_file);
     }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
 }

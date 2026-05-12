@@ -27,7 +27,7 @@ class AssignmentSubmissionController extends Controller
 
         $submissions = AssignmentSubmission::query()
             ->with([
-                'student:id,name,email,phone',
+                'student:id,full_name,email,phone',
                 'assignment:id,title,assignment_type,max_score',
                 'batch:id,program_id,name,start_date,end_date,status',
                 'batch.program:id,name',
@@ -39,7 +39,7 @@ class AssignmentSubmissionController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->whereHas('student', function ($studentQuery) use ($search) {
                         $studentQuery
-                            ->where('name', 'like', '%' . $search . '%')
+                            ->where('full_name', 'like', '%' . $search . '%')
                             ->orWhere('email', 'like', '%' . $search . '%')
                             ->orWhere('phone', 'like', '%' . $search . '%');
                     })
@@ -138,9 +138,8 @@ class AssignmentSubmissionController extends Controller
                     'required',
                     'numeric',
                     'min:0',
-                    'max:999',
+                    'max:100',
                 ],
-
                 'feedback' => [
                     'nullable',
                     'string',
