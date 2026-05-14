@@ -1,25 +1,45 @@
 @extends('layouts.app-dashboard')
 
-@section('title', $material->exists ? 'Edit Material' : 'Create Material')
+@section('title', $material->exists ? 'Edit Trial & Workshop Material' : 'Create Trial & Workshop Material')
 
 @section('content')
 @php
     $isEdit = $material->exists;
 
-    $toDateValue = function ($value) {
-        if (! $value) {
+    $formAction = $isEdit
+        ? route('public-learning-materials.update', $material)
+        : route('public-learning-materials.store');
+
+    $formatDate = function ($value) {
+        if (blank($value)) {
             return '';
         }
 
-        return \Illuminate\Support\Carbon::parse($value)->format('Y-m-d');
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return '';
+        }
     };
 
-    $toDateTimeLocalValue = function ($value) {
-        if (! $value) {
+    $formatDateTimeLocal = function ($value) {
+        if (blank($value)) {
             return '';
         }
 
-        return \Illuminate\Support\Carbon::parse($value)->format('Y-m-d\TH:i');
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('Y-m-d\TH:i');
+        } catch (\Throwable $e) {
+            return '';
+        }
+    };
+
+    $status = old('status', $material->status ?? 'draft');
+
+    $statusClass = match ($status) {
+        'published' => 'status-published',
+        'archived' => 'status-closed',
+        default => 'status-draft',
     };
 
     $publicUrl = $isEdit
@@ -28,14 +48,6 @@
             'slug' => $material->slug,
         ])
         : null;
-
-    $statusClass = match ($material->status ?? 'draft') {
-        'published' => 'status-published',
-        'archived' => 'status-closed',
-        default => 'status-draft',
-    };
-
-    $statusLabel = ucfirst($material->status ?? 'draft');
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -43,32 +55,41 @@
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-                <div class="page-eyebrow">Academic Management</div>
+                <div class="page-eyebrow">Academic / Trial & Workshop Materials</div>
 
                 <h1 class="page-title mb-2">
-                    {{ $isEdit ? 'Edit Trial & Workshop Material' : 'Create Trial & Workshop Material' }}
+                    {{ $isEdit ? 'Edit Material' : 'Create Material' }}
                 </h1>
 
                 <p class="page-subtitle mb-0">
-                    Isi informasi material public untuk trial class atau workshop.
-                    Link bisa diatur dengan access window supaya otomatis expired.
+                    Kelola materi public untuk trial class dan workshop. Materi ini tidak masuk LMS,
+                    tapi bisa diakses lewat public link dengan expired time.
                 </p>
             </div>
 
-            <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('public-learning-materials.index') }}" class="btn btn-light btn-modern">
-                    <i class="bi bi-arrow-left me-2"></i>Back
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('public-learning-materials.index') }}" class="btn btn-light border btn-modern">
+                    <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
 
                 @if($isEdit && $publicUrl)
+                    <a href="{{ $publicUrl }}" target="_blank" class="btn btn-light border btn-modern">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Public Page
+                    </a>
+
                     <button
                         type="button"
-                        class="btn btn-outline-primary btn-modern copy-public-link-btn"
-                        data-copy-value="{{ $publicUrl }}"
+                        class="btn btn-light border btn-modern"
+                        data-copy-public-link="{{ $publicUrl }}"
                     >
-                        <i class="bi bi-copy me-2"></i>Copy Public Link
+                        <i class="bi bi-copy me-1"></i> Copy Link
                     </button>
                 @endif
+
+                <button type="submit" form="publicLearningMaterialForm" class="btn btn-primary btn-modern">
+                    <i class="bi bi-save me-1"></i>
+                    {{ $isEdit ? 'Update Material' : 'Create Material' }}
+                </button>
             </div>
         </div>
     </div>
@@ -102,8 +123,9 @@
     @endif
 
     <form
+        id="publicLearningMaterialForm"
         method="POST"
-        action="{{ $isEdit ? route('public-learning-materials.update', $material) : route('public-learning-materials.store') }}"
+        action="{{ $formAction }}"
         enctype="multipart/form-data"
     >
         @csrf
@@ -113,14 +135,14 @@
         @endif
 
         <div class="row g-4">
-
             <div class="col-xl-8">
+
                 <div class="content-card mb-4">
                     <div class="content-card-header">
                         <div>
-                            <h5 class="content-card-title mb-1">Basic Information</h5>
+                            <h5 class="content-card-title mb-1">Material Information</h5>
                             <p class="content-card-subtitle mb-0">
-                                Informasi utama yang akan tampil di halaman public material.
+                                Informasi utama yang akan tampil di landing page public.
                             </p>
                         </div>
                     </div>
@@ -128,7 +150,7 @@
                     <div class="content-card-body">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label">Material Type</label>
+                                <label class="form-label">Type</label>
                                 <select name="type" class="form-select" required>
                                     <option value="trial" {{ old('type', $material->type ?? 'trial') === 'trial' ? 'selected' : '' }}>
                                         Trial
@@ -160,7 +182,7 @@
                                     type="date"
                                     name="event_date"
                                     class="form-control"
-                                    value="{{ old('event_date', $toDateValue($material->event_date ?? null)) }}"
+                                    value="{{ old('event_date', $formatDate($material->event_date ?? null)) }}"
                                 >
                             </div>
 
@@ -188,7 +210,7 @@
                                     placeholder="Akan otomatis mengikuti title jika dikosongkan"
                                 >
                                 <div class="form-text">
-                                    Slug dipakai untuk URL public. Boleh dikosongkan saat create.
+                                    Dipakai untuk URL public. Kalau kosong, sistem akan generate dari title.
                                 </div>
                             </div>
 
@@ -209,7 +231,7 @@
                                     name="description"
                                     rows="5"
                                     class="form-control"
-                                    placeholder="Deskripsi singkat material, tujuan sesi, dan instruksi umum..."
+                                    placeholder="Deskripsi singkat materi, tujuan sesi, dan instruksi umum..."
                                 >{{ old('description', $material->description) }}</textarea>
                             </div>
 
@@ -241,9 +263,9 @@
                 <div class="content-card mb-4">
                     <div class="content-card-header">
                         <div>
-                            <h5 class="content-card-title mb-1">Schedule & Access Window</h5>
+                            <h5 class="content-card-title mb-1">Schedule & Access</h5>
                             <p class="content-card-subtitle mb-0">
-                                Atur jam event dan batas akses public link.
+                                Atur waktu event dan batas akses public link.
                             </p>
                         </div>
                     </div>
@@ -255,9 +277,8 @@
                                 <input
                                     type="datetime-local"
                                     name="starts_at"
-                                    id="startsAtInput"
                                     class="form-control"
-                                    value="{{ old('starts_at', $toDateTimeLocalValue($material->starts_at ?? null)) }}"
+                                    value="{{ old('starts_at', $formatDateTimeLocal($material->starts_at ?? null)) }}"
                                 >
                                 <div class="form-text">
                                     Contoh: trial mulai jam 09:00.
@@ -271,7 +292,7 @@
                                     name="ends_at"
                                     id="endsAtInput"
                                     class="form-control"
-                                    value="{{ old('ends_at', $toDateTimeLocalValue($material->ends_at ?? null)) }}"
+                                    value="{{ old('ends_at', $formatDateTimeLocal($material->ends_at ?? null)) }}"
                                 >
                                 <div class="form-text">
                                     Contoh: trial selesai jam 12:00.
@@ -283,12 +304,11 @@
                                 <input
                                     type="datetime-local"
                                     name="access_starts_at"
-                                    id="accessStartsAtInput"
                                     class="form-control"
-                                    value="{{ old('access_starts_at', $toDateTimeLocalValue($material->access_starts_at ?? null)) }}"
+                                    value="{{ old('access_starts_at', $formatDateTimeLocal($material->access_starts_at ?? null)) }}"
                                 >
                                 <div class="form-text">
-                                    Kalau dikosongkan, controller akan mengikuti Start Time.
+                                    Kalau kosong, sistem akan ikut Start Time.
                                 </div>
                             </div>
 
@@ -299,18 +319,18 @@
                                     name="access_ends_at"
                                     id="accessEndsAtInput"
                                     class="form-control"
-                                    value="{{ old('access_ends_at', $toDateTimeLocalValue($material->access_ends_at ?? null)) }}"
+                                    value="{{ old('access_ends_at', $formatDateTimeLocal($material->access_ends_at ?? null)) }}"
                                 >
                                 <div class="form-text">
-                                    Kalau dikosongkan, controller akan otomatis set End Time + 1 jam.
+                                    Kalau kosong, sistem akan otomatis set End Time + 1 jam.
                                 </div>
                             </div>
                         </div>
 
-                        <div class="alert alert-info mt-3 mb-0">
+                        <div class="alert alert-info mb-0 mt-3">
                             <i class="bi bi-info-circle me-2"></i>
-                            Contoh flow: trial jam 09:00 - 12:00, lalu access ends at bisa diset jam 13:00.
-                            Lewat jam itu, public link akan diblock.
+                            Contoh: trial jam 09:00 - 12:00, akses bisa dibuka sampai jam 13:00.
+                            Setelah itu public link akan diblock.
                         </div>
                     </div>
                 </div>
@@ -320,13 +340,13 @@
                         <div>
                             <h5 class="content-card-title mb-1">Cover Image</h5>
                             <p class="content-card-subtitle mb-0">
-                                Optional. Cover akan tampil di landing page public material.
+                                Optional. Cover image akan tampil di halaman public material.
                             </p>
                         </div>
                     </div>
 
                     <div class="content-card-body">
-                        <div class="row g-3">
+                        <div class="row g-3 align-items-start">
                             @if($isEdit && $material->cover_image_path)
                                 <div class="col-md-4">
                                     <label class="form-label">Current Cover</label>
@@ -342,68 +362,102 @@
 
                             <div class="{{ $isEdit && $material->cover_image_path ? 'col-md-8' : 'col-12' }}">
                                 <label class="form-label">
-                                    {{ $isEdit && $material->cover_image_path ? 'Replace Cover' : 'Upload Cover' }}
+                                    {{ $isEdit && $material->cover_image_path ? 'Replace Cover Image' : 'Upload Cover Image' }}
                                 </label>
+
                                 <input
                                     type="file"
                                     name="cover_image"
                                     class="form-control"
                                     accept="image/*"
                                 >
+
                                 <div class="form-text">
-                                    Format image umum seperti JPG, PNG, WebP. Max mengikuti validasi controller: 4MB.
+                                    JPG, PNG, atau WebP. Maksimal 4MB.
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
+                @if($isEdit)
+                    <div class="content-card mt-4">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Content Blocks</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Setelah master material tersimpan, nanti bagian ini dipakai untuk input text, code snippet,
+                                    image block, note, dan task.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-cone-striped me-2"></i>
+                                Step berikutnya kita tambahkan block manager di sini.
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+            </div>
 
             <div class="col-xl-4">
                 <div class="content-card mb-4">
                     <div class="content-card-header">
                         <div>
-                            <h5 class="content-card-title mb-1">Material Summary</h5>
+                            <h5 class="content-card-title mb-1">Summary</h5>
                             <p class="content-card-subtitle mb-0">
-                                Ringkasan status dan akses material.
+                                Ringkasan material.
                             </p>
                         </div>
                     </div>
 
                     <div class="content-card-body">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="text-muted">Status</span>
                             <span class="assignment-status-badge {{ $statusClass }}">
-                                {{ $statusLabel }}
+                                {{ ucfirst($status) }}
                             </span>
                         </div>
 
-                        <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="text-muted">Type</span>
                             <span class="fw-semibold">
                                 {{ ucfirst(old('type', $material->type ?? 'trial')) }}
                             </span>
                         </div>
 
-                        <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="text-muted">Blocks</span>
                             <span class="fw-semibold">
-                                {{ $isEdit ? ($material->blocks_count ?? $material->blocks->count()) : 0 }}
+                                {{ $isEdit ? $material->blocks->count() : 0 }}
                             </span>
                         </div>
 
-                        <div class="d-flex align-items-center justify-content-between">
-                            <span class="text-muted">Images</span>
+                        <div class="d-flex justify-content-between align-items-center mb-0">
+                            <span class="text-muted">Gallery Images</span>
                             <span class="fw-semibold">
-                                {{ $isEdit ? ($material->images_count ?? $material->images->count()) : 0 }}
+                                {{ $isEdit ? $material->images->count() : 0 }}
                             </span>
                         </div>
+                    </div>
+                </div>
 
+                <div class="content-card mb-4">
+                    <div class="content-card-header">
+                        <div>
+                            <h5 class="content-card-title mb-1">Public Link</h5>
+                            <p class="content-card-subtitle mb-0">
+                                Link yang akan dibagikan ke student.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-card-body">
                         @if($isEdit && $publicUrl)
-                            <hr>
-
-                            <label class="form-label">Public Link</label>
+                            <label class="form-label">URL</label>
 
                             <div class="input-group">
                                 <input
@@ -415,19 +469,17 @@
 
                                 <button
                                     type="button"
-                                    class="btn btn-outline-primary copy-public-link-btn"
-                                    data-copy-value="{{ $publicUrl }}"
+                                    class="btn btn-outline-primary"
+                                    data-copy-public-link="{{ $publicUrl }}"
                                 >
                                     <i class="bi bi-copy"></i>
                                 </button>
                             </div>
 
                             <div class="form-text">
-                                Link hanya bisa dibuka jika status published dan masih dalam access window.
+                                Link aktif hanya jika status published dan access window masih valid.
                             </div>
                         @else
-                            <hr>
-
                             <div class="alert alert-warning mb-0">
                                 <i class="bi bi-exclamation-triangle me-2"></i>
                                 Public link akan tersedia setelah material disimpan.
@@ -436,12 +488,12 @@
                     </div>
                 </div>
 
-                <div class="content-card mb-4">
+                <div class="content-card">
                     <div class="content-card-header">
                         <div>
-                            <h5 class="content-card-title mb-1">Save Material</h5>
+                            <h5 class="content-card-title mb-1">Save</h5>
                             <p class="content-card-subtitle mb-0">
-                                Simpan master material terlebih dahulu.
+                                Simpan perubahan material.
                             </p>
                         </div>
                     </div>
@@ -449,7 +501,7 @@
                     <div class="content-card-body">
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary btn-modern">
-                                <i class="bi bi-save me-2"></i>
+                                <i class="bi bi-save me-1"></i>
                                 {{ $isEdit ? 'Update Material' : 'Create Material' }}
                             </button>
 
@@ -459,31 +511,10 @@
                         </div>
                     </div>
                 </div>
-
-                @if($isEdit)
-                    <div class="content-card">
-                        <div class="content-card-header">
-                            <div>
-                                <h5 class="content-card-title mb-1">Next Step</h5>
-                                <p class="content-card-subtitle mb-0">
-                                    Setelah master material tersimpan.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="content-card-body">
-                            <div class="alert alert-info mb-0">
-                                <i class="bi bi-lightbulb me-2"></i>
-                                Step berikutnya kita tambahkan section untuk manage content blocks:
-                                text, code snippet, image block, note, task, dan gallery.
-                            </div>
-                        </div>
-                    </div>
-                @endif
             </div>
-
         </div>
     </form>
+
 </div>
 @endsection
 
@@ -544,9 +575,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    document.querySelectorAll('.copy-public-link-btn').forEach(function (button) {
+    document.querySelectorAll('[data-copy-public-link]').forEach(function (button) {
         button.addEventListener('click', async function () {
-            const value = button.dataset.copyValue || '';
+            const value = button.getAttribute('data-copy-public-link') || '';
 
             if (!value) {
                 return;
