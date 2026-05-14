@@ -166,6 +166,11 @@ return [
             'workshops.update',
             'workshops.delete',
 
+            'public_learning_materials.view',
+            'public_learning_materials.create',
+            'public_learning_materials.update',
+            'public_learning_materials.delete',
+
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
@@ -196,6 +201,11 @@ return [
             'workshops.create',
             'workshops.update',
             'workshops.delete',
+
+            'public_learning_materials.view',
+            'public_learning_materials.create',
+            'public_learning_materials.update',
+            'public_learning_materials.delete',
 
             'marketing.view',
             'marketing.dashboard.view',
@@ -252,6 +262,11 @@ return [
             'workshops.create',
             'workshops.update',
             'workshops.delete',
+
+            'public_learning_materials.view',
+            'public_learning_materials.create',
+            'public_learning_materials.update',
+            'public_learning_materials.delete',
 
             'sales.view',
 
@@ -383,6 +398,7 @@ return [
                 'enrollments.*',
                 'students.*',
                 'curriculum.*',
+                'public-learning-materials.*',
                 'assignments.*',
                 'batch-assignments.*',
                 'assignment-submissions.*',
@@ -620,7 +636,7 @@ return [
                 ],
                 [
                     'title' => 'Trial & Workshops',
-                    'subtitle' => 'Trial class dan event akademik.',
+                    'subtitle' => 'Trial class, workshop, dan materi public.',
                     'icon' => 'bi bi-easel2-fill',
                     'items' => [
                         [
@@ -654,6 +670,14 @@ return [
                             'icon' => 'bi bi-easel2-fill',
                             'permission' => 'workshops.view',
                             'desc' => 'Workshop public dan internal.',
+                        ],
+                        [
+                            'label' => 'Trial & Workshop Materials',
+                            'route' => 'public-learning-materials.index',
+                            'active' => ['public-learning-materials.*'],
+                            'icon' => 'bi bi-file-earmark-code-fill',
+                            'permission' => 'public_learning_materials.view',
+                            'desc' => 'Materi public berisi text, code snippet, image, dan link expired.',
                         ],
                     ],
                 ],

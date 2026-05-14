@@ -47,6 +47,10 @@ use App\Http\Controllers\Academic\StudentAttendanceController;
 use App\Http\Controllers\Academic\AssessmentScoreController;
 use App\Http\Controllers\Academic\ReportCardController;
 use App\Http\Controllers\Academic\CertificateController;
+use App\Http\Controllers\Academic\PublicLearningMaterialController;
+use App\Http\Controllers\Academic\PublicLearningMaterialBlockController;
+use App\Http\Controllers\Academic\PublicLearningMaterialImageController;
+use App\Http\Controllers\Academic\PublicLearningMaterialPageController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
 use App\Http\Controllers\Marketing\MarketingDashboardController;
@@ -97,6 +101,25 @@ Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
 Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
     ->name('trial-class.store');
 
+
+/*|--------------------------------------------------------------------------
+| Public Learning Materials
+|--------------------------------------------------------------------------*/   
+
+/*
+|--------------------------------------------------------------------------
+| Public Trial / Workshop Materials
+|--------------------------------------------------------------------------
+*/
+Route::get(
+    '/materials/{token}/{slug}',
+    [PublicLearningMaterialPageController::class, 'show']
+)->name('public-learning-materials.show');
+
+
+/*|--------------------------------------------------------------------------
+| Public Workshops
+|--------------------------------------------------------------------------*/
 
 Route::get('/workshop', [PublicWorkshopController::class, 'index'])->name('workshop.index');
 Route::get('/workshop/{slug}', [PublicWorkshopController::class, 'show'])->name('workshop.show');
@@ -1017,6 +1040,129 @@ Route::middleware('auth')->group(function () {
                     ->whereNumber('announcement')
                     ->name('destroy');
         });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Public Learning Materials
+    |--------------------------------------------------------------------------
+    | Materi public untuk Trial dan Workshop.
+    | Admin URL:
+    | - /academic/public-learning-materials
+    |
+    | Public URL:
+    | - /materials/{token}/{slug}
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('academic/public-learning-materials')
+        ->name('public-learning-materials.')
+        ->middleware('permission:curriculum.view')
+        ->group(function () {
+            Route::get('/', [PublicLearningMaterialController::class, 'index'])
+                ->name('index');
+
+            Route::get('/create', [PublicLearningMaterialController::class, 'create'])
+                ->middleware('permission:curriculum.create')
+                ->name('create');
+
+            Route::post('/', [PublicLearningMaterialController::class, 'store'])
+                ->middleware('permission:curriculum.create')
+                ->name('store');
+
+            Route::get('/{publicLearningMaterial}/edit', [PublicLearningMaterialController::class, 'edit'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.update')
+                ->name('edit');
+
+            Route::put('/{publicLearningMaterial}', [PublicLearningMaterialController::class, 'update'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.update')
+                ->name('update');
+
+            Route::patch('/{publicLearningMaterial}', [PublicLearningMaterialController::class, 'update'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.update')
+                ->name('patch');
+
+            Route::delete('/{publicLearningMaterial}', [PublicLearningMaterialController::class, 'destroy'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.delete')
+                ->name('destroy');
+
+            Route::post('/{publicLearningMaterial}/publish', [PublicLearningMaterialController::class, 'publish'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.update')
+                ->name('publish');
+
+            Route::post('/{publicLearningMaterial}/archive', [PublicLearningMaterialController::class, 'archive'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.update')
+                ->name('archive');
+
+            Route::post('/{publicLearningMaterial}/duplicate', [PublicLearningMaterialController::class, 'duplicate'])
+                ->whereNumber('publicLearningMaterial')
+                ->middleware('permission:curriculum.create')
+                ->name('duplicate');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Material Blocks
+            |--------------------------------------------------------------------------
+            */
+            Route::post('/{material}/blocks', [PublicLearningMaterialBlockController::class, 'store'])
+                ->whereNumber('material')
+                ->middleware('permission:curriculum.create')
+                ->name('blocks.store');
+
+            Route::put('/blocks/{block}', [PublicLearningMaterialBlockController::class, 'update'])
+                ->whereNumber('block')
+                ->middleware('permission:curriculum.update')
+                ->name('blocks.update');
+
+            Route::patch('/blocks/{block}', [PublicLearningMaterialBlockController::class, 'update'])
+                ->whereNumber('block')
+                ->middleware('permission:curriculum.update')
+                ->name('blocks.patch');
+
+            Route::delete('/blocks/{block}', [PublicLearningMaterialBlockController::class, 'destroy'])
+                ->whereNumber('block')
+                ->middleware('permission:curriculum.delete')
+                ->name('blocks.destroy');
+
+            Route::post('/{material}/blocks/reorder', [PublicLearningMaterialBlockController::class, 'reorder'])
+                ->whereNumber('material')
+                ->middleware('permission:curriculum.update')
+                ->name('blocks.reorder');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Material Gallery Images
+            |--------------------------------------------------------------------------
+            */
+            Route::post('/{material}/images', [PublicLearningMaterialImageController::class, 'store'])
+                ->whereNumber('material')
+                ->middleware('permission:curriculum.create')
+                ->name('images.store');
+
+            Route::put('/images/{image}', [PublicLearningMaterialImageController::class, 'update'])
+                ->whereNumber('image')
+                ->middleware('permission:curriculum.update')
+                ->name('images.update');
+
+            Route::patch('/images/{image}', [PublicLearningMaterialImageController::class, 'update'])
+                ->whereNumber('image')
+                ->middleware('permission:curriculum.update')
+                ->name('images.patch');
+
+            Route::delete('/images/{image}', [PublicLearningMaterialImageController::class, 'destroy'])
+                ->whereNumber('image')
+                ->middleware('permission:curriculum.delete')
+                ->name('images.destroy');
+
+            Route::post('/{material}/images/reorder', [PublicLearningMaterialImageController::class, 'reorder'])
+                ->whereNumber('material')
+                ->middleware('permission:curriculum.update')
+                ->name('images.reorder');
     });
 
     /*
