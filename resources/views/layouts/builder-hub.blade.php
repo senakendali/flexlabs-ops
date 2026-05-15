@@ -56,7 +56,7 @@
                             muted: '#737082',
                             soft: '#F5F3FA',
                             line: '#E5E1EE',
-                            page: '#F4F6FC',
+                            page: '#F2F4FA',
                             panel: '#FFFFFF',
                             ink: '#2D2938',
                         },
@@ -74,11 +74,13 @@
     <style>
         html {
             scroll-behavior: smooth;
+            background: #F2F4FA;
         }
 
         body {
             font-family: "Noto Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             overflow-x: hidden;
+            background: #F2F4FA;
         }
 
         [x-cloak] {
@@ -128,14 +130,14 @@
             height: auto;
         }
 
-        .builder-main-card {
-            background:
-                radial-gradient(circle at top right, rgba(91, 62, 142, 0.055), transparent 32rem),
-                #ffffff;
-        }
-
         .builder-header {
             isolation: isolate;
+            background: #F2F4FA;
+        }
+
+        .builder-main-card {
+            background: #ffffff !important;
+            background-image: none !important;
         }
 
         .builder-body-grid {
@@ -156,7 +158,8 @@
             .builder-header,
             .builder-sidebar,
             .builder-mobile-menu,
-            .builder-footer {
+            .builder-footer,
+            .builder-before-content {
                 display: none !important;
             }
 
@@ -207,10 +210,7 @@
         ];
     @endphp
 
-    <div class="relative min-h-screen overflow-visible">
-        <div class="pointer-events-none fixed right-[-12rem] top-[-14rem] h-[34rem] w-[34rem] rounded-full bg-flex-primary/10 blur-3xl"></div>
-        <div class="pointer-events-none fixed bottom-[-18rem] left-[-12rem] h-[34rem] w-[34rem] rounded-full bg-indigo-300/20 blur-3xl"></div>
-
+    <div class="relative min-h-screen overflow-visible bg-flex-page">
         <div class="relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-6 sm:px-6 lg:px-8">
             <header class="builder-header sticky top-0 z-50 -mx-4 bg-flex-page px-4 py-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <div class="mx-auto flex w-full max-w-[1780px] items-center justify-between gap-4">
@@ -286,7 +286,7 @@
             </header>
 
             <div class="builder-mobile-menu mb-5 grid gap-3 lg:hidden">
-                <div class="rounded-[1.75rem] border border-white/80 bg-white/80 p-5 shadow-card">
+                <div class="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-card">
                     <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
                         @yield('page_kicker', 'Builder Hub')
                     </p>
@@ -311,7 +311,7 @@
 
             <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
                 <aside class="builder-sidebar hidden self-start lg:block">
-                    <div class="rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-soft">
+                    <div class="rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
                         @hasSection('sidebar')
                             @yield('sidebar')
                         @else
@@ -404,13 +404,19 @@
                 </aside>
 
                 <main class="min-w-0 self-start">
-                    <section class="builder-main-card min-h-[calc(100vh-9rem)] rounded-[2rem] border border-white/90 p-5 shadow-soft sm:p-7 lg:rounded-[2.25rem] lg:p-10 xl:p-14">
+                    @hasSection('before_content')
+                        <div class="builder-before-content mb-6">
+                            @yield('before_content')
+                        </div>
+                    @endif
+
+                    <section class="builder-main-card min-h-[calc(100vh-9rem)] rounded-[2rem] border border-white/90 bg-white p-5 shadow-soft sm:p-7 lg:rounded-[2.25rem] lg:p-10 xl:p-14">
                         <div class="builder-content min-w-0">
                             @yield('content')
                         </div>
                     </section>
 
-                    <footer class="builder-footer mt-6 rounded-[2rem] border border-white/80 bg-white/80 px-6 py-5 text-sm font-semibold text-flex-muted shadow-card">
+                    <footer class="builder-footer mt-6 rounded-[2rem] border border-white/80 bg-white px-6 py-5 text-sm font-semibold text-flex-muted shadow-card">
                         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <p>
                                 © {{ date('Y') }} FlexLabs. All rights reserved.

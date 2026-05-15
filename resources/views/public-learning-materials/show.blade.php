@@ -20,10 +20,6 @@
         ? $material->access_ends_at->format('d M Y H:i')
         : '-';
 
-    $coverImage = $material->cover_image_path
-        ? asset('storage/' . $material->cover_image_path)
-        : asset('images/hero.png');
-
     $blocks = $material->activeBlocks->values();
 
     $blockLabelMap = [
@@ -89,20 +85,28 @@
 
 @push('styles')
 <style>
+    .builder-rich {
+        color: #4F4A5E;
+    }
+
     .builder-rich > * + * {
-        margin-top: 0.85rem;
+        margin-top: 1rem;
     }
 
     .builder-rich p {
         margin: 0;
-        line-height: 1.82;
+        line-height: 1.9;
+    }
+
+    .builder-rich p + p {
+        margin-top: 1rem;
     }
 
     .builder-rich ul,
     .builder-rich ol {
-        margin: 0.85rem 0 0;
+        margin: 1rem 0 0;
         padding-left: 1.35rem;
-        line-height: 1.82;
+        line-height: 1.9;
     }
 
     .builder-rich ul {
@@ -114,7 +118,7 @@
     }
 
     .builder-rich li + li {
-        margin-top: 0.35rem;
+        margin-top: 0.45rem;
     }
 
     .builder-rich strong,
@@ -133,7 +137,7 @@
     }
 
     .builder-rich blockquote {
-        margin: 1rem 0 0;
+        margin: 1.15rem 0 0;
         border-left: 4px solid #5B3E8E;
         border-radius: 1rem;
         background: #F7F3FC;
@@ -142,6 +146,86 @@
     }
 </style>
 @endpush
+
+@section('before_content')
+    <section id="session-info" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-[1.75rem] border border-white bg-white p-5 shadow-card">
+            <div class="flex items-start gap-4">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M6.75 3v2.25m10.5-2.25v2.25M3.75 8.25h16.5M4.5 6.75h15A1.5 1.5 0 0 1 21 8.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.75V8.25a1.5 1.5 0 0 1 1.5-1.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+
+                <div class="min-w-0">
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
+                        Event Date
+                    </p>
+                    <p class="mt-1 text-lg font-black leading-tight text-flex-dark">
+                        {{ $formattedDate }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-[1.75rem] border border-white bg-white p-5 shadow-card">
+            <div class="flex items-start gap-4">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 6v6l3 1.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+
+                <div class="min-w-0">
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
+                        Schedule
+                    </p>
+                    <p class="mt-1 text-lg font-black leading-tight text-flex-dark">
+                        {{ $formattedSchedule }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-[1.75rem] border border-white bg-white p-5 shadow-card">
+            <div class="flex items-start gap-4">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+
+                <div class="min-w-0">
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
+                        Access Until
+                    </p>
+                    <p class="mt-1 text-lg font-black leading-tight text-flex-dark">
+                        {{ $formattedAccessEnd }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-[1.75rem] border border-white bg-white p-5 shadow-card">
+            <div class="flex items-start gap-4">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a8.25 8.25 0 0 1 15 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+
+                <div class="min-w-0">
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
+                        Instructor
+                    </p>
+                    <p class="mt-1 truncate text-lg font-black leading-tight text-flex-dark">
+                        {{ $material->instructor_name ?: 'FlexLabs Instructor' }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+@endsection
 
 @section('sidebar')
     <div class="mb-7 flex items-center gap-4">
@@ -181,14 +265,14 @@
                     class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $loop->first ? 'active bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
                     data-step-link="{{ $stepId }}"
                 >
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $loop->first ? 'bg-white/16 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $loop->first ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
                         @if($block->type === 'code')
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <path d="m17.25 6.75 4.5 5.25-4.5 5.25M6.75 6.75 2.25 12l4.5 5.25m7.5-12-4.5 13.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         @elseif($block->type === 'image')
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         @elseif($block->type === 'task')
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -196,11 +280,11 @@
                             </svg>
                         @elseif($block->type === 'note')
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.4 14.4 0 0 1-3 0M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         @else
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         @endif
                     </span>
@@ -210,7 +294,7 @@
                             {{ \Illuminate\Support\Str::limit($blockTitle, 32) }}
                         </span>
 
-                        <span class="mt-0.5 block truncate text-sm font-semibold {{ $loop->first ? 'text-white/72' : 'text-flex-muted' }}">
+                        <span class="mt-0.5 block truncate text-sm font-semibold {{ $loop->first ? 'text-white/75' : 'text-flex-muted' }}">
                             Step {{ $blockNumber }} · {{ $blockLabel }}
                         </span>
                     </span>
@@ -269,171 +353,54 @@
             href="#material-content"
             class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-5 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
         >
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 4.5v15m7.5-7.5h-15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
             Mulai Baca Materi
         </a>
     </div>
 @endsection
 
 @section('content')
-    <section class="overflow-hidden rounded-[2rem] border border-flex-line bg-gradient-to-br from-flex-primarySoft via-white to-white">
-        <div class="grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:p-8">
-            <div class="flex min-w-0 flex-col justify-center">
-                <div class="inline-flex w-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary shadow-sm ring-1 ring-flex-line">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    {{ ucfirst($material->type) }} Material
-                </div>
+    <section class="rounded-[2rem] border border-flex-line bg-white p-5 sm:p-7 lg:p-8">
+        <div class="max-w-5xl">
+            <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
+                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                {{ ucfirst($material->type) }} Material
+            </div>
 
-                <h1 class="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.06em] text-flex-dark md:text-5xl xl:text-6xl">
-                    {{ $material->title }}
-                </h1>
+            <h1 class="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.06em] text-flex-dark md:text-5xl xl:text-6xl">
+                {{ $material->title }}
+            </h1>
 
-                @if($material->subtitle)
-                    <p class="mt-5 text-xl font-black leading-8 text-flex-primary md:text-2xl">
-                        {{ $material->subtitle }}
-                    </p>
-                @endif
+            @if($material->subtitle)
+                <p class="mt-5 max-w-4xl text-xl font-black leading-8 text-flex-primary md:text-2xl">
+                    {{ $material->subtitle }}
+                </p>
+            @endif
 
-                @if($material->description)
-                    {!! $renderRichText($material->description, 'builder-rich mt-5 max-w-3xl text-base font-semibold text-flex-muted md:text-lg') !!}
-                @endif
+            @if($material->description)
+                {!! $renderRichText($material->description, 'builder-rich mt-6 max-w-4xl text-base font-semibold text-flex-muted md:text-lg') !!}
+            @endif
 
-                <div class="mt-7 flex flex-wrap gap-3">
-                    <span class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line">
-                        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M6.75 3v2.25m10.5-2.25v2.25M3.75 8.25h16.5M4.5 6.75h15A1.5 1.5 0 0 1 21 8.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.75V8.25a1.5 1.5 0 0 1 1.5-1.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </span>
-                        {{ $formattedDate }}
-                    </span>
+            <div class="mt-8 flex flex-wrap gap-3">
+                <a
+                    href="#material-content"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                >
+                    Mulai Baca Materi
+                </a>
 
-                    <span class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line">
-                        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 6v6l3 1.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </span>
-                        {{ $formattedSchedule }}
-                    </span>
-
-                    @if($material->instructor_name)
-                        <span class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line">
-                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                    <path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a8.25 8.25 0 0 1 15 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </span>
-                            {{ $material->instructor_name }}
-                        </span>
-                    @endif
-
-                    @if($galleryImages->count())
-                        <span class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line">
-                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                    <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </span>
-                            {{ $galleryImages->count() }} Supporting Images
-                        </span>
-                    @endif
-                </div>
-
-                <div class="mt-8 flex flex-wrap gap-3">
+                @if($galleryImages->count())
                     <a
-                        href="#material-content"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                        href="#supporting-images"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
                     >
-                        Mulai Baca Materi
+                        Download Gambar
                     </a>
-
-                    @if($galleryImages->count())
-                        <a
-                            href="#supporting-images"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:text-flex-primary"
-                        >
-                            Download Gambar
-                        </a>
-                    @endif
-                </div>
+                @endif
             </div>
-
-            <div class="relative">
-                <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-flex-primary/10 blur-3xl"></div>
-
-                <div class="relative overflow-hidden rounded-[2rem] bg-white p-3 shadow-soft ring-1 ring-white">
-                    <img
-                        src="{{ $coverImage }}"
-                        alt="{{ $material->title }}"
-                        class="h-[260px] w-full rounded-[1.5rem] object-cover sm:h-[360px] lg:h-[430px]"
-                    >
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="session-info" class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5 text-flex-dark shadow-card">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-flex-line">
-                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M6.75 3v2.25m10.5-2.25v2.25M3.75 8.25h16.5M4.5 6.75h15A1.5 1.5 0 0 1 21 8.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.75V8.25a1.5 1.5 0 0 1 1.5-1.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <p class="mt-4 text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
-                Event Date
-            </p>
-            <p class="mt-1 text-lg font-black text-flex-dark">
-                {{ $formattedDate }}
-            </p>
-        </div>
-
-        <div class="rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5 text-flex-dark shadow-card">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-flex-line">
-                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 6v6l3 1.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <p class="mt-4 text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
-                Schedule
-            </p>
-            <p class="mt-1 text-lg font-black text-flex-dark">
-                {{ $formattedSchedule }}
-            </p>
-        </div>
-
-        <div class="rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5 text-flex-dark shadow-card">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-flex-line">
-                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <p class="mt-4 text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
-                Access Until
-            </p>
-            <p class="mt-1 text-lg font-black text-flex-dark">
-                {{ $formattedAccessEnd }}
-            </p>
-        </div>
-
-        <div class="rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5 text-flex-dark shadow-card">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-flex-line">
-                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a8.25 8.25 0 0 1 15 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <p class="mt-4 text-xs font-black uppercase tracking-[0.16em] text-flex-muted">
-                Instructor
-            </p>
-            <p class="mt-1 text-lg font-black text-flex-dark">
-                {{ $material->instructor_name ?: 'FlexLabs Instructor' }}
-            </p>
         </div>
     </section>
 
@@ -463,23 +430,9 @@
         </div>
     </section>
 
-    <section id="material-content" class="mt-10">
-        <div class="text-center">
-            <span class="inline-flex rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                Material Content
-            </span>
-
-            <h2 class="mt-4 text-3xl font-black leading-tight tracking-[-0.05em] text-flex-dark md:text-5xl">
-                Materi yang perlu teman-teman ikuti
-            </h2>
-
-            <p class="mx-auto mt-4 max-w-3xl text-base font-semibold leading-8 text-flex-muted md:text-lg">
-                Ikuti block materi secara berurutan. Gunakan tombol copy pada code snippet kalau tersedia.
-            </p>
-        </div>
-
+    <section id="material-content" class="mt-10 scroll-mt-28">
         @if($blocks->count())
-            <div class="mt-8 rounded-[2rem] border border-flex-line bg-white shadow-card">
+            <div class="rounded-[2rem] border border-flex-line bg-white shadow-card">
                 @foreach($blocks as $index => $block)
                     @php
                         $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
@@ -564,7 +517,7 @@
                                 <div class="flex gap-4">
                                     <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm">
                                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                     </div>
 
@@ -609,7 +562,7 @@
                 @endforeach
             </div>
         @else
-            <div class="mx-auto mt-8 max-w-3xl rounded-[2rem] border border-flex-line bg-white p-8 text-center shadow-card">
+            <div class="mx-auto max-w-3xl rounded-[2rem] border border-flex-line bg-white p-8 text-center shadow-card">
                 <span class="inline-flex rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
                     Empty Material
                 </span>
@@ -785,7 +738,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const meta = link.querySelector('span span + span');
 
             if (iconBox) {
-                iconBox.classList.toggle('bg-white/16', isActive);
+                iconBox.classList.toggle('bg-white/20', isActive);
                 iconBox.classList.toggle('text-white', isActive);
                 iconBox.classList.toggle('bg-white', !isActive);
                 iconBox.classList.toggle('text-flex-primary', !isActive);
@@ -793,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             if (meta) {
-                meta.classList.toggle('text-white/72', isActive);
+                meta.classList.toggle('text-white/75', isActive);
                 meta.classList.toggle('text-flex-muted', !isActive);
             }
         });
