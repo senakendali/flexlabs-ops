@@ -278,13 +278,11 @@
     <section class="overflow-hidden rounded-[1.75rem] bg-flex-primary px-6 py-6 text-white shadow-card sm:px-8 lg:px-10">
         <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex min-w-0 items-center gap-4">
-                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.15rem] bg-white/12 text-white ring-1 ring-white/15">
-                    {!! $bookIconLarge !!}
-                </div>
+                
 
                 <div class="min-w-0">
                     <p class="text-xs font-black uppercase tracking-[0.18em] text-white/65">
-                        Learning Builder Hub
+                        Pioneer Hub
                     </p>
 
                     <p class="mt-1 text-base font-bold leading-7 text-white/82">
