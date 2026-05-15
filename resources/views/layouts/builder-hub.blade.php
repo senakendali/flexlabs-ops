@@ -107,6 +107,71 @@
             -webkit-backdrop-filter: none !important;
         }
 
+        .builder-header .builder-nav-item {
+            color: rgba(255, 255, 255, 0.76) !important;
+        }
+
+        .builder-header .builder-nav-item:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
+
+        .builder-header .builder-nav-item.is-active {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.14) !important;
+        }
+
+        .builder-header .builder-nav-icon {
+            color: rgba(255, 255, 255, 0.82) !important;
+        }
+
+        .builder-header .builder-nav-item:hover .builder-nav-icon {
+            color: #ffffff !important;
+        }
+
+        .builder-header .builder-nav-item.is-active .builder-nav-icon {
+            color: #FFE783 !important;
+        }
+
+        .builder-header .builder-nav-item svg,
+        .builder-header .builder-nav-item svg path {
+            color: currentColor;
+        }
+
+        .builder-whatsapp-button {
+            background: #ffffff !important;
+            color: #5B3E8E !important;
+            box-shadow: 0 18px 40px rgba(31, 27, 46, 0.16) !important;
+        }
+
+        .builder-whatsapp-button svg,
+        .builder-whatsapp-button span {
+            color: #5B3E8E !important;
+        }
+
+        .builder-whatsapp-button:hover {
+            background: #F0EAF8 !important;
+            color: #5B3E8E !important;
+        }
+
+        .builder-footer {
+            color: rgba(255, 255, 255, 0.72) !important;
+        }
+
+        .builder-footer p,
+        .builder-footer a,
+        .builder-footer span {
+            color: rgba(255, 255, 255, 0.82) !important;
+        }
+
+        .builder-footer a {
+            color: #ffffff !important;
+        }
+
+        .builder-footer a:hover {
+            color: rgba(255, 255, 255, 0.78) !important;
+        }
+
         .builder-scrollbar::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -256,9 +321,9 @@
                             <a
                                 href="{{ $menu['url'] }}"
                                 @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
-                                class="group flex min-w-[86px] flex-col items-center justify-center gap-2 rounded-[1.25rem] px-4 py-3 text-center transition {{ $menu['active'] ? 'bg-white/14 text-white shadow-none' : 'text-white/72 hover:bg-white/10 hover:text-white' }}"
+                                class="builder-nav-item group flex min-w-[86px] flex-col items-center justify-center gap-2 rounded-[1.25rem] px-4 py-3 text-center transition {{ $menu['active'] ? 'is-active' : '' }}"
                             >
-                                <span class="flex h-6 w-6 items-center justify-center {{ $menu['active'] ? 'text-[#FFE783]' : 'text-white/75 group-hover:text-white' }}">
+                                <span class="builder-nav-icon flex h-6 w-6 items-center justify-center">
                                     @if ($menu['icon'] === 'play')
                                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                             <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/>
@@ -274,7 +339,7 @@
                                     @endif
                                 </span>
 
-                                <span class="text-xs font-black">
+                                <span class="text-xs font-black text-current">
                                     {{ $menu['label'] }}
                                 </span>
                             </a>
@@ -286,7 +351,7 @@
                             href="{{ $whatsappUrl }}"
                             target="_blank"
                             rel="noopener"
-                            class="inline-flex h-12 items-center justify-center gap-2 rounded-[1.2rem] bg-white/12 px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-flex-primary"
+                            class="builder-whatsapp-button inline-flex h-12 items-center justify-center gap-2 rounded-[1.2rem] bg-white px-5 text-sm font-black text-flex-primary transition hover:-translate-y-0.5"
                         >
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M20.52 3.48A11.86 11.86 0 0 0 12.06 0C5.52 0 .19 5.32.19 11.87c0 2.09.55 4.14 1.6 5.94L.09 24l6.34-1.66a11.9 11.9 0 0 0 5.63 1.43h.01c6.55 0 11.88-5.32 11.88-11.87 0-3.17-1.24-6.15-3.43-8.42Zm-8.46 18.28h-.01a9.86 9.86 0 0 1-5.03-1.38l-.36-.22-3.76.99 1-3.66-.24-.38a9.82 9.82 0 0 1-1.5-5.24c0-5.45 4.44-9.88 9.9-9.88a9.84 9.84 0 0 1 6.99 2.9 9.82 9.82 0 0 1 2.9 7c0 5.44-4.44 9.87-9.89 9.87Zm5.42-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.08-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.42.25-.7.25-1.29.17-1.42-.07-.13-.27-.2-.57-.35Z"/>
@@ -306,7 +371,7 @@
                         @yield('page_kicker', 'Builder Hub')
                     </p>
 
-                    <h2 class="mt-1 text-2xl font-black tracking-[-0.05em]">
+                    <h2 class="mt-1 text-2xl font-black tracking-[-0.05em] text-white">
                         @yield('page_title', 'FlexLabs Builder Hub')
                     </h2>
                 </div>
@@ -394,22 +459,22 @@
                 </div>
             </div>
 
-            <footer class="builder-footer mt-6 px-2 py-4 text-sm font-semibold text-white/68">
+            <footer class="builder-footer mt-6 px-2 py-4 text-sm font-semibold">
                 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <p>
                         © {{ date('Y') }} FlexLabs. All rights reserved.
                     </p>
 
                     <div class="flex flex-wrap items-center gap-4">
-                        <a href="https://flexlabs.co.id" class="font-black text-white transition hover:text-white/80">
+                        <a href="https://flexlabs.co.id" class="font-black transition">
                             Website
                         </a>
 
-                        <a href="{{ url('/trial-class') }}" class="font-black text-white transition hover:text-white/80">
+                        <a href="{{ url('/trial-class') }}" class="font-black transition">
                             Trial Class
                         </a>
 
-                        <a href="{{ url('/workshop') }}" class="font-black text-white transition hover:text-white/80">
+                        <a href="{{ url('/workshop') }}" class="font-black transition">
                             Workshop
                         </a>
                     </div>

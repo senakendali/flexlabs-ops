@@ -275,10 +275,10 @@
 @endpush
 
 @section('builder_hero')
-    <section class="overflow-hidden rounded-[1.75rem] bg-flex-primary px-6 py-7 text-white shadow-card sm:px-8 lg:px-12">
-        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-            <div class="flex min-w-0 gap-5">
-                <div class="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[1.4rem] bg-white/12 text-white sm:flex">
+    <section class="overflow-hidden rounded-[1.75rem] bg-flex-primary px-6 py-6 text-white shadow-card sm:px-8 lg:px-10">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex min-w-0 items-center gap-4">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.15rem] bg-white/12 text-white ring-1 ring-white/15">
                     {!! $bookIconLarge !!}
                 </div>
 
@@ -287,41 +287,22 @@
                         Learning Builder Hub
                     </p>
 
-                    <h1 class="mt-2 text-2xl font-black leading-tight tracking-[-0.05em] text-white md:text-4xl">
-                        {{ $materialTitle }}
-                    </h1>
-
-                    @if($materialSubtitle)
-                        <p class="mt-3 max-w-3xl text-sm font-semibold leading-7 text-white/82 md:text-base">
-                            {{ $materialSubtitle }}
-                        </p>
-                    @endif
-                </div>
-            </div>
-
-            <div class="rounded-[1.4rem] bg-white/10 p-4">
-                <a
-                    href="#material-content"
-                    class="inline-flex w-full items-center justify-center gap-2 rounded-[1rem] bg-white px-5 py-4 text-sm font-black text-flex-dark transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
-                >
-                    <span class="flex h-6 w-6 items-center justify-center rounded-full bg-flex-primary text-white">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/>
-                        </svg>
-                    </span>
-                    Mulai Materi
-                </a>
-
-                <div class="mt-4">
-                    <div class="h-2 overflow-hidden rounded-full bg-white/18">
-                        <div class="h-full w-1/4 rounded-full bg-[#FFE783]"></div>
-                    </div>
-
-                    <p class="mt-2 text-xs font-bold text-white/75">
-                        {{ $blocks->count() }} langkah materi tersedia
+                    <p class="mt-1 text-base font-bold leading-7 text-white/82">
+                        Ikuti materi secara berurutan dan praktikkan langsung di project teman-teman.
                     </p>
                 </div>
             </div>
+
+            <a
+                href="#material-content"
+                class="inline-flex shrink-0 items-center justify-center gap-3 rounded-[1rem] bg-white px-6 py-4 text-sm font-black text-flex-primary shadow-sm transition hover:-translate-y-0.5 hover:bg-flex-primarySoft"
+            >
+                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                    {!! $bookIcon !!}
+                </span>
+
+                Mulai Materi
+            </a>
         </div>
     </section>
 @endsection
