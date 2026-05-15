@@ -138,6 +138,20 @@
             isolation: isolate;
         }
 
+        .builder-body-grid {
+            align-items: start;
+        }
+
+        .builder-sidebar,
+        .builder-body-grid > main {
+            margin-top: 0;
+        }
+
+        .builder-sidebar > div,
+        .builder-main-card {
+            margin-top: 0;
+        }
+
         @media print {
             .builder-header,
             .builder-sidebar,
@@ -295,8 +309,8 @@
                 </div>
             </div>
 
-            <div class="grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
-                <aside class="builder-sidebar sticky top-[112px] hidden self-start lg:block">
+            <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
+                <aside class="builder-sidebar hidden self-start lg:block">
                     <div class="rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-soft">
                         @hasSection('sidebar')
                             @yield('sidebar')
@@ -389,7 +403,7 @@
                     </div>
                 </aside>
 
-                <main class="min-w-0">
+                <main class="min-w-0 self-start">
                     <section class="builder-main-card min-h-[calc(100vh-9rem)] rounded-[2rem] border border-white/90 p-5 shadow-soft sm:p-7 lg:rounded-[2.25rem] lg:p-10 xl:p-14">
                         <div class="builder-content min-w-0">
                             @yield('content')
