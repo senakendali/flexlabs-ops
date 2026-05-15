@@ -174,6 +174,7 @@ return [
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
+            'equipment_borrowings.create',
             'atk_items.view',
             'atk_requests.view',
         ],
@@ -232,6 +233,7 @@ return [
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
+            'equipment_borrowings.create',
             'atk_items.view',
             'atk_requests.view',
         ],
@@ -292,6 +294,7 @@ return [
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
+            'equipment_borrowings.create',
             'atk_items.view',
             'atk_requests.view',
         ],
@@ -319,6 +322,7 @@ return [
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
+            'equipment_borrowings.create',
             'atk_items.view',
             'atk_requests.view',
             'atk_requests.approve_budget',
@@ -339,6 +343,7 @@ return [
             'equipment.update',
 
             'equipment_borrowings.view',
+            'equipment_borrowings.create',
             'equipment_borrowings.approve',
 
             'atk_items.view',
@@ -360,6 +365,10 @@ return [
             'instructor_tracking.create',
             'mentoring_sessions.view',
             'mentoring_sessions.update',
+
+            'equipment.view',
+            'equipment_borrowings.view',
+            'equipment_borrowings.create',
         ],
 
         'student' => [
