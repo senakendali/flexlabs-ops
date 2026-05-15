@@ -59,6 +59,7 @@
                             page: '#F2F4FA',
                             panel: '#FFFFFF',
                             ink: '#2D2938',
+                            orange: '#FFC316',
                         },
                     },
                     boxShadow: {
@@ -130,7 +131,7 @@
         }
 
         .builder-header .builder-nav-item.is-active .builder-nav-icon {
-            color: #FFE783 !important;
+            color: #FFC316 !important;
         }
 
         .builder-header .builder-nav-item svg,
@@ -182,13 +183,51 @@
         }
 
         .builder-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(91, 62, 142, 0.22);
+            background: rgba(255, 195, 22, 0.92);
             border-radius: 999px;
         }
 
         .builder-sidebar-card {
+            overflow: hidden;
+            border-radius: 2rem;
+            transition:
+                border-radius 0.2s ease,
+                box-shadow 0.2s ease;
+        }
+
+        .builder-sidebar-card.is-stuck {
+            border-top-left-radius: 0 !important;
+            border-top-right-radius: 0 !important;
+        }
+
+        .builder-sidebar-scroll {
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1.5rem 1rem 1.5rem 1.5rem;
+            margin-right: 0.45rem;
             overscroll-behavior: contain;
-            scrollbar-gutter: stable;
+            scrollbar-width: thin;
+            scrollbar-color: #FFC316 transparent;
+        }
+
+        .builder-sidebar-scroll::-webkit-scrollbar {
+            width: 7px;
+        }
+
+        .builder-sidebar-scroll::-webkit-scrollbar-track {
+            background: transparent;
+            margin: 1.25rem 0;
+        }
+
+        .builder-sidebar-scroll::-webkit-scrollbar-thumb {
+            background: #FFC316;
+            border-radius: 999px;
+            border: 2px solid #ffffff;
+        }
+
+        .builder-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: #f0b600;
         }
 
         .builder-content h1,
@@ -402,55 +441,57 @@
                 @endif
 
                 <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
-                    <aside class="builder-sidebar sticky top-[118px] hidden self-start lg:block">
-                        <div class="builder-sidebar-card builder-scrollbar max-h-[calc(100vh-140px)] overflow-y-auto rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
-                            @hasSection('sidebar')
-                                @yield('sidebar')
-                            @else
-                                <div class="mb-7 flex items-center gap-4">
-                                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                                        <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                                        </svg>
+                    <aside id="builderSidebar" class="builder-sidebar sticky top-[118px] hidden self-start lg:block">
+                        <div id="builderSidebarCard" class="builder-sidebar-card border border-white/80 bg-white shadow-soft">
+                            <div class="builder-sidebar-scroll">
+                                @hasSection('sidebar')
+                                    @yield('sidebar')
+                                @else
+                                    <div class="mb-7 flex items-center gap-4">
+                                        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                                            <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                                            </svg>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
+                                                Explore
+                                            </p>
+
+                                            <h2 class="text-lg font-black tracking-[-0.04em] text-flex-dark">
+                                                Builder Hub
+                                            </h2>
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
-                                            Explore
-                                        </p>
+                                    <div class="space-y-3">
+                                        @foreach ($builderMenus as $menu)
+                                            <a
+                                                href="{{ $menu['url'] }}"
+                                                @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
+                                                class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $menu['active'] ? 'bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
+                                            >
+                                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $menu['active'] ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
+                                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                        <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                                                    </svg>
+                                                </span>
 
-                                        <h2 class="text-lg font-black tracking-[-0.04em] text-flex-dark">
-                                            Builder Hub
-                                        </h2>
+                                                <span class="min-w-0">
+                                                    <span class="block truncate text-base font-black">
+                                                        {{ $menu['label'] }}
+                                                    </span>
+
+                                                    <span class="{{ $menu['active'] ? 'text-white/75' : 'text-flex-muted' }} mt-0.5 block truncate text-sm font-semibold">
+                                                        {{ $menu['description'] }}
+                                                    </span>
+                                                </span>
+                                            </a>
+                                        @endforeach
                                     </div>
-                                </div>
-
-                                <div class="space-y-3">
-                                    @foreach ($builderMenus as $menu)
-                                        <a
-                                            href="{{ $menu['url'] }}"
-                                            @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
-                                            class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $menu['active'] ? 'bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
-                                        >
-                                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $menu['active'] ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                                                </svg>
-                                            </span>
-
-                                            <span class="min-w-0">
-                                                <span class="block truncate text-base font-black">
-                                                    {{ $menu['label'] }}
-                                                </span>
-
-                                                <span class="{{ $menu['active'] ? 'text-white/75' : 'text-flex-muted' }} mt-0.5 block truncate text-sm font-semibold">
-                                                    {{ $menu['description'] }}
-                                                </span>
-                                            </span>
-                                        </a>
-                                    @endforeach
-                                </div>
-                            @endif
+                                @endif
+                            </div>
                         </div>
                     </aside>
 
@@ -487,6 +528,47 @@
             </footer>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('builderSidebar');
+            const sidebarCard = document.getElementById('builderSidebarCard');
+
+            if (!sidebar || !sidebarCard) {
+                return;
+            }
+
+            let ticking = false;
+            const stickyOffset = 118;
+
+            function syncSidebarStickyState() {
+                const sidebarTop = sidebar.getBoundingClientRect().top;
+                const isStuck = window.scrollY > 0 && sidebarTop <= stickyOffset + 1;
+
+                sidebarCard.classList.toggle('is-stuck', isStuck);
+                ticking = false;
+            }
+
+            function requestSync() {
+                if (ticking) {
+                    return;
+                }
+
+                ticking = true;
+                window.requestAnimationFrame(syncSidebarStickyState);
+            }
+
+            syncSidebarStickyState();
+
+            window.addEventListener('scroll', requestSync, {
+                passive: true,
+            });
+
+            window.addEventListener('resize', requestSync, {
+                passive: true,
+            });
+        });
+    </script>
 
     @stack('scripts')
 </body>
