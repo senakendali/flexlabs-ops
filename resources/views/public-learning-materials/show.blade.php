@@ -57,6 +57,18 @@
         ->sortBy(fn ($image) => $image->sort_order ?? 999999)
         ->values();
 
+    $firstImageBlock = $blocks->first(fn ($block) => $block->type === 'image' && $block->image_path);
+
+    $heroImage = $galleryImages->first();
+
+    $heroImageUrl = $heroImage
+        ? asset('storage/' . $heroImage->image_path)
+        : ($firstImageBlock ? asset('storage/' . $firstImageBlock->image_path) : null);
+
+    $heroImageCaption = $heroImage
+        ? $normalizeDash($heroImage->caption ?: $materialTitle)
+        : ($firstImageBlock ? $normalizeDash($firstImageBlock->image_caption ?: $materialTitle) : null);
+
     $renderRichText = function ($content, $class = '') use ($normalizeDash) {
         $content = trim($normalizeDash($content));
 
@@ -338,45 +350,65 @@
 
 @section('content')
     <section class="px-5 py-8 sm:px-7 lg:px-10">
-        <div class="max-w-6xl">
-            <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
-                    {!! $bookIconSmall !!}
-                </span>
-                {{ ucfirst($materialType) }} Material
-            </div>
+        <div class="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] lg:items-center">
+            <div class="max-w-6xl">
+                <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
+                        {!! $bookIconSmall !!}
+                    </span>
+                    {{ ucfirst($materialType) }} Material
+                </div>
 
-            <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
-                {{ $materialTitle }}
-            </h1>
+                <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
+                    {{ $materialTitle }}
+                </h1>
 
-            @if($materialSubtitle)
-                <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
-                    {{ $materialSubtitle }}
-                </p>
-            @endif
-
-            @if($material->description)
-                {!! $renderRichText($material->description, 'builder-rich mt-6 max-w-4xl text-base font-semibold text-flex-muted md:text-lg') !!}
-            @endif
-
-            <div class="mt-8 flex flex-wrap gap-3">
-                <a
-                    href="#material-content"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
-                >
-                    Mulai Baca Materi
-                </a>
-
-                @if($galleryImages->count())
-                    <a
-                        href="#supporting-images"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
-                    >
-                        Download Gambar
-                    </a>
+                @if($materialSubtitle)
+                    <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
+                        {{ $materialSubtitle }}
+                    </p>
                 @endif
+
+                @if($material->description)
+                    {!! $renderRichText($material->description, 'builder-rich mt-6 max-w-4xl text-base font-semibold text-flex-muted md:text-lg') !!}
+                @endif
+
+                <div class="mt-8 flex flex-wrap gap-3">
+                    <a
+                        href="#material-content"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                    >
+                        Mulai Baca Materi
+                    </a>
+
+                    @if($galleryImages->count())
+                        <a
+                            href="#supporting-images"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
+                        >
+                            Download Gambar
+                        </a>
+                    @endif
+                </div>
             </div>
+
+            @if($heroImageUrl)
+                <figure class="overflow-hidden rounded-[1.75rem] border border-flex-line bg-flex-soft p-3 shadow-card">
+                    <div class="aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-white">
+                        <img
+                            src="{{ $heroImageUrl }}"
+                            alt="{{ $heroImageCaption ?: $materialTitle }}"
+                            class="h-full w-full object-cover"
+                        >
+                    </div>
+
+                    @if($heroImageCaption)
+                        <figcaption class="px-2 pb-1 pt-4 text-sm font-bold leading-6 text-flex-muted">
+                            {{ $heroImageCaption }}
+                        </figcaption>
+                    @endif
+                </figure>
+            @endif
         </div>
     </section>
 
