@@ -279,8 +279,8 @@
 @endsection
 
 @section('content')
-    <section class="px-5 py-8 sm:px-7 lg:px-10 lg:py-10">
-        <div class="max-w-5xl">
+    <section class="px-5 py-8 sm:px-7 lg:px-10">
+        <div class="max-w-6xl">
             <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
                 <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -290,12 +290,12 @@
                 {{ ucfirst($material->type) }} Material
             </div>
 
-            <h1 class="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.06em] text-flex-dark md:text-5xl xl:text-6xl">
+            <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
                 {{ $material->title }}
             </h1>
 
             @if($material->subtitle)
-                <p class="mt-5 max-w-4xl text-xl font-black leading-8 text-flex-primary md:text-2xl">
+                <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
                     {{ $material->subtitle }}
                 </p>
             @endif
@@ -325,7 +325,7 @@
     </section>
 
     <section id="session-info" class="grid gap-4 border-t border-flex-line px-5 py-6 sm:px-7 md:grid-cols-2 lg:px-10 xl:grid-cols-4">
-        <div class="rounded-[1.75rem] border border-[#E7DDF4] bg-[#FAF7FF] p-5">
+        <div class="rounded-[1.5rem] border border-[#E7DDF4] bg-[#FAF7FF] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-[#E7DDF4]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -344,7 +344,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#D8E3FF] bg-[#F6F8FF] p-5">
+        <div class="rounded-[1.5rem] border border-[#D8E3FF] bg-[#F6F8FF] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#4263EB] shadow-sm ring-1 ring-[#D8E3FF]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -363,7 +363,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#D7F3E4] bg-[#F4FFF8] p-5">
+        <div class="rounded-[1.5rem] border border-[#D7F3E4] bg-[#F4FFF8] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#0F9F6E] shadow-sm ring-1 ring-[#D7F3E4]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -382,7 +382,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#FFE4C7] bg-[#FFF9F2] p-5">
+        <div class="rounded-[1.5rem] border border-[#FFE4C7] bg-[#FFF9F2] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#D97706] shadow-sm ring-1 ring-[#FFE4C7]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -409,7 +409,7 @@
                     Learning Tip
                 </span>
 
-                <h2 class="mt-4 text-3xl font-black leading-tight tracking-[-0.05em] text-flex-dark md:text-4xl">
+                <h2 class="mt-4 text-2xl font-black leading-tight tracking-[-0.045em] text-flex-dark md:text-3xl">
                     Baca, copy kode, lalu langsung praktik
                 </h2>
             </div>
@@ -457,7 +457,7 @@
                                 </span>
                             </div>
 
-                            <h3 class="text-2xl font-black leading-tight tracking-[-0.04em] text-flex-dark md:text-3xl">
+                            <h3 class="text-xl font-black leading-tight tracking-[-0.04em] text-flex-dark md:text-2xl">
                                 {{ $blockTitle }}
                             </h3>
                         </div>
@@ -465,7 +465,7 @@
 
                     @if($block->type === 'heading')
                         @if($block->content)
-                            {!! $renderRichText($block->content, 'builder-rich text-lg font-semibold text-flex-muted') !!}
+                            {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted md:text-lg') !!}
                         @endif
 
                     @elseif($block->type === 'text')

@@ -310,8 +310,8 @@
             </div>
 
             <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
-                <aside class="builder-sidebar sticky top-[104px] hidden self-start lg:block">
-                    <div class="rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
+                <aside class="builder-sidebar hidden self-start lg:block">
+                    <div class="sticky top-[104px] rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
                         @hasSection('sidebar')
                             @yield('sidebar')
                         @else
@@ -331,73 +331,6 @@
                                         Builder Hub
                                     </h2>
                                 </div>
-                            </div>
-
-                            <div class="space-y-3">
-                                @foreach ($builderMenus as $menu)
-                                    <a
-                                        href="{{ $menu['url'] }}"
-                                        @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
-                                        class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $menu['active'] ? 'bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
-                                    >
-                                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $menu['active'] ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
-                                            @if ($menu['icon'] === 'play')
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                                    <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/>
-                                                </svg>
-                                            @elseif ($menu['icon'] === 'academic')
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347M4.26 10.147A59.433 59.433 0 0 1 12 3.493a59.433 59.433 0 0 1 7.74 6.654M4.26 10.147 12 14.625l7.74-4.478" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            @else
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.25 8.25 17.75 10l-.5-1.75a2.7 2.7 0 0 0-1.85-1.85L13.65 6l1.75-.5a2.7 2.7 0 0 0 1.85-1.85l.5-1.75.5 1.75a2.7 2.7 0 0 0 1.85 1.85l1.75.5-1.75.5a2.7 2.7 0 0 0-1.85 1.85Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            @endif
-                                        </span>
-
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-base font-black">
-                                                {{ $menu['label'] }}
-                                            </span>
-
-                                            <span class="{{ $menu['active'] ? 'text-white/75' : 'text-flex-muted' }} mt-0.5 block truncate text-sm font-semibold">
-                                                {{ $menu['description'] }}
-                                            </span>
-                                        </span>
-
-                                        @if ($menu['active'])
-                                            <span class="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary">
-                                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="m4.5 12.75 6 6 9-13.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            </span>
-                                        @endif
-                                    </a>
-                                @endforeach
-                            </div>
-
-                            <div class="mt-6 rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5">
-                                <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                                    Need Help?
-                                </p>
-
-                                <h3 class="mt-2 text-lg font-black tracking-[-0.04em] text-flex-dark">
-                                    Bingung pilih kelas?
-                                </h3>
-
-                                <p class="mt-2 text-sm font-semibold leading-6 text-flex-muted">
-                                    Chat admin FlexLabs buat tanya trial, workshop, atau program yang paling cocok.
-                                </p>
-
-                                <a
-                                    href="{{ $whatsappUrl }}"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-5 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
-                                >
-                                    Chat WhatsApp
-                                </a>
                             </div>
                         @endif
                     </div>
