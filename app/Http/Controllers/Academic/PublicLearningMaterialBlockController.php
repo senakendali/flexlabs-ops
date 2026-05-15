@@ -35,8 +35,9 @@ class PublicLearningMaterialBlockController extends Controller
         $block = PublicLearningMaterialBlock::create($validated);
 
         return response()->json([
+            'success' => true,
             'message' => 'Block berhasil ditambahkan.',
-            'data' => $block,
+            'data' => $this->formatBlock($block->fresh()),
         ]);
     }
 
@@ -62,8 +63,9 @@ class PublicLearningMaterialBlockController extends Controller
         $block->update($validated);
 
         return response()->json([
+            'success' => true,
             'message' => 'Block berhasil diperbarui.',
-            'data' => $block->fresh(),
+            'data' => $this->formatBlock($block->fresh()),
         ]);
     }
 
@@ -76,6 +78,7 @@ class PublicLearningMaterialBlockController extends Controller
         $block->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Block berhasil dihapus.',
         ]);
     }
@@ -98,6 +101,7 @@ class PublicLearningMaterialBlockController extends Controller
         }
 
         return response()->json([
+            'success' => true,
             'message' => 'Urutan block berhasil diperbarui.',
         ]);
     }
@@ -118,5 +122,23 @@ class PublicLearningMaterialBlockController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+    }
+
+    private function formatBlock(PublicLearningMaterialBlock $block): array
+    {
+        return [
+            'id' => $block->id,
+            'public_learning_material_id' => $block->public_learning_material_id,
+            'type' => $block->type,
+            'title' => $block->title,
+            'content' => $block->content,
+            'code_language' => $block->code_language,
+            'code_content' => $block->code_content,
+            'image_path' => $block->image_path,
+            'image_url' => $block->image_path ? asset('storage/' . $block->image_path) : null,
+            'image_caption' => $block->image_caption,
+            'sort_order' => $block->sort_order,
+            'is_active' => (bool) $block->is_active,
+        ];
     }
 }

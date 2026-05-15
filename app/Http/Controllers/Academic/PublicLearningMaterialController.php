@@ -67,7 +67,10 @@ class PublicLearningMaterialController extends Controller
 
         unset($validated['cover_image']);
 
-        $validated['slug'] = $this->generateUniqueSlug($request->filled('slug') ? $request->slug : $validated['title']);
+        $validated['slug'] = $this->generateUniqueSlug(
+            $request->filled('slug') ? $request->slug : $validated['title']
+        );
+
         $validated['public_token'] = Str::random(64);
         $validated['created_by'] = auth()->id();
         $validated['updated_by'] = auth()->id();
@@ -83,8 +86,15 @@ class PublicLearningMaterialController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'message' => 'Material berhasil dibuat.',
-                'data' => $material,
+                'data' => [
+                    'id' => $material->id,
+                    'title' => $material->title,
+                    'slug' => $material->slug,
+                    'status' => $material->status,
+                    'public_url' => $material->public_url,
+                ],
                 'redirect_url' => route('public-learning-materials.edit', $material),
             ]);
         }
@@ -117,6 +127,10 @@ class PublicLearningMaterialController extends Controller
             $material->id
         );
 
+        if (! $material->public_token) {
+            $validated['public_token'] = Str::random(64);
+        }
+
         $validated['updated_by'] = auth()->id();
 
         $validated = array_merge($validated, $this->buildSchedulePayload($request));
@@ -132,10 +146,19 @@ class PublicLearningMaterialController extends Controller
 
         $material->update($validated);
 
+        $material->refresh();
+
         if ($request->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'message' => 'Material berhasil diperbarui.',
-                'data' => $material->fresh(['blocks', 'images']),
+                'data' => [
+                    'id' => $material->id,
+                    'title' => $material->title,
+                    'slug' => $material->slug,
+                    'status' => $material->status,
+                    'public_url' => $material->public_url,
+                ],
             ]);
         }
 
@@ -168,6 +191,7 @@ class PublicLearningMaterialController extends Controller
 
         if (request()->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'message' => 'Material berhasil dihapus.',
             ]);
         }
@@ -186,8 +210,12 @@ class PublicLearningMaterialController extends Controller
 
         if (request()->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'message' => 'Material berhasil dipublish.',
-                'data' => $publicLearningMaterial->fresh(),
+                'data' => [
+                    'id' => $publicLearningMaterial->id,
+                    'status' => $publicLearningMaterial->fresh()->status,
+                ],
             ]);
         }
 
@@ -203,8 +231,12 @@ class PublicLearningMaterialController extends Controller
 
         if (request()->expectsJson()) {
             return response()->json([
+                'success' => true,
                 'message' => 'Material berhasil diarsipkan.',
-                'data' => $publicLearningMaterial->fresh(),
+                'data' => [
+                    'id' => $publicLearningMaterial->id,
+                    'status' => $publicLearningMaterial->fresh()->status,
+                ],
             ]);
         }
 
@@ -252,6 +284,21 @@ class PublicLearningMaterialController extends Controller
 
             $newImage->public_learning_material_id = $copy->id;
             $newImage->save();
+        }
+
+        if (request()->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Material berhasil diduplikasi sebagai draft.',
+                'data' => [
+                    'id' => $copy->id,
+                    'title' => $copy->title,
+                    'slug' => $copy->slug,
+                    'status' => $copy->status,
+                    'public_url' => $copy->public_url,
+                ],
+                'redirect_url' => route('public-learning-materials.edit', $copy),
+            ]);
         }
 
         return redirect()

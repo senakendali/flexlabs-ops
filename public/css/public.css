@@ -223,7 +223,7 @@ a {
     height: auto;
     object-fit: contain;
     object-position: center;
-    border-radius: 24px;
+    /*border-radius: 24px;*/
     box-shadow:
         0 20px 40px rgba(91, 62, 142, 0.12),
         0 10px 20px rgba(91, 62, 142, 0.08);
@@ -1956,7 +1956,7 @@ textarea.form-control {
         max-width: 420px;
         max-height: none;
         margin: 0 auto;
-        border-radius: 22px;
+        /*border-radius: 22px;*/
     }
 
     .hero-feature-list {
@@ -2247,6 +2247,319 @@ textarea.form-control {
 
     .workshop-show-price {
         font-size: 1.7rem;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public Material Callout
+|--------------------------------------------------------------------------
+| Used for public learning material note/task blocks.
+*/
+
+.public-material-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    border-radius: 1.5rem;
+    padding: 1.35rem;
+    border: 1px solid transparent;
+}
+
+.public-material-callout-icon {
+    width: 3rem;
+    height: 3rem;
+    flex: 0 0 3rem;
+    border-radius: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.public-material-callout-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.public-material-callout-label {
+    margin-bottom: .35rem;
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.public-material-callout-title {
+    margin-bottom: .65rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.35;
+    color: #1f2937;
+}
+
+.public-material-callout-text {
+    color: #4b5563;
+    line-height: 1.85;
+    font-size: 1rem;
+}
+
+.public-material-callout-text p:last-child {
+    margin-bottom: 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Note Variant
+|--------------------------------------------------------------------------
+*/
+
+.public-material-callout-note {
+    background: #f5f0ff;
+    border-color: #e6dcff;
+}
+
+.public-material-callout-note .public-material-callout-icon {
+    background: #ffffff;
+    color: #5B3E8E;
+    box-shadow: 0 10px 24px rgba(91, 62, 142, .08);
+}
+
+.public-material-callout-note .public-material-callout-label {
+    color: #5B3E8E;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Task Variant
+|--------------------------------------------------------------------------
+*/
+
+.public-material-callout-task {
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.public-material-callout-task .public-material-callout-icon {
+    background: #ffffff;
+    color: #c2410c;
+    box-shadow: 0 10px 24px rgba(194, 65, 12, .08);
+}
+
+.public-material-callout-task .public-material-callout-label {
+    color: #c2410c;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Responsive
+|--------------------------------------------------------------------------
+*/
+
+@media (max-width: 575.98px) {
+    .public-material-callout {
+        flex-direction: column;
+        padding: 1.15rem;
+        border-radius: 1.25rem;
+    }
+
+    .public-material-callout-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        flex-basis: 2.75rem;
+    }
+
+    .public-material-callout-title {
+        font-size: 1.1rem;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public Material Callout
+|--------------------------------------------------------------------------
+| Used for public learning material note/task blocks.
+*/
+
+.public-material-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    border-radius: 1.5rem;
+    padding: 1.35rem;
+    border: 1px solid transparent;
+}
+
+.public-material-callout-icon {
+    width: 3rem;
+    height: 3rem;
+    flex: 0 0 3rem;
+    border-radius: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.public-material-callout-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.public-material-callout-label {
+    margin-bottom: .35rem;
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.public-material-callout-title {
+    margin-bottom: .65rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.35;
+    color: #1f2937;
+}
+
+.public-material-callout-text {
+    color: #4b5563;
+    line-height: 1.85;
+    font-size: 1rem;
+}
+
+.public-material-callout-text p:last-child {
+    margin-bottom: 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Note Variant
+|--------------------------------------------------------------------------
+*/
+
+.public-material-callout-note {
+    background: #f5f0ff;
+    border-color: #e6dcff;
+}
+
+.public-material-callout-note .public-material-callout-icon {
+    background: #ffffff;
+    color: #5B3E8E;
+    box-shadow: 0 10px 24px rgba(91, 62, 142, .08);
+}
+
+.public-material-callout-note .public-material-callout-label {
+    color: #5B3E8E;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Task Variant
+|--------------------------------------------------------------------------
+*/
+
+.public-material-callout-task {
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.public-material-callout-task .public-material-callout-icon {
+    background: #ffffff;
+    color: #c2410c;
+    box-shadow: 0 10px 24px rgba(194, 65, 12, .08);
+}
+
+.public-material-callout-task .public-material-callout-label {
+    color: #c2410c;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public Material Code Block
+|--------------------------------------------------------------------------
+| Preserve code indentation and make long lines scroll horizontally.
+*/
+
+.public-material-code-shell {
+    overflow: hidden;
+    border-radius: 1.35rem;
+    border: 1px solid rgba(17, 24, 39, .9);
+    background: #111827;
+}
+
+.public-material-code-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: .85rem 1rem;
+    background: #1f2937;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.public-material-code-language {
+    display: inline-flex;
+    align-items: center;
+    color: #e5e7eb;
+    font-size: .8rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.public-material-code-block {
+    margin: 0;
+    padding: 1.25rem;
+    overflow-x: auto;
+    background: #111827;
+    color: #f9fafb;
+    font-size: .92rem;
+    line-height: 1.75;
+    tab-size: 2;
+}
+
+.public-material-code-block code {
+    display: block;
+    min-width: max-content;
+    white-space: pre;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Monaco, monospace;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Responsive
+|--------------------------------------------------------------------------
+*/
+
+@media (max-width: 575.98px) {
+    .public-material-callout {
+        flex-direction: column;
+        padding: 1.15rem;
+        border-radius: 1.25rem;
+    }
+
+    .public-material-callout-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        flex-basis: 2.75rem;
+    }
+
+    .public-material-callout-title {
+        font-size: 1.1rem;
+    }
+
+    .public-material-code-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .public-material-code-toolbar .btn {
+        width: 100%;
+    }
+
+    .public-material-code-block {
+        padding: 1rem;
+        font-size: .85rem;
     }
 }
 
