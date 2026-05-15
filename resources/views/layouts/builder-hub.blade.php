@@ -186,6 +186,11 @@
             border-radius: 999px;
         }
 
+        .builder-sidebar-card {
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
         .builder-content h1,
         .builder-content h2,
         .builder-content h3,
@@ -398,7 +403,7 @@
 
                 <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
                     <aside class="builder-sidebar sticky top-[118px] hidden self-start lg:block">
-                        <div class="rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
+                        <div class="builder-sidebar-card builder-scrollbar max-h-[calc(100vh-140px)] overflow-y-auto rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
                             @hasSection('sidebar')
                                 @yield('sidebar')
                             @else
