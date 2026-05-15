@@ -142,6 +142,7 @@
 
         .builder-body-grid {
             align-items: start;
+            margin-top: 1.25rem;
         }
 
         .builder-sidebar,
@@ -285,7 +286,7 @@
                 </div>
             </header>
 
-            <div class="builder-mobile-menu mb-5 grid gap-3 lg:hidden">
+            <div class="builder-mobile-menu mt-5 mb-5 grid gap-3 lg:hidden">
                 <div class="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-card">
                     <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
                         @yield('page_kicker', 'Builder Hub')
@@ -310,7 +311,7 @@
             </div>
 
             <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
-                <aside class="builder-sidebar hidden self-start lg:block">
+                <aside class="builder-sidebar sticky top-[124px] hidden self-start lg:block">
                     <div class="rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
                         @hasSection('sidebar')
                             @yield('sidebar')
