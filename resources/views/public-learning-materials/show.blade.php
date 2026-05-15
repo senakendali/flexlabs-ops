@@ -39,7 +39,34 @@
         'note' => 'bi bi-lightbulb',
         'task' => 'bi bi-clipboard-check',
     ];
+
+    $renderParagraphs = function ($content, $paragraphClass = '') {
+        $content = trim((string) $content);
+
+        if ($content === '') {
+            return '';
+        }
+
+        $normalizedContent = str_replace(["\r\n", "\r"], "\n", $content);
+
+        $paragraphs = preg_split('/\n+/', $normalizedContent);
+
+        $paragraphClass = trim((string) $paragraphClass);
+        $classAttribute = $paragraphClass !== ''
+            ? ' class="' . e($paragraphClass) . '"'
+            : '';
+
+        return collect($paragraphs)
+            ->map(fn ($paragraph) => trim($paragraph))
+            ->filter()
+            ->map(fn ($paragraph) => '<p' . $classAttribute . '>' . e($paragraph) . '</p>')
+            ->implode('');
+    };
 @endphp
+
+<style>
+   
+</style>
 
 <section class="hero-section">
     <div class="container">
@@ -62,8 +89,8 @@
                     @endif
 
                     @if($material->description)
-                        <div class="hero-desc mb-0">
-                            {!! nl2br(e($material->description)) !!}
+                        <div class="hero-desc public-material-rich-text mb-0">
+                            {!! $renderParagraphs($material->description) !!}
                         </div>
                     @endif
 
@@ -99,7 +126,7 @@
                             Mulai Baca Materi
                         </a>
 
-                        <a href="#session-info" class="btn btn-outline-light btn-lg">
+                        <a href="#session-info" class="btn btn-brand btn-lg">
                             Info Sesi
                         </a>
                     </div>
@@ -284,8 +311,8 @@
                                     </h2>
 
                                     @if($block->content)
-                                        <div class="about-main-text mb-0">
-                                            {!! nl2br(e($block->content)) !!}
+                                        <div class="about-main-text public-material-rich-text mb-0">
+                                            {!! $renderParagraphs($block->content) !!}
                                         </div>
                                     @endif
 
@@ -294,9 +321,11 @@
                                         {{ $blockTitle }}
                                     </h3>
 
-                                    <div class="about-main-text mb-0">
-                                        {!! nl2br(e($block->content)) !!}
-                                    </div>
+                                    @if($block->content)
+                                        <div class="about-main-text public-material-rich-text mb-0">
+                                            {!! $renderParagraphs($block->content) !!}
+                                        </div>
+                                    @endif
 
                                 @elseif($block->type === 'code')
                                     <h3 class="workshop-card-title mb-3">
@@ -337,8 +366,8 @@
                                     @endif
 
                                     @if($block->image_caption)
-                                        <div class="about-main-text mt-3 mb-0">
-                                            {{ $block->image_caption }}
+                                        <div class="about-main-text public-material-rich-text mt-3 mb-0">
+                                            {!! $renderParagraphs($block->image_caption) !!}
                                         </div>
                                     @endif
 
@@ -357,9 +386,11 @@
                                                 {{ $blockTitle }}
                                             </h3>
 
-                                            <div class="public-material-callout-text">
-                                                {!! nl2br(e($block->content)) !!}
-                                            </div>
+                                            @if($block->content)
+                                                <div class="public-material-callout-text public-material-rich-text">
+                                                    {!! $renderParagraphs($block->content) !!}
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
 
@@ -378,9 +409,11 @@
                                                 {{ $blockTitle }}
                                             </h3>
 
-                                            <div class="public-material-callout-text">
-                                                {!! nl2br(e($block->content)) !!}
-                                            </div>
+                                            @if($block->content)
+                                                <div class="public-material-callout-text public-material-rich-text">
+                                                    {!! $renderParagraphs($block->content) !!}
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 @endif
@@ -402,8 +435,8 @@
                                 Materi belum tersedia
                             </h3>
 
-                            <div class="about-main-text mb-0">
-                                Admin belum menambahkan content block untuk materi ini.
+                            <div class="about-main-text public-material-rich-text mb-0">
+                                <p>Admin belum menambahkan content block untuk materi ini.</p>
                             </div>
                         </div>
                     </article>
@@ -438,8 +471,8 @@
 
                             @if($image->caption)
                                 <div class="workshop-card-body">
-                                    <div class="about-main-text mb-0">
-                                        {{ $image->caption }}
+                                    <div class="about-main-text public-material-rich-text mb-0">
+                                        {!! $renderParagraphs($image->caption) !!}
                                     </div>
                                 </div>
                             @endif
