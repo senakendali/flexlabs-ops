@@ -71,16 +71,7 @@
                         </span>
                     </div>
 
-                    <div class="hero-cta-wrap d-flex flex-wrap gap-3 mt-4">
-                        <span class="btn btn-light btn-lg">
-                            <i class="bi bi-hourglass-split me-1"></i>
-                            Tunggu sampai akses dibuka
-                        </span>
-
-                        <a href="{{ url('/workshop') }}" class="btn btn-outline-light btn-lg">
-                            Lihat Workshop Lain
-                        </a>
-                    </div>
+                    
                 </div>
             </div>
 
