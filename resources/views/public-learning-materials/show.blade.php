@@ -3,6 +3,24 @@
         return str_replace(["\u{2014}", "\u{2013}"], '-', (string) $value);
     };
 
+    $resolveMediaUrl = function ($path) {
+        $path = trim((string) $path);
+
+        if ($path === '') {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://', '/'])) {
+            return $path;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($path, 'storage/')) {
+            return asset($path);
+        }
+
+        return asset('storage/' . $path);
+    };
+
     $materialTitle = $normalizeDash($material->title);
     $materialSubtitle = $normalizeDash($material->subtitle);
     $materialType = $normalizeDash($material->type ?? 'Material');
@@ -57,17 +75,22 @@
         ->sortBy(fn ($image) => $image->sort_order ?? 999999)
         ->values();
 
-    $firstImageBlock = $blocks->first(fn ($block) => $block->type === 'image' && $block->image_path);
+    $coverImagePath = collect([
+        data_get($material, 'cover_image'),
+        data_get($material, 'cover_image_path'),
+        data_get($material, 'cover_path'),
+        data_get($material, 'thumbnail_url'),
+        data_get($material, 'image'),
+        data_get($material, 'image_path'),
+    ])->first(fn ($path) => filled($path));
 
-    $heroImage = $galleryImages->first();
+    $coverImageUrl = $resolveMediaUrl($coverImagePath);
 
-    $heroImageUrl = $heroImage
-        ? asset('storage/' . $heroImage->image_path)
-        : ($firstImageBlock ? asset('storage/' . $firstImageBlock->image_path) : null);
-
-    $heroImageCaption = $heroImage
-        ? $normalizeDash($heroImage->caption ?: $materialTitle)
-        : ($firstImageBlock ? $normalizeDash($firstImageBlock->image_caption ?: $materialTitle) : null);
+    $coverImageCaption = $normalizeDash(
+        data_get($material, 'cover_caption')
+        ?: data_get($material, 'image_caption')
+        ?: $materialTitle
+    );
 
     $renderRichText = function ($content, $class = '') use ($normalizeDash) {
         $content = trim($normalizeDash($content));
@@ -105,6 +128,18 @@
 
         return \Illuminate\Support\Str::slug($materialTitle . '-gallery-' . $index) . '.' . $extension;
     };
+
+    $listIconLarge = '
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75Zm0 5.25h.008v.008H3.75V12Zm0 5.25h.008v.008H3.75v-.008Z"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    ';
 
     $bookIcon = '
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -242,7 +277,7 @@
 @section('sidebar')
     <div class="mb-7 flex items-center gap-4">
         <div class="flex h-14 w-14 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-            {!! $bookIconLarge !!}
+            {!! $listIconLarge !!}
         </div>
 
         <div class="min-w-0">
@@ -350,65 +385,67 @@
 
 @section('content')
     <section class="px-5 py-8 sm:px-7 lg:px-10">
-        <div class="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] lg:items-center">
-            <div class="max-w-6xl">
-                <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
-                        {!! $bookIconSmall !!}
-                    </span>
-                    {{ ucfirst($materialType) }} Material
-                </div>
-
-                <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
-                    {{ $materialTitle }}
-                </h1>
-
-                @if($materialSubtitle)
-                    <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
-                        {{ $materialSubtitle }}
-                    </p>
-                @endif
-
-                @if($material->description)
-                    {!! $renderRichText($material->description, 'builder-rich mt-6 max-w-4xl text-base font-semibold text-flex-muted md:text-lg') !!}
-                @endif
-
-                <div class="mt-8 flex flex-wrap gap-3">
-                    <a
-                        href="#material-content"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
-                    >
-                        Mulai Baca Materi
-                    </a>
-
-                    @if($galleryImages->count())
-                        <a
-                            href="#supporting-images"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
-                        >
-                            Download Gambar
-                        </a>
-                    @endif
-                </div>
+        <div class="max-w-6xl">
+            <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
+                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
+                    {!! $bookIconSmall !!}
+                </span>
+                {{ ucfirst($materialType) }} Material
             </div>
 
-            @if($heroImageUrl)
-                <figure class="overflow-hidden rounded-[1.75rem] border border-flex-line bg-flex-soft p-3 shadow-card">
-                    <div class="aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-white">
-                        <img
-                            src="{{ $heroImageUrl }}"
-                            alt="{{ $heroImageCaption ?: $materialTitle }}"
-                            class="h-full w-full object-cover"
-                        >
-                    </div>
+            <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
+                {{ $materialTitle }}
+            </h1>
 
-                    @if($heroImageCaption)
-                        <figcaption class="px-2 pb-1 pt-4 text-sm font-bold leading-6 text-flex-muted">
-                            {{ $heroImageCaption }}
-                        </figcaption>
-                    @endif
-                </figure>
+            @if($materialSubtitle)
+                <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
+                    {{ $materialSubtitle }}
+                </p>
             @endif
+
+            <div class="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)] lg:items-start">
+                <div class="min-w-0">
+                    @if($material->description)
+                        {!! $renderRichText($material->description, 'builder-rich max-w-4xl text-base font-semibold text-flex-muted md:text-lg') !!}
+                    @endif
+
+                    <div class="mt-8 flex flex-wrap gap-3">
+                        <a
+                            href="#material-content"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                        >
+                            Mulai Baca Materi
+                        </a>
+
+                        @if($galleryImages->count())
+                            <a
+                                href="#supporting-images"
+                                class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-6 py-3 text-sm font-black text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
+                            >
+                                Download Gambar
+                            </a>
+                        @endif
+                    </div>
+                </div>
+
+                @if($coverImageUrl)
+                    <figure class="overflow-hidden rounded-[1.75rem] border border-flex-line bg-flex-soft p-3 shadow-card">
+                        <div class="aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-white">
+                            <img
+                                src="{{ $coverImageUrl }}"
+                                alt="{{ $coverImageCaption ?: $materialTitle }}"
+                                class="h-full w-full object-cover"
+                            >
+                        </div>
+
+                        @if($coverImageCaption)
+                            <figcaption class="px-2 pb-1 pt-4 text-sm font-bold leading-6 text-flex-muted">
+                                {{ $coverImageCaption }}
+                            </figcaption>
+                        @endif
+                    </figure>
+                @endif
+            </div>
         </div>
     </section>
 
