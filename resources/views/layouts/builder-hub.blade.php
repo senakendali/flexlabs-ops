@@ -65,6 +65,7 @@
                         soft: '0 22px 70px rgba(31, 27, 46, 0.08)',
                         card: '0 16px 45px rgba(31, 27, 46, 0.07)',
                         button: '0 14px 30px rgba(91, 62, 142, 0.22)',
+                        shell: '0 28px 80px rgba(31, 27, 46, 0.18)',
                     },
                 },
             },
@@ -74,13 +75,13 @@
     <style>
         html {
             scroll-behavior: smooth;
-            background: #F2F4FA;
+            background: #5B3E8E;
         }
 
         body {
             font-family: "Noto Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             overflow-x: hidden;
-            background: #F2F4FA;
+            background: #5B3E8E;
         }
 
         * {
@@ -93,98 +94,17 @@
 
         .builder-page-shell,
         .builder-layout-wrap,
-        .builder-body-grid,
-        .builder-body-grid > main {
-            background: #F2F4FA !important;
+        .builder-header {
+            background: #5B3E8E !important;
             background-image: none !important;
         }
 
         .builder-header {
             isolation: isolate;
-            background: #F2F4FA !important;
-            background-image: none !important;
             box-shadow: none !important;
             border: 0 !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
-            transition:
-                background-color 0.22s ease,
-                color 0.22s ease;
-        }
-
-        .builder-header.is-scrolled {
-            background: #5B3E8E !important;
-            background-image: none !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header-logo {
-            transition: opacity 0.18s ease;
-        }
-
-        .builder-header-kicker,
-        .builder-header-title,
-        .builder-header-divider,
-        .builder-back-button,
-        .builder-nav-link,
-        .builder-whatsapp-button {
-            transition:
-                background-color 0.22s ease,
-                color 0.22s ease,
-                border-color 0.22s ease,
-                box-shadow 0.22s ease;
-        }
-
-        .builder-header.is-scrolled .builder-header-kicker {
-            color: rgba(255, 255, 255, 0.72) !important;
-        }
-
-        .builder-header.is-scrolled .builder-header-title {
-            color: #ffffff !important;
-        }
-
-        .builder-header.is-scrolled .builder-header-divider {
-            background: rgba(255, 255, 255, 0.24) !important;
-        }
-
-        .builder-header.is-scrolled .builder-back-button {
-            background: rgba(255, 255, 255, 0.14) !important;
-            color: #ffffff !important;
-            border-color: rgba(255, 255, 255, 0.18) !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header.is-scrolled .builder-back-button:hover {
-            background: #ffffff !important;
-            color: #5B3E8E !important;
-        }
-
-        .builder-header.is-scrolled .builder-nav-link {
-            color: rgba(255, 255, 255, 0.82) !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header.is-scrolled .builder-nav-link:hover {
-            background: rgba(255, 255, 255, 0.14) !important;
-            color: #ffffff !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header.is-scrolled .builder-nav-link.is-active {
-            background: #ffffff !important;
-            color: #5B3E8E !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header.is-scrolled .builder-whatsapp-button {
-            background: #ffffff !important;
-            color: #5B3E8E !important;
-            box-shadow: none !important;
-        }
-
-        .builder-header.is-scrolled .builder-whatsapp-button:hover {
-            background: #F0EAF8 !important;
-            color: #5B3E8E !important;
         }
 
         .builder-scrollbar::-webkit-scrollbar {
@@ -230,6 +150,11 @@
             height: auto;
         }
 
+        .builder-shell-card {
+            background: #F7F6FB !important;
+            background-image: none !important;
+        }
+
         .builder-body-grid {
             align-items: start;
             margin-top: 0;
@@ -254,7 +179,8 @@
             .builder-header,
             .builder-sidebar,
             .builder-mobile-menu,
-            .builder-footer {
+            .builder-footer,
+            .builder-hero-slot {
                 display: none !important;
             }
 
@@ -262,10 +188,12 @@
                 background: #ffffff !important;
             }
 
+            .builder-shell-card,
             .builder-main-card {
                 box-shadow: none !important;
                 border: 0 !important;
                 padding: 0 !important;
+                background: #ffffff !important;
             }
         }
     </style>
@@ -273,7 +201,7 @@
     @stack('styles')
 </head>
 
-<body class="min-h-screen bg-flex-page text-flex-dark antialiased">
+<body class="min-h-screen bg-flex-primary text-flex-dark antialiased">
     @php
         $whatsappNumber = '62811134759';
         $whatsappText = trim($__env->yieldContent('whatsapp_text', 'Halo FlexLabs, saya ingin konsultasi trial class atau workshop.'));
@@ -295,7 +223,7 @@
                 'icon' => 'academic',
             ],
             [
-                'label' => 'Program FlexLabs',
+                'label' => 'Program',
                 'description' => 'Lihat program utama FlexLabs',
                 'url' => 'https://flexlabs.co.id',
                 'active' => false,
@@ -305,12 +233,9 @@
         ];
     @endphp
 
-    <div class="builder-page-shell relative min-h-screen overflow-visible bg-flex-page">
-        <div class="builder-layout-wrap relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-6 sm:px-6 lg:px-8">
-            <header
-                id="builderHeader"
-                class="builder-header sticky top-0 z-50 -mx-4 bg-flex-page px-4 py-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-            >
+    <div class="builder-page-shell relative min-h-screen overflow-visible bg-flex-primary">
+        <div class="builder-layout-wrap relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-8 sm:px-6 lg:px-8">
+            <header class="builder-header sticky top-0 z-50 -mx-4 bg-flex-primary px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <div class="mx-auto flex w-full max-w-[1780px] items-center justify-between gap-4">
                     <div class="flex min-w-0 items-center gap-5">
                         <a
@@ -319,52 +244,41 @@
                             aria-label="FlexLabs Home"
                         >
                             <img
-                                id="builderHeaderLogo"
-                                src="{{ asset('images/logo-black.png') }}"
-                                data-logo-default="{{ asset('images/logo-black.png') }}"
-                                data-logo-scrolled="{{ asset('images/logo.png') }}"
+                                src="{{ asset('images/logo.png') }}"
                                 alt="FlexLabs Logo"
-                                class="builder-header-logo w-[180px] max-w-[180px] object-contain"
+                                class="w-[180px] max-w-[180px] object-contain"
                             >
                         </a>
-
-                        <div class="builder-header-divider hidden h-9 w-px bg-flex-line md:block"></div>
-
-                        <a
-                            href="javascript:history.back()"
-                            class="builder-back-button hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-flex-dark shadow-sm ring-1 ring-flex-line transition hover:-translate-y-0.5 hover:bg-flex-primary hover:text-white md:inline-flex"
-                            aria-label="Kembali"
-                        >
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </a>
-
-                        <div class="hidden min-w-0 lg:block">
-                            <p class="builder-header-kicker text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
-                                @yield('page_kicker', 'Builder Hub')
-                            </p>
-
-                            <h1 class="builder-header-title mt-0.5 truncate text-xl font-black tracking-[-0.04em] text-flex-dark">
-                                @yield('page_title', 'FlexLabs Builder Hub')
-                            </h1>
-                        </div>
                     </div>
 
-                    <nav class="hidden items-center gap-2 xl:flex" aria-label="Builder Hub Navigation">
-                        <a
-                            href="{{ url('/trial-class') }}"
-                            class="builder-nav-link rounded-full px-4 py-2.5 text-sm font-black transition {{ request()->is('trial-class*') ? 'is-active bg-flex-primary text-white shadow-button' : 'text-flex-muted hover:bg-white hover:text-flex-primary hover:shadow-sm' }}"
-                        >
-                            Trial Class
-                        </a>
+                    <nav class="hidden items-center gap-5 xl:flex" aria-label="Builder Hub Navigation">
+                        @foreach ($builderMenus as $menu)
+                            <a
+                                href="{{ $menu['url'] }}"
+                                @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
+                                class="group flex min-w-[86px] flex-col items-center justify-center gap-2 rounded-[1.25rem] px-4 py-3 text-center transition {{ $menu['active'] ? 'bg-white/14 text-white shadow-none' : 'text-white/72 hover:bg-white/10 hover:text-white' }}"
+                            >
+                                <span class="flex h-6 w-6 items-center justify-center {{ $menu['active'] ? 'text-[#FFE783]' : 'text-white/75 group-hover:text-white' }}">
+                                    @if ($menu['icon'] === 'play')
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/>
+                                        </svg>
+                                    @elseif ($menu['icon'] === 'academic')
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347M4.26 10.147A59.433 59.433 0 0 1 12 3.493a59.433 59.433 0 0 1 7.74 6.654M4.26 10.147 12 14.625l7.74-4.478" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    @else
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    @endif
+                                </span>
 
-                        <a
-                            href="{{ url('/workshop') }}"
-                            class="builder-nav-link rounded-full px-4 py-2.5 text-sm font-black transition {{ request()->is('workshop*') ? 'is-active bg-flex-primary text-white shadow-button' : 'text-flex-muted hover:bg-white hover:text-flex-primary hover:shadow-sm' }}"
-                        >
-                            Workshop
-                        </a>
+                                <span class="text-xs font-black">
+                                    {{ $menu['label'] }}
+                                </span>
+                            </a>
+                        @endforeach
                     </nav>
 
                     <div class="flex shrink-0 items-center gap-3">
@@ -372,7 +286,7 @@
                             href="{{ $whatsappUrl }}"
                             target="_blank"
                             rel="noopener"
-                            class="builder-whatsapp-button inline-flex h-12 items-center justify-center gap-2 rounded-full bg-flex-primary px-5 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                            class="inline-flex h-12 items-center justify-center gap-2 rounded-[1.2rem] bg-white/12 px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-flex-primary"
                         >
                             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path d="M20.52 3.48A11.86 11.86 0 0 0 12.06 0C5.52 0 .19 5.32.19 11.87c0 2.09.55 4.14 1.6 5.94L.09 24l6.34-1.66a11.9 11.9 0 0 0 5.63 1.43h.01c6.55 0 11.88-5.32 11.88-11.87 0-3.17-1.24-6.15-3.43-8.42Zm-8.46 18.28h-.01a9.86 9.86 0 0 1-5.03-1.38l-.36-.22-3.76.99 1-3.66-.24-.38a9.82 9.82 0 0 1-1.5-5.24c0-5.45 4.44-9.88 9.9-9.88a9.84 9.84 0 0 1 6.99 2.9 9.82 9.82 0 0 1 2.9 7c0 5.44-4.44 9.87-9.89 9.87Zm5.42-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.08-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.42.25-.7.25-1.29.17-1.42-.07-.13-.27-.2-.57-.35Z"/>
@@ -387,12 +301,12 @@
             </header>
 
             <div class="builder-mobile-menu mb-5 grid gap-3 lg:hidden">
-                <div class="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-card">
-                    <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
+                <div class="rounded-[1.75rem] border border-white/20 bg-white/12 p-5 text-white">
+                    <p class="text-xs font-black uppercase tracking-[0.18em] text-white/70">
                         @yield('page_kicker', 'Builder Hub')
                     </p>
 
-                    <h2 class="mt-1 text-2xl font-black tracking-[-0.05em] text-flex-dark">
+                    <h2 class="mt-1 text-2xl font-black tracking-[-0.05em]">
                         @yield('page_title', 'FlexLabs Builder Hub')
                     </h2>
                 </div>
@@ -402,7 +316,7 @@
                         <a
                             href="{{ $menu['url'] }}"
                             @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
-                            class="flex shrink-0 items-center gap-2 rounded-full px-4 py-3 text-sm font-black shadow-sm transition {{ $menu['active'] ? 'bg-flex-primary text-white' : 'bg-white text-flex-dark hover:text-flex-primary' }}"
+                            class="flex shrink-0 items-center gap-2 rounded-full px-4 py-3 text-sm font-black shadow-sm transition {{ $menu['active'] ? 'bg-white text-flex-primary' : 'bg-white/12 text-white hover:bg-white hover:text-flex-primary' }}"
                         >
                             {{ $menu['label'] }}
                         </a>
@@ -410,169 +324,99 @@
                 </div>
             </div>
 
-            <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
-                <aside class="builder-sidebar hidden self-start lg:block">
-                    <div class="sticky top-[104px] rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
-                        @hasSection('sidebar')
-                            @yield('sidebar')
-                        @else
-                            <div class="mb-7 flex items-center gap-4">
-                                <div class="flex h-14 w-14 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
-                                    <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                                    </svg>
-                                </div>
-
-                                <div>
-                                    <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
-                                        Explore
-                                    </p>
-
-                                    <h2 class="text-lg font-black tracking-[-0.04em] text-flex-dark">
-                                        Builder Hub
-                                    </h2>
-                                </div>
-                            </div>
-
-                            <div class="space-y-3">
-                                @foreach ($builderMenus as $menu)
-                                    <a
-                                        href="{{ $menu['url'] }}"
-                                        @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
-                                        class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $menu['active'] ? 'bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
-                                    >
-                                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $menu['active'] ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
-                                            @if ($menu['icon'] === 'play')
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                                    <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/>
-                                                </svg>
-                                            @elseif ($menu['icon'] === 'academic')
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347M4.26 10.147A59.433 59.433 0 0 1 12 3.493a59.433 59.433 0 0 1 7.74 6.654M4.26 10.147 12 14.625l7.74-4.478" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            @else
-                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.25 8.25 17.75 10l-.5-1.75a2.7 2.7 0 0 0-1.85-1.85L13.65 6l1.75-.5a2.7 2.7 0 0 0 1.85-1.85l.5-1.75.5 1.75a2.7 2.7 0 0 0 1.85 1.85l1.75.5-1.75.5a2.7 2.7 0 0 0-1.85 1.85Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            @endif
-                                        </span>
-
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-base font-black">
-                                                {{ $menu['label'] }}
-                                            </span>
-
-                                            <span class="{{ $menu['active'] ? 'text-white/75' : 'text-flex-muted' }} mt-0.5 block truncate text-sm font-semibold">
-                                                {{ $menu['description'] }}
-                                            </span>
-                                        </span>
-
-                                        @if ($menu['active'])
-                                            <span class="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary">
-                                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                    <path d="m4.5 12.75 6 6 9-13.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            </span>
-                                        @endif
-                                    </a>
-                                @endforeach
-                            </div>
-
-                            <div class="mt-6 rounded-[1.75rem] border border-flex-line bg-flex-primarySoft p-5">
-                                <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                                    Need Help?
-                                </p>
-
-                                <h3 class="mt-2 text-lg font-black tracking-[-0.04em] text-flex-dark">
-                                    Bingung pilih kelas?
-                                </h3>
-
-                                <p class="mt-2 text-sm font-semibold leading-6 text-flex-muted">
-                                    Chat admin FlexLabs buat tanya trial, workshop, atau program yang paling cocok.
-                                </p>
-
-                                <a
-                                    href="{{ $whatsappUrl }}"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-5 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
-                                >
-                                    Chat WhatsApp
-                                </a>
-                            </div>
-                        @endif
+            <div class="builder-shell-card rounded-[2rem] bg-[#F7F6FB] p-4 shadow-shell sm:p-5 lg:rounded-[2.35rem] lg:p-7">
+                @hasSection('builder_hero')
+                    <div class="builder-hero-slot mb-5">
+                        @yield('builder_hero')
                     </div>
-                </aside>
+                @endif
 
-                <main class="min-w-0 self-start bg-flex-page">
-                    <section class="builder-main-card min-h-[calc(100vh-9rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-soft">
-                        <div class="builder-content min-w-0">
-                            @yield('content')
+                <div class="builder-body-grid grid flex-1 grid-cols-1 items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[390px_minmax(0,1fr)]">
+                    <aside class="builder-sidebar hidden self-start lg:block">
+                        <div class="sticky top-[118px] rounded-[2rem] border border-white/80 bg-white p-6 shadow-soft">
+                            @hasSection('sidebar')
+                                @yield('sidebar')
+                            @else
+                                <div class="mb-7 flex items-center gap-4">
+                                    <div class="flex h-14 w-14 items-center justify-center rounded-full bg-flex-primarySoft text-flex-primary">
+                                        <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                                        </svg>
+                                    </div>
+
+                                    <div>
+                                        <p class="text-xs font-black uppercase tracking-[0.18em] text-flex-primary">
+                                            Explore
+                                        </p>
+
+                                        <h2 class="text-lg font-black tracking-[-0.04em] text-flex-dark">
+                                            Builder Hub
+                                        </h2>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    @foreach ($builderMenus as $menu)
+                                        <a
+                                            href="{{ $menu['url'] }}"
+                                            @if (! empty($menu['external'])) target="_blank" rel="noopener" @endif
+                                            class="group flex items-center gap-4 rounded-[1.5rem] px-4 py-4 transition {{ $menu['active'] ? 'bg-flex-primary text-white shadow-button' : 'bg-flex-soft text-flex-dark hover:bg-flex-primarySoft hover:text-flex-primary' }}"
+                                        >
+                                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $menu['active'] ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
+                                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                                                </svg>
+                                            </span>
+
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-base font-black">
+                                                    {{ $menu['label'] }}
+                                                </span>
+
+                                                <span class="{{ $menu['active'] ? 'text-white/75' : 'text-flex-muted' }} mt-0.5 block truncate text-sm font-semibold">
+                                                    {{ $menu['description'] }}
+                                                </span>
+                                            </span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
-                    </section>
+                    </aside>
 
-                    <footer class="builder-footer mt-6 rounded-[2rem] border border-white/80 bg-white px-6 py-5 text-sm font-semibold text-flex-muted shadow-card">
-                        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <p>
-                                © {{ date('Y') }} FlexLabs. All rights reserved.
-                            </p>
-
-                            <div class="flex flex-wrap items-center gap-4">
-                                <a href="https://flexlabs.co.id" class="font-black text-flex-dark transition hover:text-flex-primary">
-                                    Website
-                                </a>
-
-                                <a href="{{ url('/trial-class') }}" class="font-black text-flex-dark transition hover:text-flex-primary">
-                                    Trial Class
-                                </a>
-
-                                <a href="{{ url('/workshop') }}" class="font-black text-flex-dark transition hover:text-flex-primary">
-                                    Workshop
-                                </a>
+                    <main class="min-w-0 self-start">
+                        <section class="builder-main-card min-h-[calc(100vh-12rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-soft">
+                            <div class="builder-content min-w-0">
+                                @yield('content')
                             </div>
-                        </div>
-                    </footer>
-                </main>
+                        </section>
+                    </main>
+                </div>
             </div>
+
+            <footer class="builder-footer mt-6 px-2 py-4 text-sm font-semibold text-white/68">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p>
+                        © {{ date('Y') }} FlexLabs. All rights reserved.
+                    </p>
+
+                    <div class="flex flex-wrap items-center gap-4">
+                        <a href="https://flexlabs.co.id" class="font-black text-white transition hover:text-white/80">
+                            Website
+                        </a>
+
+                        <a href="{{ url('/trial-class') }}" class="font-black text-white transition hover:text-white/80">
+                            Trial Class
+                        </a>
+
+                        <a href="{{ url('/workshop') }}" class="font-black text-white transition hover:text-white/80">
+                            Workshop
+                        </a>
+                    </div>
+                </div>
+            </footer>
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const header = document.getElementById('builderHeader');
-            const logo = document.getElementById('builderHeaderLogo');
-
-            if (!header || !logo) {
-                return;
-            }
-
-            const defaultLogo = logo.dataset.logoDefault;
-            const scrolledLogo = logo.dataset.logoScrolled;
-
-            function syncHeaderState() {
-                const isScrolled = window.scrollY > 12;
-
-                header.classList.toggle('is-scrolled', isScrolled);
-
-                const nextLogo = isScrolled ? scrolledLogo : defaultLogo;
-
-                if (logo.getAttribute('src') !== nextLogo) {
-                    logo.style.opacity = '0';
-
-                    window.setTimeout(function () {
-                        logo.setAttribute('src', nextLogo);
-                        logo.style.opacity = '1';
-                    }, 90);
-                }
-            }
-
-            syncHeaderState();
-
-            window.addEventListener('scroll', syncHeaderState, {
-                passive: true,
-            });
-        });
-    </script>
 
     @stack('scripts')
 </body>
