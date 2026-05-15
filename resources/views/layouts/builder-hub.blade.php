@@ -204,20 +204,22 @@
             max-height: calc(100vh - 140px);
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 1.5rem 1rem 1.5rem 1.5rem;
-            margin-right: 0.45rem;
+            padding: 1.85rem 1.25rem 1.85rem 1.75rem;
+            margin-right: 0.35rem;
             overscroll-behavior: contain;
+            scrollbar-gutter: stable;
             scrollbar-width: thin;
             scrollbar-color: #FFC316 transparent;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar {
-            width: 7px;
+            width: 8px;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar-track {
             background: transparent;
-            margin: 1.25rem 0;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar-thumb {

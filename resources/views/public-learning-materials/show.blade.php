@@ -845,8 +845,58 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const stepLinks = document.querySelectorAll('[data-step-link]');
     const stepSections = document.querySelectorAll('[data-step-section]');
+    const sidebarScroller = document.querySelector('.builder-sidebar-scroll');
 
-    function setActiveStep(stepId) {
+    let lastActiveStepId = null;
+    let sidebarScrollTimer = null;
+
+    function scrollSidebarToActiveLink(link) {
+        if (!sidebarScroller || !link) {
+            return;
+        }
+
+        const scrollerRect = sidebarScroller.getBoundingClientRect();
+        const linkRect = link.getBoundingClientRect();
+
+        const safeTop = scrollerRect.top + 42;
+        const safeBottom = scrollerRect.bottom - 42;
+
+        const isAbove = linkRect.top < safeTop;
+        const isBelow = linkRect.bottom > safeBottom;
+
+        if (!isAbove && !isBelow) {
+            return;
+        }
+
+        const targetTop =
+            sidebarScroller.scrollTop +
+            (linkRect.top - scrollerRect.top) -
+            (scrollerRect.height / 2) +
+            (linkRect.height / 2);
+
+        window.clearTimeout(sidebarScrollTimer);
+
+        sidebarScrollTimer = window.setTimeout(function () {
+            sidebarScroller.scrollTo({
+                top: Math.max(targetTop, 0),
+                behavior: 'smooth',
+            });
+        }, 70);
+    }
+
+    function setActiveStep(stepId, shouldSyncSidebar = true) {
+        if (!stepId) {
+            return;
+        }
+
+        if (lastActiveStepId === stepId && shouldSyncSidebar) {
+            const currentLink = document.querySelector('[data-step-link="' + stepId + '"]');
+            scrollSidebarToActiveLink(currentLink);
+            return;
+        }
+
+        lastActiveStepId = stepId;
+
         stepLinks.forEach(function (link) {
             const isActive = link.dataset.stepLink === stepId;
 
@@ -876,6 +926,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 meta.classList.toggle('text-white/75', isActive);
                 meta.classList.toggle('text-flex-muted', !isActive);
             }
+
+            if (isActive && shouldSyncSidebar) {
+                scrollSidebarToActiveLink(link);
+            }
         });
     }
 
@@ -896,12 +950,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const stepId = visibleEntries[0].target.dataset.stepSection;
 
             if (stepId) {
-                setActiveStep(stepId);
+                setActiveStep(stepId, true);
             }
         }, {
             root: null,
-            threshold: [0.18, 0.35, 0.55],
-            rootMargin: '-120px 0px -45% 0px',
+            threshold: [0.16, 0.28, 0.44, 0.6],
+            rootMargin: '-130px 0px -48% 0px',
         });
 
         stepSections.forEach(function (section) {
@@ -913,10 +967,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 const stepId = link.dataset.stepLink;
 
                 if (stepId) {
-                    setActiveStep(stepId);
+                    setActiveStep(stepId, true);
                 }
             });
         });
+
+        const firstStep = stepSections[0]?.dataset?.stepSection;
+
+        if (firstStep) {
+            setActiveStep(firstStep, false);
+        }
     }
 });
 </script>
