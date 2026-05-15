@@ -83,8 +83,29 @@
             background: #F2F4FA;
         }
 
+        * {
+            font-family: "Noto Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
         [x-cloak] {
             display: none !important;
+        }
+
+        .builder-page-shell,
+        .builder-header,
+        .builder-layout-wrap,
+        .builder-body-grid,
+        .builder-body-grid > main {
+            background: #F2F4FA !important;
+            background-image: none !important;
+        }
+
+        .builder-header {
+            isolation: isolate;
+            box-shadow: none !important;
+            border: 0 !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
         }
 
         .builder-scrollbar::-webkit-scrollbar {
@@ -128,11 +149,6 @@
         .builder-content img {
             max-width: 100%;
             height: auto;
-        }
-
-        .builder-header {
-            isolation: isolate;
-            background: #F2F4FA;
         }
 
         .builder-body-grid {
@@ -210,8 +226,8 @@
         ];
     @endphp
 
-    <div class="relative min-h-screen overflow-visible bg-flex-page">
-        <div class="relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-6 sm:px-6 lg:px-8">
+    <div class="builder-page-shell relative min-h-screen overflow-visible bg-flex-page">
+        <div class="builder-layout-wrap relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-6 sm:px-6 lg:px-8">
             <header class="builder-header sticky top-0 z-50 -mx-4 bg-flex-page px-4 py-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <div class="mx-auto flex w-full max-w-[1780px] items-center justify-between gap-4">
                     <div class="flex min-w-0 items-center gap-5">
@@ -336,7 +352,7 @@
                     </div>
                 </aside>
 
-                <main class="min-w-0 self-start">
+                <main class="min-w-0 self-start bg-flex-page">
                     <section class="builder-main-card min-h-[calc(100vh-9rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-soft">
                         <div class="builder-content min-w-0">
                             @yield('content')
