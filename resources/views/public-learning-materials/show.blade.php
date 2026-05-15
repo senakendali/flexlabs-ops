@@ -429,8 +429,8 @@
                 </div>
 
                 @if($coverImageUrl)
-                    <figure class="overflow-hidden rounded-[1.75rem] border border-flex-line bg-flex-soft p-3 shadow-card">
-                        <div class="aspect-[4/3] overflow-hidden rounded-[1.35rem] bg-white">
+                    <figure class="overflow-hidden border border-flex-line bg-flex-soft p-3 shadow-card">
+                        <div class="aspect-[4/3] overflow-hidden bg-white">
                             <img
                                 src="{{ $coverImageUrl }}"
                                 alt="{{ $coverImageCaption ?: $materialTitle }}"
