@@ -135,11 +135,6 @@
             background: #F2F4FA;
         }
 
-        .builder-main-card {
-            background: #ffffff !important;
-            background-image: none !important;
-        }
-
         .builder-body-grid {
             align-items: start;
             margin-top: 0;
@@ -155,12 +150,16 @@
             margin-top: 0;
         }
 
+        .builder-main-card {
+            background: #ffffff !important;
+            background-image: none !important;
+        }
+
         @media print {
             .builder-header,
             .builder-sidebar,
             .builder-mobile-menu,
-            .builder-footer,
-            .builder-before-content {
+            .builder-footer {
                 display: none !important;
             }
 
@@ -405,13 +404,7 @@
                 </aside>
 
                 <main class="min-w-0 self-start">
-                    @hasSection('before_content')
-                        <div class="builder-before-content mb-6">
-                            @yield('before_content')
-                        </div>
-                    @endif
-
-                    <section class="builder-main-card min-h-[calc(100vh-9rem)] rounded-[2rem] border border-white/90 bg-white p-5 shadow-soft sm:p-7 lg:rounded-[2.25rem] lg:p-10 xl:p-14">
+                    <section class="builder-main-card min-h-[calc(100vh-9rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-soft">
                         <div class="builder-content min-w-0">
                             @yield('content')
                         </div>

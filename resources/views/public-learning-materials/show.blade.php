@@ -279,7 +279,7 @@
 @endsection
 
 @section('content')
-    <section class="rounded-[2rem] border border-flex-line bg-white p-5 sm:p-7 lg:p-9">
+    <section class="px-5 py-8 sm:px-7 lg:px-10 lg:py-10">
         <div class="max-w-5xl">
             <div class="inline-flex w-fit items-center gap-2 rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
                 <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
@@ -324,8 +324,8 @@
         </div>
     </section>
 
-    <section id="session-info" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-[1.75rem] border border-[#E7DDF4] bg-[#FAF7FF] p-5 shadow-card">
+    <section id="session-info" class="grid gap-4 border-t border-flex-line px-5 py-6 sm:px-7 md:grid-cols-2 lg:px-10 xl:grid-cols-4">
+        <div class="rounded-[1.75rem] border border-[#E7DDF4] bg-[#FAF7FF] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm ring-1 ring-[#E7DDF4]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -344,7 +344,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#D8E3FF] bg-[#F6F8FF] p-5 shadow-card">
+        <div class="rounded-[1.75rem] border border-[#D8E3FF] bg-[#F6F8FF] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#4263EB] shadow-sm ring-1 ring-[#D8E3FF]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -363,7 +363,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#D7F3E4] bg-[#F4FFF8] p-5 shadow-card">
+        <div class="rounded-[1.75rem] border border-[#D7F3E4] bg-[#F4FFF8] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#0F9F6E] shadow-sm ring-1 ring-[#D7F3E4]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -382,7 +382,7 @@
             </div>
         </div>
 
-        <div class="rounded-[1.75rem] border border-[#FFE4C7] bg-[#FFF9F2] p-5 shadow-card">
+        <div class="rounded-[1.75rem] border border-[#FFE4C7] bg-[#FFF9F2] p-5">
             <div class="flex items-start gap-4">
                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#D97706] shadow-sm ring-1 ring-[#FFE4C7]">
                     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -402,7 +402,7 @@
         </div>
     </section>
 
-    <section class="mt-6 rounded-[2rem] border border-flex-line bg-flex-primarySoft p-5 sm:p-7">
+    <section class="border-t border-flex-line bg-flex-primarySoft px-5 py-8 sm:px-7 lg:px-10">
         <div class="grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
             <div>
                 <span class="inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary shadow-sm">
@@ -428,117 +428,115 @@
         </div>
     </section>
 
-    <section id="material-content" class="mt-8 scroll-mt-28">
+    <section id="material-content" class="scroll-mt-28 border-t border-flex-line">
         @if($blocks->count())
-            <div class="rounded-[2rem] border border-flex-line bg-white shadow-card">
-                @foreach($blocks as $index => $block)
-                    @php
-                        $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
-                        $blockTitle = $block->title ?: ucfirst($block->type);
-                        $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
-                        $blockBadge = $blockBadgeMap[$block->type] ?? 'bg-slate-50 text-slate-700 ring-slate-100';
-                        $codeContent = trim($block->code_content ?? '');
-                        $stepId = 'material-step-' . $block->id;
-                    @endphp
+            @foreach($blocks as $index => $block)
+                @php
+                    $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+                    $blockTitle = $block->title ?: ucfirst($block->type);
+                    $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
+                    $blockBadge = $blockBadgeMap[$block->type] ?? 'bg-slate-50 text-slate-700 ring-slate-100';
+                    $codeContent = trim($block->code_content ?? '');
+                    $stepId = 'material-step-' . $block->id;
+                @endphp
 
-                    <article
-                        id="{{ $stepId }}"
-                        data-step-section="{{ $stepId }}"
-                        class="scroll-mt-32 px-5 py-8 sm:px-7 lg:px-9 {{ ! $loop->first ? 'border-t border-flex-line' : '' }}"
-                    >
-                        <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
-                            <div class="min-w-0">
-                                <div class="mb-3 flex flex-wrap items-center gap-2">
-                                    <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] ring-1 {{ $blockBadge }}">
-                                        {{ $blockLabel }}
-                                    </span>
+                <article
+                    id="{{ $stepId }}"
+                    data-step-section="{{ $stepId }}"
+                    class="scroll-mt-32 px-5 py-8 sm:px-7 lg:px-10 lg:py-10 {{ ! $loop->first ? 'border-t border-flex-line' : '' }}"
+                >
+                    <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="mb-3 flex flex-wrap items-center gap-2">
+                                <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] ring-1 {{ $blockBadge }}">
+                                    {{ $blockLabel }}
+                                </span>
 
-                                    <span class="inline-flex rounded-full bg-flex-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-flex-muted">
-                                        Step {{ $blockNumber }}
-                                    </span>
-                                </div>
+                                <span class="inline-flex rounded-full bg-flex-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-flex-muted">
+                                    Step {{ $blockNumber }}
+                                </span>
+                            </div>
 
-                                <h3 class="text-2xl font-black leading-tight tracking-[-0.04em] text-flex-dark md:text-3xl">
-                                    {{ $blockTitle }}
-                                </h3>
+                            <h3 class="text-2xl font-black leading-tight tracking-[-0.04em] text-flex-dark md:text-3xl">
+                                {{ $blockTitle }}
+                            </h3>
+                        </div>
+                    </div>
+
+                    @if($block->type === 'heading')
+                        @if($block->content)
+                            {!! $renderRichText($block->content, 'builder-rich text-lg font-semibold text-flex-muted') !!}
+                        @endif
+
+                    @elseif($block->type === 'text')
+                        {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted md:text-lg') !!}
+
+                    @elseif($block->type === 'code')
+                        <div class="overflow-hidden rounded-[1.5rem] border border-zinc-800 bg-zinc-950 shadow-card">
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                                <span class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-white">
+                                    {{ $block->code_language ? strtoupper($block->code_language) : 'CODE' }}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-xs font-black text-zinc-950 transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
+                                    data-code-base64="{{ base64_encode($codeContent) }}"
+                                >
+                                    Copy Code
+                                </button>
+                            </div>
+
+                            <pre class="builder-scrollbar max-h-[620px] overflow-auto p-5 text-sm leading-7 text-zinc-100"><code>{{ $codeContent }}</code></pre>
+                        </div>
+
+                    @elseif($block->type === 'image')
+                        @if($block->image_path)
+                            <div class="overflow-hidden rounded-[1.5rem] border border-flex-line bg-flex-soft p-3">
+                                <img
+                                    src="{{ asset('storage/' . $block->image_path) }}"
+                                    alt="{{ $block->image_caption ?: $blockTitle }}"
+                                    class="w-full rounded-[1.2rem] object-cover"
+                                >
+                            </div>
+                        @endif
+
+                        @if($block->image_caption)
+                            <p class="mt-4 text-base font-semibold leading-8 text-flex-muted">
+                                {{ $block->image_caption }}
+                            </p>
+                        @endif
+
+                    @elseif($block->type === 'note')
+                        <div class="flex gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+                                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted') !!}
                             </div>
                         </div>
 
-                        @if($block->type === 'heading')
-                            @if($block->content)
-                                {!! $renderRichText($block->content, 'builder-rich text-lg font-semibold text-flex-muted') !!}
-                            @endif
-
-                        @elseif($block->type === 'text')
-                            {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted md:text-lg') !!}
-
-                        @elseif($block->type === 'code')
-                            <div class="overflow-hidden rounded-[1.5rem] border border-zinc-800 bg-zinc-950 shadow-card">
-                                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-                                    <span class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-white">
-                                        {{ $block->code_language ? strtoupper($block->code_language) : 'CODE' }}
-                                    </span>
-
-                                    <button
-                                        type="button"
-                                        class="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-xs font-black text-zinc-950 transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
-                                        data-code-base64="{{ base64_encode($codeContent) }}"
-                                    >
-                                        Copy Code
-                                    </button>
-                                </div>
-
-                                <pre class="builder-scrollbar max-h-[620px] overflow-auto p-5 text-sm leading-7 text-zinc-100"><code>{{ $codeContent }}</code></pre>
+                    @elseif($block->type === 'task')
+                        <div class="flex gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
                             </div>
 
-                        @elseif($block->type === 'image')
-                            @if($block->image_path)
-                                <div class="overflow-hidden rounded-[1.5rem] border border-flex-line bg-flex-soft p-3">
-                                    <img
-                                        src="{{ asset('storage/' . $block->image_path) }}"
-                                        alt="{{ $block->image_caption ?: $blockTitle }}"
-                                        class="w-full rounded-[1.2rem] object-cover"
-                                    >
-                                </div>
-                            @endif
-
-                            @if($block->image_caption)
-                                <p class="mt-4 text-base font-semibold leading-8 text-flex-muted">
-                                    {{ $block->image_caption }}
-                                </p>
-                            @endif
-
-                        @elseif($block->type === 'note')
-                            <div class="flex gap-4">
-                                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-100">
-                                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189M15 6.75a3 3 0 1 0-6 0c0 1.21.714 2.257 1.744 2.735.214.1.256.366.256.602v.413h2v-.413c0-.236.042-.502.256-.602A3.001 3.001 0 0 0 15 6.75Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted') !!}
-                                </div>
+                            <div class="min-w-0 flex-1">
+                                {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted') !!}
                             </div>
-
-                        @elseif($block->type === 'task')
-                            <div class="flex gap-4">
-                                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
-                                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    {!! $renderRichText($block->content, 'builder-rich text-base font-semibold text-flex-muted') !!}
-                                </div>
-                            </div>
-                        @endif
-                    </article>
-                @endforeach
-            </div>
+                        </div>
+                    @endif
+                </article>
+            @endforeach
         @else
-            <div class="rounded-[2rem] border border-flex-line bg-white p-8 text-center shadow-card">
+            <div class="px-5 py-10 text-center sm:px-7 lg:px-10">
                 <span class="inline-flex rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
                     Empty Material
                 </span>
@@ -555,7 +553,7 @@
     </section>
 
     @if($galleryImages->count())
-        <section id="supporting-images" class="mt-12 scroll-mt-32">
+        <section id="supporting-images" class="scroll-mt-32 border-t border-flex-line px-5 py-10 sm:px-7 lg:px-10">
             <div class="text-center">
                 <span class="inline-flex rounded-full bg-flex-primarySoft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
                     Supporting Images
