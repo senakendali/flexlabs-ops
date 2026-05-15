@@ -1,11 +1,21 @@
+@php
+    $normalizeDash = function ($value) {
+        return str_replace(["\u{2014}", "\u{2013}"], '-', (string) $value);
+    };
+
+    $materialTitle = $normalizeDash($material->title);
+    $materialSubtitle = $normalizeDash($material->subtitle);
+    $materialType = $normalizeDash($material->type ?? 'Material');
+@endphp
+
 @extends('layouts.builder-hub')
 
-@section('title', $material->title . ' | FlexLabs')
-@section('meta_description', $material->subtitle ?: 'Materi FlexLabs untuk trial class dan workshop.')
+@section('title', $materialTitle . ' | FlexLabs')
+@section('meta_description', $materialSubtitle ?: 'Materi FlexLabs untuk trial class dan workshop.')
 @section('brand_url', url('/workshop'))
-@section('page_kicker', ucfirst($material->type ?? 'Material') . ' Material')
-@section('page_title', $material->title)
-@section('whatsapp_text', 'Halo FlexLabs, saya ingin konsultasi tentang materi ' . $material->title)
+@section('page_kicker', ucfirst($materialType) . ' Material')
+@section('page_title', $materialTitle)
+@section('whatsapp_text', 'Halo FlexLabs, saya ingin konsultasi tentang materi ' . $materialTitle)
 
 @php
     $formattedDate = $material->event_date
@@ -19,6 +29,8 @@
     $formattedAccessEnd = $material->access_ends_at
         ? $material->access_ends_at->format('d M Y H:i')
         : '-';
+
+    $instructorName = $normalizeDash($material->instructor_name ?: 'FlexLabs Instructor');
 
     $blocks = $material->activeBlocks->values();
 
@@ -45,8 +57,8 @@
         ->sortBy(fn ($image) => $image->sort_order ?? 999999)
         ->values();
 
-    $renderRichText = function ($content, $class = '') {
-        $content = trim((string) $content);
+    $renderRichText = function ($content, $class = '') use ($normalizeDash) {
+        $content = trim($normalizeDash($content));
 
         if ($content === '') {
             return '';
@@ -72,14 +84,14 @@
             ->implode('') . '</div>';
     };
 
-    $downloadFilename = function ($image, int $index) use ($material) {
+    $downloadFilename = function ($image, int $index) use ($materialTitle) {
         $extension = pathinfo((string) $image->image_path, PATHINFO_EXTENSION);
 
         if (! $extension) {
             $extension = 'jpg';
         }
 
-        return \Illuminate\Support\Str::slug($material->title . '-gallery-' . $index) . '.' . $extension;
+        return \Illuminate\Support\Str::slug($materialTitle . '-gallery-' . $index) . '.' . $extension;
     };
 
     $bookIcon = '
@@ -117,6 +129,38 @@
             />
         </svg>
     ';
+
+    $codeIcon = '
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="M17.25 6.75 21.75 12l-4.5 5.25M6.75 6.75 2.25 12l4.5 5.25M14.25 4.5l-4.5 15"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    ';
+
+    $imageIcon = '
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    ';
+
+    $getBlockIcon = function ($type) use ($bookIcon, $codeIcon, $imageIcon) {
+        return match ($type) {
+            'code' => $codeIcon,
+            'image' => $imageIcon,
+            default => $bookIcon,
+        };
+    };
 @endphp
 
 @push('styles')
@@ -209,7 +253,7 @@
             @foreach($blocks as $index => $block)
                 @php
                     $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
-                    $blockTitle = $block->title ?: ucfirst($block->type);
+                    $blockTitle = $normalizeDash($block->title ?: ucfirst($block->type));
                     $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
                     $stepId = 'material-step-' . $block->id;
                 @endphp
@@ -220,7 +264,7 @@
                     data-step-link="{{ $stepId }}"
                 >
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $loop->first ? 'bg-white/20 text-white' : 'bg-white text-flex-primary shadow-sm' }}">
-                        {!! $bookIcon !!}
+                        {!! $getBlockIcon($block->type) !!}
                     </span>
 
                     <span class="min-w-0">
@@ -278,7 +322,7 @@
                     Instructor
                 </p>
                 <p class="mt-1 text-base font-black text-flex-dark">
-                    {{ $material->instructor_name ?: 'FlexLabs Instructor' }}
+                    {{ $instructorName }}
                 </p>
             </div>
         </div>
@@ -299,16 +343,16 @@
                 <span class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
                     {!! $bookIconSmall !!}
                 </span>
-                {{ ucfirst($material->type) }} Material
+                {{ ucfirst($materialType) }} Material
             </div>
 
             <h1 class="mt-6 max-w-5xl text-3xl font-black leading-[1.12] tracking-[-0.055em] text-flex-dark md:text-4xl xl:text-5xl">
-                {{ $material->title }}
+                {{ $materialTitle }}
             </h1>
 
-            @if($material->subtitle)
+            @if($materialSubtitle)
                 <p class="mt-5 max-w-4xl text-lg font-black leading-8 text-flex-primary md:text-xl">
-                    {{ $material->subtitle }}
+                    {{ $materialSubtitle }}
                 </p>
             @endif
 
@@ -407,7 +451,7 @@
                         Instructor
                     </p>
                     <p class="mt-1 truncate text-lg font-black leading-tight text-flex-dark">
-                        {{ $material->instructor_name ?: 'FlexLabs Instructor' }}
+                        {{ $instructorName }}
                     </p>
                 </div>
             </div>
@@ -445,10 +489,11 @@
             @foreach($blocks as $index => $block)
                 @php
                     $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
-                    $blockTitle = $block->title ?: ucfirst($block->type);
+                    $blockTitle = $normalizeDash($block->title ?: ucfirst($block->type));
                     $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
                     $blockBadge = $blockBadgeMap[$block->type] ?? 'bg-slate-50 text-slate-700 ring-slate-100';
-                    $codeContent = trim($block->code_content ?? '');
+                    $codeContent = trim($normalizeDash($block->code_content ?? ''));
+                    $imageCaption = $normalizeDash($block->image_caption ?: '');
                     $stepId = 'material-step-' . $block->id;
                 @endphp
 
@@ -507,15 +552,15 @@
                             <div class="overflow-hidden rounded-[1.5rem] border border-flex-line bg-flex-soft p-3">
                                 <img
                                     src="{{ asset('storage/' . $block->image_path) }}"
-                                    alt="{{ $block->image_caption ?: $blockTitle }}"
+                                    alt="{{ $imageCaption ?: $blockTitle }}"
                                     class="w-full rounded-[1.2rem] object-cover"
                                 >
                             </div>
                         @endif
 
-                        @if($block->image_caption)
+                        @if($imageCaption)
                             <p class="mt-4 text-base font-semibold leading-8 text-flex-muted">
-                                {{ $block->image_caption }}
+                                {{ $imageCaption }}
                             </p>
                         @endif
 
@@ -580,7 +625,7 @@
                 @foreach($galleryImages as $image)
                     @php
                         $imageUrl = asset('storage/' . $image->image_path);
-                        $imageTitle = $image->caption ?: 'Supporting Image ' . $loop->iteration;
+                        $imageTitle = $normalizeDash($image->caption ?: 'Supporting Image ' . $loop->iteration);
                         $fileName = $downloadFilename($image, $loop->iteration);
                     @endphp
 
