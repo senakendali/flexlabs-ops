@@ -90,7 +90,7 @@
                     <i class="bi bi-save me-1"></i> Save Draft
                 </button>
 
-                <button type="button" id="submitMaterialBtn" class="btn btn-light btn-modern">
+                <button type="button" id="submitMaterialBtn" class="btn btn-primary btn-modern">
                     <i class="bi bi-check-circle me-1"></i>
                     {{ $isEdit ? 'Update Material' : 'Create Material' }}
                 </button>
@@ -535,6 +535,144 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="content-card section-card mb-4">
+                        <div class="content-card-header section-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Gallery Images</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Upload gambar pendukung yang akan tampil di bagian gallery pada public landing page.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary btn-modern"
+                                data-bs-toggle="modal"
+                                data-bs-target="#materialImageModal"
+                                data-mode="create"
+                            >
+                                <i class="bi bi-plus-circle me-1"></i> Add Image
+                            </button>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div id="materialImagesContainer">
+                                @if($material->images->count())
+                                    <div class="table-responsive dropdown-safe-table">
+                                        <table class="table table-hover align-middle admin-table mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th class="text-nowrap">Preview</th>
+                                                    <th>Image</th>
+                                                    <th class="text-nowrap">Order</th>
+                                                    <th class="text-nowrap">Status</th>
+                                                    <th class="text-end text-nowrap">Action</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody id="materialImagesTableBody">
+                                                @foreach($material->images as $image)
+                                                    <tr id="imageRow{{ $image->id }}">
+                                                        <td class="text-nowrap">
+                                                            <div class="border rounded bg-light p-1" style="width: 72px; height: 54px;">
+                                                                <img
+                                                                    src="{{ asset('storage/' . $image->image_path) }}"
+                                                                    alt="{{ $image->caption ?: $material->title }}"
+                                                                    class="w-100 h-100 rounded"
+                                                                    style="object-fit: cover;"
+                                                                >
+                                                            </div>
+                                                        </td>
+
+                                                        <td>
+                                                            <div class="fw-semibold text-dark">
+                                                                {{ $image->caption ?: 'Gallery Image' }}
+                                                            </div>
+
+                                                            <div class="text-muted small text-truncate" style="max-width: 520px;">
+                                                                {{ $image->image_path }}
+                                                            </div>
+                                                        </td>
+
+                                                        <td class="text-nowrap">
+                                                            <span class="fw-semibold">
+                                                                {{ $image->sort_order ?? '-' }}
+                                                            </span>
+                                                        </td>
+
+                                                        <td class="text-nowrap">
+                                                            @if($image->is_active ?? true)
+                                                                <span class="assignment-status-badge status-published">Active</span>
+                                                            @else
+                                                                <span class="assignment-status-badge status-closed">Inactive</span>
+                                                            @endif
+                                                        </td>
+
+                                                        <td class="text-end text-nowrap">
+                                                            <div class="dropdown">
+                                                                <button
+                                                                    class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                                    type="button"
+                                                                    data-bs-toggle="dropdown"
+                                                                    data-bs-boundary="viewport"
+                                                                    aria-expanded="false"
+                                                                >
+                                                                    Actions
+                                                                </button>
+
+                                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                                    <li>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="dropdown-item"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#materialImageModal"
+                                                                            data-mode="edit"
+                                                                            data-id="{{ $image->id }}"
+                                                                            data-caption-base64="{{ base64_encode($image->caption ?? '') }}"
+                                                                            data-sort-order="{{ $image->sort_order ?? 1 }}"
+                                                                            data-is-active="{{ ($image->is_active ?? true) ? '1' : '0' }}"
+                                                                            data-update-url="{{ route('public-learning-materials.images.update', $image) }}"
+                                                                        >
+                                                                            <i class="bi bi-pencil-square me-2"></i>Edit
+                                                                        </button>
+                                                                    </li>
+
+                                                                    <li>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="dropdown-item text-danger"
+                                                                            data-delete-image
+                                                                            data-delete-url="{{ route('public-learning-materials.images.destroy', $image) }}"
+                                                                            data-delete-row="#imageRow{{ $image->id }}"
+                                                                        >
+                                                                            <i class="bi bi-trash me-2"></i>Delete
+                                                                        </button>
+                                                                    </li>
+                                                                </ul>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @else
+                                    <div id="emptyImageState" class="empty-state-box">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-images"></i>
+                                        </div>
+
+                                        <h5 class="empty-state-title">Belum ada gallery image</h5>
+                                        <p class="empty-state-text mb-0">
+                                            Tambahkan gambar pendukung untuk public material. Gambar ini akan muncul di bagian gallery.
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 <div class="content-card">
@@ -613,7 +751,7 @@
 
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="text-muted">Gallery Images</span>
-                            <span class="fw-semibold">
+                            <span class="fw-semibold" id="galleryImageCountText">
                                 {{ $isEdit ? $material->images->count() : 0 }}
                             </span>
                         </div>
@@ -678,6 +816,7 @@
                             <a href="{{ route('public-learning-materials.index') }}" class="btn btn-light btn-modern">
                                 Cancel
                             </a>
+
                             <button type="button" id="saveDraftBtnSide" class="btn btn-light btn-modern">
                                 <i class="bi bi-save me-1"></i> Save Draft
                             </button>
@@ -685,7 +824,7 @@
                             <button type="button" id="submitMaterialBtnSide" class="btn btn-primary btn-modern">
                                 <i class="bi bi-check-circle me-1"></i>
                                 {{ $isEdit ? 'Update Material' : 'Create Material' }}
-                            </button>   
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -828,6 +967,96 @@
 
                             <button type="submit" class="btn btn-primary btn-modern submit-btn">
                                 Save Block
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="materialImageModal" tabindex="-1" aria-labelledby="materialImageModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content custom-modal">
+                    <form
+                        id="materialImageForm"
+                        data-store-url="{{ route('public-learning-materials.images.store', $material) }}"
+                    >
+                        @csrf
+
+                        <input type="hidden" name="_method" value="POST">
+                        <input type="hidden" name="id" value="">
+                        <input type="hidden" id="imageUpdateUrl" value="">
+
+                        <div class="modal-header border-0 pb-0">
+                            <div>
+                                <h5 class="modal-title" id="materialImageModalLabel">Add Gallery Image</h5>
+                                <p class="text-muted mb-0" id="materialImageModalSubtitle">
+                                    Upload gambar pendukung untuk public material.
+                                </p>
+                            </div>
+
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body pt-4">
+                            <div class="alert alert-danger d-none form-alert" role="alert"></div>
+
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Image</label>
+                                    <input
+                                        type="file"
+                                        name="image"
+                                        class="form-control"
+                                        accept="image/*"
+                                    >
+                                    <div class="form-text">
+                                        Wajib saat tambah gambar baru. Saat edit boleh kosong jika tidak ingin mengganti gambar.
+                                    </div>
+                                    <div class="invalid-feedback error-text" data-error-for="image"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Caption</label>
+                                    <input
+                                        type="text"
+                                        name="caption"
+                                        class="form-control"
+                                        placeholder="Contoh: Preview hasil akhir aplikasi FlexFood"
+                                    >
+                                    <div class="invalid-feedback error-text" data-error-for="caption"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Order</label>
+                                    <input
+                                        type="number"
+                                        name="sort_order"
+                                        class="form-control"
+                                        min="1"
+                                        value="1"
+                                    >
+                                    <div class="invalid-feedback error-text" data-error-for="sort_order"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Status</label>
+                                    <select name="is_active" class="form-select">
+                                        <option value="1">Active</option>
+                                        <option value="0">Inactive</option>
+                                    </select>
+                                    <div class="invalid-feedback error-text" data-error-for="is_active"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                                Cancel
+                            </button>
+
+                            <button type="submit" class="btn btn-primary btn-modern submit-btn">
+                                Save Image
                             </button>
                         </div>
                     </form>
@@ -1835,8 +2064,481 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    const materialImageModal = document.getElementById('materialImageModal');
+    const materialImageForm = document.getElementById('materialImageForm');
+    const imageUpdateUrlField = document.getElementById('imageUpdateUrl');
+    const galleryImageCountText = document.getElementById('galleryImageCountText');
+
+    function clearImageValidationErrors() {
+        if (!materialImageForm) {
+            return;
+        }
+
+        const alertBox = materialImageForm.querySelector('.form-alert');
+
+        if (alertBox) {
+            alertBox.classList.add('d-none');
+            alertBox.innerHTML = '';
+        }
+
+        materialImageForm.querySelectorAll('.is-invalid').forEach(function (el) {
+            el.classList.remove('is-invalid');
+        });
+
+        materialImageForm.querySelectorAll('.error-text').forEach(function (el) {
+            el.textContent = '';
+        });
+    }
+
+    function showImageErrors(errors) {
+        if (!materialImageForm) {
+            return;
+        }
+
+        const alertBox = materialImageForm.querySelector('.form-alert');
+        const messages = [];
+
+        Object.entries(errors || {}).forEach(function ([key, fieldErrors]) {
+            const message = Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors;
+            const field = materialImageForm.querySelector(`[name="${cssEscapeName(key)}"]`);
+            const errorHolder = materialImageForm.querySelector(`[data-error-for="${key}"]`);
+
+            if (field) {
+                field.classList.add('is-invalid');
+            }
+
+            if (errorHolder) {
+                errorHolder.textContent = message;
+            }
+
+            if (message) {
+                messages.push(`<div>${escapeHtml(message)}</div>`);
+            }
+        });
+
+        if (alertBox && messages.length) {
+            alertBox.innerHTML = messages.join('');
+            alertBox.classList.remove('d-none');
+        }
+    }
+
+    function getNextImageOrder() {
+        const orders = Array.from(document.querySelectorAll('#materialImagesTableBody tr td:nth-child(3) .fw-semibold'))
+            .map(function (el) {
+                return parseInt(el.textContent.trim(), 10);
+            })
+            .filter(function (value) {
+                return Number.isFinite(value);
+            });
+
+        if (!orders.length) {
+            return 1;
+        }
+
+        return Math.max(...orders) + 1;
+    }
+
+    function updateGalleryImageCount() {
+        if (!galleryImageCountText) {
+            return;
+        }
+
+        const rowCount = document.querySelectorAll('#materialImagesTableBody tr').length;
+        galleryImageCountText.textContent = String(rowCount);
+    }
+
+    function resetImageForm() {
+        if (!materialImageForm) {
+            return;
+        }
+
+        materialImageForm.reset();
+        clearImageValidationErrors();
+
+        materialImageForm.querySelector('input[name="_method"]').value = 'POST';
+        materialImageForm.querySelector('input[name="id"]').value = '';
+        materialImageForm.querySelector('input[name="sort_order"]').value = String(getNextImageOrder());
+        materialImageForm.querySelector('select[name="is_active"]').value = '1';
+
+        if (imageUpdateUrlField) {
+            imageUpdateUrlField.value = '';
+        }
+
+        const submitBtn = materialImageForm.querySelector('.submit-btn');
+
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Save Image';
+            submitBtn.dataset.defaultText = 'Save Image';
+        }
+    }
+
+    function ensureImageTable() {
+        let tbody = document.getElementById('materialImagesTableBody');
+
+        if (tbody) {
+            return tbody;
+        }
+
+        const container = document.getElementById('materialImagesContainer');
+
+        if (!container) {
+            return null;
+        }
+
+        container.innerHTML = `
+            <div class="table-responsive dropdown-safe-table">
+                <table class="table table-hover align-middle admin-table mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-nowrap">Preview</th>
+                            <th>Image</th>
+                            <th class="text-nowrap">Order</th>
+                            <th class="text-nowrap">Status</th>
+                            <th class="text-end text-nowrap">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="materialImagesTableBody"></tbody>
+                </table>
+            </div>
+        `;
+
+        return document.getElementById('materialImagesTableBody');
+    }
+
+    function buildImageRow(image) {
+        const caption = image.caption || 'Gallery Image';
+        const imageUrl = image.image_url || image.url || '';
+        const imagePath = image.image_path || '';
+        const sortOrder = image.sort_order || 1;
+
+        const statusBadge = image.is_active
+            ? '<span class="assignment-status-badge status-published">Active</span>'
+            : '<span class="assignment-status-badge status-closed">Inactive</span>';
+
+        const updateUrl = `{{ route('public-learning-materials.images.update', ['image' => '__ID__']) }}`.replace('__ID__', image.id);
+        const deleteUrl = `{{ route('public-learning-materials.images.destroy', ['image' => '__ID__']) }}`.replace('__ID__', image.id);
+
+        return `
+            <tr id="imageRow${escapeHtml(image.id)}">
+                <td class="text-nowrap">
+                    <div class="border rounded bg-light p-1" style="width: 72px; height: 54px;">
+                        <img
+                            src="${escapeHtml(imageUrl)}"
+                            alt="${escapeHtml(caption)}"
+                            class="w-100 h-100 rounded"
+                            style="object-fit: cover;"
+                        >
+                    </div>
+                </td>
+
+                <td>
+                    <div class="fw-semibold text-dark">${escapeHtml(caption)}</div>
+                    <div class="text-muted small text-truncate" style="max-width: 520px;">
+                        ${escapeHtml(imagePath)}
+                    </div>
+                </td>
+
+                <td class="text-nowrap">
+                    <span class="fw-semibold">${escapeHtml(sortOrder)}</span>
+                </td>
+
+                <td class="text-nowrap">
+                    ${statusBadge}
+                </td>
+
+                <td class="text-end text-nowrap">
+                    <div class="dropdown">
+                        <button
+                            class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            data-bs-boundary="viewport"
+                            aria-expanded="false"
+                        >
+                            Actions
+                        </button>
+
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#materialImageModal"
+                                    data-mode="edit"
+                                    data-id="${escapeHtml(image.id)}"
+                                    data-caption-base64="${escapeHtml(encodeBase64Unicode(image.caption || ''))}"
+                                    data-sort-order="${escapeHtml(sortOrder)}"
+                                    data-is-active="${image.is_active ? '1' : '0'}"
+                                    data-update-url="${escapeHtml(updateUrl)}"
+                                >
+                                    <i class="bi bi-pencil-square me-2"></i>Edit
+                                </button>
+                            </li>
+
+                            <li>
+                                <button
+                                    type="button"
+                                    class="dropdown-item text-danger"
+                                    data-delete-image
+                                    data-delete-url="${escapeHtml(deleteUrl)}"
+                                    data-delete-row="#imageRow${escapeHtml(image.id)}"
+                                >
+                                    <i class="bi bi-trash me-2"></i>Delete
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    function upsertImageRow(image) {
+        const tbody = ensureImageTable();
+
+        if (!tbody) {
+            return;
+        }
+
+        const existingRow = document.getElementById(`imageRow${image.id}`);
+        const rowHtml = buildImageRow(image);
+
+        if (existingRow) {
+            existingRow.outerHTML = rowHtml;
+        } else {
+            tbody.insertAdjacentHTML('beforeend', rowHtml);
+        }
+
+        updateGalleryImageCount();
+    }
+
+    async function hideImageModal() {
+        if (!materialImageModal || !window.bootstrap) {
+            return;
+        }
+
+        const instance = bootstrap.Modal.getInstance(materialImageModal) || bootstrap.Modal.getOrCreateInstance(materialImageModal);
+
+        await new Promise(function (resolve) {
+            let resolved = false;
+
+            function done() {
+                if (resolved) {
+                    return;
+                }
+
+                resolved = true;
+                resolve();
+            }
+
+            materialImageModal.addEventListener('hidden.bs.modal', done, { once: true });
+            instance.hide();
+
+            window.setTimeout(done, 360);
+        });
+    }
+
+    async function submitImageForm(event) {
+        event.preventDefault();
+
+        if (!materialImageForm) {
+            return;
+        }
+
+        clearImageValidationErrors();
+
+        const methodInput = materialImageForm.querySelector('input[name="_method"]');
+        const isUpdate = methodInput?.value === 'PUT';
+        const actionUrl = isUpdate ? imageUpdateUrlField?.value : materialImageForm.dataset.storeUrl;
+
+        if (!actionUrl) {
+            showToast('Route gallery image belum tersedia.', 'danger');
+            return;
+        }
+
+        const submitBtn = materialImageForm.querySelector('.submit-btn');
+        const originalHtml = submitBtn?.innerHTML || 'Save Image';
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+        }
+
+        const formData = new FormData(materialImageForm);
+
+        if (isUpdate) {
+            formData.set('_method', 'PUT');
+        }
+
+        try {
+            const response = await fetch(actionUrl, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: formData,
+            });
+
+            const data = await parseResponse(response);
+
+            if (!response.ok || data.success === false) {
+                if (response.status === 422 && data.errors) {
+                    showImageErrors(data.errors);
+                }
+
+                showToast(data.message || 'Gagal menyimpan gallery image.', 'danger');
+                return;
+            }
+
+            upsertImageRow(data.data);
+
+            await hideImageModal();
+
+            resetImageForm();
+
+            showToast(data.message || 'Gallery image berhasil disimpan.', 'success');
+        } catch (error) {
+            showToast('Terjadi kesalahan saat menyimpan gallery image.', 'danger');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHtml;
+            }
+        }
+    }
+
+    async function deleteImage(button) {
+        const deleteUrl = button.getAttribute('data-delete-url');
+        const rowSelector = button.getAttribute('data-delete-row');
+
+        if (!deleteUrl) {
+            showToast('Route delete gallery image belum tersedia.', 'danger');
+            return;
+        }
+
+        if (!confirm('Yakin mau hapus gallery image ini?')) {
+            return;
+        }
+
+        button.disabled = true;
+
+        try {
+            const response = await fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+            });
+
+            const data = await parseResponse(response);
+
+            if (!response.ok || data.success === false) {
+                showToast(data.message || 'Gagal menghapus gallery image.', 'danger');
+                button.disabled = false;
+                return;
+            }
+
+            const row = rowSelector ? document.querySelector(rowSelector) : null;
+
+            if (row) {
+                row.remove();
+            }
+
+            const tbody = document.getElementById('materialImagesTableBody');
+
+            if (tbody && tbody.children.length === 0) {
+                const container = document.getElementById('materialImagesContainer');
+
+                if (container) {
+                    container.innerHTML = `
+                        <div id="emptyImageState" class="empty-state-box">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-images"></i>
+                            </div>
+
+                            <h5 class="empty-state-title">Belum ada gallery image</h5>
+                            <p class="empty-state-text mb-0">
+                                Tambahkan gambar pendukung untuk public material. Gambar ini akan muncul di bagian gallery.
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+
+            updateGalleryImageCount();
+
+            showToast(data.message || 'Gallery image berhasil dihapus.', 'success');
+        } catch (error) {
+            showToast('Terjadi kesalahan saat menghapus gallery image.', 'danger');
+            button.disabled = false;
+        }
+    }
+
+    if (materialImageModal && materialImageForm) {
+        materialImageModal.addEventListener('show.bs.modal', function (event) {
+            resetImageForm();
+
+            const button = event.relatedTarget;
+            const mode = button?.dataset?.mode || 'create';
+
+            const modalTitle = document.getElementById('materialImageModalLabel');
+            const modalSubtitle = document.getElementById('materialImageModalSubtitle');
+            const submitBtn = materialImageForm.querySelector('.submit-btn');
+
+            if (mode === 'edit') {
+                if (modalTitle) {
+                    modalTitle.textContent = 'Edit Gallery Image';
+                }
+
+                if (modalSubtitle) {
+                    modalSubtitle.textContent = 'Perbarui caption, status, order, atau ganti image.';
+                }
+
+                if (submitBtn) {
+                    submitBtn.innerHTML = 'Update Image';
+                    submitBtn.dataset.defaultText = 'Update Image';
+                }
+
+                materialImageForm.querySelector('input[name="_method"]').value = 'PUT';
+                materialImageForm.querySelector('input[name="id"]').value = button.dataset.id || '';
+                materialImageForm.querySelector('input[name="caption"]').value = decodeBase64Unicode(button.dataset.captionBase64 || '');
+                materialImageForm.querySelector('input[name="sort_order"]').value = button.dataset.sortOrder || 1;
+                materialImageForm.querySelector('select[name="is_active"]').value = button.dataset.isActive || '1';
+
+                if (imageUpdateUrlField) {
+                    imageUpdateUrlField.value = button.dataset.updateUrl || '';
+                }
+            } else {
+                if (modalTitle) {
+                    modalTitle.textContent = 'Add Gallery Image';
+                }
+
+                if (modalSubtitle) {
+                    modalSubtitle.textContent = 'Upload gambar pendukung untuk public material.';
+                }
+            }
+        });
+
+        materialImageForm.addEventListener('submit', submitImageForm);
+    }
+
+    document.addEventListener('click', function (event) {
+        const deleteImageButton = event.target.closest('[data-delete-image]');
+
+        if (deleteImageButton) {
+            deleteImage(deleteImageButton);
+        }
+    });
+
     refreshProgress();
     updateBlockCount();
+    updateGalleryImageCount();
 });
 </script>
 @endpush

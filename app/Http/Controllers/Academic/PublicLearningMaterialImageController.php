@@ -13,42 +13,62 @@ class PublicLearningMaterialImageController extends Controller
     public function store(Request $request, PublicLearningMaterial $material)
     {
         $validated = $request->validate([
-            'images' => ['required', 'array'],
-            'images.*' => ['required', 'image', 'max:4096'],
+            'image' => ['required', 'image', 'max:4096'],
             'caption' => ['nullable', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $createdImages = [];
+        $sortOrder = $validated['sort_order']
+            ?? (((int) $material->images()->max('sort_order')) + 1);
 
-        foreach ($request->file('images', []) as $imageFile) {
-            $sortOrder = ((int) $material->images()->max('sort_order')) + 1;
-
-            $createdImages[] = PublicLearningMaterialImage::create([
-                'public_learning_material_id' => $material->id,
-                'image_path' => $imageFile->store('public-learning-materials/gallery', 'public'),
-                'caption' => $validated['caption'] ?? null,
-                'sort_order' => $sortOrder,
-            ]);
-        }
+        $image = PublicLearningMaterialImage::create([
+            'public_learning_material_id' => $material->id,
+            'image_path' => $request->file('image')->store('public-learning-materials/gallery', 'public'),
+            'caption' => $validated['caption'] ?? null,
+            'sort_order' => $sortOrder,
+            'is_active' => $request->has('is_active')
+                ? $request->boolean('is_active')
+                : true,
+        ]);
 
         return response()->json([
-            'message' => 'Image berhasil diupload.',
-            'data' => $createdImages,
+            'success' => true,
+            'message' => 'Gallery image berhasil diupload.',
+            'data' => $this->formatImage($image->fresh()),
         ]);
     }
 
     public function update(Request $request, PublicLearningMaterialImage $image)
     {
         $validated = $request->validate([
+            'image' => ['nullable', 'image', 'max:4096'],
             'caption' => ['nullable', 'string', 'max:255'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
+
+        unset($validated['image']);
+
+        $validated['is_active'] = $request->has('is_active')
+            ? $request->boolean('is_active')
+            : false;
+
+        if ($request->hasFile('image')) {
+            if ($image->image_path) {
+                Storage::disk('public')->delete($image->image_path);
+            }
+
+            $validated['image_path'] = $request->file('image')
+                ->store('public-learning-materials/gallery', 'public');
+        }
 
         $image->update($validated);
 
         return response()->json([
-            'message' => 'Image berhasil diperbarui.',
-            'data' => $image->fresh(),
+            'success' => true,
+            'message' => 'Gallery image berhasil diperbarui.',
+            'data' => $this->formatImage($image->fresh()),
         ]);
     }
 
@@ -61,7 +81,8 @@ class PublicLearningMaterialImageController extends Controller
         $image->delete();
 
         return response()->json([
-            'message' => 'Image berhasil dihapus.',
+            'success' => true,
+            'message' => 'Gallery image berhasil dihapus.',
         ]);
     }
 
@@ -83,7 +104,22 @@ class PublicLearningMaterialImageController extends Controller
         }
 
         return response()->json([
-            'message' => 'Urutan image berhasil diperbarui.',
+            'success' => true,
+            'message' => 'Urutan gallery image berhasil diperbarui.',
         ]);
+    }
+
+    private function formatImage(PublicLearningMaterialImage $image): array
+    {
+        return [
+            'id' => $image->id,
+            'public_learning_material_id' => $image->public_learning_material_id,
+            'image_path' => $image->image_path,
+            'image_url' => $image->image_path ? asset('storage/' . $image->image_path) : null,
+            'url' => $image->image_path ? asset('storage/' . $image->image_path) : null,
+            'caption' => $image->caption,
+            'sort_order' => $image->sort_order,
+            'is_active' => (bool) ($image->is_active ?? true),
+        ];
     }
 }

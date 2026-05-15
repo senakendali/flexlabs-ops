@@ -40,6 +40,11 @@
         'task' => 'bi bi-clipboard-check',
     ];
 
+    $galleryImages = $material->images
+        ->filter(fn ($image) => (bool) ($image->is_active ?? true))
+        ->sortBy(fn ($image) => $image->sort_order ?? 999999)
+        ->values();
+
     $renderParagraphs = function ($content, $paragraphClass = '') {
         $content = trim((string) $content);
 
@@ -48,7 +53,6 @@
         }
 
         $normalizedContent = str_replace(["\r\n", "\r"], "\n", $content);
-
         $paragraphs = preg_split('/\n+/', $normalizedContent);
 
         $paragraphClass = trim((string) $paragraphClass);
@@ -62,11 +66,17 @@
             ->map(fn ($paragraph) => '<p' . $classAttribute . '>' . e($paragraph) . '</p>')
             ->implode('');
     };
-@endphp
 
-<style>
-   
-</style>
+    $downloadFilename = function ($image, int $index) use ($material) {
+        $extension = pathinfo((string) $image->image_path, PATHINFO_EXTENSION);
+
+        if (! $extension) {
+            $extension = 'jpg';
+        }
+
+        return \Illuminate\Support\Str::slug($material->title . '-gallery-' . $index) . '.' . $extension;
+    };
+@endphp
 
 <section class="hero-section">
     <div class="container">
@@ -119,6 +129,13 @@
                                 {{ $material->instructor_name }}
                             </span>
                         @endif
+
+                        @if($galleryImages->count())
+                            <span class="hero-badge">
+                                <i class="bi bi-images"></i>
+                                {{ $galleryImages->count() }} Supporting Images
+                            </span>
+                        @endif
                     </div>
 
                     <div class="hero-cta-wrap d-flex flex-wrap gap-3 mt-4">
@@ -129,6 +146,12 @@
                         <a href="#session-info" class="btn btn-brand btn-lg">
                             Info Sesi
                         </a>
+
+                        @if($galleryImages->count())
+                            <a href="#supporting-images" class="btn btn-brand btn-lg">
+                                Download Gambar
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -262,7 +285,7 @@
     </div>
 </section>
 
-<section class="content-section" id="material-content">
+<section class="content-section public-material-section" id="material-content">
     <div class="container">
         <div class="workshop-list-heading text-center">
             <span class="section-label">Material Content</span>
@@ -277,19 +300,84 @@
         </div>
 
         @if($material->activeBlocks->count())
-            <div class="row g-4">
-                @foreach($material->activeBlocks as $index => $block)
-                    @php
-                        $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
-                        $blockTitle = $block->title ?: ucfirst($block->type);
-                        $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
-                        $blockIcon = $blockIconMap[$block->type] ?? 'bi bi-circle';
-                        $codeContent = trim($block->code_content ?? '');
-                    @endphp
+            <div class="public-material-layout">
+                <aside class="public-material-sidebar">
+                    <div class="public-material-sidebar-card">
+                        <div class="public-material-sidebar-top">
+                            <button
+                                type="button"
+                                class="public-material-sidebar-menu"
+                                aria-label="Material navigation"
+                            >
+                                <i class="bi bi-list"></i>
+                            </button>
 
-                    <div class="col-12">
-                        <article class="workshop-card">
-                            <div class="workshop-card-body">
+                            <div class="public-material-sidebar-heading">
+                                <div class="public-material-sidebar-title">
+                                    Daftar Materi
+                                </div>
+
+                                <div class="public-material-sidebar-subtitle">
+                                    {{ $material->activeBlocks->count() }} langkah praktik
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="public-material-step-list">
+                            @foreach($material->activeBlocks as $index => $block)
+                                @php
+                                    $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+                                    $blockTitle = $block->title ?: ucfirst($block->type);
+                                    $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
+                                    $blockIcon = $blockIconMap[$block->type] ?? 'bi bi-circle';
+                                    $stepId = 'material-step-' . $block->id;
+                                @endphp
+
+                                <a
+                                    href="#{{ $stepId }}"
+                                    class="public-material-step-link {{ $loop->first ? 'active' : '' }}"
+                                    data-step-link="{{ $stepId }}"
+                                >
+                                    <span class="public-material-step-icon">
+                                        <i class="{{ $blockIcon }}"></i>
+                                    </span>
+
+                                    <span class="public-material-step-content">
+                                        <span class="public-material-step-title">
+                                            {{ \Illuminate\Support\Str::limit($blockTitle, 34) }}
+                                        </span>
+
+                                        <span class="public-material-step-meta">
+                                            Step {{ $blockNumber }} · {{ $blockLabel }}
+                                        </span>
+                                    </span>
+
+                                    <span class="public-material-step-check">
+                                        <i class="bi bi-check"></i>
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                </aside>
+
+                <div class="public-material-content-list">
+                    <div class="public-material-content-card">
+                        @foreach($material->activeBlocks as $index => $block)
+                            @php
+                                $blockNumber = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+                                $blockTitle = $block->title ?: ucfirst($block->type);
+                                $blockLabel = $blockLabelMap[$block->type] ?? ucfirst($block->type);
+                                $blockIcon = $blockIconMap[$block->type] ?? 'bi bi-circle';
+                                $codeContent = trim($block->code_content ?? '');
+                                $stepId = 'material-step-' . $block->id;
+                            @endphp
+
+                            <section
+                                class="public-material-step-item"
+                                id="{{ $stepId }}"
+                                data-step-section="{{ $stepId }}"
+                            >
                                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
                                     <div class="workshop-meta mb-0">
                                         <span>
@@ -311,7 +399,7 @@
                                     </h2>
 
                                     @if($block->content)
-                                        <div class="about-main-text public-material-rich-text mb-0">
+                                        <div class="about-main-text mb-0">
                                             {!! $renderParagraphs($block->content) !!}
                                         </div>
                                     @endif
@@ -321,11 +409,9 @@
                                         {{ $blockTitle }}
                                     </h3>
 
-                                    @if($block->content)
-                                        <div class="about-main-text public-material-rich-text mb-0">
-                                            {!! $renderParagraphs($block->content) !!}
-                                        </div>
-                                    @endif
+                                    <div class="about-main-text mb-0">
+                                        {!! $renderParagraphs($block->content) !!}
+                                    </div>
 
                                 @elseif($block->type === 'code')
                                     <h3 class="workshop-card-title mb-3">
@@ -366,8 +452,8 @@
                                     @endif
 
                                     @if($block->image_caption)
-                                        <div class="about-main-text public-material-rich-text mt-3 mb-0">
-                                            {!! $renderParagraphs($block->image_caption) !!}
+                                        <div class="about-main-text mt-3 mb-0">
+                                            {{ $block->image_caption }}
                                         </div>
                                     @endif
 
@@ -386,11 +472,9 @@
                                                 {{ $blockTitle }}
                                             </h3>
 
-                                            @if($block->content)
-                                                <div class="public-material-callout-text public-material-rich-text">
-                                                    {!! $renderParagraphs($block->content) !!}
-                                                </div>
-                                            @endif
+                                            <div class="public-material-callout-text">
+                                                {!! $renderParagraphs($block->content) !!}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -409,18 +493,16 @@
                                                 {{ $blockTitle }}
                                             </h3>
 
-                                            @if($block->content)
-                                                <div class="public-material-callout-text public-material-rich-text">
-                                                    {!! $renderParagraphs($block->content) !!}
-                                                </div>
-                                            @endif
+                                            <div class="public-material-callout-text">
+                                                {!! $renderParagraphs($block->content) !!}
+                                            </div>
                                         </div>
                                     </div>
                                 @endif
-                            </div>
-                        </article>
+                            </section>
+                        @endforeach
                     </div>
-                @endforeach
+                </div>
             </div>
         @else
             <div class="row justify-content-center">
@@ -435,8 +517,8 @@
                                 Materi belum tersedia
                             </h3>
 
-                            <div class="about-main-text public-material-rich-text mb-0">
-                                <p>Admin belum menambahkan content block untuk materi ini.</p>
+                            <div class="about-main-text mb-0">
+                                Admin belum menambahkan content block untuk materi ini.
                             </div>
                         </div>
                     </article>
@@ -444,41 +526,93 @@
             </div>
         @endif
 
-        @if($material->images->count())
-            <div class="workshop-list-heading text-center mt-5">
-                <span class="section-label">Gallery</span>
+        @if($galleryImages->count())
+            <div class="workshop-list-heading text-center mt-5" id="supporting-images">
+                <span class="section-label">Supporting Images</span>
 
                 <h2 class="section-title mt-3">
-                    Supporting Images
+                    Gambar Pendukung Materi
                 </h2>
 
                 <p class="section-subtitle">
-                    Gambar pendukung untuk membantu teman-teman memahami materi.
+                    Download gambar pendukung untuk membantu teman-teman mengikuti praktik dengan lebih mudah.
                 </p>
             </div>
 
             <div class="row g-4">
-                @foreach($material->images as $image)
+                @foreach($galleryImages as $image)
+                    @php
+                        $imageUrl = asset('storage/' . $image->image_path);
+                        $imageTitle = $image->caption ?: 'Supporting Image ' . $loop->iteration;
+                        $fileName = $downloadFilename($image, $loop->iteration);
+                    @endphp
+
                     <div class="col-lg-4 col-md-6">
-                        <article class="workshop-card">
+                        <article class="workshop-card h-100">
                             <div class="workshop-card-media">
                                 <img
-                                    src="{{ asset('storage/' . $image->image_path) }}"
-                                    alt="{{ $image->caption ?: $material->title }}"
+                                    src="{{ $imageUrl }}"
+                                    alt="{{ $imageTitle }}"
                                     class="workshop-card-image"
                                 >
                             </div>
 
-                            @if($image->caption)
-                                <div class="workshop-card-body">
-                                    <div class="about-main-text public-material-rich-text mb-0">
-                                        {!! $renderParagraphs($image->caption) !!}
-                                    </div>
+                            <div class="workshop-card-body">
+                                <div class="workshop-meta mb-3">
+                                    <span>
+                                        <i class="bi bi-image me-1"></i>
+                                        Image {{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}
+                                    </span>
                                 </div>
-                            @endif
+
+                                <h3 class="workshop-card-title mb-3">
+                                    {{ $imageTitle }}
+                                </h3>
+
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a
+                                        href="{{ $imageUrl }}"
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="btn btn-brand btn-modern"
+                                    >
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>
+                                        Open Image
+                                    </a>
+
+                                    <a
+                                        href="{{ $imageUrl }}"
+                                        download="{{ $fileName }}"
+                                        class="btn btn-brand btn-modern"
+                                    >
+                                        <i class="bi bi-download me-1"></i>
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
                         </article>
                     </div>
                 @endforeach
+            </div>
+
+            <div class="workshop-card mt-4">
+                <div class="workshop-card-body d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                    <div>
+                        <div class="section-label mb-2">
+                            Download Reminder
+                        </div>
+
+                        <div class="about-main-text mb-0">
+                            Kalau tombol download membuka gambar di tab baru, klik kanan pada gambar lalu pilih
+                            <strong>Save image as</strong>. Beberapa browser memang membatasi download langsung.
+                        </div>
+                    </div>
+
+                    <a href="#material-content" class="btn btn-brand btn-modern">
+                        <i class="bi bi-arrow-up me-1"></i>
+                        Kembali ke Materi
+                    </a>
+                </div>
             </div>
         @endif
     </div>
@@ -532,6 +666,55 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    const stepLinks = document.querySelectorAll('[data-step-link]');
+    const stepSections = document.querySelectorAll('[data-step-section]');
+
+    function setActiveStep(stepId) {
+        stepLinks.forEach(function (link) {
+            link.classList.toggle('active', link.dataset.stepLink === stepId);
+        });
+    }
+
+    if (stepLinks.length && stepSections.length) {
+        const observer = new IntersectionObserver(function (entries) {
+            const visibleEntries = entries
+                .filter(function (entry) {
+                    return entry.isIntersecting;
+                })
+                .sort(function (a, b) {
+                    return b.intersectionRatio - a.intersectionRatio;
+                });
+
+            if (!visibleEntries.length) {
+                return;
+            }
+
+            const stepId = visibleEntries[0].target.dataset.stepSection;
+
+            if (stepId) {
+                setActiveStep(stepId);
+            }
+        }, {
+            root: null,
+            threshold: [0.18, 0.35, 0.55],
+            rootMargin: '-120px 0px -45% 0px',
+        });
+
+        stepSections.forEach(function (section) {
+            observer.observe(section);
+        });
+
+        stepLinks.forEach(function (link) {
+            link.addEventListener('click', function () {
+                const stepId = link.dataset.stepLink;
+
+                if (stepId) {
+                    setActiveStep(stepId);
+                }
+            });
+        });
+    }
 });
 </script>
 @endpush
