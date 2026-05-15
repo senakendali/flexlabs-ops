@@ -69,7 +69,7 @@
     >
 
     <!-- App CSS -->
-    <link rel="stylesheet" href="{{ asset('css/public.css?v=3') }}">
+    <link rel="stylesheet" href="{{ asset('css/public.css?v=4') }}">
     <link rel="stylesheet" href="{{ asset('css/public-invoice.css?v=3') }}">
 
     <style>
