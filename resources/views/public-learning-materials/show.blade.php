@@ -730,49 +730,47 @@
                         $extension = strtoupper(pathinfo((string) $image->image_path, PATHINFO_EXTENSION) ?: 'FILE');
                     @endphp
 
-                    <article class="overflow-hidden rounded-[2rem] border border-flex-line bg-white shadow-card transition hover:-translate-y-1 hover:shadow-soft">
-                        <div class="bg-flex-primary p-6 text-white">
-                            <div class="flex items-start justify-between gap-4">
-                                <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-white/14 text-white ring-1 ring-white/18">
-                                    <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path
-                                            d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H6.75A2.25 2.25 0 0 0 4.5 4.5v15A2.25 2.25 0 0 0 6.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-5.25Z"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                        <path
-                                            d="M13.5 2.25V7.5a1.5 1.5 0 0 0 1.5 1.5h5.25"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                    </svg>
-                                </div>
-
-                                <span class="inline-flex shrink-0 rounded-full bg-[#FFC316] px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-flex-dark">
-                                    {{ $extension }}
-                                </span>
+                    <article class="group rounded-[1.75rem] border border-flex-line bg-white p-5 shadow-card transition hover:-translate-y-1 hover:shadow-soft">
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-flex-primary text-white shadow-button">
+                                <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94a3 3 0 1 1 4.243 4.243L8.552 18.32a1.5 1.5 0 1 1-2.121-2.121l9.185-9.185"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
                             </div>
 
-                            <p class="mt-5 text-xs font-black uppercase tracking-[0.16em] text-white/60">
-                                Attachment {{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}
-                            </p>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
+                                        Attachment {{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}
+                                    </p>
 
-                            <h3 class="mt-2 line-clamp-2 text-xl font-black leading-tight tracking-[-0.04em] text-white">
-                                {{ $imageTitle }}
-                            </h3>
-                        </div>
+                                    <span class="inline-flex shrink-0 rounded-full bg-[#FFC316] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-flex-dark">
+                                        {{ $extension }}
+                                    </span>
+                                </div>
 
-                        <div class="p-5">
-                            <div class="rounded-[1.25rem] bg-flex-soft px-4 py-3">
-                                <div class="flex items-center gap-3">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
-                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <h3 class="mt-2 truncate text-xl font-black leading-tight tracking-[-0.04em] text-flex-dark">
+                                    {{ $imageTitle }}
+                                </h3>
+
+                                <div class="mt-3 flex items-center gap-3 rounded-[1.15rem] bg-flex-soft px-4 py-3">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-flex-primary shadow-sm">
+                                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                             <path
-                                                d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94a3 3 0 1 1 4.243 4.243L8.552 18.32a1.5 1.5 0 1 1-2.121-2.121l9.185-9.185"
+                                                d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H6.75A2.25 2.25 0 0 0 4.5 4.5v15A2.25 2.25 0 0 0 6.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-5.25Z"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            />
+                                            <path
+                                                d="M13.5 2.25V7.5a1.5 1.5 0 0 0 1.5 1.5h5.25"
                                                 stroke="currentColor"
                                                 stroke-width="2"
                                                 stroke-linecap="round"
@@ -792,45 +790,45 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="mt-5 flex flex-wrap gap-2">
-                                <a
-                                    href="{{ $imageUrl }}"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-primary px-4 py-2.5 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
-                                >
-                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path
-                                            d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6.75 4.5h3M6.75 19.5h10.5A2.25 2.25 0 0 0 19.5 17.25v-3M4.5 6.75v10.5A2.25 2.25 0 0 0 6.75 19.5"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                    </svg>
+                        <div class="mt-5 grid grid-cols-2 gap-3">
+                            <a
+                                href="{{ $imageUrl }}"
+                                target="_blank"
+                                rel="noopener"
+                                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-full bg-flex-primary px-4 py-3 text-sm font-black text-white shadow-button transition hover:-translate-y-0.5 hover:bg-flex-primaryDark"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M6.75 4.5h3M6.75 19.5h10.5A2.25 2.25 0 0 0 19.5 17.25v-3M4.5 6.75v10.5A2.25 2.25 0 0 0 6.75 19.5"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
 
-                                    Open File
-                                </a>
+                                <span class="truncate">Open</span>
+                            </a>
 
-                                <a
-                                    href="{{ $imageUrl }}"
-                                    download="{{ $fileName }}"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-flex-soft px-4 py-2.5 text-sm font-black text-flex-dark transition hover:-translate-y-0.5 hover:bg-flex-primarySoft hover:text-flex-primary"
-                                >
-                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path
-                                            d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                    </svg>
+                            <a
+                                href="{{ $imageUrl }}"
+                                download="{{ $fileName }}"
+                                class="inline-flex min-w-0 items-center justify-center gap-2 rounded-full bg-flex-primarySoft px-4 py-3 text-sm font-black text-flex-primary transition hover:-translate-y-0.5 hover:bg-[#E7DCF4]"
+                            >
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
 
-                                    Download
-                                </a>
-                            </div>
+                                <span class="truncate">Download</span>
+                            </a>
                         </div>
                     </article>
                 @endforeach
