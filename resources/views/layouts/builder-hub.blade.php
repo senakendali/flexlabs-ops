@@ -190,37 +190,49 @@
         .builder-sidebar-card {
             overflow: hidden;
             border-radius: 2rem;
+
+            /*
+            | Ini yang bikin scrollbar tidak mentok ke atas/bawah card.
+            | Scroll container sekarang berada di dalam area card, bukan full menempel.
+            */
+            padding-top: 1.35rem;
+            padding-bottom: 1.35rem;
+
             transition:
                 border-radius 0.2s ease,
-                box-shadow 0.2s ease;
+                box-shadow 0.2s ease,
+                padding-top 0.2s ease;
         }
 
         .builder-sidebar-card.is-stuck {
             border-top-left-radius: 0 !important;
             border-top-right-radius: 0 !important;
+
+            /*
+            | Saat nempel header, tetap kasih jarak scrollbar dari atas.
+            */
+            padding-top: 1.35rem;
         }
 
         .builder-sidebar-scroll {
-            max-height: calc(100vh - 150px);
+            /*
+            | Dikurangi lebih besar karena card sekarang punya padding atas/bawah.
+            */
+            max-height: calc(100vh - 178px);
+
+            /*
+            | Scroll cuma muncul kalau content panjang.
+            */
             overflow-y: auto;
             overflow-x: hidden;
 
             /*
-            | Kiri tetap lega buat content.
-            | Kanan dibuat lebih besar supaya scrollbar lebih masuk ke dalam sidebar.
+            | Content tetap lega, scrollbar lebih masuk ke dalam.
             */
-            padding: 2.15rem 1.65rem 2.15rem 1.75rem;
-
-            /*
-            | Ini bikin posisi scrollbar tidak nempel banget ke sisi kanan card.
-            */
-            margin-right: 0.9rem;
+            padding: 0.5rem 1.35rem 0.5rem 1.75rem;
+            margin-right: 0.85rem;
 
             overscroll-behavior: contain;
-
-            /*
-            | Auto supaya area scrollbar tidak dipaksa muncul kalau content pendek.
-            */
             scrollbar-gutter: auto;
             scrollbar-width: thin;
             scrollbar-color: #FFC316 transparent;
@@ -233,22 +245,11 @@
 
         .builder-sidebar-scroll::-webkit-scrollbar-track {
             background: transparent;
-
-            /*
-            | Jarak atas-bawah scrollbar.
-            | Jadi thumb tidak mentok ke ujung sidebar.
-            */
-            margin-top: 2.75rem;
-            margin-bottom: 2.75rem;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar-thumb {
             background: #FFC316;
             border-radius: 999px;
-
-            /*
-            | Border putih bikin thumb terlihat lebih clean dan masuk ke dalam.
-            */
             border: 2px solid #ffffff;
         }
 
