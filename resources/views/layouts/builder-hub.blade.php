@@ -201,30 +201,54 @@
         }
 
         .builder-sidebar-scroll {
-            max-height: calc(100vh - 140px);
+            max-height: calc(100vh - 150px);
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 1.85rem 1.25rem 1.85rem 1.75rem;
-            margin-right: 0.35rem;
+
+            /*
+            | Kiri tetap lega buat content.
+            | Kanan dibuat lebih besar supaya scrollbar lebih masuk ke dalam sidebar.
+            */
+            padding: 2.15rem 1.65rem 2.15rem 1.75rem;
+
+            /*
+            | Ini bikin posisi scrollbar tidak nempel banget ke sisi kanan card.
+            */
+            margin-right: 0.9rem;
+
             overscroll-behavior: contain;
-            scrollbar-gutter: stable;
+
+            /*
+            | Auto supaya area scrollbar tidak dipaksa muncul kalau content pendek.
+            */
+            scrollbar-gutter: auto;
             scrollbar-width: thin;
             scrollbar-color: #FFC316 transparent;
         }
 
+        /* Chrome / Edge / Safari */
         .builder-sidebar-scroll::-webkit-scrollbar {
             width: 8px;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar-track {
             background: transparent;
-            margin-top: 2rem;
-            margin-bottom: 2rem;
+
+            /*
+            | Jarak atas-bawah scrollbar.
+            | Jadi thumb tidak mentok ke ujung sidebar.
+            */
+            margin-top: 2.75rem;
+            margin-bottom: 2.75rem;
         }
 
         .builder-sidebar-scroll::-webkit-scrollbar-thumb {
             background: #FFC316;
             border-radius: 999px;
+
+            /*
+            | Border putih bikin thumb terlihat lebih clean dan masuk ke dalam.
+            */
             border: 2px solid #ffffff;
         }
 
