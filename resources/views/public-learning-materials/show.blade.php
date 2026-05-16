@@ -792,7 +792,7 @@
                             </div>
                         </div>
 
-                        <div class="mt-5 grid grid-cols-2 gap-3">
+                        <div class="mt-5 grid grid-rows-2 gap-3">
                             <a
                                 href="{{ $imageUrl }}"
                                 target="_blank"
