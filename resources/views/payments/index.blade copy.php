@@ -14,327 +14,6 @@
             default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
         };
     };
-
-    $sourceBadgeClass = function ($sourceType) {
-        $normalized = \Illuminate\Support\Str::of((string) $sourceType)
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->trim('_')
-            ->toString();
-
-        return match($normalized) {
-            'program', 'course', 'batch', 'learning_program' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
-            'workshop', 'paid_workshop', 'public_workshop', 'workshop_class' => 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
-            'webinar' => 'bg-info-subtle text-info-emphasis border border-info-subtle',
-            'trial', 'trial_class', 'trial_schedule', 'trial_theme' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
-            default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
-        };
-    };
-
-    $formatSourceLabel = function ($sourceType) {
-        $normalized = \Illuminate\Support\Str::of((string) $sourceType)
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->trim('_')
-            ->toString();
-
-        return match ($normalized) {
-            'program', 'course', 'batch', 'learning_program' => 'Program',
-            'workshop', 'paid_workshop', 'public_workshop', 'workshop_class' => 'Workshop',
-            'trial', 'trial_class', 'trial_schedule', 'trial_theme' => 'Trial Class',
-            'webinar' => 'Webinar',
-            default => filled($sourceType) ? \Illuminate\Support\Str::headline((string) $sourceType) : 'Order',
-        };
-    };
-
-    $firstFilledAttribute = function ($model, array $keys) {
-        if (!$model) {
-            return null;
-        }
-
-        foreach ($keys as $key) {
-            $value = data_get($model, $key);
-
-            if (filled($value)) {
-                return $value;
-            }
-        }
-
-        return null;
-    };
-
-    $normalizeSourceToken = function ($value) {
-        return \Illuminate\Support\Str::of((string) $value)
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->trim('_')
-            ->toString();
-    };
-
-    $getSafeRelation = function ($model, string $relation) {
-        if (!$model || !is_object($model)) {
-            return null;
-        }
-
-        if (method_exists($model, 'relationLoaded') && $model->relationLoaded($relation)) {
-            return $model->getRelation($relation);
-        }
-
-        if (method_exists($model, $relation)) {
-            return $model->{$relation};
-        }
-
-        return null;
-    };
-
-    $readDisplayName = function ($model) {
-        if (!$model) {
-            return null;
-        }
-
-        return data_get($model, 'title')
-            ?: data_get($model, 'name')
-            ?: data_get($model, 'workshop_title')
-            ?: data_get($model, 'theme_name')
-            ?: data_get($model, 'theme')
-            ?: data_get($model, 'topic')
-            ?: data_get($model, 'subject')
-            ?: data_get($model, 'label');
-    };
-
-    $resolveWorkshopName = function ($order) use ($firstFilledAttribute, $getSafeRelation, $readDisplayName) {
-        $directName = $firstFilledAttribute($order, [
-            'workshop.title',
-            'workshop.name',
-            'workshop.workshop_title',
-            'workshop.theme_name',
-            'workshop.theme',
-            'workshop.topic',
-            'workshop.subject',
-            'publicWorkshop.title',
-            'publicWorkshop.name',
-            'workshopSchedule.title',
-            'workshopSchedule.name',
-        ]);
-
-        if (filled($directName)) {
-            return $directName;
-        }
-
-        foreach ([
-            'workshop',
-            'workshopSchedule',
-            'workshop_schedule',
-            'publicWorkshop',
-            'public_workshop',
-            'paidWorkshop',
-            'paid_workshop',
-        ] as $relation) {
-            $related = $getSafeRelation($order, $relation);
-            $relatedName = $readDisplayName($related);
-
-            if (filled($relatedName)) {
-                return $relatedName;
-            }
-        }
-
-        $workshopId = data_get($order, 'workshop_id')
-            ?: data_get($order, 'public_workshop_id')
-            ?: data_get($order, 'workshop_schedule_id');
-
-        return filled($workshopId) ? ('Workshop #' . $workshopId) : null;
-    };
-
-    $resolveTrialName = function ($order) use ($firstFilledAttribute, $getSafeRelation, $readDisplayName) {
-        $directName = $firstFilledAttribute($order, [
-            'trialSchedule.title',
-            'trialSchedule.name',
-            'trialSchedule.theme.title',
-            'trialSchedule.theme.name',
-            'trialTheme.title',
-            'trialTheme.name',
-            'trial_theme.title',
-            'trial_theme.name',
-        ]);
-
-        if (filled($directName)) {
-            return $directName;
-        }
-
-        foreach ([
-            'trialSchedule',
-            'trial_schedule',
-            'trialTheme',
-            'trial_theme',
-        ] as $relation) {
-            $related = $getSafeRelation($order, $relation);
-            $relatedName = $readDisplayName($related);
-
-            if (filled($relatedName)) {
-                return $relatedName;
-            }
-        }
-
-        $trialId = data_get($order, 'trial_schedule_id') ?: data_get($order, 'trial_theme_id');
-
-        return filled($trialId) ? ('Trial Class #' . $trialId) : null;
-    };
-
-    $resolveOrderSource = function ($order) use (
-        $firstFilledAttribute,
-        $formatSourceLabel,
-        $normalizeSourceToken,
-        $resolveWorkshopName,
-        $resolveTrialName
-    ) {
-        $programName = data_get($order, 'batch.program.name');
-        $batchName = data_get($order, 'batch.name');
-
-        $sourceType = $firstFilledAttribute($order, [
-            'order_type',
-            'source_type',
-            'type',
-            'item_type',
-            'category',
-        ]);
-
-        $sourceItemName = $firstFilledAttribute($order, [
-            'source_item_name',
-            'source_item',
-            'item_name',
-            'title',
-            'name',
-        ]);
-
-        $sourceDescription = $firstFilledAttribute($order, [
-            'source_description',
-            'item_description',
-            'description',
-            'notes',
-        ]);
-
-        $normalizedType = $normalizeSourceToken($sourceType);
-        $normalizedItem = $normalizeSourceToken($sourceItemName);
-
-        // Kalau source_item cuma berisi "workshop" / "program", jangan dianggap sebagai nama item.
-        if ($sourceItemName && $sourceType && $normalizedItem === $normalizedType) {
-            $sourceItemName = null;
-        }
-
-        // Prioritas khusus: workshop ambil nama dari relasi workshop seperti di Sales Orders.
-        $workshopName = $resolveWorkshopName($order);
-        if (($normalizedType === 'workshop' || filled(data_get($order, 'workshop_id'))) && filled($workshopName)) {
-            $sourceType = 'workshop';
-            $normalizedType = 'workshop';
-            $sourceItemName = $workshopName;
-        }
-
-        // Trial class kalau nanti ikut masuk payment.
-        $trialName = $resolveTrialName($order);
-        if (in_array($normalizedType, ['trial', 'trial_class', 'trial_schedule', 'trial_theme'], true) && filled($trialName)) {
-            $sourceType = 'trial_class';
-            $normalizedType = 'trial_class';
-            $sourceItemName = $trialName;
-        }
-
-        if (!$sourceType && ($programName || $batchName)) {
-            $sourceType = 'program';
-            $normalizedType = 'program';
-        }
-
-        if (!$sourceItemName && $normalizedType === 'program') {
-            $sourceItemName = collect([$programName, $batchName])
-                ->filter(fn ($value) => filled($value))
-                ->implode(' · ');
-        }
-
-        if (!$sourceItemName) {
-            $sourceItemName = $sourceDescription ?: ('Order #' . data_get($order, 'id'));
-        }
-
-        $sourceDetail = $sourceDescription;
-
-        if (!$sourceDetail && $normalizedType === 'program') {
-            $sourceDetail = $batchName;
-        }
-
-        if (!$sourceDetail && $normalizedType === 'workshop') {
-            $sourceDetail = 'Paid Workshop';
-        }
-
-        if (!$sourceDetail && $batchName && !str_contains((string) $sourceItemName, (string) $batchName)) {
-            $sourceDetail = $batchName;
-        }
-
-        return [
-            'source_type' => $sourceType ?: 'order',
-            'source_label' => $formatSourceLabel($sourceType ?: 'order'),
-            'source_item_name' => $sourceItemName ?: '-',
-            'source_detail' => $sourceDetail ?: '',
-            'program_name' => $programName ?: '',
-            'batch_name' => $batchName ?: '',
-        ];
-    };
-
-    $resolveScheduleSource = function ($schedule) use (
-        $firstFilledAttribute,
-        $formatSourceLabel,
-        $resolveOrderSource,
-        $normalizeSourceToken
-    ) {
-        $orderSource = $resolveOrderSource(data_get($schedule, 'order'));
-
-        $sourceType = $firstFilledAttribute($schedule, [
-            'source_type',
-            'item_type',
-            'type',
-            'category',
-        ]);
-
-        $sourceItemName = $firstFilledAttribute($schedule, [
-            'source_item_name',
-            'source_item',
-            'item_name',
-            'name',
-            'description',
-        ]);
-
-        $sourceDescription = $firstFilledAttribute($schedule, [
-            'source_description',
-            'item_description',
-            'description',
-        ]);
-
-        if ($sourceItemName && $sourceType && $normalizeSourceToken($sourceItemName) === $normalizeSourceToken($sourceType)) {
-            $sourceItemName = null;
-        }
-
-        if (!$sourceType && !$sourceItemName) {
-            return $orderSource;
-        }
-
-        return [
-            'source_type' => $sourceType ?: $orderSource['source_type'],
-            'source_label' => $formatSourceLabel($sourceType ?: $orderSource['source_type']),
-            'source_item_name' => $sourceItemName ?: $orderSource['source_item_name'],
-            'source_detail' => $sourceDescription ?: $orderSource['source_detail'],
-            'program_name' => $orderSource['program_name'],
-            'batch_name' => $orderSource['batch_name'],
-        ];
-    };
-
-    $resolvePaymentSource = function ($payment) use ($resolveScheduleSource, $resolveOrderSource) {
-        $scheduleSource = $resolveScheduleSource(data_get($payment, 'paymentSchedule'));
-        $orderSource = $resolveOrderSource(data_get($payment, 'order'));
-
-        $hasExplicitScheduleSource = filled(data_get($payment, 'paymentSchedule.source_type'))
-            || filled(data_get($payment, 'paymentSchedule.item_type'))
-            || filled(data_get($payment, 'paymentSchedule.source_item'))
-            || filled(data_get($payment, 'paymentSchedule.source_item_name'))
-            || filled(data_get($payment, 'paymentSchedule.item_name'));
-
-        return $hasExplicitScheduleSource ? $scheduleSource : $orderSource;
-    };
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -367,51 +46,11 @@
             <div>
                 <h5 class="content-card-title mb-1">Payment List</h5>
                 <p class="content-card-subtitle mb-0">
-                    Review invoice number, student payment, source item, selected schedule, amount, payment method, date, and current payment status.
+                    Review invoice number, student payment, selected schedule, amount, payment method, date, and current payment status.
                 </p>
             </div>
 
             <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <select
-                    name="order_type"
-                    class="form-select form-select-sm"
-                    style="width: 165px;"
-                    onchange="this.form.submit()"
-                >
-                    <option value="">All Sources</option>
-                    <option value="program" {{ request('order_type') === 'program' ? 'selected' : '' }}>Program</option>
-                    <option value="workshop" {{ request('order_type') === 'workshop' ? 'selected' : '' }}>Workshop</option>
-                    <option value="trial_class" {{ request('order_type') === 'trial_class' ? 'selected' : '' }}>Trial Class</option>
-                    <option value="webinar" {{ request('order_type') === 'webinar' ? 'selected' : '' }}>Webinar</option>
-                </select>
-
-                <select
-                    name="status"
-                    class="form-select form-select-sm"
-                    style="width: 150px;"
-                    onchange="this.form.submit()"
-                >
-                    <option value="">All Status</option>
-                    @foreach (['pending', 'paid', 'failed', 'expired', 'cancelled'] as $status)
-                        <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>
-                            {{ ucfirst($status) }}
-                        </option>
-                    @endforeach
-                </select>
-
-                <div class="input-group input-group-sm" style="width: 280px;">
-                    <input
-                        type="text"
-                        name="keyword"
-                        class="form-control"
-                        value="{{ request('keyword') }}"
-                        placeholder="Search invoice, student, workshop..."
-                    >
-                    <button class="btn btn-outline-secondary" type="submit">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </div>
-
                 <label for="per_page" class="form-label mb-0 small text-muted">Show</label>
                 <select
                     name="per_page"
@@ -427,12 +66,6 @@
                     @endforeach
                 </select>
                 <span class="small text-muted">entries</span>
-
-                @if(request()->hasAny(['order_type', 'status', 'keyword', 'per_page']))
-                    <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-secondary">
-                        Reset
-                    </a>
-                @endif
             </form>
         </div>
 
@@ -445,7 +78,7 @@
                                 <th class="text-nowrap" style="width: 80px;">No</th>
                                 <th class="text-nowrap">Invoice</th>
                                 <th class="text-nowrap">Student</th>
-                                <th class="text-nowrap">Source</th>
+                                <th class="text-nowrap">Program / Batch</th>
                                 <th class="text-nowrap">Schedule</th>
                                 <th class="text-end text-nowrap">Amount</th>
                                 <th class="text-nowrap">Method</th>
@@ -481,17 +114,11 @@
                                     </td>
 
                                     <td>
-                                        @php
-                                            $paymentSource = $resolvePaymentSource($payment);
-                                        @endphp
                                         <div class="fw-semibold text-dark">
-                                            <span class="badge rounded-pill {{ $sourceBadgeClass($paymentSource['source_type']) }} me-1">
-                                                {{ $paymentSource['source_label'] }}
-                                            </span>
-                                            {{ $paymentSource['source_item_name'] ?: '-' }}
+                                            {{ $payment->order->batch->program->name ?? '-' }}
                                         </div>
                                         <div class="small text-muted">
-                                            {{ $paymentSource['source_detail'] ?: '-' }}
+                                            {{ $payment->order->batch->name ?? '-' }}
                                         </div>
                                     </td>
 
@@ -640,7 +267,7 @@
                     <div>
                         <h5 class="modal-title fw-bold mb-1" id="paymentModalTitle">Add Payment</h5>
                         <div class="small text-muted">
-                            Complete order, source item, schedule, amount, payment method, gateway reference, and payment status.
+                            Complete order, schedule, amount, payment method, gateway reference, and payment status.
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -683,7 +310,7 @@
                             <div>
                                 <h5 class="content-card-title mb-1">Order & Schedule</h5>
                                 <p class="content-card-subtitle mb-0">
-                                    Select the order source and optional payment schedule for this payment record.
+                                    Select the order and optional payment schedule for this payment record.
                                 </p>
                             </div>
                         </div>
@@ -697,25 +324,17 @@
                                     <select id="order_id" class="form-select">
                                         <option value="">Select Order</option>
                                         @foreach ($orders as $order)
-                                            @php
-                                                $orderSource = $resolveOrderSource($order);
-                                            @endphp
                                             <option
                                                 value="{{ $order->id }}"
                                                 data-student="{{ $order->student->full_name ?? '' }}"
-                                                data-source-type="{{ $orderSource['source_type'] }}"
-                                                data-source-label="{{ $orderSource['source_label'] }}"
-                                                data-source-item="{{ $orderSource['source_item_name'] }}"
-                                                data-source-detail="{{ $orderSource['source_detail'] }}"
-                                                data-program="{{ $orderSource['program_name'] }}"
-                                                data-batch="{{ $orderSource['batch_name'] }}"
+                                                data-program="{{ $order->batch->program->name ?? '' }}"
+                                                data-batch="{{ $order->batch->name ?? '' }}"
                                                 data-total="{{ (int) round((float) $order->final_price) }}"
                                             >
                                                 {{ $order->student->full_name ?? '-' }} -
-                                                {{ $orderSource['source_label'] }}:
-                                                {{ $orderSource['source_item_name'] ?: '-' }}
-                                                @if (!empty($orderSource['source_detail']))
-                                                    ({{ $orderSource['source_detail'] }})
+                                                {{ $order->batch->name ?? '-' }}
+                                                @if ($order->batch && $order->batch->program)
+                                                    ({{ $order->batch->program->name }})
                                                 @endif
                                             </option>
                                         @endforeach
@@ -728,23 +347,14 @@
                                     <select id="payment_schedule_id" class="form-select">
                                         <option value="">Select Schedule (Optional)</option>
                                         @foreach ($paymentSchedules as $schedule)
-                                            @php
-                                                $scheduleSource = $resolveScheduleSource($schedule);
-                                            @endphp
                                             <option
                                                 value="{{ $schedule->id }}"
                                                 data-order-id="{{ $schedule->order_id }}"
                                                 data-title="{{ $schedule->title }}"
-                                                data-source-type="{{ $scheduleSource['source_type'] }}"
-                                                data-source-label="{{ $scheduleSource['source_label'] }}"
-                                                data-source-item="{{ $scheduleSource['source_item_name'] }}"
-                                                data-source-detail="{{ $scheduleSource['source_detail'] }}"
                                                 data-amount="{{ (int) round((float) $schedule->amount) }}"
                                                 data-due-date="{{ $schedule->due_date?->format('Y-m-d') ?? '' }}"
                                             >
                                                 {{ $schedule->order->student->full_name ?? '-' }} -
-                                                {{ $scheduleSource['source_label'] }}:
-                                                {{ $scheduleSource['source_item_name'] ?: '-' }} -
                                                 {{ $schedule->title }} -
                                                 Rp {{ number_format((float) $schedule->amount, 0, ',', '.') }}
                                             </option>
@@ -762,9 +372,9 @@
                     <div class="content-card mb-3">
                         <div class="content-card-header">
                             <div>
-                                <h5 class="content-card-title mb-1">Source Preview</h5>
+                                <h5 class="content-card-title mb-1">Order Preview</h5>
                                 <p class="content-card-subtitle mb-0">
-                                    Review selected student, source type, source item, order total, and schedule amount.
+                                    Review selected student, program, batch, order total, and schedule amount.
                                 </p>
                             </div>
                         </div>
@@ -777,14 +387,13 @@
                                 </div>
 
                                 <div class="col-md-4">
-                                    <label for="source_type_preview" class="form-label">Source Type</label>
-                                    <input type="text" id="source_type_preview" class="form-control" readonly>
+                                    <label for="program_name" class="form-label">Program</label>
+                                    <input type="text" id="program_name" class="form-control" readonly>
                                 </div>
 
                                 <div class="col-md-4">
-                                    <label for="source_item_preview" class="form-label">Source Item</label>
-                                    <input type="text" id="source_item_preview" class="form-control" readonly>
-                                    <div class="form-text" id="source_detail_text">-</div>
+                                    <label for="batch_name" class="form-label">Batch</label>
+                                    <input type="text" id="batch_name" class="form-control" readonly>
                                 </div>
 
                                 <div class="col-md-4">
@@ -1017,8 +626,8 @@
         payment_schedule_id: document.getElementById('payment_schedule_id'),
         invoice_number: document.getElementById('invoice_number'),
         student_name: document.getElementById('student_name'),
-        source_type_preview: document.getElementById('source_type_preview'),
-        source_item_preview: document.getElementById('source_item_preview'),
+        program_name: document.getElementById('program_name'),
+        batch_name: document.getElementById('batch_name'),
         order_total: document.getElementById('order_total'),
         schedule_title_preview: document.getElementById('schedule_title_preview'),
         schedule_amount_preview: document.getElementById('schedule_amount_preview'),
@@ -1035,7 +644,6 @@
     const orderTotalText = document.getElementById('order_total_text');
     const scheduleAmountText = document.getElementById('schedule_amount_text');
     const amountText = document.getElementById('amount_text');
-    const sourceDetailText = document.getElementById('source_detail_text');
 
     let deletePaymentId = null;
     let reloadTimeout = null;
@@ -1107,24 +715,19 @@
 
         if (!selectedOption || !selectedOption.value) {
             fields.student_name.value = '';
-            fields.source_type_preview.value = '';
-            fields.source_item_preview.value = '';
+            fields.program_name.value = '';
+            fields.batch_name.value = '';
             fields.order_total.value = '';
-            sourceDetailText.textContent = '-';
             orderTotalText.textContent = 'Rp 0';
             return;
         }
 
         const total = roundCurrency(selectedOption.dataset.total || 0);
-        const sourceLabel = selectedOption.dataset.sourceLabel || selectedOption.dataset.sourceType || 'Order';
-        const sourceItem = selectedOption.dataset.sourceItem || '-';
-        const sourceDetail = selectedOption.dataset.sourceDetail || '';
 
         fields.student_name.value = selectedOption.dataset.student || '';
-        fields.source_type_preview.value = sourceLabel;
-        fields.source_item_preview.value = sourceItem;
+        fields.program_name.value = selectedOption.dataset.program || '';
+        fields.batch_name.value = selectedOption.dataset.batch || '';
         fields.order_total.value = total;
-        sourceDetailText.textContent = sourceDetail || '-';
         orderTotalText.textContent = formatRupiah(total);
     }
 
@@ -1192,8 +795,8 @@
         fields.payment_schedule_id.value = '';
         fields.invoice_number.value = '';
         fields.student_name.value = '';
-        fields.source_type_preview.value = '';
-        fields.source_item_preview.value = '';
+        fields.program_name.value = '';
+        fields.batch_name.value = '';
         fields.order_total.value = '';
         fields.schedule_title_preview.value = '';
         fields.schedule_amount_preview.value = '';
@@ -1209,7 +812,6 @@
         orderTotalText.textContent = 'Rp 0';
         scheduleAmountText.textContent = 'Rp 0';
         amountText.textContent = 'Rp 0';
-        sourceDetailText.textContent = '-';
 
         invoiceNumberCard.classList.add('d-none');
 

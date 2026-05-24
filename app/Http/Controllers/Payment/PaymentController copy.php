@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -33,98 +32,13 @@ class PaymentController extends Controller
             $perPage = 10;
         }
 
-        $status = $request->filled('status') ? (string) $request->get('status') : null;
-        $orderType = $request->filled('order_type') ? (string) $request->get('order_type') : null;
-        $keyword = trim((string) $request->get('keyword', ''));
-
-        $allowedPaymentStatuses = ['pending', 'paid', 'failed', 'expired', 'cancelled'];
-        $allowedOrderTypes = ['program', 'workshop', 'trial_class', 'trial', 'webinar'];
-
-        if ($status && !in_array($status, $allowedPaymentStatuses, true)) {
-            $status = null;
-        }
-
-        if ($orderType && !in_array($orderType, $allowedOrderTypes, true)) {
-            $orderType = null;
-        }
-
-        $workshopTable = (new Order())->workshop()->getRelated()->getTable();
-        $workshopTitleColumns = collect(['title', 'name', 'workshop_title', 'theme', 'topic'])
-            ->filter(fn ($column) => Schema::hasColumn($workshopTable, $column))
-            ->values()
-            ->all();
-
         $payments = Payment::with([
-                'order' => function ($query) {
-                    $query->select([
-                        'id',
-                        'student_id',
-                        'batch_id',
-                        'workshop_id',
-                        'order_type',
-                        'original_price',
-                        'discount',
-                        'final_price',
-                        'status',
-                        'notes',
-                    ]);
-                },
+                'order:id,student_id,batch_id,original_price,discount,final_price,status',
                 'order.student:id,full_name,email,phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
-                'order.workshop',
                 'paymentSchedule:id,order_id,title,amount,due_date,status',
             ])
-            ->when($status, fn ($query) => $query->where('status', $status))
-            ->when($orderType, function ($query) use ($orderType) {
-                $normalizedType = $orderType === 'trial_class' ? 'trial' : $orderType;
-
-                $query->whereHas('order', function ($orderQuery) use ($orderType, $normalizedType) {
-                    if ($orderType === 'trial_class') {
-                        $orderQuery->whereIn('order_type', ['trial', 'trial_class', 'trial_schedule', 'trial_theme']);
-                        return;
-                    }
-
-                    $orderQuery->where('order_type', $normalizedType);
-                });
-            })
-            ->when($keyword !== '', function ($query) use ($keyword, $workshopTitleColumns) {
-                $like = '%' . $keyword . '%';
-
-                $query->where(function ($paymentQuery) use ($like, $workshopTitleColumns) {
-                    $paymentQuery
-                        ->where('invoice_number', 'like', $like)
-                        ->orWhere('reference_number', 'like', $like)
-                        ->orWhere('payment_method', 'like', $like)
-                        ->orWhere('gateway_provider', 'like', $like)
-                        ->orWhere('gateway_transaction_id', 'like', $like)
-                        ->orWhere('notes', 'like', $like)
-                        ->orWhereHas('order.student', function ($studentQuery) use ($like) {
-                            $studentQuery
-                                ->where('full_name', 'like', $like)
-                                ->orWhere('email', 'like', $like)
-                                ->orWhere('phone', 'like', $like);
-                        })
-                        ->orWhereHas('order.batch', function ($batchQuery) use ($like) {
-                            $batchQuery->where('name', 'like', $like)
-                                ->orWhereHas('program', function ($programQuery) use ($like) {
-                                    $programQuery->where('name', 'like', $like);
-                                });
-                        })
-                        ->orWhereHas('order.workshop', function ($workshopQuery) use ($like, $workshopTitleColumns) {
-                            if (empty($workshopTitleColumns)) {
-                                return;
-                            }
-
-                            $workshopQuery->where(function ($nestedWorkshopQuery) use ($like, $workshopTitleColumns) {
-                                foreach ($workshopTitleColumns as $index => $column) {
-                                    $method = $index === 0 ? 'where' : 'orWhere';
-                                    $nestedWorkshopQuery->{$method}($column, 'like', $like);
-                                }
-                            });
-                        });
-                });
-            })
             ->latest()
             ->paginate($perPage)
             ->withQueryString();
@@ -133,42 +47,16 @@ class PaymentController extends Controller
                 'student:id,full_name,email,phone',
                 'batch:id,program_id,name',
                 'batch.program:id,name',
-                'workshop',
             ])
             ->whereIn('status', ['pending', 'partial'])
             ->orderByDesc('id')
-            ->get([
-                'id',
-                'student_id',
-                'batch_id',
-                'workshop_id',
-                'order_type',
-                'original_price',
-                'discount',
-                'final_price',
-                'status',
-                'notes',
-            ]);
+            ->get(['id', 'student_id', 'batch_id', 'original_price', 'discount', 'final_price', 'status']);
 
         $paymentSchedules = PaymentSchedule::with([
-                'order' => function ($query) {
-                    $query->select([
-                        'id',
-                        'student_id',
-                        'batch_id',
-                        'workshop_id',
-                        'order_type',
-                        'original_price',
-                        'discount',
-                        'final_price',
-                        'status',
-                        'notes',
-                    ]);
-                },
+                'order:id,student_id,batch_id,original_price,discount,final_price,status',
                 'order.student:id,full_name,email,phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
-                'order.workshop',
             ])
             ->whereIn('status', ['pending', 'overdue'])
             ->orderByDesc('id')
@@ -180,11 +68,10 @@ class PaymentController extends Controller
     public function show(Payment $payment): JsonResponse
     {
         $payment->load([
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
-            'order.workshop',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
         ]);
 
@@ -213,14 +100,10 @@ class PaymentController extends Controller
                     : null,
                 'order' => $payment->order ? [
                     'id' => $payment->order->id,
-                    'order_type' => $payment->order->order_type,
-                    'batch_id' => $payment->order->batch_id,
-                    'workshop_id' => $payment->order->workshop_id,
                     'original_price' => (float) $payment->order->original_price,
                     'discount' => (float) $payment->order->discount,
                     'final_price' => (float) $payment->order->final_price,
                     'status' => $payment->order->status,
-                    'notes' => $payment->order->notes,
                     'student' => $payment->order->student ? [
                         'id' => $payment->order->student->id,
                         'full_name' => $payment->order->student->full_name,
@@ -235,18 +118,6 @@ class PaymentController extends Controller
                             'name' => $payment->order->batch->program->name,
                         ] : null,
                     ] : null,
-                    'workshop' => $payment->order->workshop ? [
-                        'id' => $payment->order->workshop->id,
-                        'title' => $this->firstFilledAttribute($payment->order->workshop, [
-                            'title',
-                            'name',
-                            'workshop_title',
-                            'theme_name',
-                            'theme',
-                            'topic',
-                            'subject',
-                        ]),
-                    ] : null,
                 ] : null,
                 'payment_schedule' => $payment->paymentSchedule ? [
                     'id' => $payment->paymentSchedule->id,
@@ -255,7 +126,6 @@ class PaymentController extends Controller
                     'due_date' => optional($payment->paymentSchedule->due_date)->format('Y-m-d'),
                     'status' => $payment->paymentSchedule->status,
                 ] : null,
-                'source_context' => $this->resolvePaymentSourceContext($payment),
             ],
         ]);
     }
@@ -287,7 +157,6 @@ class PaymentController extends Controller
             'student:id,full_name,email,phone',
             'batch:id,program_id,name',
             'batch.program:id,name',
-            'workshop',
         ])->findOrFail($validated['order_id']);
 
         $paymentSchedule = null;
@@ -338,11 +207,10 @@ class PaymentController extends Controller
         $this->syncRelatedStatuses($payment);
 
         $payment->load([
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
-            'order.workshop',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
         ]);
 
@@ -385,7 +253,6 @@ class PaymentController extends Controller
             'student:id,full_name,email,phone',
             'batch:id,program_id,name',
             'batch.program:id,name',
-            'workshop',
         ])->findOrFail($validated['order_id']);
 
         $paymentSchedule = null;
@@ -449,11 +316,10 @@ class PaymentController extends Controller
         $this->syncRelatedStatuses($payment->fresh());
 
         $payment->load([
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status',
             'order.student:id,full_name,email,phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
-            'order.workshop',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
         ]);
 
@@ -658,10 +524,6 @@ class PaymentController extends Controller
             'invoiceBreakdownRows' => $data['financialSummaryRows'] ?? $data['items'] ?? [],
             'currentDocumentAmount' => $data['currentInvoiceAmount'] ?? $data['grandTotal'] ?? 0,
             'currentDocumentAmountLabel' => 'Current Invoice Amount',
-            'showRemainingBalance' => (bool) ($data['showRemainingBalance'] ?? true),
-            'isWorkshopDocument' => (bool) ($data['isWorkshopDocument'] ?? false),
-            'isSimpleWorkshopDocument' => (bool) ($data['isSimpleWorkshopDocument'] ?? false),
-            'shouldShowPaymentBreakdown' => (bool) ($data['shouldShowPaymentBreakdown'] ?? true),
             'documentStatusLabel' => Str::headline((string) $payment->status),
             'documentActionLabel' => $isPaid
                 ? 'Already Paid'
@@ -672,11 +534,10 @@ class PaymentController extends Controller
     private function paymentDocumentRelations(): array
     {
         return [
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,batch_id,original_price,discount,final_price,status,notes',
             'order.student:id,full_name,email,phone,city',
             'order.batch:id,program_id,name,start_date,end_date',
             'order.batch.program:id,name',
-            'order.workshop',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
         ];
     }
@@ -708,7 +569,6 @@ class PaymentController extends Controller
         $schedule = $payment->paymentSchedule;
         $order = $payment->order;
         $summary = $this->buildPaymentFinancialSummary($payment, 'invoice');
-        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
 
         return [
             'payment' => $payment,
@@ -717,16 +577,6 @@ class PaymentController extends Controller
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
-            'sourceContext' => $sourceContext,
-            'sourceType' => $sourceContext['source_type'],
-            'sourceTypeLabel' => $sourceContext['source_type_label'],
-            'sourceItemName' => $sourceContext['source_item_name'],
-            'sourceDescription' => $sourceContext['source_description'],
-            'isWorkshopDocument' => (bool) ($summary['is_workshop_document'] ?? false),
-            'isSimpleWorkshopDocument' => (bool) ($summary['is_simple_workshop_document'] ?? false),
-            'shouldShowPaymentBreakdown' => (bool) ($summary['should_show_breakdown'] ?? true),
-            'showRemainingBalance' => (bool) ($summary['show_remaining_balance'] ?? true),
-            'workshopName' => $summary['workshop_name'] ?? null,
             'items' => $summary['items'],
             'financialSummaryRows' => $summary['rows'],
             'financialRows' => $summary['rows'],
@@ -744,7 +594,7 @@ class PaymentController extends Controller
             'tax' => 0,
             'grandTotal' => $summary['current_amount'],
             'invoiceDate' => $payment->payment_date ?: $payment->created_at,
-            'documentNote' => $this->buildDocumentNote($sourceContext, 'invoice'),
+            'documentNote' => 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.',
             'companyName' => 'FlexLabs',
             'companyAddressLines' => $this->flexlabsAddressLines(),
         ];
@@ -760,7 +610,6 @@ class PaymentController extends Controller
         $schedule = $payment->paymentSchedule;
         $order = $payment->order;
         $summary = $this->buildPaymentFinancialSummary($payment, 'receipt');
-        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
 
         return [
             'payment' => $payment,
@@ -769,16 +618,6 @@ class PaymentController extends Controller
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
-            'sourceContext' => $sourceContext,
-            'sourceType' => $sourceContext['source_type'],
-            'sourceTypeLabel' => $sourceContext['source_type_label'],
-            'sourceItemName' => $sourceContext['source_item_name'],
-            'sourceDescription' => $sourceContext['source_description'],
-            'isWorkshopDocument' => (bool) ($summary['is_workshop_document'] ?? false),
-            'isSimpleWorkshopDocument' => (bool) ($summary['is_simple_workshop_document'] ?? false),
-            'shouldShowPaymentBreakdown' => (bool) ($summary['should_show_breakdown'] ?? true),
-            'showRemainingBalance' => (bool) ($summary['show_remaining_balance'] ?? true),
-            'workshopName' => $summary['workshop_name'] ?? null,
             'items' => $summary['items'],
             'financialSummaryRows' => $summary['rows'],
             'financialRows' => $summary['rows'],
@@ -798,7 +637,7 @@ class PaymentController extends Controller
             'tax' => 0,
             'grandTotal' => $summary['current_amount'],
             'paidAt' => $payment->paid_at ?: $payment->payment_date ?: $payment->updated_at,
-            'documentNote' => $this->buildDocumentNote($sourceContext, 'receipt'),
+            'documentNote' => 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this payment.',
             'companyName' => 'FlexLabs',
             'companyAddressLines' => $this->flexlabsAddressLines(),
         ];
@@ -807,19 +646,7 @@ class PaymentController extends Controller
     private function buildPaymentFinancialSummary(Payment $payment, string $documentType = 'invoice'): array
     {
         $order = $this->resolveFullOrderForPayment($payment);
-        $schedule = $this->resolveFullPaymentScheduleForPayment($payment);
-        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
-
-        // Khusus workshop: jangan tampilkan breakdown normal fee / discount / final fee.
-        // Invoice/receipt cukup menjelaskan peserta ikut workshop apa dan nominal yang harus dibayar/dibayar.
-        if ($this->isWorkshopSourceContext($sourceContext, $order)) {
-            return $this->buildWorkshopFinancialSummary($payment, $documentType, $order, $schedule, $sourceContext);
-        }
-
-        $sourceTypeLabel = $sourceContext['source_type_label'] ?: 'Order';
-        $normalFeeLabel = $this->buildSourceMoneyLabel('Normal', $sourceTypeLabel, 'Fee');
-        $discountLabel = $this->buildSourceDiscountLabel($sourceTypeLabel);
-        $finalFeeLabel = $this->buildSourceMoneyLabel('Final', $sourceTypeLabel, 'Fee');
+        $schedule = $payment->paymentSchedule;
 
         $normalProgramFee = $this->moneyValue($order?->original_price);
         $explicitDiscount = $this->moneyValue($order?->discount);
@@ -873,29 +700,29 @@ class PaymentController extends Controller
 
         $currentDescription = $schedule?->title
             ? trim($schedule->title . ($schedule->due_date ? ' · Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
-            : $this->buildGenericInstallmentDescription($sourceContext);
+            : 'Program payment installment';
 
-        $programDescription = $sourceContext['source_description'] ?: $this->resolveProgramDescription($payment);
+        $programDescription = $this->resolveProgramDescription($payment);
 
         // Row diskon dibuat eksplisit dan selalu dikirim dari controller.
         // Jadi view tidak perlu nebak lagi dan label "Special Program Discount" tidak hilang.
         $rows = [
             $this->makeFinancialRow(
-                label: $normalFeeLabel,
+                label: 'Normal Program Fee',
                 details: $programDescription,
                 amount: $normalProgramFee,
                 type: 'normal_fee'
             ),
             $this->makeFinancialRow(
-                label: $discountLabel,
-                details: 'Approved discount or payment adjustment for this order source',
+                label: 'Special Program Discount',
+                details: 'Approved program discount or payment adjustment',
                 amount: -1 * abs($programDiscount),
                 type: 'discount',
                 isNegative: $programDiscount > 0
             ),
             $this->makeFinancialRow(
-                label: $finalFeeLabel,
-                details: $sourceTypeLabel . ' fee after discount or adjustment',
+                label: 'Final Tuition Fee',
+                details: 'Program fee after discount or adjustment',
                 amount: $finalTuitionFee,
                 type: 'final_fee',
                 isEmphasis: true
@@ -929,11 +756,6 @@ class PaymentController extends Controller
             'normal_program_fee' => $normalProgramFee,
             'program_discount' => $programDiscount,
             'final_tuition_fee' => $finalTuitionFee,
-            'normal_source_fee' => $normalProgramFee,
-            'source_discount' => $programDiscount,
-            'final_source_fee' => $finalTuitionFee,
-            'source_context' => $sourceContext,
-            'source_type_label' => $sourceTypeLabel,
             'previous_payment_received' => $previousPaymentReceived,
             'current_amount' => $currentAmount,
             'remaining_balance' => $remainingBalance,
@@ -942,148 +764,7 @@ class PaymentController extends Controller
             'pricing_rows' => array_slice($rows, 0, 3),
             'payment_rows' => array_slice($rows, 3),
             'items' => $this->financialRowsToDocumentItems($rows),
-            'is_workshop_document' => false,
-            'is_simple_workshop_document' => false,
-            'should_show_breakdown' => true,
-            'show_remaining_balance' => true,
         ];
-    }
-
-    private function buildWorkshopFinancialSummary(
-        Payment $payment,
-        string $documentType,
-        ?Order $order,
-        ?PaymentSchedule $schedule,
-        array $sourceContext
-    ): array {
-        $finalWorkshopFee = $this->moneyValue($order?->final_price)
-            ?: $this->moneyValue($schedule?->amount)
-            ?: $this->moneyValue($payment->amount)
-            ?: $this->moneyValue($order?->original_price);
-
-        $currentAmount = $this->moneyValue($payment->amount)
-            ?: $this->moneyValue($schedule?->amount)
-            ?: $finalWorkshopFee;
-
-        if ($finalWorkshopFee <= 0) {
-            $finalWorkshopFee = $currentAmount;
-        }
-
-        // Workshop document dibuat sederhana:
-        // cukup tampilkan nama workshop dan nominal payment saat ini.
-        // Tidak perlu previous payment, cicilan, atau remaining balance.
-        $previousPaymentReceived = 0;
-        $remainingBalance = 0;
-
-        $workshopName = $this->resolveWorkshopDocumentName($payment, $order, $sourceContext);
-        $rowLabel = $documentType === 'receipt'
-            ? 'Workshop Payment Received'
-            : 'Workshop Fee';
-
-        $rows = [
-            $this->makeFinancialRow(
-                label: $rowLabel,
-                details: $workshopName,
-                amount: $currentAmount,
-                type: $documentType === 'receipt' ? 'workshop_payment' : 'workshop_fee',
-                isEmphasis: true
-            ),
-        ];
-
-        return [
-            'normal_program_fee' => $finalWorkshopFee,
-            'program_discount' => 0,
-            'final_tuition_fee' => $finalWorkshopFee,
-            'normal_source_fee' => $finalWorkshopFee,
-            'source_discount' => 0,
-            'final_source_fee' => $finalWorkshopFee,
-            'source_context' => $sourceContext,
-            'source_type_label' => 'Workshop',
-            'previous_payment_received' => $previousPaymentReceived,
-            'current_amount' => $currentAmount,
-            'remaining_balance' => $remainingBalance,
-            'remaining_balance_label' => null,
-            'rows' => $rows,
-            'pricing_rows' => $rows,
-            'payment_rows' => [],
-            'items' => $this->financialRowsToDocumentItems($rows),
-            'is_workshop_document' => true,
-            'is_simple_workshop_document' => true,
-            'should_show_breakdown' => false,
-            'show_remaining_balance' => false,
-            'workshop_name' => $workshopName,
-        ];
-    }
-
-    private function isWorkshopSourceContext(array $sourceContext, ?Order $order = null): bool
-    {
-        $sourceType = Str::of((string) ($sourceContext['source_type'] ?? ''))
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->toString();
-
-        $orderType = Str::of((string) data_get($order, 'order_type', ''))
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->toString();
-
-        $sourceTypeLabel = Str::lower((string) ($sourceContext['source_type_label'] ?? ''));
-
-        return in_array($sourceType, ['workshop', 'workshops'], true)
-            || in_array($orderType, ['workshop', 'workshops'], true)
-            || filled(data_get($order, 'workshop_id'))
-            || filled(data_get($order, 'workshop.id'))
-            || Str::contains($sourceTypeLabel, 'workshop');
-    }
-
-    private function resolveWorkshopDocumentName(Payment $payment, ?Order $order, array $sourceContext): string
-    {
-        $candidate = collect([
-            $sourceContext['source_item_name'] ?? null,
-            $this->firstFilledAttribute($order, [
-                'workshop.title',
-                'workshop.name',
-                'workshop.workshop_title',
-                'workshop.theme_name',
-                'workshop.theme',
-                'workshop.topic',
-                'workshop.subject',
-            ]),
-            $this->firstFilledAttribute($order, [
-                'source_name',
-                'source_item',
-                'source_item_name',
-                'item_name',
-                'title',
-                'name',
-            ]),
-            $sourceContext['source_description'] ?? null,
-        ])
-            ->filter(function ($value) {
-                if (!filled($value)) {
-                    return false;
-                }
-
-                $normalized = Str::of((string) $value)
-                    ->lower()
-                    ->squish()
-                    ->toString();
-
-                return !in_array($normalized, ['workshop', 'workshops', 'program', 'payment', 'flexlabs payment'], true);
-            })
-            ->first();
-
-        if (filled($candidate)) {
-            return (string) $candidate;
-        }
-
-        $workshopId = data_get($order, 'workshop_id') ?: data_get($order, 'workshop.id');
-
-        if ($workshopId) {
-            return 'Workshop #' . $workshopId;
-        }
-
-        return 'FlexLabs Workshop #' . ($payment->order_id ?: $payment->id);
     }
 
     private function resolveFullOrderForPayment(Payment $payment): ?Order
@@ -1095,15 +776,7 @@ class PaymentController extends Controller
             && array_key_exists('discount', $order->getAttributes())
             && array_key_exists('final_price', $order->getAttributes());
 
-        $hasSourceColumns = $order
-            && array_key_exists('order_type', $order->getAttributes())
-            && array_key_exists('workshop_id', $order->getAttributes());
-
-        $needsWorkshopRelation = $order
-            && filled($order->getAttribute('workshop_id'))
-            && !$order->relationLoaded('workshop');
-
-        if ($hasCompletePricingColumns && $hasSourceColumns && !$needsWorkshopRelation) {
+        if ($hasCompletePricingColumns) {
             return $order;
         }
 
@@ -1115,7 +788,6 @@ class PaymentController extends Controller
             'student:id,full_name,email,phone,city',
             'batch:id,program_id,name,start_date,end_date',
             'batch.program:id,name',
-            'workshop',
         ])->find($payment->order_id);
 
         if ($freshOrder) {
@@ -1200,560 +872,6 @@ class PaymentController extends Controller
             ->implode(' · ') ?: 'FlexLabs Program';
     }
 
-    private function resolveFullPaymentScheduleForPayment(Payment $payment): ?PaymentSchedule
-    {
-        $schedule = $payment->paymentSchedule;
-
-        if (!$payment->payment_schedule_id) {
-            return $schedule;
-        }
-
-        $hasSourceColumns = $schedule
-            && (
-                array_key_exists('source_type', $schedule->getAttributes())
-                || array_key_exists('type', $schedule->getAttributes())
-                || array_key_exists('source_item', $schedule->getAttributes())
-                || array_key_exists('source_item_id', $schedule->getAttributes())
-                || array_key_exists('item_name', $schedule->getAttributes())
-            );
-
-        if ($hasSourceColumns) {
-            return $schedule;
-        }
-
-        $freshSchedule = PaymentSchedule::find($payment->payment_schedule_id);
-
-        if ($freshSchedule) {
-            $payment->setRelation('paymentSchedule', $freshSchedule);
-
-            return $freshSchedule;
-        }
-
-        return $schedule;
-    }
-
-    private function resolvePaymentSourceContext(
-        Payment $payment,
-        ?Order $order = null,
-        ?PaymentSchedule $schedule = null
-    ): array {
-        $order = $order ?: $this->resolveFullOrderForPayment($payment);
-        $schedule = $schedule ?: $this->resolveFullPaymentScheduleForPayment($payment);
-
-        $scheduleContext = $this->resolveScheduleSourceContext($schedule);
-        $orderItemContext = $this->resolveOrderItemSourceContext($order);
-        $orderContext = $this->resolveOrderColumnSourceContext($order);
-
-        $sourceType = $orderItemContext['source_type']
-            ?: $orderContext['source_type']
-            ?: $scheduleContext['source_type']
-            ?: $this->resolveProgramSourceType($payment);
-
-        $sourceItemName = $orderItemContext['source_item_name']
-            ?: $orderContext['source_item_name']
-            ?: $this->resolveProgramSourceName($payment)
-            ?: $scheduleContext['source_item_name'];
-
-        $sourceDescription = $orderItemContext['source_description']
-            ?: $orderContext['source_description']
-            ?: $this->resolveProgramDescription($payment)
-            ?: $scheduleContext['source_description'];
-
-        $sourceTypeLabel = $this->humanizeSourceType($sourceType);
-
-        if (!$sourceTypeLabel && $sourceItemName) {
-            $sourceTypeLabel = 'Order';
-        }
-
-        if (!$sourceTypeLabel) {
-            $sourceTypeLabel = 'Program';
-        }
-
-        if (!$sourceItemName) {
-            $sourceItemName = $sourceDescription ?: 'FlexLabs Payment';
-        }
-
-        if (!$sourceDescription) {
-            $sourceDescription = $sourceItemName;
-        }
-
-        return [
-            'source_type' => $sourceType ?: Str::slug($sourceTypeLabel, '_'),
-            'source_type_label' => $sourceTypeLabel,
-            'source_item_name' => $sourceItemName,
-            'source_description' => $sourceDescription,
-            'schedule_title' => $schedule?->title,
-            'order_item' => $orderItemContext['raw'] ?? null,
-        ];
-    }
-
-    private function resolveScheduleSourceContext(?PaymentSchedule $schedule): array
-    {
-        if (!$schedule) {
-            return $this->emptySourceContext();
-        }
-
-        $sourceType = $this->firstFilledAttribute($schedule, [
-            'source_type',
-            'type',
-            'item_type',
-            'source',
-            'category',
-        ]);
-
-        $sourceItemName = $this->firstFilledAttribute($schedule, [
-            'source_item',
-            'source_item_name',
-            'item_name',
-            'name',
-            'title',
-            'description',
-        ]);
-
-        $sourceItemId = $this->firstFilledAttribute($schedule, [
-            'source_item_id',
-            'source_id',
-            'item_id',
-            'reference_id',
-        ]);
-
-        if (!$sourceItemName && $sourceType && $sourceItemId) {
-            $sourceItemName = $this->resolveSourceModelName($sourceType, $sourceItemId);
-        }
-
-        $sourceDescription = collect([
-            $this->humanizeSourceType($sourceType),
-            $sourceItemName,
-        ])
-            ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
-
-        return [
-            'source_type' => $sourceType,
-            'source_type_label' => $this->humanizeSourceType($sourceType),
-            'source_item_name' => $sourceItemName,
-            'source_description' => $sourceDescription,
-            'raw' => $schedule->getAttributes(),
-        ];
-    }
-
-    private function resolveOrderItemSourceContext(?Order $order): array
-    {
-        if (!$order?->id) {
-            return $this->emptySourceContext();
-        }
-
-        $itemRows = $this->resolveOrderItemRows($order);
-
-        if (empty($itemRows)) {
-            return $this->emptySourceContext();
-        }
-
-        $firstItem = $itemRows[0];
-
-        $sourceType = $firstItem['source_type'] ?? null;
-        $sourceItemName = $firstItem['source_item_name'] ?? null;
-
-        if (count($itemRows) > 1) {
-            $sourceItemName = collect($itemRows)
-                ->pluck('source_item_name')
-                ->filter(fn ($value) => filled($value))
-                ->take(3)
-                ->implode(', ');
-
-            if (count($itemRows) > 3) {
-                $sourceItemName .= ' +' . (count($itemRows) - 3) . ' more';
-            }
-        }
-
-        $sourceDescription = collect([
-            $this->humanizeSourceType($sourceType),
-            $sourceItemName,
-        ])
-            ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
-
-        return [
-            'source_type' => $sourceType,
-            'source_type_label' => $this->humanizeSourceType($sourceType),
-            'source_item_name' => $sourceItemName,
-            'source_description' => $sourceDescription,
-            'raw' => $firstItem,
-        ];
-    }
-
-    private function resolveOrderItemRows(Order $order): array
-    {
-        $candidateTables = [
-            'order_items' => ['order_id'],
-            'sales_order_items' => ['order_id', 'sales_order_id'],
-            'sales_order_details' => ['order_id', 'sales_order_id'],
-            'order_details' => ['order_id'],
-        ];
-
-        foreach ($candidateTables as $table => $orderColumns) {
-            if (!Schema::hasTable($table)) {
-                continue;
-            }
-
-            $orderColumn = collect($orderColumns)
-                ->first(fn ($column) => Schema::hasColumn($table, $column));
-
-            if (!$orderColumn) {
-                continue;
-            }
-
-            $rows = DB::table($table)
-                ->where($orderColumn, $order->id)
-                ->orderBy('id')
-                ->get();
-
-            if ($rows->isEmpty()) {
-                continue;
-            }
-
-            return $rows
-                ->map(function ($row) use ($table) {
-                    return $this->normalizeOrderItemRow((array) $row, $table);
-                })
-                ->filter(fn ($row) => filled($row['source_item_name'] ?? null) || filled($row['source_type'] ?? null))
-                ->values()
-                ->all();
-        }
-
-        return [];
-    }
-
-    private function normalizeOrderItemRow(array $row, string $table): array
-    {
-        $sourceType = $this->firstFilledArrayValue($row, [
-            'source_type',
-            'item_type',
-            'type',
-            'category',
-            'source',
-        ]);
-
-        $sourceItemName = $this->firstFilledArrayValue($row, [
-            'source_item',
-            'source_item_name',
-            'item_name',
-            'name',
-            'title',
-            'description',
-            'label',
-        ]);
-
-        $sourceItemId = $this->firstFilledArrayValue($row, [
-            'source_item_id',
-            'source_id',
-            'item_id',
-            'reference_id',
-            'program_id',
-            'batch_id',
-            'workshop_id',
-            'trial_schedule_id',
-            'trial_theme_id',
-        ]);
-
-        if (!$sourceType) {
-            $sourceType = $this->inferSourceTypeFromRow($row);
-        }
-
-        if (!$sourceItemName && $sourceType && $sourceItemId) {
-            $sourceItemName = $this->resolveSourceModelName($sourceType, $sourceItemId);
-        }
-
-        return [
-            'source_type' => $sourceType,
-            'source_type_label' => $this->humanizeSourceType($sourceType),
-            'source_item_name' => $sourceItemName,
-            'amount' => $this->firstFilledArrayValue($row, [
-                'amount',
-                'total_amount',
-                'subtotal',
-                'line_total',
-                'total',
-                'price',
-                'unit_price',
-            ]),
-            'qty' => $this->firstFilledArrayValue($row, [
-                'qty',
-                'quantity',
-            ]) ?: 1,
-            'table' => $table,
-            'raw' => $row,
-        ];
-    }
-
-    private function resolveOrderColumnSourceContext(?Order $order): array
-    {
-        if (!$order) {
-            return $this->emptySourceContext();
-        }
-
-        $sourceType = $this->firstFilledAttribute($order, [
-            'source_type',
-            'order_type',
-            'type',
-            'item_type',
-            'category',
-        ]);
-
-        $sourceItemName = $this->firstFilledAttribute($order, [
-            'source_item',
-            'source_item_name',
-            'item_name',
-            'name',
-            'title',
-            'description',
-        ]);
-
-        $sourceItemId = $this->firstFilledAttribute($order, [
-            'source_item_id',
-            'source_id',
-            'item_id',
-            'reference_id',
-            'workshop_id',
-            'public_workshop_id',
-            'workshop_schedule_id',
-            'trial_schedule_id',
-            'trial_theme_id',
-            'batch_id',
-        ]);
-
-        if (!$sourceType) {
-            $sourceType = $this->inferSourceTypeFromRow($order->getAttributes());
-        }
-
-        if (!$sourceItemName && $sourceType && $sourceItemId) {
-            $sourceItemName = $this->resolveSourceModelName($sourceType, $sourceItemId);
-        }
-
-        $sourceDescription = collect([
-            $this->humanizeSourceType($sourceType),
-            $sourceItemName,
-        ])
-            ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
-
-        return [
-            'source_type' => $sourceType,
-            'source_type_label' => $this->humanizeSourceType($sourceType),
-            'source_item_name' => $sourceItemName,
-            'source_description' => $sourceDescription,
-            'raw' => $order->getAttributes(),
-        ];
-    }
-
-    private function resolveProgramSourceType(Payment $payment): ?string
-    {
-        return data_get($payment, 'order.batch.program.name') || data_get($payment, 'order.batch.name')
-            ? 'program'
-            : null;
-    }
-
-    private function resolveProgramSourceName(Payment $payment): ?string
-    {
-        $programName = data_get($payment, 'order.batch.program.name');
-        $batchName = data_get($payment, 'order.batch.name');
-
-        return collect([$programName, $batchName])
-            ->filter(fn ($value) => filled($value))
-            ->implode(' · ') ?: null;
-    }
-
-    private function resolveSourceModelName(?string $sourceType, mixed $sourceItemId): ?string
-    {
-        if (!$sourceType || !$sourceItemId) {
-            return null;
-        }
-
-        $normalizedType = Str::of($sourceType)
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->toString();
-
-        $tableCandidates = match ($normalizedType) {
-            'program', 'course' => ['programs'],
-            'batch', 'class_batch' => ['batches'],
-            'workshop' => ['workshops', 'workshop_schedules', 'public_workshops'],
-            'webinar' => ['webinars', 'workshops', 'workshop_schedules'],
-            'trial', 'trial_class' => ['trial_schedules', 'trial_themes'],
-            default => [
-                Str::plural($normalizedType),
-                $normalizedType,
-            ],
-        };
-
-        foreach ($tableCandidates as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'id')) {
-                continue;
-            }
-
-            $nameColumn = collect(['title', 'name', 'workshop_title', 'theme_title', 'theme_name', 'theme', 'topic', 'subject', 'program_name'])
-                ->first(fn ($column) => Schema::hasColumn($table, $column));
-
-            if (!$nameColumn) {
-                continue;
-            }
-
-            $name = DB::table($table)
-                ->where('id', $sourceItemId)
-                ->value($nameColumn);
-
-            if (filled($name)) {
-                return (string) $name;
-            }
-        }
-
-        return null;
-    }
-
-    private function inferSourceTypeFromRow(array $row): ?string
-    {
-        $map = [
-            'program_id' => 'program',
-            'batch_id' => 'batch',
-            'workshop_id' => 'workshop',
-            'webinar_id' => 'webinar',
-            'trial_schedule_id' => 'trial',
-            'trial_theme_id' => 'trial',
-        ];
-
-        foreach ($map as $column => $sourceType) {
-            if (filled($row[$column] ?? null)) {
-                return $sourceType;
-            }
-        }
-
-        return null;
-    }
-
-    private function firstFilledAttribute(object $model, array $keys): ?string
-    {
-        $attributes = method_exists($model, 'getAttributes') ? $model->getAttributes() : [];
-
-        foreach ($keys as $key) {
-            $value = null;
-
-            if (str_contains($key, '.')) {
-                $value = data_get($model, $key);
-            } elseif (array_key_exists($key, $attributes)) {
-                $value = $attributes[$key];
-            }
-
-            if (filled($value)) {
-                return (string) $value;
-            }
-        }
-
-        return null;
-    }
-
-    private function firstFilledArrayValue(array $row, array $keys): mixed
-    {
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $row)) {
-                continue;
-            }
-
-            $value = $row[$key];
-
-            if (filled($value)) {
-                return $value;
-            }
-        }
-
-        return null;
-    }
-
-    private function humanizeSourceType(?string $sourceType): ?string
-    {
-        if (!filled($sourceType)) {
-            return null;
-        }
-
-        $normalized = Str::of($sourceType)
-            ->lower()
-            ->replace(['-', '_'], ' ')
-            ->squish()
-            ->toString();
-
-        return match ($normalized) {
-            'program', 'course' => 'Program',
-            'batch', 'class batch' => 'Batch',
-            'workshop' => 'Workshop',
-            'webinar' => 'Webinar',
-            'trial', 'trial class' => 'Trial Class',
-            default => Str::headline($normalized),
-        };
-    }
-
-    private function buildSourceMoneyLabel(string $prefix, string $sourceTypeLabel, string $suffix): string
-    {
-        if ($sourceTypeLabel === 'Program') {
-            return $prefix === 'Final'
-                ? 'Final Tuition Fee'
-                : $prefix . ' Program ' . $suffix;
-        }
-
-        if ($sourceTypeLabel === 'Order') {
-            return $prefix . ' Order Amount';
-        }
-
-        return trim($prefix . ' ' . $sourceTypeLabel . ' ' . $suffix);
-    }
-
-    private function buildSourceDiscountLabel(string $sourceTypeLabel): string
-    {
-        if ($sourceTypeLabel === 'Program') {
-            return 'Special Program Discount';
-        }
-
-        if ($sourceTypeLabel === 'Order') {
-            return 'Order Discount / Adjustment';
-        }
-
-        return $sourceTypeLabel . ' Discount / Adjustment';
-    }
-
-    private function buildGenericInstallmentDescription(array $sourceContext): string
-    {
-        $sourceTypeLabel = $sourceContext['source_type_label'] ?? 'Order';
-
-        return $sourceTypeLabel === 'Program'
-            ? 'Program payment installment'
-            : $sourceTypeLabel . ' payment installment';
-    }
-
-    private function buildDocumentNote(array $sourceContext, string $documentType): string
-    {
-        if ($this->isWorkshopSourceContext($sourceContext)) {
-            return $documentType === 'receipt'
-                ? 'Payment has been received for the selected FlexLabs workshop.'
-                : 'This invoice is for the selected FlexLabs workshop registration.';
-        }
-
-        $sourceTypeLabel = $sourceContext['source_type_label'] ?? 'order';
-        $sourceTypeText = Str::lower($sourceTypeLabel);
-
-        return $documentType === 'receipt'
-            ? 'The final amount reflects the approved ' . $sourceTypeText . ' discount or payment adjustment. Remaining balance shows the outstanding amount after this payment.'
-            : 'The final amount reflects the approved ' . $sourceTypeText . ' discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
-    }
-
-    private function emptySourceContext(): array
-    {
-        return [
-            'source_type' => null,
-            'source_type_label' => null,
-            'source_item_name' => null,
-            'source_description' => null,
-            'raw' => null,
-        ];
-    }
-
     private function moneyValue(mixed $value): float
     {
         return round((float) ($value ?? 0), 2);
@@ -1790,12 +908,6 @@ class PaymentController extends Controller
             $student = $order->student;
             $batch = $order->batch;
             $program = $batch?->program;
-            $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $paymentSchedule);
-            $itemName = $this->isWorkshopSourceContext($sourceContext, $order)
-                ? (($sourceContext['source_item_name'] ?? null) ?: 'Workshop Payment')
-                : ($paymentSchedule?->title
-                    ?: ($sourceContext['source_item_name'] ?? null)
-                    ?: ($sourceContext['source_type_label'] ? $sourceContext['source_type_label'] . ' Payment' : 'FlexLabs Payment'));
 
             $xenditResult = $this->xenditService->createPaymentLink($payment, [
                 'full_name' => $student?->full_name,
@@ -1803,10 +915,7 @@ class PaymentController extends Controller
                 'phone' => $student?->phone,
                 'program_name' => $program?->name,
                 'batch_name' => $batch?->name,
-                'source_type' => $sourceContext['source_type'],
-                'source_type_label' => $sourceContext['source_type_label'],
-                'source_item_name' => $sourceContext['source_item_name'],
-                'item_name' => $itemName,
+                'item_name' => $paymentSchedule?->title ?: 'Program Payment',
             ]);
 
             $payment->update([
@@ -1868,17 +977,6 @@ class PaymentController extends Controller
 
     private function resolveInvoiceBatchCode(Order $order): string
     {
-        $orderType = Str::of((string) data_get($order, 'order_type', ''))
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->toString();
-
-        $workshopId = (int) (data_get($order, 'workshop_id') ?: data_get($order, 'workshop.id') ?: 0);
-
-        if ($orderType === 'workshop' || $workshopId > 0) {
-            return 'W' . max(1, $workshopId);
-        }
-
         $batchName = (string) data_get($order, 'batch.name', '');
         $batchId = (int) data_get($order, 'batch.id', 0);
 
@@ -1895,27 +993,6 @@ class PaymentController extends Controller
 
     private function resolveInvoiceProgramCode(Order $order): string
     {
-        $orderType = Str::of((string) data_get($order, 'order_type', ''))
-            ->lower()
-            ->replace(['-', ' '], '_')
-            ->toString();
-
-        $workshopId = (int) (data_get($order, 'workshop_id') ?: data_get($order, 'workshop.id') ?: 0);
-
-        if ($orderType === 'workshop' || $workshopId > 0) {
-            $workshopName = $this->firstFilledAttribute($order, [
-                'workshop.title',
-                'workshop.name',
-                'workshop.workshop_title',
-                'workshop.theme_name',
-                'workshop.theme',
-                'workshop.topic',
-                'workshop.subject',
-            ]);
-
-            return $workshopName ? $this->makeProgramCodeFromName($workshopName) : 'WS';
-        }
-
         $programName = (string) data_get($order, 'batch.program.name', '');
 
         $normalizedProgramName = Str::of($programName)

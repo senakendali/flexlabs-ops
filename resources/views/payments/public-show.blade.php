@@ -16,14 +16,15 @@
 @php
     $order = $order ?? $payment->order;
 
-    // Public invoice harus memakai full pricing columns dari orders.
-    // Ini mencegah Normal Program Fee kebaca dari final_price dan discount jadi Rp 0.
+    // Public invoice harus memakai full pricing columns + source relations dari orders.
+    // Ini penting supaya workshop tidak lagi dirender seperti program.
     if (!empty($payment->order_id)) {
         try {
             $freshOrder = \App\Models\Order::with([
                 'student:id,full_name,email,phone,city',
                 'batch:id,program_id,name,start_date,end_date',
                 'batch.program:id,name',
+                'workshop',
             ])->find($payment->order_id);
 
             if ($freshOrder) {
@@ -39,6 +40,7 @@
     $batch = $batch ?? $order?->batch;
     $program = $program ?? $batch?->program;
     $schedule = $schedule ?? $payment->paymentSchedule;
+    $sourceContext = $sourceContext ?? [];
 
     $invoiceDate = $invoiceDate ?? ($payment->payment_date ?: $payment->created_at);
 
@@ -61,112 +63,222 @@
         return $prefix . number_format(abs($amount), 0, ',', '.');
     };
 
+    $normalizeSourceType = function ($value) {
+        return \Illuminate\Support\Str::of((string) $value)
+            ->lower()
+            ->replace(['-', ' '], '_')
+            ->squish()
+            ->toString();
+    };
+
+    $firstFilledAttribute = function ($model, array $keys) {
+        if (!$model) {
+            return null;
+        }
+
+        foreach ($keys as $key) {
+            $value = data_get($model, $key);
+
+            if (filled($value)) {
+                return (string) $value;
+            }
+        }
+
+        return null;
+    };
+
+    $sourceType = $sourceType ?? data_get($sourceContext, 'source_type') ?? data_get($order, 'order_type');
+    $sourceTypeLabel = $sourceTypeLabel ?? data_get($sourceContext, 'source_type_label');
+    $sourceItemName = $sourceItemName ?? data_get($sourceContext, 'source_item_name');
+    $sourceDescription = $sourceDescription ?? data_get($sourceContext, 'source_description');
+
+    $normalizedSourceType = $normalizeSourceType($sourceType);
+    $normalizedOrderType = $normalizeSourceType(data_get($order, 'order_type'));
+    $sourceTypeLabelText = \Illuminate\Support\Str::lower((string) $sourceTypeLabel);
+
+    $isWorkshopDocument = (bool) ($isWorkshopDocument ?? false)
+        || (bool) ($isSimpleWorkshopDocument ?? false)
+        || in_array($normalizedSourceType, ['workshop', 'workshops'], true)
+        || in_array($normalizedOrderType, ['workshop', 'workshops'], true)
+        || filled(data_get($order, 'workshop_id'))
+        || filled(data_get($order, 'workshop.id'))
+        || \Illuminate\Support\Str::contains($sourceTypeLabelText, 'workshop');
+
+    $workshopName = $workshopName
+        ?? $firstFilledAttribute($order, [
+            'workshop.title',
+            'workshop.name',
+            'workshop.workshop_title',
+            'workshop.theme_name',
+            'workshop.theme',
+            'workshop.topic',
+            'workshop.subject',
+        ])
+        ?? $sourceItemName
+        ?? $sourceDescription
+        ?? null;
+
+    if ($isWorkshopDocument) {
+        $candidateWorkshopName = \Illuminate\Support\Str::lower((string) $workshopName);
+
+        if (!filled($workshopName) || in_array($candidateWorkshopName, ['workshop', 'workshops', 'program', 'payment', 'flexlabs payment'], true)) {
+            $workshopId = data_get($order, 'workshop_id') ?: data_get($order, 'workshop.id');
+            $workshopName = $workshopId ? 'Workshop #' . $workshopId : 'FlexLabs Workshop';
+        }
+    }
+
     $isPaid = $isPaid ?? $payment->status === 'paid';
     $isExpired = $isExpired ?? (!empty($payment->expired_at) && now()->greaterThan($payment->expired_at) && $payment->status !== 'paid');
-    $canPay = !$isPaid && !$isExpired && !empty($payment->payment_url);
+    $canPay = $canPay ?? (!$isPaid && !$isExpired && !empty($payment->payment_url));
 
     $rawOriginalPrice = (float) ($order?->original_price ?? 0);
     $rawDiscount = (float) ($order?->discount ?? 0);
     $rawFinalPrice = (float) ($order?->final_price ?? 0);
-    $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $payment->amount ?? $schedule?->amount ?? 0);
+    $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $currentDocumentAmount ?? $payment->amount ?? $schedule?->amount ?? 0);
 
-    if ($rawFinalPrice <= 0) {
-        $rawFinalPrice = max($currentInvoiceAmount, 0);
-    }
+    $controllerItems = collect($items ?? $financialSummaryRows ?? $invoiceBreakdownRows ?? [])->values();
 
-    $programDiscount = $rawDiscount > 0
-        ? $rawDiscount
-        : max($rawOriginalPrice - $rawFinalPrice, 0);
+    if ($isWorkshopDocument) {
+        $currentInvoiceAmount = $currentInvoiceAmount > 0
+            ? $currentInvoiceAmount
+            : max((float) ($schedule?->amount ?? 0), (float) ($order?->final_price ?? 0), (float) ($order?->original_price ?? 0));
 
-    $normalProgramFee = $rawOriginalPrice > 0
-        ? $rawOriginalPrice
-        : max($rawFinalPrice + $programDiscount, $rawFinalPrice, $currentInvoiceAmount);
+        $remainingBalance = 0;
+        $remainingBalanceLabel = null;
+        $showRemainingBalance = false;
+        $shouldShowPaymentBreakdown = false;
+        $isSimpleWorkshopDocument = true;
+        // Khusus workshop, summary utama harus tampil sebagai Workshop Fee,
+        // bukan Current Invoice Amount dari controller/fallback lama.
+        $currentDocumentAmountLabel = 'Workshop Fee';
+        $documentNote = $documentNote ?? 'This invoice is for the selected FlexLabs workshop registration.';
 
-    $finalTuitionFee = $rawFinalPrice > 0
-        ? $rawFinalPrice
-        : max($normalProgramFee - $programDiscount, 0);
+        $items = $controllerItems
+            ->filter(function ($item) {
+                $type = (string) ($item['type'] ?? '');
+                $label = \Illuminate\Support\Str::lower((string) ($item['description'] ?? $item['label'] ?? ''));
 
-    if ($programDiscount <= 0 && $normalProgramFee > $finalTuitionFee) {
-        $programDiscount = $normalProgramFee - $finalTuitionFee;
-    }
+                return $type === 'workshop_fee'
+                    || $type === 'workshop_payment'
+                    || \Illuminate\Support\Str::contains($label, 'workshop');
+            })
+            ->values();
 
-    if (!isset($previousPaymentReceived)) {
-        $previousPaymentReceived = 0;
+        if ($items->isEmpty()) {
+            $items = collect([
+                [
+                    'description' => 'Workshop Fee',
+                    'meta' => $workshopName,
+                    'rate' => $currentInvoiceAmount,
+                    'amount' => $currentInvoiceAmount,
+                    'type' => 'workshop_fee',
+                    'is_emphasis' => true,
+                ],
+            ]);
+        }
+    } else {
+        if ($rawFinalPrice <= 0) {
+            $rawFinalPrice = max($currentInvoiceAmount, 0);
+        }
 
-        if (!empty($order?->id)) {
-            try {
-                $previousPaymentReceived = (float) \App\Models\Payment::query()
-                    ->where('order_id', $order->id)
-                    ->where('status', 'paid')
-                    ->where('id', '<', $payment->id)
-                    ->sum('amount');
-            } catch (\Throwable $e) {
-                report($e);
-                $previousPaymentReceived = 0;
+        $programDiscount = $programDiscount ?? ($rawDiscount > 0
+            ? $rawDiscount
+            : max($rawOriginalPrice - $rawFinalPrice, 0));
+
+        $normalProgramFee = $normalProgramFee ?? ($rawOriginalPrice > 0
+            ? $rawOriginalPrice
+            : max($rawFinalPrice + $programDiscount, $rawFinalPrice, $currentInvoiceAmount));
+
+        $finalTuitionFee = $finalTuitionFee ?? ($rawFinalPrice > 0
+            ? $rawFinalPrice
+            : max($normalProgramFee - $programDiscount, 0));
+
+        if ($programDiscount <= 0 && $normalProgramFee > $finalTuitionFee) {
+            $programDiscount = $normalProgramFee - $finalTuitionFee;
+        }
+
+        if (!isset($previousPaymentReceived)) {
+            $previousPaymentReceived = 0;
+
+            if (!empty($order?->id)) {
+                try {
+                    $previousPaymentReceived = (float) \App\Models\Payment::query()
+                        ->where('order_id', $order->id)
+                        ->where('status', 'paid')
+                        ->where('id', '<', $payment->id)
+                        ->sum('amount');
+                } catch (\Throwable $e) {
+                    report($e);
+                    $previousPaymentReceived = 0;
+                }
             }
         }
+
+        $previousPaymentReceived = (float) $previousPaymentReceived;
+        $remainingBalance = (float) ($remainingBalance ?? max($finalTuitionFee - $previousPaymentReceived - $currentInvoiceAmount, 0));
+        $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
+        $showRemainingBalance = isset($showRemainingBalance) ? (bool) $showRemainingBalance : true;
+
+        $programBatchLabel = collect([
+            $program?->name,
+            $batch?->name,
+        ])->filter()->implode(' · ');
+
+        $currentInvoiceDetail = $schedule?->title ?: 'Payment requested on this invoice';
+
+        if (!empty($schedule?->due_date)) {
+            $currentInvoiceDetail .= ' · Due ' . $formatDate($schedule->due_date);
+        }
+
+        $items = $controllerItems->isNotEmpty()
+            ? $controllerItems
+            : collect([
+                [
+                    'description' => 'Normal Program Fee',
+                    'meta' => $programBatchLabel ?: 'FlexLabs Program',
+                    'rate' => $normalProgramFee,
+                    'amount' => $normalProgramFee,
+                    'is_emphasis' => false,
+                ],
+                [
+                    'description' => 'Special Program Discount',
+                    'meta' => 'Approved program discount or payment adjustment',
+                    'rate' => -abs($programDiscount),
+                    'amount' => -abs($programDiscount),
+                    'is_emphasis' => false,
+                ],
+                [
+                    'description' => 'Final Tuition Fee',
+                    'meta' => 'Program fee after discount or adjustment',
+                    'rate' => $finalTuitionFee,
+                    'amount' => $finalTuitionFee,
+                    'is_emphasis' => true,
+                ],
+                [
+                    'description' => 'Previous Payment Received',
+                    'meta' => 'Confirmed paid amount recorded before this document',
+                    'rate' => -abs($previousPaymentReceived),
+                    'amount' => -abs($previousPaymentReceived),
+                    'is_emphasis' => false,
+                ],
+                [
+                    'description' => 'Current Invoice Amount',
+                    'meta' => $currentInvoiceDetail,
+                    'rate' => $currentInvoiceAmount,
+                    'amount' => $currentInvoiceAmount,
+                    'is_emphasis' => true,
+                ],
+                [
+                    'description' => $remainingBalanceLabel,
+                    'meta' => 'Outstanding amount assuming this invoice is completed',
+                    'rate' => $remainingBalance,
+                    'amount' => $remainingBalance,
+                    'is_emphasis' => true,
+                ],
+            ])->values();
+
+        $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
     }
-
-    $previousPaymentReceived = (float) $previousPaymentReceived;
-    $remainingBalance = max($finalTuitionFee - $previousPaymentReceived - $currentInvoiceAmount, 0);
-    $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
-
-    $programBatchLabel = collect([
-        $program?->name,
-        $batch?->name,
-    ])->filter()->implode(' · ');
-
-    $currentInvoiceDetail = $schedule?->title ?: 'Payment requested on this invoice';
-
-    if (!empty($schedule?->due_date)) {
-        $currentInvoiceDetail .= ' · Due ' . $formatDate($schedule->due_date);
-    }
-
-    // Dibuat mengikuti cara tulis data di invoice admin: Item | Price | Amount.
-    $items = collect([
-        [
-            'description' => 'Normal Program Fee',
-            'meta' => $programBatchLabel ?: 'FlexLabs Program',
-            'rate' => $normalProgramFee,
-            'amount' => $normalProgramFee,
-            'is_emphasis' => false,
-        ],
-        [
-            'description' => 'Special Program Discount',
-            'meta' => 'Approved program discount or payment adjustment',
-            'rate' => -abs($programDiscount),
-            'amount' => -abs($programDiscount),
-            'is_emphasis' => false,
-        ],
-        [
-            'description' => 'Final Tuition Fee',
-            'meta' => 'Program fee after discount or adjustment',
-            'rate' => $finalTuitionFee,
-            'amount' => $finalTuitionFee,
-            'is_emphasis' => true,
-        ],
-        [
-            'description' => 'Previous Payment Received',
-            'meta' => 'Confirmed paid amount recorded before this document',
-            'rate' => -abs($previousPaymentReceived),
-            'amount' => -abs($previousPaymentReceived),
-            'is_emphasis' => false,
-        ],
-        [
-            'description' => 'Current Invoice Amount',
-            'meta' => $currentInvoiceDetail,
-            'rate' => $currentInvoiceAmount,
-            'amount' => $currentInvoiceAmount,
-            'is_emphasis' => true,
-        ],
-        [
-            'description' => $remainingBalanceLabel,
-            'meta' => 'Outstanding amount assuming this invoice is completed',
-            'rate' => $remainingBalance,
-            'amount' => $remainingBalance,
-            'is_emphasis' => true,
-        ],
-    ])->values();
 
     $paymentMethod = $payment->payment_method
         ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
@@ -184,7 +296,6 @@
         'Tangerang 15345',
     ];
 
-    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
     $invoicePdfFilename = 'invoice-' . \Illuminate\Support\Str::slug((string) ($payment->invoice_number ?? 'document')) . '.pdf';
 @endphp
 
@@ -328,12 +439,16 @@
                                             @if (!empty($itemDetail))
                                                 <div class="invoice-item-subtitle">{{ $itemDetail }}</div>
                                             @else
-                                                @if (!empty($program?->name))
-                                                    <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
-                                                @endif
+                                                @if ($isWorkshopDocument && !empty($workshopName))
+                                                    <div class="invoice-item-subtitle">{{ $workshopName }}</div>
+                                                @else
+                                                    @if (!empty($program?->name))
+                                                        <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                                    @endif
 
-                                                @if (!empty($batch?->name))
-                                                    <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                    @if (!empty($batch?->name))
+                                                        <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                    @endif
                                                 @endif
                                             @endif
                                         </td>
@@ -343,14 +458,18 @@
                                 @empty
                                     <tr>
                                         <td>
-                                            <div class="invoice-item-title">Program Payment</div>
+                                            <div class="invoice-item-title">{{ $isWorkshopDocument ? 'Workshop Fee' : 'Program Payment' }}</div>
 
-                                            @if (!empty($program?->name))
-                                                <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
-                                            @endif
+                                            @if ($isWorkshopDocument && !empty($workshopName))
+                                                <div class="invoice-item-subtitle">{{ $workshopName }}</div>
+                                            @else
+                                                @if (!empty($program?->name))
+                                                    <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                                @endif
 
-                                            @if (!empty($batch?->name))
-                                                <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                @if (!empty($batch?->name))
+                                                    <div class="invoice-item-subtitle">{{ $batch->name }}</div>
+                                                @endif
                                             @endif
                                         </td>
                                         <td class="text-end text-nowrap">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
@@ -363,15 +482,19 @@
 
                     <div class="invoice-summary-wrap">
                         <table class="invoice-summary-table">
-                            <tr>
-                                <td>Current Invoice Amount</td>
+                            <tr @class([
+                                'invoice-summary-total' => !$showRemainingBalance,
+                            ])>
+                                <td>{{ $currentDocumentAmountLabel ?? 'Current Invoice Amount' }}</td>
                                 <td>{{ $formatMoney($currentInvoiceAmount) }}</td>
                             </tr>
 
-                            <tr class="invoice-summary-total">
-                                <td>{{ $remainingBalanceLabel }}</td>
-                                <td>{{ $formatMoney($remainingBalance) }}</td>
-                            </tr>
+                            @if ($showRemainingBalance)
+                                <tr class="invoice-summary-total">
+                                    <td>{{ $remainingBalanceLabel }}</td>
+                                    <td>{{ $formatMoney($remainingBalance) }}</td>
+                                </tr>
+                            @endif
                         </table>
                     </div>
 

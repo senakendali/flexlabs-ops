@@ -34,8 +34,61 @@
     };
 
     $items = collect($items ?? $financialSummaryRows ?? [])->values();
+
+    $isWorkshopDocument = (bool) ($isWorkshopDocument ?? $isSimpleWorkshopDocument ?? false);
+    $isSimpleWorkshopDocument = (bool) ($isSimpleWorkshopDocument ?? $isWorkshopDocument);
+    $shouldShowPaymentBreakdown = (bool) ($shouldShowPaymentBreakdown ?? !$isSimpleWorkshopDocument);
+    $showRemainingBalance = (bool) ($showRemainingBalance ?? !$isWorkshopDocument);
+
+    $sourceTypeLabel = $sourceTypeLabel
+        ?? ($sourceContext['source_type_label'] ?? ($isWorkshopDocument ? 'Workshop' : 'Program'));
+
+    $sourceItemName = $sourceItemName
+        ?? ($sourceContext['source_item_name'] ?? null);
+
+    $sourceDescription = $sourceDescription
+        ?? ($sourceContext['source_description'] ?? null);
+
+    $cleanSourceValue = function ($value) {
+        if (!filled($value)) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        $normalized = \Illuminate\Support\Str::of($value)
+            ->lower()
+            ->squish()
+            ->toString();
+
+        return in_array($normalized, ['workshop', 'workshops', 'program', 'payment', 'flexlabs payment'], true)
+            ? null
+            : $value;
+    };
+
+    $displaySourceTypeLabel = $isWorkshopDocument
+        ? 'Workshop'
+        : ($sourceTypeLabel ?: 'Program');
+
+    $displaySourceName = collect([
+            $workshopName ?? null,
+            $sourceItemName,
+            $sourceDescription,
+            $program->name ?? null,
+            $batch->name ?? null,
+        ])
+        ->map(fn ($value) => $cleanSourceValue($value))
+        ->filter()
+        ->first() ?: 'FlexLabs Payment';
+
+    $currentDocumentAmountLabel = $isWorkshopDocument
+        ? 'Workshop Fee'
+        : 'Current Invoice Amount';
+
     $remainingBalanceLabel = $remainingBalanceLabel ?? 'Remaining Balance After This Invoice';
-    $documentNote = $documentNote ?? 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.';
+
+    $documentNote = $documentNote ?? ($isWorkshopDocument
+        ? 'This invoice is for the selected FlexLabs workshop registration.'
+        : 'The final tuition fee reflects the approved program discount or payment adjustment. Remaining balance shows the outstanding amount after this invoice.');
 
     $paymentMethod = $payment->payment_method
         ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
@@ -192,13 +245,15 @@
                                 @empty
                                     <tr>
                                         <td>
-                                            <div class="invoice-item-title">Program Payment</div>
+                                            <div class="invoice-item-title">
+                                                {{ $isWorkshopDocument ? 'Workshop Fee' : $displaySourceTypeLabel . ' Payment' }}
+                                            </div>
 
-                                            @if (!empty($program?->name))
-                                                <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
+                                            @if (!empty($displaySourceName))
+                                                <div class="invoice-item-subtitle">{{ $displaySourceName }}</div>
                                             @endif
 
-                                            @if (!empty($batch?->name))
+                                            @if (!$isWorkshopDocument && !empty($batch?->name))
                                                 <div class="invoice-item-subtitle">{{ $batch->name }}</div>
                                             @endif
                                         </td>
@@ -212,8 +267,10 @@
 
                     <div class="invoice-summary-wrap">
                         <table class="invoice-summary-table">
-                            <tr>
-                                <td>Current Invoice Amount</td>
+                            <tr @class([
+                                'invoice-summary-total' => !$showRemainingBalance,
+                            ])>
+                                <td>{{ $currentDocumentAmountLabel }}</td>
                                 <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
                             </tr>
 
@@ -224,10 +281,12 @@
                                 </tr>
                             @endif
 
-                            <tr class="invoice-summary-total">
-                                <td>{{ $remainingBalanceLabel }}</td>
-                                <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
-                            </tr>
+                            @if ($showRemainingBalance)
+                                <tr class="invoice-summary-total">
+                                    <td>{{ $remainingBalanceLabel }}</td>
+                                    <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
+                                </tr>
+                            @endif
                         </table>
                     </div>
 
@@ -307,11 +366,14 @@
 
     function buildPaymentMessage() {
         const customerName = {{ Js::from($student->full_name ?? 'Customer') }};
-        const programName = {{ Js::from($program->name ?? '-') }};
+        const sourceTypeLabel = {{ Js::from($displaySourceTypeLabel ?? 'Program') }};
+        const sourceItemName = {{ Js::from($displaySourceName ?? '-') }};
         const batchName = {{ Js::from($batch->name ?? '-') }};
         const invoiceNumber = {{ Js::from($payment->invoice_number ?? '-') }};
         const amount = {{ Js::from($formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0)) }};
         const remainingBalance = {{ Js::from($formatMoney($remainingBalance ?? 0)) }};
+        const showRemainingBalance = {{ Js::from((bool) $showRemainingBalance) }};
+        const isWorkshopDocument = {{ Js::from((bool) $isWorkshopDocument) }};
         const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
 
         const lines = [];
@@ -320,14 +382,18 @@
         lines.push('Berikut link pembayaran untuk invoice Anda.');
         lines.push('');
         lines.push(`Invoice: ${invoiceNumber}`);
-        lines.push(`Program: ${programName}`);
+        lines.push(`${sourceTypeLabel}: ${sourceItemName}`);
 
-        if (batchName && batchName !== '-') {
+        if (!isWorkshopDocument && batchName && batchName !== '-') {
             lines.push(`Batch: ${batchName}`);
         }
 
         lines.push(`Nominal invoice: ${amount}`);
-        lines.push(`Sisa pembayaran setelah invoice ini: ${remainingBalance}`);
+
+        if (showRemainingBalance) {
+            lines.push(`Sisa pembayaran setelah invoice ini: ${remainingBalance}`);
+        }
+
         lines.push('');
         lines.push('Silakan lakukan pembayaran melalui link berikut:');
         lines.push(paymentLink);

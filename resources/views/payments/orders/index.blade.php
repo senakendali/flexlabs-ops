@@ -45,7 +45,7 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
+                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
                     <i class="bi bi-plus-lg me-2"></i>Add Order
                 </button>
             </div>
