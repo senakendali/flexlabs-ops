@@ -10,7 +10,9 @@ class Order extends Model
 {
     protected $fillable = [
         'student_id',
+        'order_type',
         'batch_id',
+        'workshop_id',
         'original_price',
         'discount',
         'final_price',
@@ -42,5 +44,15 @@ class Order extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function workshop()
+    {
+        return $this->belongsTo(Workshop::class);
+    }
+
+    public function workshopParticipant()
+    {
+        return $this->hasOne(WorkshopParticipant::class);
     }
 }

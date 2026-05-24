@@ -113,12 +113,7 @@
                                     class="h-full w-full object-cover"
                                 >
 
-                                <div class="absolute inset-0 flex items-center justify-center bg-flex-primary/5">
-                                    <div class="inline-flex items-center gap-3 rounded-full bg-white/90 px-5 py-3 text-sm font-black text-flex-primary shadow-[0_16px_35px_rgba(91,62,142,0.20)] backdrop-blur">
-                                        <i class="bi bi-image text-lg"></i>
-                                        Preview Workshop
-                                    </div>
-                                </div>
+                               
                             @endif
                         </div>
                     </div>

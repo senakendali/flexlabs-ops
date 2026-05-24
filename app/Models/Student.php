@@ -196,4 +196,25 @@ class Student extends Model
     {
         return $this->hasMany(CommunityPostRead::class, 'student_id');
     }
+
+    public function workshopParticipants()
+    {
+        return $this->hasMany(WorkshopParticipant::class);
+    }
+    
+
+    public function workshops()
+    {
+        return $this->belongsToMany(Workshop::class, 'workshop_participants')
+            ->withPivot([
+                'order_id',
+                'status',
+                'registered_at',
+                'paid_at',
+                'attended_at',
+                'notes',
+            ])
+            ->withTimestamps();
+    }
 }
+

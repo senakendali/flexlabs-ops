@@ -166,6 +166,11 @@ return [
             'workshops.update',
             'workshops.delete',
 
+            'workshop_participants.view',
+            'workshop_participants.create',
+            'workshop_participants.update',
+            'workshop_participants.delete',
+
             'public_learning_materials.view',
             'public_learning_materials.create',
             'public_learning_materials.update',
@@ -183,6 +188,7 @@ return [
             'dashboard.view',
 
             'academic.view',
+
             'trial_themes.view',
             'trial_themes.create',
             'trial_themes.update',
@@ -202,6 +208,11 @@ return [
             'workshops.create',
             'workshops.update',
             'workshops.delete',
+
+            'workshop_participants.view',
+            'workshop_participants.create',
+            'workshop_participants.update',
+            'workshop_participants.delete',
 
             'public_learning_materials.view',
             'public_learning_materials.create',
@@ -265,6 +276,11 @@ return [
             'workshops.update',
             'workshops.delete',
 
+            'workshop_participants.view',
+            'workshop_participants.create',
+            'workshop_participants.update',
+            'workshop_participants.delete',
+
             'public_learning_materials.view',
             'public_learning_materials.create',
             'public_learning_materials.update',
@@ -301,6 +317,15 @@ return [
 
         'finance' => [
             'dashboard.view',
+
+            'academic.view',
+
+            'workshops.view',
+
+            'workshop_participants.view',
+            'workshop_participants.create',
+            'workshop_participants.update',
+            'workshop_participants.delete',
 
             'finance.view',
 
@@ -422,6 +447,7 @@ return [
                 'trial-schedules.*',
                 'trial-participants.*',
                 'academic.workshops.*',
+                'academic.workshop-participants.*',
                 'academic.mentoring-sessions.*',
                 'academic.announcements.*',
                 'academic.assessment-templates.*',
@@ -494,6 +520,7 @@ return [
                         ],
                     ],
                 ],
+
                 [
                     'title' => 'Learning Activities',
                     'subtitle' => 'Tugas, quiz, dan aktivitas belajar.',
@@ -549,6 +576,7 @@ return [
                         ],
                     ],
                 ],
+
                 [
                     'title' => 'Evaluation',
                     'subtitle' => 'Assessment, nilai, dan report.',
@@ -588,6 +616,7 @@ return [
                         ],
                     ],
                 ],
+
                 [
                     'title' => 'Instructor Ops',
                     'subtitle' => 'Pengajar, jadwal, attendance, dan tracking kelas.',
@@ -643,34 +672,35 @@ return [
                         ],
                     ],
                 ],
+
                 [
-                    'title' => 'Trial & Workshops',
-                    'subtitle' => 'Trial class, workshop, dan materi public.',
+                    'title' => 'Webinar & Workshops',
+                    'subtitle' => 'Webinar, workshop, peserta, dan materi public.',
                     'icon' => 'bi bi-easel2-fill',
                     'items' => [
                         [
-                            'label' => 'Trial Themes',
+                            'label' => 'Webinar Themes',
                             'route' => 'trial-themes.index',
                             'active' => ['trial-themes.*'],
                             'icon' => 'bi bi-lightbulb-fill',
                             'permission' => 'trial_themes.view',
-                            'desc' => 'Tema trial class.',
+                            'desc' => 'Tema webinar public.',
                         ],
                         [
-                            'label' => 'Trial Schedules',
+                            'label' => 'Webinar Schedules',
                             'route' => 'trial-schedules.index',
                             'active' => ['trial-schedules.*'],
                             'icon' => 'bi bi-calendar2-week-fill',
                             'permission' => 'trial_schedules.view',
-                            'desc' => 'Jadwal trial class.',
+                            'desc' => 'Jadwal webinar public.',
                         ],
                         [
-                            'label' => 'Trial Participants',
+                            'label' => 'Webinar Participants',
                             'route' => 'trial-participants.index',
                             'active' => ['trial-participants.*'],
                             'icon' => 'bi bi-people-fill',
                             'permission' => 'trial_participants.view',
-                            'desc' => 'Peserta trial dan follow up.',
+                            'desc' => 'Peserta webinar dan follow up.',
                         ],
                         [
                             'label' => 'Workshops',
@@ -681,7 +711,15 @@ return [
                             'desc' => 'Workshop public dan internal.',
                         ],
                         [
-                            'label' => 'Trial & Workshop Materials',
+                            'label' => 'Workshop Participants',
+                            'route' => 'academic.workshop-participants.index',
+                            'active' => ['academic.workshop-participants.*'],
+                            'icon' => 'bi bi-person-lines-fill',
+                            'permission' => 'workshop_participants.view',
+                            'desc' => 'Input peserta workshop, generate order, dan payment schedule.',
+                        ],
+                        [
+                            'label' => 'Webinar & Workshop Materials',
                             'route' => 'public-learning-materials.index',
                             'active' => ['public-learning-materials.*'],
                             'icon' => 'bi bi-file-earmark-code-fill',

@@ -66,6 +66,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
+use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
 
@@ -1170,15 +1171,140 @@ Route::middleware('auth')->group(function () {
     | Academic - Workshops
     |--------------------------------------------------------------------------
     */
-    Route::prefix('academic/workshops')->name('academic.workshops.')->group(function () {
-        Route::get('/', [WorkshopController::class, 'index'])->name('index');
-        Route::get('/create', [WorkshopController::class, 'create'])->name('create');
-        Route::post('/', [WorkshopController::class, 'store'])->name('store');
+    Route::prefix('academic')->name('academic.')->group(function () {
+        /*
+        |--------------------------------------------------------------------------
+        | Workshop Management
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('workshops')
+            ->name('workshops.')
+            ->middleware('permission:workshops.view')
+            ->controller(WorkshopController::class)
+            ->group(function () {
+                Route::get('/', 'index')
+                    ->name('index');
 
-        Route::get('/{workshop}', [WorkshopController::class, 'show'])->name('show');
-        Route::get('/{workshop}/edit', [WorkshopController::class, 'edit'])->name('edit');
-        Route::put('/{workshop}', [WorkshopController::class, 'update'])->name('update');
-        Route::delete('/{workshop}', [WorkshopController::class, 'destroy'])->name('destroy');
+                Route::get('/create', 'create')
+                    ->middleware('permission:workshops.create')
+                    ->name('create');
+
+                Route::post('/', 'store')
+                    ->middleware('permission:workshops.create')
+                    ->name('store');
+
+                Route::get('/{workshop}', 'show')
+                    ->whereNumber('workshop')
+                    ->name('show');
+
+                Route::get('/{workshop}/edit', 'edit')
+                    ->whereNumber('workshop')
+                    ->middleware('permission:workshops.update')
+                    ->name('edit');
+
+                Route::put('/{workshop}', 'update')
+                    ->whereNumber('workshop')
+                    ->middleware('permission:workshops.update')
+                    ->name('update');
+
+                Route::patch('/{workshop}', 'update')
+                    ->whereNumber('workshop')
+                    ->middleware('permission:workshops.update')
+                    ->name('patch');
+
+                Route::delete('/{workshop}', 'destroy')
+                    ->whereNumber('workshop')
+                    ->middleware('permission:workshops.delete')
+                    ->name('destroy');
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workshop Participants
+        |--------------------------------------------------------------------------
+        |
+        | Route names used by menu config:
+        | - academic.workshop-participants.index
+        | - academic.workshop-participants.create
+        | - academic.workshop-participants.store
+        | - academic.workshop-participants.show
+        | - academic.workshop-participants.edit
+        | - academic.workshop-participants.update
+        | - academic.workshop-participants.destroy
+        |
+        */
+        Route::prefix('workshop-participants')
+            ->name('workshop-participants.')
+            ->middleware('permission:workshop_participants.view')
+            ->controller(WorkshopParticipantController::class)
+            ->group(function () {
+                Route::get('/', 'index')
+                    ->name('index');
+
+                Route::get('/create', 'create')
+                    ->middleware('permission:workshop_participants.create')
+                    ->name('create');
+
+                Route::post('/', 'store')
+                    ->middleware('permission:workshop_participants.create')
+                    ->name('store');
+
+                Route::get('/{workshopParticipant}', 'show')
+                    ->whereNumber('workshopParticipant')
+                    ->name('show');
+
+                Route::get('/{workshopParticipant}/edit', 'edit')
+                    ->whereNumber('workshopParticipant')
+                    ->middleware('permission:workshop_participants.update')
+                    ->name('edit');
+
+                Route::put('/{workshopParticipant}', 'update')
+                    ->whereNumber('workshopParticipant')
+                    ->middleware('permission:workshop_participants.update')
+                    ->name('update');
+
+                Route::patch('/{workshopParticipant}', 'update')
+                    ->whereNumber('workshopParticipant')
+                    ->middleware('permission:workshop_participants.update')
+                    ->name('patch');
+
+                Route::delete('/{workshopParticipant}', 'destroy')
+                    ->whereNumber('workshopParticipant')
+                    ->middleware('permission:workshop_participants.delete')
+                    ->name('destroy');
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workshop Participants by Workshop
+        |--------------------------------------------------------------------------
+        |
+        | Optional helper routes kalau nanti dari detail workshop mau langsung
+        | lihat / tambah peserta untuk workshop tertentu.
+        |
+        | Route names:
+        | - academic.workshops.participants.index
+        | - academic.workshops.participants.create
+        | - academic.workshops.participants.store
+        |
+        */
+        Route::prefix('workshops/{workshop}/participants')
+            ->whereNumber('workshop')
+            ->name('workshops.participants.')
+            ->middleware('permission:workshop_participants.view')
+            ->controller(WorkshopParticipantController::class)
+            ->group(function () {
+                Route::get('/', 'byWorkshop')
+                    ->name('index');
+
+                Route::get('/create', 'createForWorkshop')
+                    ->middleware('permission:workshop_participants.create')
+                    ->name('create');
+
+                Route::post('/', 'storeForWorkshop')
+                    ->middleware('permission:workshop_participants.create')
+                    ->name('store');
+            });
     });
 
     /*

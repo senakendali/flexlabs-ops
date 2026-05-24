@@ -44,4 +44,23 @@ class Workshop extends Model
     {
         return $query->where('is_active', true);
     }
+
+    public function participants()
+    {
+        return $this->hasMany(WorkshopParticipant::class);
+    }
+
+    public function students()
+    {
+        return $this->belongsToMany(Student::class, 'workshop_participants')
+            ->withPivot([
+                'order_id',
+                'status',
+                'registered_at',
+                'paid_at',
+                'attended_at',
+                'notes',
+            ])
+            ->withTimestamps();
+    }
 }
