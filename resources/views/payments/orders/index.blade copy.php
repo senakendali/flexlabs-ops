@@ -1,14 +1,14 @@
 @extends('layouts.app-dashboard')
 
-@section('title', 'Payment Schedules')
+@section('title', 'Orders')
 
 @section('content')
 @php
     $statusBadgeClass = function ($status) {
         return match($status) {
             'pending' => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
+            'partial' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
             'paid' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
-            'overdue' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
             'cancelled' => 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
             default => 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle',
         };
@@ -20,15 +20,15 @@
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
                 <div class="page-eyebrow">Finance</div>
-                <h1 class="page-title mb-2">Payment Schedules</h1>
+                <h1 class="page-title mb-2">Orders</h1>
                 <p class="page-subtitle mb-0">
-                    Manage payment plans, installment titles, due dates, remaining balances, and payment schedule status for each order.
+                    Manage student orders, enrollment transactions, batch pricing, discounts, and order status in one place.
                 </p>
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
-                    <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                    <i class="bi bi-plus-lg me-2"></i>Add Order
                 </button>
             </div>
         </div>
@@ -43,9 +43,9 @@
     <div class="content-card">
         <div class="content-card-header">
             <div>
-                <h5 class="content-card-title mb-1">Payment Schedule List</h5>
+                <h5 class="content-card-title mb-1">Order List</h5>
                 <p class="content-card-subtitle mb-0">
-                    Review student payment schedule details, installment amount, due date, and current schedule status.
+                    Review student order details, pricing, discounts, final payment amount, and current order status.
                 </p>
             </div>
 
@@ -69,7 +69,7 @@
         </div>
 
         <div class="content-card-body">
-            @if($paymentSchedules->count())
+            @if($orders->count())
                 <div class="table-responsive dropdown-safe-table">
                     <table class="table table-hover align-middle admin-table mb-0">
                         <thead>
@@ -77,61 +77,56 @@
                                 <th class="text-nowrap" style="width: 80px;">No</th>
                                 <th class="text-nowrap">Student</th>
                                 <th class="text-nowrap">Program / Batch</th>
-                                <th class="text-nowrap">Title</th>
-                                <th class="text-end text-nowrap">Amount</th>
-                                <th class="text-nowrap">Due Date</th>
+                                <th class="text-end text-nowrap">Original Price</th>
+                                <th class="text-end text-nowrap">Discount</th>
+                                <th class="text-end text-nowrap">Final Price</th>
                                 <th class="text-nowrap">Status</th>
                                 <th class="text-end text-nowrap" style="width: 160px;">Action</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            @foreach ($paymentSchedules as $schedule)
+                            @foreach ($orders as $order)
                                 <tr>
                                     <td class="text-muted">
-                                        {{ ($paymentSchedules->currentPage() - 1) * $paymentSchedules->perPage() + $loop->iteration }}
+                                        {{ ($orders->currentPage() - 1) * $orders->perPage() + $loop->iteration }}
                                     </td>
 
                                     <td>
                                         <div class="fw-semibold text-dark">
-                                            {{ $schedule->order->student->full_name ?? '-' }}
+                                            {{ $order->student->full_name ?? '-' }}
                                         </div>
                                         <div class="small text-muted">
-                                            {{ $schedule->order->student->email ?: ($schedule->order->student->phone ?: '-') }}
-                                        </div>
-                                    </td>
-
-                                    <td>
-                                        <div class="fw-semibold text-dark">
-                                            {{ $schedule->order->batch->program->name ?? '-' }}
-                                        </div>
-                                        <div class="small text-muted">
-                                            {{ $schedule->order->batch->name ?? '-' }}
+                                            {{ $order->student->email ?: ($order->student->phone ?: '-') }}
                                         </div>
                                     </td>
 
                                     <td>
                                         <div class="fw-semibold text-dark">
-                                            {{ $schedule->title }}
+                                            {{ $order->batch->program->name ?? '-' }}
                                         </div>
                                         <div class="small text-muted">
-                                            Payment installment
+                                            {{ $order->batch->name ?? '-' }}
                                         </div>
                                     </td>
 
                                     <td class="text-end text-nowrap">
+                                        Rp {{ number_format((float) $order->original_price, 0, ',', '.') }}
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        Rp {{ number_format((float) $order->discount, 0, ',', '.') }}
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
                                         <div class="fw-bold text-dark">
-                                            Rp {{ number_format((float) $schedule->amount, 0, ',', '.') }}
+                                            Rp {{ number_format((float) $order->final_price, 0, ',', '.') }}
                                         </div>
                                     </td>
 
                                     <td class="text-nowrap">
-                                        {{ $schedule->due_date?->format('d M Y') ?: '-' }}
-                                    </td>
-
-                                    <td class="text-nowrap">
-                                        <span class="badge rounded-pill {{ $statusBadgeClass($schedule->status) }}">
-                                            {{ ucfirst($schedule->status) }}
+                                        <span class="badge rounded-pill {{ $statusBadgeClass($order->status) }}">
+                                            {{ ucfirst($order->status) }}
                                         </span>
                                     </td>
 
@@ -152,9 +147,9 @@
                                                     <button
                                                         type="button"
                                                         class="dropdown-item"
-                                                        onclick="editSchedule({{ $schedule->id }})"
+                                                        onclick="editOrder({{ $order->id }})"
                                                     >
-                                                        <i class="bi bi-pencil-square me-2"></i>Edit Schedule
+                                                        <i class="bi bi-pencil-square me-2"></i>Edit Order
                                                     </button>
                                                 </li>
 
@@ -166,7 +161,7 @@
                                                     <button
                                                         type="button"
                                                         class="dropdown-item text-danger"
-                                                        onclick="openDeleteModal({{ $schedule->id }}, @js(($schedule->order->student->full_name ?? 'Unknown') . ' - ' . $schedule->title))"
+                                                        onclick="openDeleteModal({{ $order->id }}, @js(($order->student->full_name ?? 'Unknown') . ' - ' . ($order->batch->name ?? '-')))"
                                                     >
                                                         <i class="bi bi-trash me-2"></i>Delete
                                                     </button>
@@ -180,25 +175,25 @@
                     </table>
                 </div>
 
-                @if ($paymentSchedules->hasPages())
+                @if ($orders->hasPages())
                     <div class="mt-3">
-                        {{ $paymentSchedules->links() }}
+                        {{ $orders->links() }}
                     </div>
                 @endif
             @else
                 <div class="empty-state-box">
                     <div class="empty-state-icon">
-                        <i class="bi bi-calendar2-check"></i>
+                        <i class="bi bi-receipt"></i>
                     </div>
 
-                    <h5 class="empty-state-title">No payment schedules found</h5>
+                    <h5 class="empty-state-title">No orders found</h5>
                     <p class="empty-state-text mb-0">
-                        Belum ada payment schedule yang tercatat. Buat jadwal pembayaran untuk mulai mengatur installment order.
+                        Belum ada order yang tercatat. Buat order baru untuk mulai mencatat transaksi student.
                     </p>
 
                     <div class="mt-3">
                         <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
-                            <i class="bi bi-plus-lg me-2"></i>Add Schedule
+                            <i class="bi bi-plus-lg me-2"></i>Add Order
                         </button>
                     </div>
                 </div>
@@ -208,18 +203,18 @@
 </div>
 
 {{-- Form Modal --}}
-<div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="orderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form id="scheduleForm">
+        <form id="orderForm">
             @csrf
-            <input type="hidden" id="schedule_id">
+            <input type="hidden" id="order_id">
 
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
                     <div>
-                        <h5 class="modal-title fw-bold mb-1" id="scheduleModalTitle">Add Schedule</h5>
+                        <h5 class="modal-title fw-bold mb-1" id="orderModalTitle">Add Order</h5>
                         <div class="small text-muted">
-                            Complete order, installment amount, due date, and payment schedule status.
+                            Complete order information, pricing, discount, and transaction status.
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -227,14 +222,13 @@
 
                 <div class="modal-body">
                     <div id="formAlert" class="alert alert-danger d-none mb-3"></div>
-                    <div id="amountWarning" class="alert alert-warning d-none mb-3"></div>
 
                     <div class="content-card mb-3">
                         <div class="content-card-header">
                             <div>
-                                <h5 class="content-card-title mb-1">Order Information</h5>
+                                <h5 class="content-card-title mb-1">Student & Batch</h5>
                                 <p class="content-card-subtitle mb-0">
-                                    Select the order and review student, program, batch, and order total before creating the schedule.
+                                    Select the student and target batch for this order.
                                 </p>
                             </div>
                         </div>
@@ -242,140 +236,124 @@
                         <div class="content-card-body">
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label for="order_id" class="form-label">
-                                        Order <span class="text-danger">*</span>
+                                    <label for="student_id" class="form-label">
+                                        Student <span class="text-danger">*</span>
                                     </label>
-                                    <select id="order_id" class="form-select">
-                                        <option value="">Select Order</option>
-                                        @foreach ($orders as $order)
-                                            <option
-                                                value="{{ $order->id }}"
-                                                data-student="{{ $order->student->full_name ?? '' }}"
-                                                data-program="{{ $order->batch->program->name ?? '' }}"
-                                                data-batch="{{ $order->batch->name ?? '' }}"
-                                                data-total="{{ (int) round((float) $order->final_price) }}"
-                                                data-scheduled="{{ (int) round((float) ($order->payment_schedules_sum_amount ?? 0)) }}"
-                                            >
-                                                {{ $order->student->full_name ?? '-' }} -
-                                                {{ $order->batch->name ?? '-' }}
-                                                @if ($order->batch && $order->batch->program)
-                                                    ({{ $order->batch->program->name }})
+                                    <select id="student_id" class="form-select">
+                                        <option value="">Select Student</option>
+                                        @foreach ($students as $student)
+                                            <option value="{{ $student->id }}">
+                                                {{ $student->full_name }}
+                                                @if ($student->email)
+                                                    - {{ $student->email }}
+                                                @elseif ($student->phone)
+                                                    - {{ $student->phone }}
                                                 @endif
                                             </option>
                                         @endforeach
                                     </select>
-                                    <div class="invalid-feedback" id="error_order_id"></div>
+                                    <div class="invalid-feedback" id="error_student_id"></div>
                                 </div>
 
                                 <div class="col-md-6">
-                                    <label for="status" class="form-label">
-                                        Schedule Status <span class="text-danger">*</span>
+                                    <label for="batch_id" class="form-label">
+                                        Batch <span class="text-danger">*</span>
                                     </label>
-                                    <select id="status" class="form-select">
-                                        <option value="pending">Pending</option>
-                                        <option value="paid">Paid</option>
-                                        <option value="overdue">Overdue</option>
-                                        <option value="cancelled">Cancelled</option>
+                                    <select id="batch_id" class="form-select">
+                                        <option value="">Select Batch</option>
+                                        @foreach ($batches as $batch)
+                                            <option
+                                                value="{{ $batch->id }}"
+                                                data-price="{{ (int) round((float) $batch->price) }}"
+                                                data-program="{{ $batch->program->name ?? '' }}"
+                                                data-batch="{{ $batch->name }}"
+                                                data-status="{{ $batch->status }}"
+                                            >
+                                                {{ $batch->name }}
+                                                @if ($batch->program)
+                                                    ({{ $batch->program->name }})
+                                                @endif
+                                                - Rp {{ number_format((float) $batch->price, 0, ',', '.') }}
+                                            </option>
+                                        @endforeach
                                     </select>
-                                    <div class="invalid-feedback" id="error_status"></div>
+                                    <div class="invalid-feedback" id="error_batch_id"></div>
                                 </div>
 
-                                <div class="col-md-4">
-                                    <label for="student_name" class="form-label">Student</label>
-                                    <input type="text" id="student_name" class="form-control" readonly>
-                                </div>
-
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <label for="program_name" class="form-label">Program</label>
                                     <input type="text" id="program_name" class="form-control" readonly>
                                 </div>
 
-                                <div class="col-md-4">
-                                    <label for="batch_name" class="form-label">Batch</label>
-                                    <input type="text" id="batch_name" class="form-control" readonly>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="content-card mb-3">
-                        <div class="content-card-header">
-                            <div>
-                                <h5 class="content-card-title mb-1">Balance Preview</h5>
-                                <p class="content-card-subtitle mb-0">
-                                    Review order total, existing scheduled amount, and remaining balance before saving.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="content-card-body">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label for="order_total" class="form-label">Order Total</label>
-                                    <input type="number" id="order_total" class="form-control" readonly>
-                                    <div class="form-text" id="order_total_text">Rp 0</div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label for="total_scheduled" class="form-label">Total Scheduled</label>
-                                    <input type="number" id="total_scheduled" class="form-control" readonly>
-                                    <div class="form-text" id="total_scheduled_text">Rp 0</div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label for="remaining_balance" class="form-label">Remaining Balance</label>
-                                    <input type="number" id="remaining_balance" class="form-control" readonly>
-                                    <div class="form-text fw-semibold" id="remaining_balance_text">Rp 0</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="content-card mb-3">
-                        <div class="content-card-header">
-                            <div>
-                                <h5 class="content-card-title mb-1">Schedule Detail</h5>
-                                <p class="content-card-subtitle mb-0">
-                                    Define installment title, schedule amount, and due date for this payment schedule.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="content-card-body">
-                            <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label for="amount" class="form-label">
-                                        Schedule Amount <span class="text-danger">*</span>
+                                    <label for="status" class="form-label">
+                                        Order Status <span class="text-danger">*</span>
                                     </label>
+                                    <select id="status" class="form-select">
+                                        <option value="pending">Pending</option>
+                                        <option value="partial">Partial</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="error_status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Pricing & Discount</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Check original price, discount amount, and final price before saving the order.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="original_price" class="form-label">Original Price</label>
+                                    <input type="number" id="original_price" class="form-control" readonly>
+                                    <div class="form-text" id="original_price_text">Rp 0</div>
+                                    <div class="invalid-feedback" id="error_original_price"></div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="discount_type" class="form-label">Discount Type</label>
+                                    <select id="discount_type" class="form-select">
+                                        <option value="amount">Amount (Rp)</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="discount" class="form-label">Discount</label>
                                     <input
                                         type="number"
-                                        id="amount"
+                                        id="discount"
                                         class="form-control"
                                         min="0"
                                         step="0.01"
-                                        placeholder="e.g. 500000"
+                                        value="0"
+                                        placeholder="e.g. 100000 (Rp)"
                                     >
-                                    <div class="form-text" id="amount_text">Rp 0</div>
-                                    <div class="invalid-feedback" id="error_amount"></div>
+                                    <div class="form-text" id="discount_help">Enter discount in rupiah.</div>
+                                    <div class="invalid-feedback" id="error_discount"></div>
                                 </div>
 
                                 <div class="col-md-6">
-                                    <label for="title" class="form-label">
-                                        Title <span class="text-danger">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="title"
-                                        class="form-control"
-                                        placeholder="e.g. DP, Termin 1, Pelunasan"
-                                    >
-                                    <div class="invalid-feedback" id="error_title"></div>
+                                    <label for="discount_amount_preview" class="form-label">Discount Amount</label>
+                                    <input type="number" id="discount_amount_preview" class="form-control" readonly>
+                                    <div class="form-text" id="discount_amount_text">Rp 0</div>
                                 </div>
 
                                 <div class="col-md-6">
-                                    <label for="due_date" class="form-label">Due Date</label>
-                                    <input type="date" id="due_date" class="form-control">
-                                    <div class="invalid-feedback" id="error_due_date"></div>
+                                    <label for="final_price" class="form-label">Final Price</label>
+                                    <input type="number" id="final_price" class="form-control" readonly>
+                                    <div class="form-text fw-semibold" id="final_price_text">Rp 0</div>
+                                    <div class="invalid-feedback" id="error_final_price"></div>
                                 </div>
                             </div>
                         </div>
@@ -386,19 +364,14 @@
                             <div>
                                 <h5 class="content-card-title mb-1">Internal Notes</h5>
                                 <p class="content-card-subtitle mb-0">
-                                    Add optional notes for finance, sales, or student payment follow-up.
+                                    Add optional notes for finance, sales, or academic follow-up.
                                 </p>
                             </div>
                         </div>
 
                         <div class="content-card-body">
                             <label for="notes" class="form-label">Notes</label>
-                            <textarea
-                                id="notes"
-                                rows="4"
-                                class="form-control"
-                                placeholder="Internal notes for this payment schedule"
-                            ></textarea>
+                            <textarea id="notes" rows="4" class="form-control" placeholder="Internal notes for this order"></textarea>
                             <div class="invalid-feedback" id="error_notes"></div>
                         </div>
                     </div>
@@ -429,9 +402,9 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <div>
-                    <h5 class="modal-title fw-bold mb-1">Delete Payment Schedule</h5>
+                    <h5 class="modal-title fw-bold mb-1">Delete Order</h5>
                     <div class="small text-muted">
-                        This action will remove the selected payment schedule from the system.
+                        This action will remove the selected order from the system.
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -442,10 +415,10 @@
                     <div class="d-flex gap-2 align-items-start">
                         <i class="bi bi-exclamation-triangle-fill mt-1"></i>
                         <div>
-                            <div class="fw-semibold">Delete this payment schedule?</div>
+                            <div class="fw-semibold">Delete this order?</div>
                             <div class="small mt-1">
                                 Are you sure you want to delete
-                                <strong id="deleteScheduleName"></strong>?
+                                <strong id="deleteOrderName"></strong>?
                             </div>
                         </div>
                     </div>
@@ -473,41 +446,38 @@
 
 @push('scripts')
 <script>
-    const scheduleModalEl = document.getElementById('scheduleModal');
-    const scheduleModal = new bootstrap.Modal(scheduleModalEl);
-    const scheduleForm = document.getElementById('scheduleForm');
+    const orderModalEl = document.getElementById('orderModal');
+    const orderModal = new bootstrap.Modal(orderModalEl);
+    const orderForm = document.getElementById('orderForm');
     const submitBtn = document.getElementById('submitBtn');
-    const modalTitle = document.getElementById('scheduleModalTitle');
+    const modalTitle = document.getElementById('orderModalTitle');
     const formAlert = document.getElementById('formAlert');
-    const amountWarning = document.getElementById('amountWarning');
 
     const deleteModalEl = document.getElementById('deleteModal');
     const deleteModal = new bootstrap.Modal(deleteModalEl);
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-    const deleteScheduleNameEl = document.getElementById('deleteScheduleName');
+    const deleteOrderNameEl = document.getElementById('deleteOrderName');
 
     const fields = {
-        id: document.getElementById('schedule_id'),
-        order_id: document.getElementById('order_id'),
-        student_name: document.getElementById('student_name'),
+        id: document.getElementById('order_id'),
+        student_id: document.getElementById('student_id'),
+        batch_id: document.getElementById('batch_id'),
         program_name: document.getElementById('program_name'),
-        batch_name: document.getElementById('batch_name'),
-        order_total: document.getElementById('order_total'),
-        total_scheduled: document.getElementById('total_scheduled'),
-        remaining_balance: document.getElementById('remaining_balance'),
-        title: document.getElementById('title'),
-        amount: document.getElementById('amount'),
-        due_date: document.getElementById('due_date'),
+        original_price: document.getElementById('original_price'),
+        discount_type: document.getElementById('discount_type'),
+        discount: document.getElementById('discount'),
+        discount_amount_preview: document.getElementById('discount_amount_preview'),
+        final_price: document.getElementById('final_price'),
         status: document.getElementById('status'),
         notes: document.getElementById('notes'),
     };
 
-    const orderTotalText = document.getElementById('order_total_text');
-    const totalScheduledText = document.getElementById('total_scheduled_text');
-    const remainingBalanceText = document.getElementById('remaining_balance_text');
-    const amountText = document.getElementById('amount_text');
+    const originalPriceText = document.getElementById('original_price_text');
+    const discountAmountText = document.getElementById('discount_amount_text');
+    const finalPriceText = document.getElementById('final_price_text');
+    const discountHelp = document.getElementById('discount_help');
 
-    let deleteScheduleId = null;
+    let deleteOrderId = null;
     let reloadTimeout = null;
 
     function showToast(message, type = 'success') {
@@ -555,130 +525,101 @@
         return Number.isNaN(number) ? 0 : number;
     }
 
+    function formatRupiah(value) {
+        const number = Math.round(formatNumber(value));
+        return 'Rp ' + number.toLocaleString('id-ID');
+    }
+
     function roundCurrency(value) {
         return Math.round(formatNumber(value));
     }
 
-    function formatRupiah(value) {
-        const number = roundCurrency(value);
-        return 'Rp ' + number.toLocaleString('id-ID');
-    }
-
-    function getSelectedOrderOption() {
-        return fields.order_id.options[fields.order_id.selectedIndex] || null;
-    }
-
-    function getCurrentAmount() {
-        return roundCurrency(fields.amount.value || 0);
-    }
-
-    function getBaseScheduledAmount() {
-        const selectedOption = getSelectedOrderOption();
-
+    function getSelectedBatchPrice() {
+        const selectedOption = fields.batch_id.options[fields.batch_id.selectedIndex];
         if (!selectedOption || !selectedOption.value) {
             return 0;
         }
 
-        const baseScheduled = roundCurrency(selectedOption.dataset.scheduled || 0);
-
-        if (fields.id.value) {
-            return Math.max(baseScheduled - getCurrentAmount(), 0);
-        }
-
-        return baseScheduled;
+        return roundCurrency(selectedOption.dataset.price || 0);
     }
 
-    function updateOrderPreview() {
-        const selectedOption = getSelectedOrderOption();
-
+    function getSelectedProgramName() {
+        const selectedOption = fields.batch_id.options[fields.batch_id.selectedIndex];
         if (!selectedOption || !selectedOption.value) {
-            fields.student_name.value = '';
-            fields.program_name.value = '';
-            fields.batch_name.value = '';
-            fields.order_total.value = '';
-            fields.total_scheduled.value = '';
-            fields.remaining_balance.value = '';
-            orderTotalText.textContent = 'Rp 0';
-            totalScheduledText.textContent = 'Rp 0';
-            remainingBalanceText.textContent = 'Rp 0';
-            return;
+            return '';
         }
 
-        const total = roundCurrency(selectedOption.dataset.total || 0);
-        const currentAmount = getCurrentAmount();
-        const baseScheduled = getBaseScheduledAmount();
-        const totalScheduled = baseScheduled + currentAmount;
-        const remaining = Math.max(total - totalScheduled, 0);
-
-        fields.student_name.value = selectedOption.dataset.student || '';
-        fields.program_name.value = selectedOption.dataset.program || '';
-        fields.batch_name.value = selectedOption.dataset.batch || '';
-        fields.order_total.value = total;
-        fields.total_scheduled.value = totalScheduled;
-        fields.remaining_balance.value = remaining;
-
-        orderTotalText.textContent = formatRupiah(total);
-        totalScheduledText.textContent = formatRupiah(totalScheduled);
-        remainingBalanceText.textContent = formatRupiah(remaining);
+        return selectedOption.dataset.program || '';
     }
 
-    function updateAmountPreview() {
-        amountText.textContent = formatRupiah(fields.amount.value || 0);
-        updateOrderPreview();
-        validateAmountAgainstRemaining();
+    function updateDiscountPlaceholder() {
+        if (fields.discount_type.value === 'percentage') {
+            fields.discount.placeholder = 'e.g. 10 (%)';
+            discountHelp.textContent = 'Enter discount in percentage. Example: 10 = 10%.';
+        } else {
+            fields.discount.placeholder = 'e.g. 100000 (Rp)';
+            discountHelp.textContent = 'Enter discount in rupiah.';
+        }
     }
 
-    function validateAmountAgainstRemaining() {
-        amountWarning.classList.add('d-none');
-        amountWarning.innerHTML = '';
+    function calculateDiscountAmount(price, discountValue, discountType) {
+        let discountAmount = 0;
 
-        const selectedOption = getSelectedOrderOption();
-        if (!selectedOption || !selectedOption.value) {
-            return true;
+        if (discountType === 'percentage') {
+            discountAmount = Math.round(price * (discountValue / 100));
+        } else {
+            discountAmount = roundCurrency(discountValue);
         }
 
-        const total = roundCurrency(selectedOption.dataset.total || 0);
-        const currentAmount = getCurrentAmount();
-        const baseScheduled = getBaseScheduledAmount();
-
-        if ((baseScheduled + currentAmount) > total) {
-            const overBy = (baseScheduled + currentAmount) - total;
-            amountWarning.classList.remove('d-none');
-            amountWarning.innerHTML = `
-                Schedule amount exceeds remaining balance by <strong>${formatRupiah(overBy)}</strong>.
-            `;
-            return false;
+        if (discountAmount < 0) {
+            discountAmount = 0;
         }
 
-        return true;
+        if (discountAmount > price) {
+            discountAmount = price;
+        }
+
+        return discountAmount;
+    }
+
+    function updatePricePreview() {
+        const price = getSelectedBatchPrice();
+        const program = getSelectedProgramName();
+        const discountValue = formatNumber(fields.discount.value);
+        const discountType = fields.discount_type.value;
+
+        const discountAmount = calculateDiscountAmount(price, discountValue, discountType);
+        const finalPrice = Math.max(price - discountAmount, 0);
+
+        fields.program_name.value = program;
+        fields.original_price.value = price;
+        fields.discount_amount_preview.value = discountAmount;
+        fields.final_price.value = finalPrice;
+
+        originalPriceText.textContent = formatRupiah(price);
+        discountAmountText.textContent = formatRupiah(discountAmount);
+        finalPriceText.textContent = formatRupiah(finalPrice);
     }
 
     function resetForm() {
-        scheduleForm.reset();
+        orderForm.reset();
         fields.id.value = '';
-        fields.order_id.value = '';
-        fields.student_name.value = '';
+        fields.student_id.value = '';
+        fields.batch_id.value = '';
         fields.program_name.value = '';
-        fields.batch_name.value = '';
-        fields.order_total.value = '';
-        fields.total_scheduled.value = '';
-        fields.remaining_balance.value = '';
-        fields.title.value = '';
-        fields.amount.value = '';
-        fields.due_date.value = '';
+        fields.original_price.value = '';
+        fields.discount_type.value = 'amount';
+        fields.discount.value = 0;
+        fields.discount_amount_preview.value = '';
+        fields.final_price.value = '';
         fields.status.value = 'pending';
         fields.notes.value = '';
-
-        orderTotalText.textContent = 'Rp 0';
-        totalScheduledText.textContent = 'Rp 0';
-        remainingBalanceText.textContent = 'Rp 0';
-        amountText.textContent = 'Rp 0';
-
         formAlert.classList.add('d-none');
         formAlert.innerHTML = '';
-        amountWarning.classList.add('d-none');
-        amountWarning.innerHTML = '';
-
+        originalPriceText.textContent = 'Rp 0';
+        discountAmountText.textContent = 'Rp 0';
+        finalPriceText.textContent = 'Rp 0';
+        updateDiscountPlaceholder();
         clearValidationErrors();
         setSubmitLoading(false);
     }
@@ -690,7 +631,15 @@
             }
         });
 
-        ['order_id', 'title', 'amount', 'due_date', 'status', 'notes'].forEach(key => {
+        [
+            'student_id',
+            'batch_id',
+            'original_price',
+            'discount',
+            'final_price',
+            'status',
+            'notes'
+        ].forEach(key => {
             const errorEl = document.getElementById(`error_${key}`);
             if (errorEl) {
                 errorEl.textContent = '';
@@ -729,18 +678,17 @@
 
     function openCreateModal() {
         resetForm();
-        modalTitle.textContent = 'Add Schedule';
-        updateOrderPreview();
-        updateAmountPreview();
-        scheduleModal.show();
+        modalTitle.textContent = 'Add Order';
+        updatePricePreview();
+        orderModal.show();
     }
 
-    async function editSchedule(id) {
+    async function editOrder(id) {
         resetForm();
-        modalTitle.textContent = 'Edit Schedule';
+        modalTitle.textContent = 'Edit Order';
 
         try {
-            const response = await fetch(`/payments/schedules/${id}`, {
+            const response = await fetch(`/payments/orders/${id}`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -751,65 +699,86 @@
             const result = await response.json();
 
             if (!response.ok || !result.success) {
-                throw new Error(result.message || 'Failed to fetch payment schedule data.');
+                throw new Error(result.message || 'Failed to fetch order data.');
             }
 
             const data = result.data;
 
             fields.id.value = data.id ?? '';
-            fields.order_id.value = data.order_id ?? '';
-            fields.title.value = data.title ?? '';
-            fields.amount.value = roundCurrency(data.amount ?? 0);
-            fields.due_date.value = data.due_date ?? '';
+            fields.student_id.value = data.student_id ?? '';
+            fields.batch_id.value = data.batch_id ?? '';
             fields.status.value = data.status ?? 'pending';
             fields.notes.value = data.notes ?? '';
 
-            updateOrderPreview();
-            updateAmountPreview();
+            const originalPrice = roundCurrency(data.original_price ?? 0);
+            const discountAmount = roundCurrency(data.discount ?? 0);
+            const finalPrice = roundCurrency(data.final_price ?? 0);
 
-            scheduleModal.show();
+            fields.discount_type.value = 'amount';
+            fields.discount.value = discountAmount;
+
+            updateDiscountPlaceholder();
+            updatePricePreview();
+
+            fields.original_price.value = originalPrice;
+            fields.discount_amount_preview.value = discountAmount;
+            fields.final_price.value = finalPrice;
+
+            originalPriceText.textContent = formatRupiah(originalPrice);
+            discountAmountText.textContent = formatRupiah(discountAmount);
+            finalPriceText.textContent = formatRupiah(finalPrice);
+
+            if (data.batch && data.batch.program) {
+                fields.program_name.value = data.batch.program.name ?? '';
+            }
+
+            orderModal.show();
         } catch (error) {
             formAlert.classList.remove('d-none');
-            formAlert.innerHTML = error.message || 'Failed to load payment schedule data.';
-            scheduleModal.show();
+            formAlert.innerHTML = error.message || 'Failed to load order data.';
+            orderModal.show();
         }
     }
 
     function openDeleteModal(id, name) {
-        deleteScheduleId = id;
-        deleteScheduleNameEl.textContent = name || '-';
+        deleteOrderId = id;
+        deleteOrderNameEl.textContent = name || '-';
         setDeleteLoading(false);
         deleteModal.show();
     }
 
-    fields.order_id.addEventListener('change', function () {
-        updateOrderPreview();
-        validateAmountAgainstRemaining();
+    fields.batch_id.addEventListener('change', function () {
+        updatePricePreview();
     });
 
-    fields.amount.addEventListener('input', function () {
-        updateAmountPreview();
+    fields.discount_type.addEventListener('change', function () {
+        updateDiscountPlaceholder();
+        updatePricePreview();
     });
 
-    scheduleForm.addEventListener('submit', async function (e) {
+    fields.discount.addEventListener('input', function () {
+        updatePricePreview();
+    });
+
+    orderForm.addEventListener('submit', async function (e) {
         e.preventDefault();
 
         clearValidationErrors();
         formAlert.classList.add('d-none');
         formAlert.innerHTML = '';
 
-        if (!validateAmountAgainstRemaining()) {
-            return;
-        }
-
         const id = fields.id.value;
-        const url = id ? `/payments/schedules/${id}` : `/payments/schedules`;
+        const url = id ? `/payments/orders/${id}` : `/payments/orders`;
+
+        const originalPrice = getSelectedBatchPrice();
+        const discountValue = formatNumber(fields.discount.value);
+        const discountType = fields.discount_type.value;
+        const discountAmount = calculateDiscountAmount(originalPrice, discountValue, discountType);
 
         const payload = {
-            order_id: fields.order_id.value,
-            title: fields.title.value.trim(),
-            amount: roundCurrency(fields.amount.value || 0),
-            due_date: fields.due_date.value || null,
+            student_id: fields.student_id.value,
+            batch_id: fields.batch_id.value,
+            discount: discountAmount,
             status: fields.status.value,
             notes: fields.notes.value.trim(),
         };
@@ -836,11 +805,11 @@
             }
 
             if (!response.ok || !result.success) {
-                throw new Error(result.message || 'Failed to save payment schedule.');
+                throw new Error(result.message || 'Failed to save order.');
             }
 
-            scheduleModal.hide();
-            showToast(result.message || 'Payment schedule saved successfully', 'success');
+            orderModal.hide();
+            showToast(result.message || 'Order saved successfully', 'success');
             scheduleReload();
         } catch (error) {
             if (error.message !== 'Validation failed.') {
@@ -853,12 +822,12 @@
     });
 
     confirmDeleteBtn.addEventListener('click', async function () {
-        if (!deleteScheduleId) return;
+        if (!deleteOrderId) return;
 
         setDeleteLoading(true);
 
         try {
-            const response = await fetch(`/payments/schedules/${deleteScheduleId}`, {
+            const response = await fetch(`/payments/orders/${deleteOrderId}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
@@ -870,27 +839,27 @@
             const result = await response.json();
 
             if (!response.ok || !result.success) {
-                throw new Error(result.message || 'Failed to delete payment schedule.');
+                throw new Error(result.message || 'Failed to delete order.');
             }
 
             deleteModal.hide();
-            showToast(result.message || 'Payment schedule deleted successfully', 'danger');
+            showToast(result.message || 'Order deleted successfully', 'danger');
             scheduleReload();
         } catch (error) {
-            showToast(error.message || 'Failed to delete payment schedule.', 'danger');
+            showToast(error.message || 'Failed to delete order.', 'danger');
         } finally {
             setDeleteLoading(false);
-            deleteScheduleId = null;
+            deleteOrderId = null;
         }
     });
 
-    scheduleModalEl.addEventListener('hidden.bs.modal', function () {
+    orderModalEl.addEventListener('hidden.bs.modal', function () {
         resetForm();
     });
 
     deleteModalEl.addEventListener('hidden.bs.modal', function () {
-        deleteScheduleId = null;
-        deleteScheduleNameEl.textContent = '';
+        deleteOrderId = null;
+        deleteOrderNameEl.textContent = '';
         setDeleteLoading(false);
     });
 </script>
