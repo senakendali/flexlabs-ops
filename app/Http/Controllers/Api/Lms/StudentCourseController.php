@@ -28,8 +28,14 @@ class StudentCourseController extends Controller
         $user = $request->user();
 
         $user->load([
-            'student.activeEnrollments.program',
-            'student.activeEnrollments.batch.program',
+            'student.activeEnrollments.program.stages' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('sort_order');
+            },
+            'student.activeEnrollments.batch.program.stages' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('sort_order');
+            },
         ]);
 
         if (!$this->isStudentUser($user) || !$user->student) {
@@ -399,8 +405,14 @@ class StudentCourseController extends Controller
         $user = $request->user();
 
         $user->load([
-            'student.activeEnrollments.program',
-            'student.activeEnrollments.batch.program',
+            'student.activeEnrollments.program.stages' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('sort_order');
+            },
+            'student.activeEnrollments.batch.program.stages' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('sort_order');
+            },
         ]);
 
         if (!$this->isStudentUser($user) || !$user->student) {
@@ -533,6 +545,92 @@ class StudentCourseController extends Controller
         });
     }
 
+   private function resolveCourseLevel($program = null, $batch = null): string
+    {
+        $program = $program ?: $batch?->program;
+
+        if (!$program || !$program->id) {
+            return 'All Levels';
+        }
+
+        /**
+         * 1. Prioritas terbaik:
+         * Kalau batch punya relasi stage/programStage, pakai itu.
+         */
+        if ($batch) {
+            foreach (['stage', 'programStage', 'program_stage'] as $relationName) {
+                if (
+                    method_exists($batch, 'relationLoaded')
+                    && $batch->relationLoaded($relationName)
+                    && $batch->{$relationName}
+                ) {
+                    $stageName = $batch->{$relationName}->name ?? null;
+
+                    if (filled($stageName) && $stageName !== '-') {
+                        return (string) $stageName;
+                    }
+                }
+            }
+        }
+
+        /**
+         * 2. Kalau batch punya FK stage_id / program_stage_id,
+         * ambil langsung dari table program_stages.
+         */
+        $stageId = $batch?->program_stage_id
+            ?? $batch?->stage_id
+            ?? $batch?->programStageId
+            ?? $batch?->stageId
+            ?? null;
+
+        if ($stageId) {
+            $stageName = DB::table('program_stages')
+                ->where('program_id', $program->id)
+                ->where('id', $stageId)
+                ->where('is_active', true)
+                ->value('name');
+
+            if (filled($stageName) && $stageName !== '-') {
+                return (string) $stageName;
+            }
+        }
+
+        /**
+         * 3. Fallback yang cocok untuk data lu sekarang:
+         * batch_name = "Intro - Batch 1"
+         * stage name = "Intro"
+         */
+        $activeStages = DB::table('program_stages')
+            ->where('program_id', $program->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'sort_order']);
+
+        $batchName = strtolower((string) ($batch?->name ?? ''));
+
+        if ($batchName !== '' && $activeStages->isNotEmpty()) {
+            $matchedStage = $activeStages->first(function ($stage) use ($batchName) {
+                return str_contains($batchName, strtolower((string) $stage->name));
+            });
+
+            if ($matchedStage && filled($matchedStage->name)) {
+                return (string) $matchedStage->name;
+            }
+        }
+
+        /**
+         * 4. Fallback terakhir:
+         * ambil stage pertama dari program.
+         */
+        $firstStageName = $activeStages->first()?->name;
+
+        if (filled($firstStageName) && $firstStageName !== '-') {
+            return (string) $firstStageName;
+        }
+
+        return 'All Levels';
+    }
+
     private function formatCourse($enrollment, Student $student): array
     {
         $program = $enrollment->program ?? $enrollment->batch?->program;
@@ -577,6 +675,8 @@ class StudentCourseController extends Controller
             'image',
         ]);
 
+        $courseLevel = $this->resolveCourseLevel($program, $batch);
+
         return [
             'id' => $programId ?? $enrollment->id,
             'slug' => $courseSlug,
@@ -620,10 +720,8 @@ class StudentCourseController extends Controller
 
             'duration' => $this->resolveDuration($program, $batch),
 
-            'level' => $this->getColumnValue($program, [
-                'level',
-                'difficulty',
-            ]) ?: '-',
+            'level' => $courseLevel,
+            'level_label' => $courseLevel,
 
             'course_url' => '/courses/' . $courseSlug,
 
@@ -641,13 +739,14 @@ class StudentCourseController extends Controller
         int $totalSubTopics,
         int $completedSubTopics,
         int $progress,
-        ?array $nextSubTopic
+        ?array $nextSubTopic = null
     ): array {
         $program = $enrollment->program ?? $enrollment->batch?->program;
         $batch = $enrollment->batch;
 
         $programName = $program->name ?? 'Untitled Course';
         $courseSlug = $program ? $this->getProgramSlug($program) : $this->slugify($programName);
+        $courseLevel = $this->resolveCourseLevel($program, $batch);
 
         $thumbnailUrl = $this->getColumnValue($program, [
             'thumbnail_url',
@@ -658,9 +757,9 @@ class StudentCourseController extends Controller
 
         $videoUrl = $this->getColumnValue($program, [
             'video_url',
+            'video',
             'overview_video_url',
             'video_embed_url',
-            'youtube_url',
         ]);
 
         return [
@@ -683,9 +782,8 @@ class StudentCourseController extends Controller
             ]) ?: 'Continue your learning progress with FlexLabs.',
 
             'thumbnail_url' => $thumbnailUrl,
-
             'video_url' => $videoUrl,
-            'video_embed_url' => $this->normalizeYouTubeEmbedUrl($videoUrl),
+            'video_embed_url' => $videoUrl,
 
             'status' => $this->resolveCourseStatus($enrollment, $progress),
             'status_label' => $this->resolveCourseStatusLabel($enrollment, $progress),
@@ -699,17 +797,15 @@ class StudentCourseController extends Controller
             'completed_sub_topics' => $completedSubTopics,
             'total_sub_topics' => $totalSubTopics,
 
-            'level' => $this->getColumnValue($program, [
-                'level',
-                'difficulty',
-            ]) ?: '-',
+            'level' => $courseLevel,
+            'level_label' => $courseLevel,
 
             'duration' => $this->resolveDuration($program, $batch),
 
             'batch_id' => $batch->id ?? null,
             'batch_name' => $batch->name ?? null,
 
-            'continue_url' => $nextSubTopic['url'] ?? '/my-courses',
+            'continue_url' => $nextSubTopic['url'] ?? null,
 
             'next_lesson' => $nextSubTopic['title'] ?? 'No next sub topic',
             'next_lesson_url' => $nextSubTopic['url'] ?? null,
