@@ -253,8 +253,14 @@ return [
             'dashboard.view',
 
             'academic.view',
+
             'enrollments.view',
+            'enrollments.create',
+            'enrollments.update',
+
             'students.view',
+            'students.create',
+            'students.update',
 
             'trial_themes.view',
             'trial_themes.create',
@@ -300,10 +306,13 @@ return [
             'payment_schedules.view',
             'payment_schedules.create',
             'payment_schedules.update',
+            'payment_schedules.approve',
 
             'payments.view',
             'payments.create',
             'payments.update',
+            'payments.approve',
+            'payments.reject',
 
             'orders.view',
             'orders.create',
@@ -319,6 +328,7 @@ return [
             'equipment_borrowings.create',
             'atk_items.view',
             'atk_requests.view',
+            'atk_requests.approve_budget',
         ],
 
         'finance' => [
