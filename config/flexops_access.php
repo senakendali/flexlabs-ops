@@ -296,8 +296,14 @@ return [
             'sales_performance.view',
 
             'finance.view',
+
             'payment_schedules.view',
+            'payment_schedules.create',
+            'payment_schedules.update',
+
             'payments.view',
+            'payments.create',
+            'payments.update',
 
             'orders.view',
             'orders.create',
