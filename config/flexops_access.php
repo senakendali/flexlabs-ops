@@ -180,6 +180,7 @@ return [
             'equipment.view',
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
             'atk_items.view',
             'atk_requests.view',
         ],
@@ -245,6 +246,7 @@ return [
             'equipment.view',
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
             'atk_items.view',
             'atk_requests.view',
         ],
@@ -326,6 +328,7 @@ return [
             'equipment.view',
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
             'atk_items.view',
             'atk_requests.view',
             'atk_requests.approve_budget',
@@ -364,6 +367,7 @@ return [
             'equipment.view',
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
             'atk_items.view',
             'atk_requests.view',
             'atk_requests.approve_budget',
@@ -385,6 +389,7 @@ return [
 
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
             'equipment_borrowings.approve',
 
             'atk_items.view',
@@ -410,6 +415,7 @@ return [
             'equipment.view',
             'equipment_borrowings.view',
             'equipment_borrowings.create',
+            'equipment_borrowings.return',
         ],
 
         'student' => [
