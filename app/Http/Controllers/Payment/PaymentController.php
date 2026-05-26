@@ -207,7 +207,6 @@ class PaymentController extends Controller
                 'status' => $payment->status,
                 'expired_at' => optional($payment->expired_at)->format('Y-m-d H:i:s'),
                 'notes' => $payment->notes,
-                'paid_at' => optional($payment->paid_at)->format('Y-m-d H:i:s'),
                 'public_payment_link' => $payment->public_token
                     ? route('public.payments.show', $payment->public_token)
                     : null,
@@ -316,7 +315,9 @@ class PaymentController extends Controller
                 'public_token' => Str::uuid()->toString(),
                 'payment_url' => null,
                 'amount' => $validated['amount'],
-                'payment_date' => $validated['payment_date'] ?? null,
+                'payment_date' => $validated['status'] === 'paid'
+                    ? ($validated['payment_date'] ?? now()->toDateString())
+                    : ($validated['payment_date'] ?? null),
                 'payment_method' => $validated['payment_method'] ?? null,
                 'reference_number' => $validated['reference_number'] ?? null,
                 'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? null,
@@ -327,7 +328,6 @@ class PaymentController extends Controller
                     ? Carbon::parse($validated['expired_at'])
                     : now()->addDay(),
                 'notes' => $validated['notes'] ?? null,
-                'paid_at' => $validated['status'] === 'paid' ? now() : null,
             ]);
         });
 
@@ -414,7 +414,9 @@ class PaymentController extends Controller
                 'order_id' => $validated['order_id'],
                 'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
                 'amount' => $validated['amount'],
-                'payment_date' => $validated['payment_date'] ?? null,
+                'payment_date' => $validated['status'] === 'paid'
+                    ? ($validated['payment_date'] ?? ($payment->payment_date ? Carbon::parse($payment->payment_date)->toDateString() : now()->toDateString()))
+                    : ($validated['payment_date'] ?? null),
                 'payment_method' => $validated['payment_method'] ?? null,
                 'reference_number' => $validated['reference_number'] ?? null,
                 'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
@@ -424,9 +426,6 @@ class PaymentController extends Controller
                     ? Carbon::parse($validated['expired_at'])
                     : $payment->expired_at,
                 'notes' => $validated['notes'] ?? null,
-                'paid_at' => $validated['status'] === 'paid'
-                    ? ($payment->paid_at ?? now())
-                    : null,
             ];
 
             if ($invoiceNumberWasSent) {
@@ -548,7 +547,7 @@ class PaymentController extends Controller
 
         $data = $this->buildReceiptViewData($payment);
         $receiptNumber = $data['receiptNumber'] ?? $this->resolveReceiptNumber($payment);
-        $receiptDate = $data['paidAt'] ?? $payment->paid_at ?? $payment->payment_date ?? $payment->updated_at ?? $payment->created_at;
+        $receiptDate = $data['paymentDate'] ?? $payment->payment_date ?? $payment->updated_at ?? $payment->created_at;
         $paymentMethod = $payment->payment_method
             ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : '-');
 
@@ -569,8 +568,8 @@ class PaymentController extends Controller
                     'value' => $paymentMethod,
                 ],
                 [
-                    'label' => 'Paid at',
-                    'value' => $receiptDate ? Carbon::parse($receiptDate)->format('d F Y H:i') : '-',
+                    'label' => 'Payment date',
+                    'value' => $receiptDate ? Carbon::parse($receiptDate)->format('d F Y') : '-',
                 ],
                 !empty($payment->reference_number) ? [
                     'label' => 'Reference no',
@@ -797,7 +796,8 @@ class PaymentController extends Controller
             'subtotal' => $summary['current_amount'],
             'tax' => 0,
             'grandTotal' => $summary['current_amount'],
-            'paidAt' => $payment->paid_at ?: $payment->payment_date ?: $payment->updated_at,
+            'paymentDate' => $payment->payment_date ?: $payment->updated_at,
+            'paidAt' => $payment->payment_date ?: $payment->updated_at,
             'documentNote' => $this->buildDocumentNote($sourceContext, 'receipt'),
             'companyName' => 'FlexLabs',
             'companyAddressLines' => $this->flexlabsAddressLines(),
