@@ -207,8 +207,7 @@ class PaymentController extends Controller
                 'status' => $payment->status,
                 'expired_at' => optional($payment->expired_at)->format('Y-m-d H:i:s'),
                 'notes' => $payment->notes,
-                //'paid_at' => optional($payment->paid_at)->format('Y-m-d H:i:s'),
-                'paid_at' => optional($payment->payment_date)->format('Y-m-d'),
+                'paid_at' => optional($payment->paid_at)->format('Y-m-d H:i:s'),
                 'public_payment_link' => $payment->public_token
                     ? route('public.payments.show', $payment->public_token)
                     : null,
