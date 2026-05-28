@@ -592,6 +592,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/sub-topics/{subTopic}', [CurriculumController::class, 'updateSubTopic'])->middleware('permission:curriculum.update')->name('sub-topics.update');
         Route::delete('/sub-topics/{subTopic}', [CurriculumController::class, 'destroySubTopic'])->middleware('permission:curriculum.delete')->name('sub-topics.destroy');
 
+        Route::get('/server-videos', [CurriculumController::class, 'serverVideos'])
+        ->name('server-videos');
         
     });
 

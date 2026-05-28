@@ -11,7 +11,6 @@ use App\Models\SubTopic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -19,11 +18,6 @@ use Throwable;
 
 class CurriculumController extends Controller
 {
-    private const VIDEO_DISK = 'private';
-    private const VIDEO_DIRECTORY = 'learning-videos/sub-topics';
-    private const VIDEO_UPLOAD_DIRECTORY = 'learning-videos/sub-topics/uploads';
-    private const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'm4v'];
-
     public function index(Request $request): View
     {
         $programId = $request->input('program_id');
@@ -209,50 +203,6 @@ class CurriculumController extends Controller
             'allTopics' => $allTopics,
             'stats' => $stats,
         ]);
-    }
-
-    public function serverVideos(): JsonResponse
-    {
-        try {
-            $disk = self::VIDEO_DISK;
-            $directory = self::VIDEO_DIRECTORY;
-
-            if (! Storage::disk($disk)->exists($directory)) {
-                Storage::disk($disk)->makeDirectory($directory);
-            }
-
-            $files = collect(Storage::disk($disk)->allFiles($directory))
-                ->filter(fn (string $path) => $this->isSupportedVideoPath($path))
-                ->map(function (string $path) use ($disk) {
-                    $size = Storage::disk($disk)->size($path);
-                    $lastModified = Storage::disk($disk)->lastModified($path);
-
-                    return [
-                        'name' => basename($path),
-                        'path' => $path,
-                        'size' => $size,
-                        'size_label' => $this->formatFileSize((int) $size),
-                        'mime' => $this->guessVideoMime($path),
-                        'last_modified' => date('Y-m-d H:i', $lastModified),
-                        'last_modified_timestamp' => $lastModified,
-                    ];
-                })
-                ->sortByDesc('last_modified_timestamp')
-                ->values()
-                ->map(function (array $file) {
-                    unset($file['last_modified_timestamp']);
-
-                    return $file;
-                })
-                ->all();
-
-            return response()->json([
-                'success' => true,
-                'data' => $files,
-            ]);
-        } catch (Throwable $e) {
-            return $this->errorResponse('Gagal mengambil daftar video dari server.', $e);
-        }
     }
 
     public function storeStage(Request $request): JsonResponse
@@ -537,7 +487,7 @@ class CurriculumController extends Controller
         try {
             $validated = $this->validateSubTopic($request);
 
-            $lessonData = $this->normalizeSubTopicLessonData($request, $validated);
+            $lessonData = $this->normalizeSubTopicLessonData($validated);
 
             $subTopic = SubTopic::create([
                 'topic_id' => $validated['topic_id'],
@@ -549,14 +499,8 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
 
                 'lesson_type' => $lessonData['lesson_type'],
-                'video_provider' => $lessonData['video_provider'],
                 'video_url' => $lessonData['video_url'],
-                'video_disk' => $lessonData['video_disk'],
-                'video_path' => $lessonData['video_path'],
-                'video_mime' => $lessonData['video_mime'],
-                'video_size' => $lessonData['video_size'],
                 'video_duration_minutes' => $lessonData['video_duration_minutes'],
-                'video_duration_seconds' => $lessonData['video_duration_seconds'],
                 'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
@@ -586,7 +530,7 @@ class CurriculumController extends Controller
         try {
             $validated = $this->validateSubTopic($request);
 
-            $lessonData = $this->normalizeSubTopicLessonData($request, $validated, $subTopic);
+            $lessonData = $this->normalizeSubTopicLessonData($validated);
 
             $subTopic->update([
                 'topic_id' => $validated['topic_id'],
@@ -598,14 +542,8 @@ class CurriculumController extends Controller
                 'is_active' => (bool) $validated['is_active'],
 
                 'lesson_type' => $lessonData['lesson_type'],
-                'video_provider' => $lessonData['video_provider'],
                 'video_url' => $lessonData['video_url'],
-                'video_disk' => $lessonData['video_disk'],
-                'video_path' => $lessonData['video_path'],
-                'video_mime' => $lessonData['video_mime'],
-                'video_size' => $lessonData['video_size'],
                 'video_duration_minutes' => $lessonData['video_duration_minutes'],
-                'video_duration_seconds' => $lessonData['video_duration_seconds'],
                 'thumbnail_url' => $lessonData['thumbnail_url'],
             ]);
 
@@ -645,8 +583,6 @@ class CurriculumController extends Controller
                 'topic_id' => (int) $subTopic->topic_id,
                 'collapse_id' => 'moduleCollapse' . ($subTopic->topic?->module_id ?? 0),
             ];
-
-            $this->deleteOwnedSubTopicVideo($subTopic);
 
             $subTopic->delete();
 
@@ -712,124 +648,31 @@ class CurriculumController extends Controller
             'is_active' => ['required', 'boolean'],
 
             'lesson_type' => ['nullable', 'string', 'in:video,live_session'],
-
-            // Legacy/external video support.
-            'video_provider' => ['nullable', 'string', 'in:youtube,self_hosted,server,upload'],
-            'video_source' => ['nullable', 'string', 'in:youtube,self_hosted,server,upload'],
             'video_url' => ['nullable', 'url'],
-
-            // Get from server support.
-            'server_video_path' => ['nullable', 'string', 'max:5000'],
-            'video_path' => ['nullable', 'string', 'max:5000'],
-
-            // Direct upload support. 1GB = 1,048,576 KB.
-            'video_file' => [
-                'nullable',
-                'file',
-                'mimetypes:video/mp4,video/webm,video/quicktime,video/x-m4v',
-                'max:1048576',
-            ],
-            'clear_video_file' => ['nullable', 'boolean'],
-
             'video_duration_minutes' => ['nullable', 'integer', 'min:1', 'max:999'],
             'thumbnail_url' => ['nullable', 'url'],
         ]);
     }
 
-    private function normalizeSubTopicLessonData(Request $request, array $validated, ?SubTopic $subTopic = null): array
+    private function normalizeSubTopicLessonData(array $validated): array
     {
         $lessonType = $validated['lesson_type'] ?? 'video';
-        $durationMinutes = $validated['video_duration_minutes'] ?? null;
-
-        $basePayload = [
-            'lesson_type' => $lessonType === 'live_session' ? 'live_session' : 'video',
-            'video_provider' => null,
-            'video_url' => null,
-            'video_disk' => null,
-            'video_path' => null,
-            'video_mime' => null,
-            'video_size' => null,
-            'video_duration_minutes' => $durationMinutes,
-            'video_duration_seconds' => $durationMinutes ? ((int) $durationMinutes * 60) : null,
-            'thumbnail_url' => $validated['thumbnail_url'] ?? null,
-        ];
 
         if ($lessonType === 'live_session') {
-            $this->deleteOwnedSubTopicVideo($subTopic);
-
-            return array_merge($basePayload, [
+            return [
+                'lesson_type' => 'live_session',
+                'video_url' => null,
                 'video_duration_minutes' => null,
-                'video_duration_seconds' => null,
                 'thumbnail_url' => null,
-            ]);
+            ];
         }
 
-        if ($request->boolean('clear_video_file')) {
-            $this->deleteOwnedSubTopicVideo($subTopic);
-
-            if (! $request->hasFile('video_file') && empty($validated['server_video_path']) && empty($validated['video_path']) && empty($validated['video_url'])) {
-                return $basePayload;
-            }
-        }
-
-        $videoSource = $this->resolveVideoSource($request, $validated, $subTopic);
-
-        if ($videoSource === 'youtube') {
-            $this->deleteOwnedSubTopicVideo($subTopic);
-
-            return array_merge($basePayload, [
-                'video_provider' => ! empty($validated['video_url']) ? 'youtube' : null,
-                'video_url' => $validated['video_url'] ?? null,
-            ]);
-        }
-
-        if ($videoSource === 'upload') {
-            if ($request->hasFile('video_file')) {
-                $this->deleteOwnedSubTopicVideo($subTopic);
-
-                $uploadedVideo = $this->storeUploadedSubTopicVideo($request);
-
-                return array_merge($basePayload, $uploadedVideo);
-            }
-
-            if ($subTopic && $subTopic->video_path && ! $request->boolean('clear_video_file')) {
-                return array_merge($basePayload, [
-                    'video_provider' => 'self_hosted',
-                    'video_disk' => $subTopic->video_disk ?: self::VIDEO_DISK,
-                    'video_path' => $subTopic->video_path,
-                    'video_mime' => $subTopic->video_mime ?: $this->guessVideoMime($subTopic->video_path),
-                    'video_size' => $subTopic->video_size,
-                ]);
-            }
-
-            return $basePayload;
-        }
-
-        $serverVideoPath = $validated['server_video_path']
-            ?? $validated['video_path']
-            ?? null;
-
-        if (! $serverVideoPath && $subTopic && $subTopic->video_path && ! $request->boolean('clear_video_file')) {
-            $serverVideoPath = $subTopic->video_path;
-        }
-
-        if (! $serverVideoPath) {
-            return $basePayload;
-        }
-
-        $serverVideoPath = $this->normalizeServerVideoPath($serverVideoPath);
-
-        $this->deleteOwnedSubTopicVideoIfDifferent($subTopic, $serverVideoPath);
-
-        return array_merge($basePayload, [
-            'video_provider' => 'self_hosted',
-            'video_disk' => self::VIDEO_DISK,
-            'video_path' => $serverVideoPath,
-            'video_mime' => $this->guessVideoMime($serverVideoPath),
-            'video_size' => Storage::disk(self::VIDEO_DISK)->exists($serverVideoPath)
-                ? Storage::disk(self::VIDEO_DISK)->size($serverVideoPath)
-                : null,
-        ]);
+        return [
+            'lesson_type' => 'video',
+            'video_url' => $validated['video_url'] ?? null,
+            'video_duration_minutes' => $validated['video_duration_minutes'] ?? null,
+            'thumbnail_url' => $validated['thumbnail_url'] ?? null,
+        ];
     }
 
     private function deleteModuleTree(Module $module): void
@@ -848,186 +691,10 @@ class CurriculumController extends Controller
         $topic->loadMissing('subTopics');
 
         foreach ($topic->subTopics as $subTopic) {
-            $this->deleteOwnedSubTopicVideo($subTopic);
             $subTopic->delete();
         }
 
         $topic->delete();
-    }
-
-
-    private function resolveVideoSource(Request $request, array $validated, ?SubTopic $subTopic = null): string
-    {
-        $source = $validated['video_source']
-            ?? $validated['video_provider']
-            ?? null;
-
-        if ($request->hasFile('video_file')) {
-            return 'upload';
-        }
-
-        if (in_array($source, ['youtube', 'upload', 'server'], true)) {
-            return $source;
-        }
-
-        if ($source === 'self_hosted') {
-            if (! empty($validated['server_video_path']) || ! empty($validated['video_path'])) {
-                return 'server';
-            }
-
-            if ($subTopic && $subTopic->video_path) {
-                return 'server';
-            }
-
-            return 'server';
-        }
-
-        if (! empty($validated['server_video_path']) || ! empty($validated['video_path'])) {
-            return 'server';
-        }
-
-        if (! empty($validated['video_url'])) {
-            return 'youtube';
-        }
-
-        if ($subTopic && $subTopic->video_path) {
-            return 'server';
-        }
-
-        return 'server';
-    }
-
-    private function storeUploadedSubTopicVideo(Request $request): array
-    {
-        $file = $request->file('video_file');
-
-        if (! $file) {
-            return [
-                'video_provider' => null,
-                'video_disk' => null,
-                'video_path' => null,
-                'video_mime' => null,
-                'video_size' => null,
-            ];
-        }
-
-        if (! Storage::disk(self::VIDEO_DISK)->exists(self::VIDEO_UPLOAD_DIRECTORY)) {
-            Storage::disk(self::VIDEO_DISK)->makeDirectory(self::VIDEO_UPLOAD_DIRECTORY);
-        }
-
-        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-        $safeName = Str::slug($originalName) ?: 'video';
-        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'mp4');
-
-        if (! in_array($extension, self::VIDEO_EXTENSIONS, true)) {
-            $extension = 'mp4';
-        }
-
-        $filename = $safeName . '-' . Str::uuid()->toString() . '.' . $extension;
-
-        $path = $file->storeAs(
-            self::VIDEO_UPLOAD_DIRECTORY,
-            $filename,
-            self::VIDEO_DISK
-        );
-
-        return [
-            'video_provider' => 'self_hosted',
-            'video_disk' => self::VIDEO_DISK,
-            'video_path' => $path,
-            'video_mime' => $file->getMimeType() ?: $this->guessVideoMime($path),
-            'video_size' => $file->getSize(),
-        ];
-    }
-
-    private function normalizeServerVideoPath(string $path): string
-    {
-        $normalizedPath = trim(str_replace('\\', '/', $path));
-        $normalizedPath = ltrim($normalizedPath, '/');
-
-        if (
-            $normalizedPath === ''
-            || str_contains($normalizedPath, '..')
-            || ! str_starts_with($normalizedPath, self::VIDEO_DIRECTORY . '/')
-            || ! $this->isSupportedVideoPath($normalizedPath)
-        ) {
-            throw ValidationException::withMessages([
-                'server_video_path' => ['File video server tidak valid. Pilih file dari daftar video server.'],
-            ]);
-        }
-
-        if (! Storage::disk(self::VIDEO_DISK)->exists($normalizedPath)) {
-            throw ValidationException::withMessages([
-                'server_video_path' => ['File video server tidak ditemukan di storage private.'],
-            ]);
-        }
-
-        return $normalizedPath;
-    }
-
-    private function isSupportedVideoPath(string $path): bool
-    {
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-
-        return in_array($extension, self::VIDEO_EXTENSIONS, true);
-    }
-
-    private function guessVideoMime(?string $path): ?string
-    {
-        if (! $path) {
-            return null;
-        }
-
-        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'mp4', 'm4v' => 'video/mp4',
-            'webm' => 'video/webm',
-            'mov' => 'video/quicktime',
-            default => 'video/mp4',
-        };
-    }
-
-    private function formatFileSize(int $bytes): string
-    {
-        if ($bytes <= 0) {
-            return '0 B';
-        }
-
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $power = min((int) floor(log($bytes, 1024)), count($units) - 1);
-        $value = $bytes / (1024 ** $power);
-
-        return number_format($value, $power === 0 ? 0 : 1) . ' ' . $units[$power];
-    }
-
-    private function deleteOwnedSubTopicVideoIfDifferent(?SubTopic $subTopic, ?string $newPath): void
-    {
-        if (! $subTopic || ! $subTopic->video_path || $subTopic->video_path === $newPath) {
-            return;
-        }
-
-        $this->deleteOwnedSubTopicVideo($subTopic);
-    }
-
-    private function deleteOwnedSubTopicVideo(?SubTopic $subTopic): void
-    {
-        if (! $subTopic || ! $subTopic->video_path) {
-            return;
-        }
-
-        if (! $this->isOwnedUploadedVideoPath($subTopic->video_path)) {
-            return;
-        }
-
-        $disk = $subTopic->video_disk ?: self::VIDEO_DISK;
-
-        if (Storage::disk($disk)->exists($subTopic->video_path)) {
-            Storage::disk($disk)->delete($subTopic->video_path);
-        }
-    }
-
-    private function isOwnedUploadedVideoPath(string $path): bool
-    {
-        return str_starts_with($path, self::VIDEO_UPLOAD_DIRECTORY . '/');
     }
 
 

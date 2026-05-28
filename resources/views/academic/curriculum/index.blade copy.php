@@ -432,13 +432,6 @@
                                                                                     @if($topic->subTopics->count())
                                                                                         <div class="subtopic-list">
                                                                                             @foreach($topic->subTopics as $subTopic)
-                                                                                                @php
-                                                                                                    $subTopicVideoProvider = $subTopic->video_provider
-                                                                                                        ?: (!empty($subTopic->video_url) ? 'youtube' : (!empty($subTopic->video_path) ? 'self_hosted' : null));
-
-                                                                                                    $hasSubTopicVideo = !empty($subTopic->video_url) || !empty($subTopic->video_path);
-                                                                                                @endphp
-
                                                                                                 <div class="subtopic-item" data-subtopic-item-id="{{ $subTopic->id }}">
                                                                                                     <div class="subtopic-left">
                                                                                                         <div class="subtopic-thumb">
@@ -446,7 +439,7 @@
                                                                                                                 <div class="subtopic-thumb-placeholder live">
                                                                                                                     <i class="bi bi-broadcast"></i>
                                                                                                                 </div>
-                                                                                                            @elseif($hasSubTopicVideo)
+                                                                                                            @elseif(!empty($subTopic->video_url))
                                                                                                                 @if(!empty($subTopic->thumbnail_url))
                                                                                                                     <img
                                                                                                                         src="{{ $subTopic->thumbnail_url }}"
@@ -484,12 +477,7 @@
 
                                                                                                             <div class="subtopic-learning-meta">
                                                                                                                 @if(($subTopic->lesson_type ?? 'video') === 'video')
-                                                                                                                    @if($hasSubTopicVideo)
-                                                                                                                        <span>
-                                                                                                                            <i class="bi {{ $subTopicVideoProvider === 'self_hosted' ? 'bi-hdd-network' : 'bi-youtube' }} me-1"></i>
-                                                                                                                            {{ $subTopicVideoProvider === 'self_hosted' ? 'Server Video' : 'YouTube / External Video' }}
-                                                                                                                        </span>
-
+                                                                                                                    @if(!empty($subTopic->video_url))
                                                                                                                         @if(!empty($subTopic->video_duration_minutes))
                                                                                                                             <span>
                                                                                                                                 <i class="bi bi-clock me-1"></i>{{ $subTopic->video_duration_minutes }} min
@@ -533,16 +521,9 @@
                                                                                                             data-description="{{ $subTopic->description }}"
                                                                                                             data-is-active="{{ (int) $subTopic->is_active }}"
                                                                                                             data-lesson-type="{{ $subTopic->lesson_type ?? 'video' }}"
-                                                                                                            data-video-provider="{{ $subTopicVideoProvider ?? 'youtube' }}"
                                                                                                             data-video-url="{{ $subTopic->video_url ?? '' }}"
-                                                                                                            data-video-disk="{{ $subTopic->video_disk ?? '' }}"
-                                                                                                            data-video-path="{{ $subTopic->video_path ?? '' }}"
-                                                                                                            data-video-mime="{{ $subTopic->video_mime ?? '' }}"
-                                                                                                            data-video-size="{{ $subTopic->video_size ?? '' }}"
                                                                                                             data-video-duration-minutes="{{ $subTopic->video_duration_minutes ?? '' }}"
-                                                                                                            data-video-duration-seconds="{{ $subTopic->video_duration_seconds ?? '' }}"
                                                                                                             data-thumbnail-url="{{ $subTopic->thumbnail_url ?? '' }}"
-                                                                                                            data-has-video-file="{{ !empty($subTopic->video_path) ? 1 : 0 }}"
                                                                                                             data-content-base64="{{ base64_encode($subTopic->content ?? '') }}"
                                                                                                             data-content-format="{{ $subTopic->content_format ?? 'markdown' }}"
                                                                                                         >
@@ -892,11 +873,7 @@
 <div class="modal fade" id="subTopicModal" tabindex="-1" aria-labelledby="subTopicModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content custom-modal">
-            <form
-                id="subTopicForm"
-                data-create-url="{{ route('curriculum.sub-topics.store') }}"
-                enctype="multipart/form-data"
-            >
+            <form id="subTopicForm" data-create-url="{{ route('curriculum.sub-topics.store') }}">
                 @csrf
                 <input type="hidden" name="_method" value="POST">
                 <input type="hidden" name="id" value="">
@@ -964,86 +941,22 @@
                                             <i class="bi bi-play-circle me-2"></i>Video Lesson
                                         </div>
                                         <div class="lesson-config-subtitle">
-                                            Pilih sumber video dari file yang sudah ada di server, atau upload file video baru jika diperlukan.
+                                            Isi informasi video jika sub topic ini adalah video lesson.
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Video Source</label>
-                                        <select name="video_source" class="form-select">
-                                            <option value="server">Get from Server</option>
-                                            <option value="upload">Upload Video</option>
-                                            <option value="youtube" class="d-none">YouTube / External URL (Legacy)</option>
-                                        </select>
-
-                                        <input type="hidden" name="video_provider" value="self_hosted">
-                                        <input type="hidden" name="video_url" value="">
-                                        <input type="hidden" name="clear_video_file" value="0">
-
-                                        <div class="form-text">
-                                            Default-nya gunakan file video yang sudah tersedia di storage server.
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-8 subtopic-video-server-wrap">
-                                        <label class="form-label">Server Video File</label>
-                                        <div class="d-flex gap-2">
-                                            <select name="server_video_path" class="form-select">
-                                                <option value="">Loading server videos...</option>
-                                            </select>
-
-                                            <button
-                                                type="button"
-                                                class="btn btn-outline-primary btn-modern refresh-server-videos-btn"
-                                            >
-                                                <i class="bi bi-arrow-clockwise"></i>
-                                            </button>
-                                        </div>
-
-                                        <div class="form-text">
-                                            File dibaca dari folder <code>storage/app/private/learning-videos/sub-topics</code>.
-                                        </div>
-
-                                        <div class="selected-server-video-info d-none mt-3"></div>
-                                    </div>
-
-                                    <div class="col-12 subtopic-video-upload-wrap d-none">
-                                        <label class="form-label">Upload Video File</label>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Video URL</label>
                                         <input
-                                            type="file"
-                                            name="video_file"
+                                            type="url"
+                                            name="video_url"
                                             class="form-control"
-                                            accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
+                                            placeholder="https://www.youtube.com/watch?v=..."
                                         >
-
-                                        <div class="form-text">
-                                            Gunakan opsi ini hanya untuk file kecil/urgent. Untuk video besar, upload manual ke server lalu pilih dari daftar Get from Server.
-                                        </div>
-
-                                        <div class="selected-video-file-info d-none mt-3"></div>
                                     </div>
 
-                                    <div class="col-12 existing-video-file-info d-none">
-                                        <div class="video-file-info-box">
-                                            <div class="video-file-info-icon">
-                                                <i class="bi bi-file-earmark-play"></i>
-                                            </div>
-
-                                            <div class="video-file-info-content">
-                                                <div class="video-file-info-title">Video server sudah tersedia</div>
-                                                <div class="video-file-info-meta existing-video-file-meta">-</div>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                class="btn btn-outline-danger btn-sm clear-video-file-btn"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Duration Minutes</label>
                                         <input
@@ -1055,7 +968,7 @@
                                         >
                                     </div>
 
-                                    <div class="col-md-9">
+                                    <div class="col-md-3">
                                         <label class="form-label">Thumbnail URL</label>
                                         <input
                                             type="url"
@@ -1183,6 +1096,725 @@
 
 @push('styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+<style>
+    .program-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .program-block {
+        border: 1px solid #ece7f7;
+        border-radius: 20px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    .program-block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem 1.25rem 1rem;
+        border-bottom: 1px solid #f1ecf8;
+        background: linear-gradient(180deg, #fcfbff 0%, #ffffff 100%);
+    }
+
+    .program-block-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .program-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #efe8ff;
+        color: #5B3E8E;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .program-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .program-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .45rem;
+        font-size: .875rem;
+        color: #6b7280;
+    }
+
+    .stage-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.25rem;
+    }
+
+    .stage-card {
+        border: 1px solid #ece7f7;
+        border-radius: 18px;
+        background: #fbfaff;
+        overflow: hidden;
+    }
+
+    .stage-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem 1rem 0;
+    }
+
+    .stage-title,
+    .module-title,
+    .topic-title,
+    .subtopic-title {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .stage-meta,
+    .module-meta,
+    .topic-meta {
+        margin-top: .35rem;
+        font-size: .875rem;
+        color: #6b7280;
+    }
+
+    .level-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .25rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1;
+        background: #ebe5ff;
+        color: #5B3E8E;
+        border: 1px solid #dfd2ff;
+        white-space: nowrap;
+    }
+
+    .level-stage {
+        background: #fff3d9;
+        color: #b7791f;
+        border-color: #f6ddab;
+    }
+
+    .level-topic {
+        background: #e8f4ff;
+        color: #1d4ed8;
+        border-color: #cfe3ff;
+    }
+
+    .level-subtopic {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #ccf2da;
+    }
+
+    .curriculum-accordion {
+        padding: 1rem;
+    }
+
+    .curriculum-module-item {
+        border: 1px solid #ece7f7 !important;
+        border-radius: 16px !important;
+        overflow: hidden;
+        margin-bottom: 1rem;
+        background: #ffffff;
+    }
+
+    .curriculum-module-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .custom-module-header {
+        padding: 0;
+        border: 0;
+        background: #fff;
+    }
+
+    .module-row {
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .module-toggle {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        padding: 1rem 1.1rem;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+
+    .module-toggle:not(.collapsed) {
+        box-shadow: none !important;
+        color: inherit;
+    }
+
+    .module-toggle::after {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .module-main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .module-actions {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: 1rem 1rem 1rem 0;
+        flex-shrink: 0;
+    }
+
+    .stage-actions,
+    .topic-actions,
+    .subtopic-actions {
+        display: flex;
+        gap: .5rem;
+        align-items: center;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+
+    .module-actions .btn,
+    .stage-actions .btn,
+    .topic-actions .btn,
+    .subtopic-actions .btn,
+    .program-block-actions .btn {
+        white-space: nowrap;
+    }
+
+    .topic-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .topic-card {
+        border: 1px solid #ece7f7;
+        border-radius: 16px;
+        background: #fcfcff;
+        padding: 1rem;
+    }
+
+    .topic-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .topic-material-strip {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: .85rem 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .topic-material-info {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+    .material-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .3rem .65rem;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 700;
+        background: #f3f4f6;
+        color: #6b7280;
+        border: 1px solid #e5e7eb;
+        white-space: nowrap;
+    }
+
+    .material-pill.is-ready {
+        background: #ecfdf3;
+        color: #15803d;
+        border-color: #bbf7d0;
+    }
+
+    .topic-material-count {
+        font-size: .8rem;
+        font-weight: 700;
+        color: #5B3E8E;
+        white-space: nowrap;
+    }
+
+    .subtopic-list {
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    .subtopic-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: .875rem 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #fff;
+    }
+
+    .subtopic-left {
+        display: flex;
+        align-items: flex-start;
+        gap: .9rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .subtopic-content {
+        min-width: 0;
+        flex: 1 1 auto;
+        padding-top: .1rem;
+    }
+
+    .subtopic-thumb {
+        width: 112px;
+        height: 68px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #ece7f7;
+        background: #f9f7ff;
+        flex-shrink: 0;
+    }
+
+    .subtopic-thumb-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .subtopic-thumb-placeholder {
+        width: 100%;
+        height: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.55rem;
+    }
+
+    .subtopic-thumb-placeholder.video {
+        background: #ede7ff;
+        color: #5B3E8E;
+    }
+
+    .subtopic-thumb-placeholder.live {
+        background: #fff3d9;
+        color: #b7791f;
+    }
+
+    .subtopic-thumb-placeholder.empty {
+        background: #f3f4f6;
+        color: #9ca3af;
+    }
+
+    .lesson-type-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .25rem .6rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .lesson-type-video {
+        background: #ede7ff;
+        color: #5B3E8E;
+        border: 1px solid #d9cffa;
+    }
+
+    .lesson-type-live {
+        background: #fff3d9;
+        color: #b7791f;
+        border: 1px solid #f6ddab;
+    }
+
+    .subtopic-learning-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .65rem;
+        margin-top: .4rem;
+        color: #6b7280;
+        font-size: .84rem;
+    }
+
+    .lesson-config-card {
+        border: 1px solid #ece7f7;
+        border-radius: 16px;
+        background: #fbfaff;
+        padding: 1rem;
+    }
+
+    .lesson-config-live {
+        background: #fffaf0;
+        border-color: #f6ddab;
+    }
+
+    .lesson-config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .lesson-config-title {
+        font-weight: 800;
+        color: #1f2937;
+    }
+
+    .lesson-config-subtitle {
+        margin-top: .25rem;
+        font-size: .875rem;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .live-session-note {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        padding: .875rem 1rem;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #7c520c;
+        font-size: .9rem;
+        line-height: 1.5;
+    }
+
+    .delete-confirm-modal {
+        border-radius: 22px;
+    }
+
+    .delete-confirm-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .delete-confirm-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fee2e2;
+        color: #dc2626;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .delete-confirm-message {
+        padding: 1rem;
+        border: 1px solid #fee2e2;
+        border-radius: 16px;
+        background: #fff7f7;
+    }
+
+    .delete-confirm-label {
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #991b1b;
+        margin-bottom: .35rem;
+    }
+
+    .delete-confirm-name {
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.4;
+    }
+
+    .delete-confirm-warning {
+        padding: .85rem 1rem;
+        border-radius: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-size: .9rem;
+        line-height: 1.5;
+    }
+
+    .empty-program-state,
+    .empty-nested-state {
+        margin: 1rem;
+        padding: 1rem 1.25rem;
+        border: 1px dashed #d9cffa;
+        border-radius: 14px;
+        background: #f9f7ff;
+        color: #6b7280;
+        font-size: .92rem;
+    }
+
+    .empty-state-box {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        border: 1px dashed #d9cffa;
+        border-radius: 18px;
+        background: #faf8ff;
+    }
+
+    .empty-state-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: #efe8ff;
+        color: #5B3E8E;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state-title {
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .empty-state-text {
+        max-width: 620px;
+        margin: 0 auto;
+        color: #6b7280;
+    }
+
+    .form-alert {
+        border-radius: 14px;
+        font-size: .92rem;
+    }
+
+    .custom-modal {
+        border: 0;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+
+
+    .lesson-material-editor-card {
+        background: #ffffff;
+    }
+
+    .markdown-helper-box {
+        padding: .875rem 1rem;
+        border: 1px solid #ece7f7;
+        border-radius: 14px;
+        background: #fbfaff;
+        color: #4b5563;
+        font-size: .86rem;
+        line-height: 1.65;
+    }
+
+    .markdown-helper-box code {
+        color: #5B3E8E;
+        background: #efe8ff;
+        border-radius: 6px;
+        padding: .1rem .35rem;
+    }
+
+    .EasyMDEContainer .CodeMirror {
+        border-color: #ece7f7;
+        border-radius: 14px;
+        min-height: 340px;
+        padding: .25rem;
+        color: #1f2937;
+    }
+
+    .EasyMDEContainer .editor-toolbar {
+        border-color: #ece7f7;
+        border-radius: 14px 14px 0 0;
+        background: #fbfaff;
+    }
+
+    .EasyMDEContainer .editor-toolbar button {
+        border-radius: 8px;
+    }
+
+    .EasyMDEContainer .editor-preview,
+    .EasyMDEContainer .editor-preview-side {
+        background: #ffffff;
+    }
+
+    .curriculum-refreshing {
+        opacity: .65;
+        pointer-events: none;
+        transition: opacity .2s ease;
+    }
+
+    .toast.bg-success {
+        background-color: #5B3E8E !important;
+    }
+
+    .toast.bg-danger {
+        background-color: #dc3545 !important;
+    }
+
+
+
+    .curriculum-focus-highlight {
+        animation: curriculumFocusPulse 1.6s ease;
+    }
+
+    @keyframes curriculumFocusPulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(91, 62, 142, .26);
+            border-color: rgba(91, 62, 142, .45);
+        }
+
+        55% {
+            box-shadow: 0 0 0 .35rem rgba(91, 62, 142, .08);
+            border-color: rgba(91, 62, 142, .35);
+        }
+
+        100% {
+            box-shadow: none;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .program-block-header,
+        .stage-card-header,
+        .topic-card-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .page-header-content {
+            flex-direction: column;
+            align-items: flex-start !important;
+        }
+
+        .page-header-actions {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+        }
+
+        .program-block-actions,
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions {
+            width: 100%;
+        }
+
+        .module-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+        }
+
+        .module-toggle {
+            width: 100%;
+            padding-bottom: .75rem;
+        }
+
+        .module-actions {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            padding: 0 1rem 1rem 1rem;
+        }
+
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .page-header-actions,
+        .program-block-actions,
+        .topic-actions,
+        .stage-actions,
+        .subtopic-actions,
+        .module-actions {
+            width: 100%;
+        }
+
+        .page-header-actions .btn,
+        .program-block-actions .btn,
+        .topic-actions .btn,
+        .stage-actions .btn,
+        .subtopic-actions .btn,
+        .module-actions .btn {
+            width: 100%;
+        }
+
+        .topic-material-strip {
+            align-items: flex-start;
+        }
+
+        .topic-material-count {
+            width: 100%;
+        }
+
+        .subtopic-item {
+            flex-direction: column;
+        }
+
+        .subtopic-left {
+            width: 100%;
+        }
+
+        .subtopic-thumb {
+            width: 96px;
+            height: 60px;
+        }
+    }
+</style>
 @endpush
 
 @push('scripts')
@@ -1190,10 +1822,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    const serverVideosUrl = "{{ Route::has('curriculum.server-videos') ? route('curriculum.server-videos') : '' }}";
     let subTopicContentEditor = null;
-    let serverVideoFiles = [];
-    let isLoadingServerVideos = false;
 
     function decodeBase64Unicode(value) {
         if (!value) return '';
@@ -1506,284 +2135,11 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, '&#039;');
     }
 
-    function formatBytes(bytes) {
-        const size = Number(bytes || 0);
-
-        if (!size) return '-';
-
-        const units = ['B', 'KB', 'MB', 'GB'];
-        let value = size;
-        let unitIndex = 0;
-
-        while (value >= 1024 && unitIndex < units.length - 1) {
-            value = value / 1024;
-            unitIndex++;
-        }
-
-        return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-    }
-
-    function getServerVideoByPath(path) {
-        if (!path) return null;
-
-        return serverVideoFiles.find(function (file) {
-            return file.path === path;
-        }) || null;
-    }
-
-    function resetSubTopicVideoUploadUI(form) {
-        if (!form) return;
-
-        const selectedUploadInfo = form.querySelector('.selected-video-file-info');
-        const selectedServerInfo = form.querySelector('.selected-server-video-info');
-        const existingInfo = form.querySelector('.existing-video-file-info');
-        const existingMeta = form.querySelector('.existing-video-file-meta');
-        const clearInput = form.querySelector('input[name="clear_video_file"]');
-        const fileInput = form.querySelector('input[name="video_file"]');
-        const serverSelect = form.querySelector('select[name="server_video_path"]');
-
-        if (selectedUploadInfo) {
-            selectedUploadInfo.classList.add('d-none');
-            selectedUploadInfo.innerHTML = '';
-        }
-
-        if (selectedServerInfo) {
-            selectedServerInfo.classList.add('d-none');
-            selectedServerInfo.innerHTML = '';
-        }
-
-        if (existingInfo) {
-            existingInfo.classList.add('d-none');
-        }
-
-        if (existingMeta) {
-            existingMeta.textContent = '-';
-        }
-
-        if (clearInput) {
-            clearInput.value = '0';
-        }
-
-        if (fileInput) {
-            fileInput.value = '';
-        }
-
-        if (serverSelect) {
-            serverSelect.value = '';
-        }
-    }
-
-    function renderServerVideoOptions(form, selectedPath = '') {
-        if (!form) return;
-
-        const serverSelect = form.querySelector('select[name="server_video_path"]');
-
-        if (!serverSelect) return;
-
-        const safeSelectedPath = selectedPath || serverSelect.value || '';
-        const options = ['<option value="">Pilih video dari server</option>'];
-
-        serverVideoFiles.forEach(function (file) {
-            const selected = file.path === safeSelectedPath ? 'selected' : '';
-            const label = `${file.name} • ${file.size_label || formatBytes(file.size)} • ${file.last_modified || '-'}`;
-
-            options.push(`<option value="${escapeHtml(file.path)}" ${selected}>${escapeHtml(label)}</option>`);
-        });
-
-        if (safeSelectedPath && !serverVideoFiles.some(file => file.path === safeSelectedPath)) {
-            options.push(`<option value="${escapeHtml(safeSelectedPath)}" selected>${escapeHtml(safeSelectedPath)} • file lama</option>`);
-        }
-
-        serverSelect.innerHTML = options.join('');
-        serverSelect.value = safeSelectedPath;
-
-        updateSelectedServerVideoInfo(form);
-    }
-
-    async function loadServerVideos(form, selectedPath = '', forceReload = false) {
-        if (!form) return;
-
-        const serverSelect = form.querySelector('select[name="server_video_path"]');
-
-        if (!serverSelect || !serverVideosUrl) {
-            if (serverSelect) {
-                serverSelect.innerHTML = '<option value="">Route server video belum tersedia</option>';
-            }
-            return;
-        }
-
-        if (serverVideoFiles.length && !forceReload) {
-            renderServerVideoOptions(form, selectedPath);
-            return;
-        }
-
-        if (isLoadingServerVideos) return;
-
-        isLoadingServerVideos = true;
-        serverSelect.innerHTML = '<option value="">Loading server videos...</option>';
-
-        try {
-            const response = await fetch(serverVideosUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok || data.success === false) {
-                throw new Error(data.message || 'Gagal memuat video server.');
-            }
-
-            serverVideoFiles = Array.isArray(data.data) ? data.data : [];
-            renderServerVideoOptions(form, selectedPath);
-        } catch (error) {
-            serverSelect.innerHTML = '<option value="">Gagal memuat video server</option>';
-            showToast('Gagal memuat daftar video server.', 'error');
-        } finally {
-            isLoadingServerVideos = false;
-        }
-    }
-
-    function updateSelectedServerVideoInfo(form) {
-        if (!form) return;
-
-        const serverSelect = form.querySelector('select[name="server_video_path"]');
-        const selectedServerInfo = form.querySelector('.selected-server-video-info');
-
-        if (!serverSelect || !selectedServerInfo) return;
-
-        const selectedPath = serverSelect.value || '';
-
-        if (!selectedPath) {
-            selectedServerInfo.classList.add('d-none');
-            selectedServerInfo.innerHTML = '';
-            return;
-        }
-
-        const file = getServerVideoByPath(selectedPath);
-        const label = file
-            ? `<strong>${escapeHtml(file.name)}</strong><br>${escapeHtml(file.path)} • ${escapeHtml(file.size_label || formatBytes(file.size))} • ${escapeHtml(file.last_modified || '-')}`
-            : `<strong>File lama</strong><br>${escapeHtml(selectedPath)}`;
-
-        selectedServerInfo.innerHTML = `<i class="bi bi-hdd-network me-1"></i>${label}`;
-        selectedServerInfo.classList.remove('d-none');
-    }
-
-    function setExistingVideoFileInfo(form, button) {
-        if (!form || !button) return;
-
-        const hasVideoFile = button.dataset.hasVideoFile === '1';
-        const existingInfo = form.querySelector('.existing-video-file-info');
-        const existingMeta = form.querySelector('.existing-video-file-meta');
-
-        if (!existingInfo || !existingMeta) return;
-
-        if (!hasVideoFile) {
-            existingInfo.classList.add('d-none');
-            existingMeta.textContent = '-';
-            return;
-        }
-
-        const videoPath = button.dataset.videoPath || '-';
-        const videoMime = button.dataset.videoMime || 'video';
-        const videoSize = formatBytes(button.dataset.videoSize || 0);
-
-        existingMeta.textContent = `${videoPath} • ${videoMime} • ${videoSize}`;
-        existingInfo.classList.remove('d-none');
-    }
-
-    function syncSubTopicVideoSourceFields(form) {
-        if (!form) return;
-
-        const lessonType = form.querySelector('select[name="lesson_type"]')?.value || 'video';
-        const source = form.querySelector('select[name="video_source"]')?.value || 'server';
-        const providerInput = form.querySelector('input[name="video_provider"]');
-
-        const serverWrap = form.querySelector('.subtopic-video-server-wrap');
-        const uploadWrap = form.querySelector('.subtopic-video-upload-wrap');
-        const fileInput = form.querySelector('input[name="video_file"]');
-        const serverSelect = form.querySelector('select[name="server_video_path"]');
-
-        if (providerInput) {
-            providerInput.value = source === 'youtube' ? 'youtube' : 'self_hosted';
-        }
-
-        if (lessonType === 'live_session') {
-            serverWrap?.classList.add('d-none');
-            uploadWrap?.classList.add('d-none');
-
-            if (fileInput) fileInput.value = '';
-            return;
-        }
-
-        if (source === 'youtube') {
-            serverWrap?.classList.add('d-none');
-            uploadWrap?.classList.add('d-none');
-
-            if (fileInput) {
-                fileInput.value = '';
-            }
-
-            if (serverSelect) {
-                serverSelect.value = '';
-            }
-
-            return;
-        }
-
-        if (source === 'upload') {
-            serverWrap?.classList.add('d-none');
-            uploadWrap?.classList.remove('d-none');
-
-            if (serverSelect) {
-                serverSelect.value = '';
-                updateSelectedServerVideoInfo(form);
-            }
-        } else {
-            serverWrap?.classList.remove('d-none');
-            uploadWrap?.classList.add('d-none');
-
-            if (fileInput) {
-                fileInput.value = '';
-                updateSelectedVideoFileInfo(form);
-            }
-
-            loadServerVideos(form, serverSelect?.value || '');
-        }
-    }
-
-    function updateSelectedVideoFileInfo(form) {
-        if (!form) return;
-
-        const fileInput = form.querySelector('input[name="video_file"]');
-        const selectedInfo = form.querySelector('.selected-video-file-info');
-
-        if (!fileInput || !selectedInfo) return;
-
-        const file = fileInput.files?.[0];
-
-        if (!file) {
-            selectedInfo.classList.add('d-none');
-            selectedInfo.innerHTML = '';
-            return;
-        }
-
-        selectedInfo.innerHTML = `
-            <i class="bi bi-check-circle me-1"></i>
-            File dipilih: ${escapeHtml(file.name)} • ${formatBytes(file.size)}
-        `;
-        selectedInfo.classList.remove('d-none');
-    }
-
     function resetFormState(form) {
         form.reset();
 
         if (form.id === 'subTopicForm') {
             setSubTopicEditorValue('');
-            resetSubTopicVideoUploadUI(form);
         }
 
         const idInput = form.querySelector('input[name="id"]');
@@ -1960,13 +2316,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 submitBtn.disabled = true;
-
-                const hasFileUpload = Array.from(form.querySelectorAll('input[type="file"]'))
-                    .some(function (input) {
-                        return input.files && input.files.length > 0;
-                    });
-
-                submitBtn.innerHTML = hasFileUpload ? 'Uploading...' : 'Saving...';
+                submitBtn.innerHTML = 'Saving...';
             }
 
             if (method === 'PUT') {
@@ -2258,8 +2608,6 @@ document.addEventListener('DOMContentLoaded', function () {
             videoFields?.classList.remove('d-none');
             liveFields?.classList.add('d-none');
         }
-
-        syncSubTopicVideoSourceFields(form);
     }
 
     function setupSubTopicModal() {
@@ -2269,73 +2617,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!modalEl || !form) return;
 
         const lessonTypeSelect = form.querySelector('select[name="lesson_type"]');
-        const videoSourceSelect = form.querySelector('select[name="video_source"]');
-        const serverVideoSelect = form.querySelector('select[name="server_video_path"]');
-        const refreshServerVideosBtn = form.querySelector('.refresh-server-videos-btn');
-        const videoFileInput = form.querySelector('input[name="video_file"]');
-        const clearVideoFileBtn = form.querySelector('.clear-video-file-btn');
-        const clearVideoFileInput = form.querySelector('input[name="clear_video_file"]');
-        const existingVideoFileInfo = form.querySelector('.existing-video-file-info');
 
         if (lessonTypeSelect) {
             lessonTypeSelect.addEventListener('change', function () {
                 syncSubTopicLessonFields(form);
-            });
-        }
-
-        if (videoSourceSelect) {
-            videoSourceSelect.addEventListener('change', function () {
-                syncSubTopicVideoSourceFields(form);
-            });
-        }
-
-        if (serverVideoSelect) {
-            serverVideoSelect.addEventListener('change', function () {
-                updateSelectedServerVideoInfo(form);
-
-                if (clearVideoFileInput) {
-                    clearVideoFileInput.value = '0';
-                }
-            });
-        }
-
-        if (refreshServerVideosBtn) {
-            refreshServerVideosBtn.addEventListener('click', function () {
-                loadServerVideos(form, serverVideoSelect?.value || '', true);
-            });
-        }
-
-        if (videoFileInput) {
-            videoFileInput.addEventListener('change', function () {
-                updateSelectedVideoFileInfo(form);
-
-                if (clearVideoFileInput) {
-                    clearVideoFileInput.value = '0';
-                }
-            });
-        }
-
-        if (clearVideoFileBtn) {
-            clearVideoFileBtn.addEventListener('click', function () {
-                if (clearVideoFileInput) {
-                    clearVideoFileInput.value = '1';
-                }
-
-                if (existingVideoFileInfo) {
-                    existingVideoFileInfo.classList.add('d-none');
-                }
-
-                if (serverVideoSelect) {
-                    serverVideoSelect.value = '';
-                    updateSelectedServerVideoInfo(form);
-                }
-
-                if (videoFileInput) {
-                    videoFileInput.value = '';
-                    updateSelectedVideoFileInfo(form);
-                }
-
-                showToast('Video server akan dihapus setelah perubahan disimpan.', 'success');
             });
         }
 
@@ -2355,10 +2640,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitBtn.innerHTML = 'Update Sub Topic';
                 submitBtn.dataset.defaultText = 'Update Sub Topic';
 
-                const hasServerVideo = button.dataset.hasVideoFile === '1' || Boolean(button.dataset.videoPath || '');
-                const hasYoutubeVideo = Boolean(button.dataset.videoUrl || '');
-                const currentVideoSource = hasServerVideo ? 'server' : (hasYoutubeVideo ? 'youtube' : 'server');
-
                 form.querySelector('input[name="id"]').value = button.dataset.id || '';
                 form.querySelector('input[name="_method"]').value = 'PUT';
                 form.querySelector('select[name="topic_id"]').value = button.dataset.topicId || '';
@@ -2368,20 +2649,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('select[name="is_active"]').value = button.dataset.isActive || '1';
 
                 form.querySelector('select[name="lesson_type"]').value = button.dataset.lessonType || 'video';
-                form.querySelector('select[name="video_source"]').value = currentVideoSource;
-                form.querySelector('input[name="video_provider"]').value = currentVideoSource === 'youtube' ? 'youtube' : 'self_hosted';
                 form.querySelector('input[name="video_url"]').value = button.dataset.videoUrl || '';
                 form.querySelector('input[name="video_duration_minutes"]').value = button.dataset.videoDurationMinutes || '';
                 form.querySelector('input[name="thumbnail_url"]').value = button.dataset.thumbnailUrl || '';
                 form.querySelector('input[name="content_format"]').value = button.dataset.contentFormat || 'markdown';
-
-                resetSubTopicVideoUploadUI(form);
-                setExistingVideoFileInfo(form, button);
                 setSubTopicEditorValue(decodeBase64Unicode(button.dataset.contentBase64 || ''));
-
-                if (currentVideoSource === 'server') {
-                    loadServerVideos(form, button.dataset.videoPath || '');
-                }
             } else {
                 title.textContent = 'Add Sub Topic';
                 subtitle.textContent = 'Tambahkan sub topic sebagai unit learning item dan checklist instructor.';
@@ -2389,14 +2661,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitBtn.dataset.defaultText = 'Save Sub Topic';
 
                 form.querySelector('select[name="lesson_type"]').value = 'video';
-                form.querySelector('select[name="video_source"]').value = 'server';
-                form.querySelector('input[name="video_provider"]').value = 'self_hosted';
-                form.querySelector('input[name="video_url"]').value = '';
                 form.querySelector('input[name="content_format"]').value = 'markdown';
-
-                resetSubTopicVideoUploadUI(form);
                 setSubTopicEditorValue('');
-                loadServerVideos(form);
 
                 if (button?.dataset?.topicId) {
                     form.querySelector('select[name="topic_id"]').value = button.dataset.topicId;

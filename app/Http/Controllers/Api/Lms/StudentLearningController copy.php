@@ -14,10 +14,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 
 class StudentLearningController extends Controller
 {
@@ -298,124 +295,6 @@ class StudentLearningController extends Controller
         ]);
     }
 
-    public function streamLessonVideo(Request $request, string $courseSlug, string $lessonSlug)
-    {
-        if (! $request->hasValidSignature()) {
-            abort(403, 'Invalid or expired video link.');
-        }
-
-        $subTopic = $this->resolveSubTopicForVideoStream($courseSlug, $lessonSlug);
-
-        if (! $subTopic) {
-            abort(404, 'Video lesson not found.');
-        }
-
-        if (! $this->hasSelfHostedVideo($subTopic)) {
-            abort(404, 'Video file not available.');
-        }
-
-        $absolutePath = $this->resolveSelfHostedVideoAbsolutePath($subTopic);
-
-        if (! $absolutePath || ! is_file($absolutePath) || ! is_readable($absolutePath)) {
-            abort(404, 'Video file not found on server.');
-        }
-
-        $fileSize = filesize($absolutePath);
-
-        if ($fileSize === false || $fileSize <= 0) {
-            abort(404, 'Invalid video file.');
-        }
-
-        $mimeType = $this->resolveVideoMimeType($subTopic, $absolutePath);
-        $fileName = $this->safeDownloadFileName(basename($absolutePath));
-
-        $start = 0;
-        $end = $fileSize - 1;
-        $status = 200;
-
-        $rangeHeader = $request->headers->get('Range');
-
-        if ($rangeHeader && preg_match('/bytes=(\d*)-(\d*)/', $rangeHeader, $matches)) {
-            $status = 206;
-
-            if ($matches[1] === '' && $matches[2] !== '') {
-                $suffixLength = (int) $matches[2];
-                $start = max($fileSize - $suffixLength, 0);
-            } else {
-                $start = $matches[1] !== '' ? (int) $matches[1] : 0;
-            }
-
-            if ($matches[2] !== '') {
-                $end = min((int) $matches[2], $fileSize - 1);
-            }
-
-            if ($start > $end || $start >= $fileSize) {
-                return response('', 416, [
-                    'Content-Range' => 'bytes */' . $fileSize,
-                    'Accept-Ranges' => 'bytes',
-                ]);
-            }
-        }
-
-        $length = $end - $start + 1;
-
-        $headers = [
-            'Content-Type' => $mimeType,
-            'Content-Length' => (string) $length,
-            'Accept-Ranges' => 'bytes',
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
-            'Cache-Control' => 'private, no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
-            'X-Content-Type-Options' => 'nosniff',
-        ];
-
-        if ($status === 206) {
-            $headers['Content-Range'] = "bytes {$start}-{$end}/{$fileSize}";
-        }
-
-        return response()->stream(function () use ($absolutePath, $start, $end) {
-            $handle = fopen($absolutePath, 'rb');
-
-            if ($handle === false) {
-                return;
-            }
-
-            try {
-                fseek($handle, $start);
-
-                $bytesLeft = $end - $start + 1;
-                $chunkSize = 1024 * 1024;
-
-                while ($bytesLeft > 0 && ! feof($handle)) {
-                    $readLength = min($chunkSize, $bytesLeft);
-                    $buffer = fread($handle, $readLength);
-
-                    if ($buffer === false || $buffer === '') {
-                        break;
-                    }
-
-                    echo $buffer;
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-
-                    flush();
-
-                    $bytesLeft -= strlen($buffer);
-
-                    if (connection_aborted()) {
-                        break;
-                    }
-                }
-            } finally {
-                fclose($handle);
-            }
-        }, $status, $headers);
-    }
-
-
     private function isStudentUser(User $user): bool
     {
         return ($user->user_type ?? null) === 'student'
@@ -526,16 +405,15 @@ class StudentLearningController extends Controller
             ?? 'Untitled Sub Topic';
 
         $slug = $this->getSubTopicSlug($subTopic);
-        $lessonType = $subTopic->lesson_type ?? 'video';
 
-        $videoProvider = $this->resolveSubTopicVideoProvider($subTopic);
-        $videoPlaybackUrl = $this->resolveSubTopicVideoPlaybackUrl($subTopic, $courseSlug, $slug);
-        $videoEmbedUrl = $videoProvider === 'self_hosted'
-            ? $videoPlaybackUrl
-            : $this->normalizeYouTubeEmbedUrl($videoPlaybackUrl);
+        $videoUrl = $this->getColumnValue($subTopic, [
+            'video_url',
+            'video_embed_url',
+            'youtube_url',
+            'content_url',
+        ]);
 
         $duration = $this->resolveSubTopicDuration($subTopic);
-        $durationSeconds = $this->resolveSubTopicDurationSeconds($subTopic, $progress);
 
         $description = $this->getColumnValue($subTopic, [
             'description',
@@ -549,20 +427,6 @@ class StudentLearningController extends Controller
         $contentFormat = $this->getColumnValue($subTopic, [
             'content_format',
         ]) ?: 'markdown';
-
-        $thumbnailUrl = $this->getColumnValue($subTopic, [
-            'thumbnail_url',
-            'thumbnail',
-            'image_url',
-        ]);
-
-        if (! $thumbnailUrl && $lessonType === 'video') {
-            $thumbnailUrl = asset('images/video-thumbnail.png');
-        }
-
-        if (! $thumbnailUrl && $lessonType === 'live_session') {
-            $thumbnailUrl = asset('images/live-session.png');
-        }
 
         $isCompleted = (bool) ($progress?->is_completed ?? false);
 
@@ -592,38 +456,17 @@ class StudentLearningController extends Controller
             'topic_id' => $topic->id ?? null,
             'topic_title' => $topic->name ?? $topic->title ?? '-',
 
-            'lesson_type' => $lessonType,
-            'lessonType' => $lessonType,
-
             'duration' => $duration,
             'duration_label' => $duration,
-            'durationLabel' => $duration,
 
-            'video_provider' => $videoProvider,
-            'videoProvider' => $videoProvider,
-            'has_video' => ! empty($videoPlaybackUrl),
-            'hasVideo' => ! empty($videoPlaybackUrl),
-
-            /**
-             * Untuk self-hosted video, URL ini adalah temporary signed stream URL.
-             * Jangan expose video_path asli ke frontend.
-             */
-            'video_url' => $videoPlaybackUrl,
-            'videoUrl' => $videoPlaybackUrl,
-            'video_embed_url' => $videoEmbedUrl,
-            'videoEmbedUrl' => $videoEmbedUrl,
-
-            'thumbnail_url' => $thumbnailUrl,
-            'thumbnailUrl' => $thumbnailUrl,
-            'image_url' => $thumbnailUrl,
-            'imageUrl' => $thumbnailUrl,
+            'video_url' => $videoUrl,
+            'video_embed_url' => $this->normalizeYouTubeEmbedUrl($videoUrl),
 
             'last_position_seconds' => (int) ($progress?->last_position_seconds ?? 0),
-            'lastPositionSeconds' => (int) ($progress?->last_position_seconds ?? 0),
-            'duration_seconds' => $durationSeconds,
-            'durationSeconds' => $durationSeconds,
+            'duration_seconds' => $progress?->duration_seconds
+                ? (int) $progress->duration_seconds
+                : null,
             'progress_percentage' => (float) ($progress?->progress_percentage ?? 0),
-            'progressPercentage' => (float) ($progress?->progress_percentage ?? 0),
 
             'status' => $status,
             'status_label' => match ($status) {
@@ -631,22 +474,13 @@ class StudentLearningController extends Controller
                 'active' => 'In Progress',
                 default => 'Available',
             },
-            'statusLabel' => match ($status) {
-                'completed' => 'Completed',
-                'active' => 'In Progress',
-                default => 'Available',
-            },
 
             'is_completed' => $isCompleted,
-            'isCompleted' => $isCompleted,
             'is_current' => $isActive,
-            'isCurrent' => $isActive,
             'is_locked' => false,
-            'isLocked' => false,
 
             'url' => '/learn/' . $courseSlug . '/' . $slug,
             'learn_url' => '/learn/' . $courseSlug . '/' . $slug,
-            'learnUrl' => '/learn/' . $courseSlug . '/' . $slug,
         ];
     }
 
@@ -855,13 +689,7 @@ class StudentLearningController extends Controller
             'status' => $status,
 
             'lesson_type' => $subTopic->lesson_type ?? 'video',
-            'lessonType' => $subTopic->lesson_type ?? 'video',
-            'video_provider' => $this->resolveSubTopicVideoProvider($subTopic),
-            'videoProvider' => $this->resolveSubTopicVideoProvider($subTopic),
-            'has_video' => $this->hasAnyVideo($subTopic),
-            'hasVideo' => $this->hasAnyVideo($subTopic),
             'has_content' => $hasContent,
-            'hasContent' => $hasContent,
 
             'progress_percentage' => (float) ($progress?->progress_percentage ?? 0),
             'last_position_seconds' => (int) ($progress?->last_position_seconds ?? 0),
@@ -989,276 +817,6 @@ class StudentLearningController extends Controller
 
         return $assignmentCount + $quizCount;
     }
-
-    private function resolveSubTopicVideoPlaybackUrl($subTopic, string $courseSlug, string $lessonSlug): ?string
-    {
-        if ($this->hasSelfHostedVideo($subTopic)) {
-            return $this->makeSelfHostedVideoSignedUrl($courseSlug, $lessonSlug);
-        }
-
-        return $this->getColumnValue($subTopic, [
-            'video_url',
-            'video_embed_url',
-            'youtube_url',
-            'content_url',
-        ]);
-    }
-
-    private function makeSelfHostedVideoSignedUrl(string $courseSlug, string $lessonSlug): ?string
-    {
-        $routeName = $this->resolveVideoStreamRouteName();
-
-        if (! $routeName) {
-            return null;
-        }
-
-        return URL::temporarySignedRoute(
-            $routeName,
-            now()->addHours(2),
-            [
-                'courseSlug' => $courseSlug,
-                'lessonSlug' => $lessonSlug,
-            ]
-        );
-    }
-
-    private function resolveVideoStreamRouteName(): ?string
-    {
-        foreach ([
-            'lms.student.learn.video',
-            'api.lms.student.learn.video',
-            'lms.student.learning.video',
-            'api.lms.student.learning.video',
-        ] as $routeName) {
-            if (Route::has($routeName)) {
-                return $routeName;
-            }
-        }
-
-        return null;
-    }
-
-    private function resolveSubTopicForVideoStream(string $courseSlug, string $lessonSlug)
-    {
-        $normalizedCourseSlug = $this->slugify($courseSlug);
-        $normalizedLessonSlug = $this->slugify($lessonSlug);
-
-        $query = SubTopic::query()
-            ->with([
-                'topic.module.stage.program',
-            ]);
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        return $query
-            ->get()
-            ->first(function ($subTopic) use ($normalizedCourseSlug, $normalizedLessonSlug, $courseSlug, $lessonSlug) {
-                $program = $subTopic->topic?->module?->stage?->program;
-
-                if (! $program) {
-                    return false;
-                }
-
-                $programSlug = $this->getProgramSlug($program);
-                $subTopicSlug = $this->getSubTopicSlug($subTopic);
-
-                $courseMatches = $programSlug === $normalizedCourseSlug
-                    || (string) $program->id === (string) $courseSlug;
-
-                $lessonMatches = $subTopicSlug === $normalizedLessonSlug
-                    || (string) $subTopic->id === (string) $lessonSlug;
-
-                return $courseMatches && $lessonMatches;
-            });
-    }
-
-    private function resolveSubTopicVideoProvider($subTopic): ?string
-    {
-        $provider = $this->getColumnValue($subTopic, [
-            'video_provider',
-        ]);
-
-        if ($provider) {
-            return (string) $provider;
-        }
-
-        if ($this->hasSelfHostedVideo($subTopic)) {
-            return 'self_hosted';
-        }
-
-        $videoUrl = $this->getColumnValue($subTopic, [
-            'video_url',
-            'video_embed_url',
-            'youtube_url',
-            'content_url',
-        ]);
-
-        if ($videoUrl && $this->isYouTubeUrl((string) $videoUrl)) {
-            return 'youtube';
-        }
-
-        if ($videoUrl) {
-            return 'external';
-        }
-
-        return null;
-    }
-
-    private function hasAnyVideo($subTopic): bool
-    {
-        if ($this->hasSelfHostedVideo($subTopic)) {
-            return true;
-        }
-
-        return (bool) $this->getColumnValue($subTopic, [
-            'video_url',
-            'video_embed_url',
-            'youtube_url',
-            'content_url',
-        ]);
-    }
-
-    private function hasSelfHostedVideo($subTopic): bool
-    {
-        return (bool) $this->getColumnValue($subTopic, [
-            'video_path',
-        ]);
-    }
-
-    private function resolveSubTopicDurationSeconds($subTopic, ?StudentLessonProgress $progress = null): ?int
-    {
-        if ($progress?->duration_seconds) {
-            return (int) $progress->duration_seconds;
-        }
-
-        $durationSeconds = $this->getColumnValue($subTopic, [
-            'video_duration_seconds',
-            'duration_seconds',
-        ]);
-
-        if ($durationSeconds) {
-            return (int) $durationSeconds;
-        }
-
-        $durationMinutes = $this->getColumnValue($subTopic, [
-            'video_duration_minutes',
-            'duration_minutes',
-        ]);
-
-        if ($durationMinutes) {
-            return (int) $durationMinutes * 60;
-        }
-
-        return null;
-    }
-
-    private function resolveSelfHostedVideoAbsolutePath($subTopic): ?string
-    {
-        $videoPath = $this->sanitizeVideoPath(
-            $this->getColumnValue($subTopic, [
-                'video_path',
-            ])
-        );
-
-        if (! $videoPath) {
-            return null;
-        }
-
-        $diskName = $this->getColumnValue($subTopic, [
-            'video_disk',
-        ]) ?: 'private';
-
-        $diskPath = $this->resolveLocalDiskVideoPath((string) $diskName, $videoPath);
-
-        if ($diskPath) {
-            return $diskPath;
-        }
-
-        foreach ([
-            storage_path('app/private/' . $videoPath),
-            storage_path('app/' . $videoPath),
-            storage_path('app/public/' . $videoPath),
-            public_path($videoPath),
-        ] as $candidatePath) {
-            if (is_file($candidatePath) && is_readable($candidatePath)) {
-                return $candidatePath;
-            }
-        }
-
-        return null;
-    }
-
-    private function resolveLocalDiskVideoPath(string $diskName, string $videoPath): ?string
-    {
-        $diskConfig = config('filesystems.disks.' . $diskName);
-
-        if (! $diskConfig || ($diskConfig['driver'] ?? null) !== 'local') {
-            return null;
-        }
-
-        try {
-            if (! Storage::disk($diskName)->exists($videoPath)) {
-                return null;
-            }
-
-            $absolutePath = Storage::disk($diskName)->path($videoPath);
-
-            return is_file($absolutePath) && is_readable($absolutePath)
-                ? $absolutePath
-                : null;
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-
-    private function sanitizeVideoPath($path): ?string
-    {
-        $path = trim(str_replace('\\', '/', (string) $path));
-        $path = ltrim($path, '/');
-
-        if ($path === '' || str_contains($path, '../') || str_contains($path, '..\\') || str_contains($path, '..')) {
-            return null;
-        }
-
-        return $path;
-    }
-
-    private function resolveVideoMimeType($subTopic, string $absolutePath): string
-    {
-        $storedMime = $this->getColumnValue($subTopic, [
-            'video_mime',
-            'mime_type',
-        ]);
-
-        if ($storedMime) {
-            return (string) $storedMime;
-        }
-
-        $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
-
-        return match ($extension) {
-            'webm' => 'video/webm',
-            'mov' => 'video/quicktime',
-            'm4v' => 'video/x-m4v',
-            'ogg', 'ogv' => 'video/ogg',
-            default => 'video/mp4',
-        };
-    }
-
-    private function safeDownloadFileName(string $fileName): string
-    {
-        $fileName = str_replace(["\r", "\n", '"'], '', $fileName);
-
-        return $fileName !== '' ? $fileName : 'lesson-video.mp4';
-    }
-
-    private function isYouTubeUrl(string $url): bool
-    {
-        return str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be');
-    }
-
 
     private function resolveSubTopicDuration($subTopic): ?string
     {

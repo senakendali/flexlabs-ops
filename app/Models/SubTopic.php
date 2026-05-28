@@ -30,6 +30,13 @@ class SubTopic extends Model
         'video_url',
         'video_duration_minutes',
         'thumbnail_url',
+
+        'video_provider',
+        'video_disk',
+        'video_path',
+        'video_mime',
+        'video_size',
+        'video_duration_seconds',
     ];
 
     protected $casts = [

@@ -114,6 +114,10 @@ Route::prefix('lms/student')->group(function () {
     */
     Route::post('/login', [StudentAuthController::class, 'login']);
 
+    Route::get('/learn/{courseSlug}/{lessonSlug}/video', [StudentLearningController::class, 'streamLessonVideo'])
+    ->middleware('signed')
+    ->name('lms.student.learn.video');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [StudentAuthController::class, 'me']);
         Route::post('/logout', [StudentAuthController::class, 'logout']);
@@ -142,6 +146,7 @@ Route::prefix('lms/student')->group(function () {
         */
         Route::get('/learn/{courseSlug}/{lessonSlug}', [StudentLearningController::class, 'show']);
         Route::post('/learn/{courseSlug}/{lessonSlug}/progress', [StudentLearningController::class, 'saveProgress']);
+        
 
         /*
         |--------------------------------------------------------------------------

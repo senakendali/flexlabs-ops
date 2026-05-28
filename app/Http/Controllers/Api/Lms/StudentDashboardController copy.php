@@ -2117,6 +2117,29 @@ class StudentDashboardController extends Controller
 
     private function resolveSubTopicThumbnailUrl($subTopic, ?string $videoUrl = null): string
     {
+        $thumbnail = $this->getColumnValue($subTopic, [
+            'thumbnail_url',
+            'thumbnail',
+            'image',
+            'image_url',
+            'cover',
+            'cover_url',
+        ]);
+
+        if ($thumbnail) {
+            return (string) $thumbnail;
+        }
+
+        $resolvedVideoUrl = $videoUrl ?: $this->resolveSubTopicVideoUrl($subTopic);
+
+        if ($resolvedVideoUrl) {
+            $youtubeId = $this->extractYoutubeVideoId($resolvedVideoUrl);
+
+            if ($youtubeId) {
+                return "https://img.youtube.com/vi/{$youtubeId}/maxresdefault.jpg";
+            }
+        }
+
         $lessonType = strtolower((string) $this->getColumnValue($subTopic, [
             'lesson_type',
             'type',
@@ -2124,19 +2147,9 @@ class StudentDashboardController extends Controller
         ]));
 
         if (in_array($lessonType, ['live', 'live_session', 'live-session', 'mentoring', 'offline', 'online'], true)) {
-            return $this->defaultLiveSessionThumbnailUrl();
+            return asset('images/live-session.png');
         }
 
-        return $this->defaultVideoThumbnailUrl();
-    }
-
-    private function defaultVideoThumbnailUrl(): string
-    {
-        return asset('images/video-thumbnail.png');
-    }
-
-    private function defaultLiveSessionThumbnailUrl(): string
-    {
         return asset('images/live-session.png');
     }
 
@@ -2432,8 +2445,6 @@ class StudentDashboardController extends Controller
         $title = $this->getColumnValue($subTopic, ['name', 'title']) ?: 'Untitled Material';
         $type = $this->getColumnValue($subTopic, ['lesson_type', 'type']) ?: 'lesson';
         $url = $this->resolveLearningTimelineUrl($subTopic);
-        $videoUrl = $this->resolveSubTopicVideoUrl($subTopic);
-        $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($subTopic, $videoUrl);
 
         return [
             'id' => $subTopic->id,
@@ -2453,13 +2464,6 @@ class StudentDashboardController extends Controller
             'type' => $type,
             'lesson_type' => $type,
             'lessonType' => $type,
-
-            'thumbnail_url' => $thumbnailUrl,
-            'thumbnailUrl' => $thumbnailUrl,
-            'image_url' => $thumbnailUrl,
-            'imageUrl' => $thumbnailUrl,
-            'video_url' => $videoUrl,
-            'videoUrl' => $videoUrl,
 
             'status' => $status,
             'progress_status' => $status,
