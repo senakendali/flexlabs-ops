@@ -176,6 +176,11 @@ return [
             'public_learning_materials.update',
             'public_learning_materials.delete',
 
+            'learning_videos.view',
+            'learning_videos.create',
+            'learning_videos.update',
+            'learning_videos.delete',
+
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
@@ -466,6 +471,7 @@ return [
                 'students.*',
                 'curriculum.*',
                 'public-learning-materials.*',
+                'academic.learning-videos.*',
                 'assignments.*',
                 'batch-assignments.*',
                 'assignment-submissions.*',
@@ -534,6 +540,14 @@ return [
                             'icon' => 'bi bi-diagram-3-fill',
                             'permission' => 'curriculum.view',
                             'desc' => 'Stage, module, topic, dan sub topic.',
+                        ],
+                        [
+                            'label' => 'Learning Videos',
+                            'route' => 'academic.learning-videos.index',
+                            'active' => ['academic.learning-videos.*'],
+                            'icon' => 'bi bi-cloud-arrow-up-fill',
+                            'permission' => 'learning_videos.view',
+                            'desc' => 'Upload video materi ke folder learning-videos dengan drag and drop.',
                         ],
                         [
                             'label' => 'Student Enrollment',

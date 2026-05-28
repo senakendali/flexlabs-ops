@@ -51,7 +51,6 @@ use App\Http\Controllers\Academic\PublicLearningMaterialController;
 use App\Http\Controllers\Academic\PublicLearningMaterialBlockController;
 use App\Http\Controllers\Academic\PublicLearningMaterialImageController;
 use App\Http\Controllers\Academic\PublicLearningMaterialPageController;
-use App\Http\Controllers\Academic\LearningVideoController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
 use App\Http\Controllers\Marketing\MarketingDashboardController;
@@ -597,43 +596,6 @@ Route::middleware('auth')->group(function () {
         ->name('server-videos');
         
     });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Academic - Learning Videos
-    |--------------------------------------------------------------------------
-    | Upload manager untuk file video materi.
-    | Lokasi file:
-    | - storage/app/private/learning-videos
-    |
-    | Route names:
-    | - academic.learning-videos.index
-    | - academic.learning-videos.store
-    | - academic.learning-videos.stream
-    | - academic.learning-videos.destroy
-    |--------------------------------------------------------------------------
-    */
-    Route::prefix('academic/learning-videos')
-        ->name('academic.learning-videos.')
-        ->middleware('permission:learning_videos.view')
-        ->controller(LearningVideoController::class)
-        ->group(function () {
-            Route::get('/', 'index')
-                ->name('index');
-
-            Route::post('/', 'store')
-                ->middleware('permission:learning_videos.create')
-                ->name('store');
-
-            Route::get('/{filename}/stream', 'stream')
-                ->where('filename', '[A-Za-z0-9_\-\.]+')
-                ->name('stream');
-
-            Route::delete('/{filename}', 'destroy')
-                ->where('filename', '[A-Za-z0-9_\-\.]+')
-                ->middleware('permission:learning_videos.delete')
-                ->name('destroy');
-        });
 
     /*
     |--------------------------------------------------------------------------
