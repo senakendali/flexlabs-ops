@@ -227,6 +227,47 @@ class StudentCourseController extends Controller
         $instructorId = null;
         $courseTable = $course->_source_table ?? null;
 
+        $batchId = $enrollment?->batch_id ?? null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve program_id
+        |--------------------------------------------------------------------------
+        |
+        | Kalau course berasal dari table programs, maka course->id adalah program_id.
+        | Kalau course berasal dari table lain yang punya program_id, gunakan program_id.
+        |
+        */
+        $programId = null;
+
+        if (! empty($course->program_id)) {
+            $programId = $course->program_id;
+        } elseif ($courseTable === 'programs' && ! empty($course->id)) {
+            $programId = $course->id;
+        } elseif (! empty($course->id)) {
+            $programId = $course->id;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Optional batch record
+        |--------------------------------------------------------------------------
+        */
+        $batch = null;
+
+        if (
+            $batchId
+            && Schema::hasTable('batches')
+        ) {
+            $batch = DB::table('batches')
+                ->where('id', $batchId)
+                ->first();
+
+            if (! $programId && $batch && isset($batch->program_id) && ! empty($batch->program_id)) {
+                $programId = $batch->program_id;
+            }
+        }
+
         /*
         |--------------------------------------------------------------------------
         | 1. Direct instructor_id dari programs/courses
@@ -243,29 +284,87 @@ class StudentCourseController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | 2. Instructor dari batch student
+        | 2. Instructor dari instructor_teaching_scopes
         |--------------------------------------------------------------------------
+        |
+        | Ini sumber utama untuk assign instructor ke program/batch.
+        |
         */
         if (
             ! $instructorId
-            && $enrollment
-            && ! empty($enrollment->batch_id)
-            && Schema::hasTable('batches')
-            && Schema::hasColumn('batches', 'instructor_id')
+            && Schema::hasTable('instructor_teaching_scopes')
+            && Schema::hasColumn('instructor_teaching_scopes', 'instructor_id')
         ) {
-            $batch = DB::table('batches')
-                ->where('id', $enrollment->batch_id)
-                ->first();
+            $scopeQuery = DB::table('instructor_teaching_scopes')
+                ->whereNotNull('instructor_id');
 
-            if ($batch?->instructor_id) {
-                $instructorId = $batch->instructor_id;
+            if (Schema::hasColumn('instructor_teaching_scopes', 'status')) {
+                $scopeQuery->where('status', 'active');
+            }
+
+            if (
+                $programId
+                && Schema::hasColumn('instructor_teaching_scopes', 'program_id')
+            ) {
+                $scopeQuery->where('program_id', $programId);
+            }
+
+            if (
+                $batchId
+                && Schema::hasColumn('instructor_teaching_scopes', 'batch_id')
+            ) {
+                $scopeQuery->where(function ($query) use ($batchId) {
+                    $query->where('batch_id', $batchId)
+                        ->orWhereNull('batch_id');
+                });
+            }
+
+            if (Schema::hasColumn('instructor_teaching_scopes', 'teaching_role')) {
+                $scopeQuery->orderByRaw("
+                    CASE teaching_role
+                        WHEN 'primary_instructor' THEN 1
+                        WHEN 'assistant_instructor' THEN 2
+                        WHEN 'mentor' THEN 3
+                        WHEN 'reviewer' THEN 4
+                        ELSE 5
+                    END
+                ");
+            }
+
+            $scopeQuery->orderByDesc('id');
+
+            $scope = $scopeQuery->first();
+
+            if ($scope?->instructor_id) {
+                $instructorId = $scope->instructor_id;
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | 3. Instructor dari instructor_schedules
+        | 3. Instructor dari batch student
         |--------------------------------------------------------------------------
+        |
+        | Legacy fallback kalau batches masih punya instructor_id.
+        |
+        */
+        if (
+            ! $instructorId
+            && $batch
+            && Schema::hasTable('batches')
+            && Schema::hasColumn('batches', 'instructor_id')
+            && ! empty($batch->instructor_id)
+        ) {
+            $instructorId = $batch->instructor_id;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 4. Instructor dari instructor_schedules
+        |--------------------------------------------------------------------------
+        |
+        | Fallback terakhir karena instructor_schedules hanya untuk live session.
+        |
         */
         if (! $instructorId && Schema::hasTable('instructor_schedules')) {
             $scheduleQuery = DB::table('instructor_schedules')
@@ -274,20 +373,19 @@ class StudentCourseController extends Controller
             $hasScheduleFilter = false;
 
             if (
-                $enrollment
-                && ! empty($enrollment->batch_id)
+                $batchId
                 && Schema::hasColumn('instructor_schedules', 'batch_id')
             ) {
-                $scheduleQuery->where('batch_id', $enrollment->batch_id);
+                $scheduleQuery->where('batch_id', $batchId);
                 $hasScheduleFilter = true;
             }
 
             if (
                 ! $hasScheduleFilter
-                && ! empty($course->id)
+                && $programId
                 && Schema::hasColumn('instructor_schedules', 'program_id')
             ) {
-                $scheduleQuery->where('program_id', $course->id);
+                $scheduleQuery->where('program_id', $programId);
                 $hasScheduleFilter = true;
             }
 
