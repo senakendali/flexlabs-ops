@@ -485,9 +485,25 @@
                                                                                                             <div class="subtopic-learning-meta">
                                                                                                                 @if(($subTopic->lesson_type ?? 'video') === 'video')
                                                                                                                     @if($hasSubTopicVideo)
+                                                                                                                        @php
+                                                                                                                            $videoProviderLabel = match ($subTopicVideoProvider) {
+                                                                                                                                'self_hosted' => 'Server Video',
+                                                                                                                                'bunny' => 'Bunny Stream',
+                                                                                                                                'youtube' => 'YouTube / External Video',
+                                                                                                                                default => 'External Video',
+                                                                                                                            };
+
+                                                                                                                            $videoProviderIcon = match ($subTopicVideoProvider) {
+                                                                                                                                'self_hosted' => 'bi-hdd-network',
+                                                                                                                                'bunny' => 'bi-cloud-play',
+                                                                                                                                'youtube' => 'bi-youtube',
+                                                                                                                                default => 'bi-play-circle',
+                                                                                                                            };
+                                                                                                                        @endphp
+
                                                                                                                         <span>
-                                                                                                                            <i class="bi {{ $subTopicVideoProvider === 'self_hosted' ? 'bi-hdd-network' : 'bi-youtube' }} me-1"></i>
-                                                                                                                            {{ $subTopicVideoProvider === 'self_hosted' ? 'Server Video' : 'YouTube / External Video' }}
+                                                                                                                            <i class="bi {{ $videoProviderIcon }} me-1"></i>
+                                                                                                                            {{ $videoProviderLabel }}
                                                                                                                         </span>
 
                                                                                                                         @if(!empty($subTopic->video_duration_minutes))
@@ -975,15 +991,15 @@
                                         <select name="video_source" class="form-select">
                                             <option value="server">Get from Server</option>
                                             <option value="upload">Upload Video</option>
-                                            <option value="youtube" class="d-none">YouTube / External URL (Legacy)</option>
+                                            <option value="bunny">Bunny Stream</option>
+                                            <option value="youtube">YouTube / External URL</option>
                                         </select>
 
                                         <input type="hidden" name="video_provider" value="self_hosted">
-                                        <input type="hidden" name="video_url" value="">
                                         <input type="hidden" name="clear_video_file" value="0">
 
                                         <div class="form-text">
-                                            Default-nya gunakan file video yang sudah tersedia di storage server.
+                                            Pilih Server/Upload untuk video lokal, Bunny Stream untuk embed Bunny, atau YouTube/External untuk link video lama.
                                         </div>
                                     </div>
 
@@ -1023,6 +1039,22 @@
                                         </div>
 
                                         <div class="selected-video-file-info d-none mt-3"></div>
+                                    </div>
+
+                                    <div class="col-12 subtopic-video-url-wrap d-none">
+                                        <label class="form-label">Video URL</label>
+                                        <input
+                                            type="url"
+                                            name="video_url"
+                                            class="form-control"
+                                            placeholder="https://player.mediadelivery.net/embed/library-id/video-id"
+                                        >
+
+                                        <div class="form-text video-url-help">
+                                            Masukkan Bunny Stream embed URL dari dashboard Bunny.
+                                        </div>
+
+                                        <div class="selected-video-url-info d-none mt-3"></div>
                                     </div>
 
                                     <div class="col-12 existing-video-file-info d-none">
@@ -1536,6 +1568,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const selectedUploadInfo = form.querySelector('.selected-video-file-info');
         const selectedServerInfo = form.querySelector('.selected-server-video-info');
+        const selectedUrlInfo = form.querySelector('.selected-video-url-info');
         const existingInfo = form.querySelector('.existing-video-file-info');
         const existingMeta = form.querySelector('.existing-video-file-meta');
         const clearInput = form.querySelector('input[name="clear_video_file"]');
@@ -1550,6 +1583,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (selectedServerInfo) {
             selectedServerInfo.classList.add('d-none');
             selectedServerInfo.innerHTML = '';
+        }
+
+        if (selectedUrlInfo) {
+            selectedUrlInfo.classList.add('d-none');
+            selectedUrlInfo.innerHTML = '';
         }
 
         if (existingInfo) {
@@ -1704,32 +1742,77 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const serverWrap = form.querySelector('.subtopic-video-server-wrap');
         const uploadWrap = form.querySelector('.subtopic-video-upload-wrap');
+        const urlWrap = form.querySelector('.subtopic-video-url-wrap');
+
         const fileInput = form.querySelector('input[name="video_file"]');
         const serverSelect = form.querySelector('select[name="server_video_path"]');
+        const videoUrlInput = form.querySelector('input[name="video_url"]');
+        const videoUrlHelp = form.querySelector('.video-url-help');
+        const clearVideoFileInput = form.querySelector('input[name="clear_video_file"]');
+        const existingVideoFileInfo = form.querySelector('.existing-video-file-info');
 
         if (providerInput) {
-            providerInput.value = source === 'youtube' ? 'youtube' : 'self_hosted';
+            if (source === 'bunny') {
+                providerInput.value = 'bunny';
+            } else if (source === 'youtube') {
+                providerInput.value = 'youtube';
+            } else {
+                providerInput.value = 'self_hosted';
+            }
         }
 
         if (lessonType === 'live_session') {
             serverWrap?.classList.add('d-none');
             uploadWrap?.classList.add('d-none');
+            urlWrap?.classList.add('d-none');
 
             if (fileInput) fileInput.value = '';
+            if (serverSelect) serverSelect.value = '';
+            if (videoUrlInput) videoUrlInput.value = '';
+            if (clearVideoFileInput) clearVideoFileInput.value = '1';
+            existingVideoFileInfo?.classList.add('d-none');
+
+            updateSelectedVideoFileInfo(form);
+            updateSelectedServerVideoInfo(form);
+            updateSelectedVideoUrlInfo(form);
+
             return;
         }
 
-        if (source === 'youtube') {
+        if (source === 'bunny' || source === 'youtube') {
             serverWrap?.classList.add('d-none');
             uploadWrap?.classList.add('d-none');
+            urlWrap?.classList.remove('d-none');
 
             if (fileInput) {
                 fileInput.value = '';
+                updateSelectedVideoFileInfo(form);
             }
 
             if (serverSelect) {
                 serverSelect.value = '';
+                updateSelectedServerVideoInfo(form);
             }
+
+            if (clearVideoFileInput) {
+                clearVideoFileInput.value = '1';
+            }
+
+            existingVideoFileInfo?.classList.add('d-none');
+
+            if (videoUrlInput) {
+                videoUrlInput.placeholder = source === 'bunny'
+                    ? 'https://player.mediadelivery.net/embed/library-id/video-id'
+                    : 'https://youtube.com/watch?v=... atau embed URL lain';
+            }
+
+            if (videoUrlHelp) {
+                videoUrlHelp.textContent = source === 'bunny'
+                    ? 'Masukkan Bunny Stream embed URL dari dashboard Bunny.'
+                    : 'Masukkan URL YouTube atau external video.';
+            }
+
+            updateSelectedVideoUrlInfo(form);
 
             return;
         }
@@ -1737,22 +1820,46 @@ document.addEventListener('DOMContentLoaded', function () {
         if (source === 'upload') {
             serverWrap?.classList.add('d-none');
             uploadWrap?.classList.remove('d-none');
+            urlWrap?.classList.add('d-none');
 
             if (serverSelect) {
                 serverSelect.value = '';
                 updateSelectedServerVideoInfo(form);
             }
-        } else {
-            serverWrap?.classList.remove('d-none');
-            uploadWrap?.classList.add('d-none');
 
-            if (fileInput) {
-                fileInput.value = '';
-                updateSelectedVideoFileInfo(form);
+            if (videoUrlInput) {
+                videoUrlInput.value = '';
+                updateSelectedVideoUrlInfo(form);
             }
 
-            loadServerVideos(form, serverSelect?.value || '');
+            if (clearVideoFileInput) {
+                clearVideoFileInput.value = '0';
+            }
+
+            existingVideoFileInfo?.classList.add('d-none');
+
+            return;
         }
+
+        serverWrap?.classList.remove('d-none');
+        uploadWrap?.classList.add('d-none');
+        urlWrap?.classList.add('d-none');
+
+        if (fileInput) {
+            fileInput.value = '';
+            updateSelectedVideoFileInfo(form);
+        }
+
+        if (videoUrlInput) {
+            videoUrlInput.value = '';
+            updateSelectedVideoUrlInfo(form);
+        }
+
+        if (clearVideoFileInput) {
+            clearVideoFileInput.value = '0';
+        }
+
+        loadServerVideos(form, serverSelect?.value || '');
     }
 
     function updateSelectedVideoFileInfo(form) {
@@ -1774,6 +1881,33 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedInfo.innerHTML = `
             <i class="bi bi-check-circle me-1"></i>
             File dipilih: ${escapeHtml(file.name)} • ${formatBytes(file.size)}
+        `;
+        selectedInfo.classList.remove('d-none');
+    }
+
+    function updateSelectedVideoUrlInfo(form) {
+        if (!form) return;
+
+        const videoUrlInput = form.querySelector('input[name="video_url"]');
+        const selectedInfo = form.querySelector('.selected-video-url-info');
+        const source = form.querySelector('select[name="video_source"]')?.value || 'server';
+
+        if (!videoUrlInput || !selectedInfo) return;
+
+        const videoUrl = (videoUrlInput.value || '').trim();
+
+        if (!videoUrl || (source !== 'bunny' && source !== 'youtube')) {
+            selectedInfo.classList.add('d-none');
+            selectedInfo.innerHTML = '';
+            return;
+        }
+
+        const label = source === 'bunny' ? 'Bunny Stream URL' : 'External Video URL';
+
+        selectedInfo.innerHTML = `
+            <i class="bi bi-link-45deg me-1"></i>
+            <strong>${escapeHtml(label)}</strong><br>
+            ${escapeHtml(videoUrl)}
         `;
         selectedInfo.classList.remove('d-none');
     }
@@ -2275,6 +2409,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const videoFileInput = form.querySelector('input[name="video_file"]');
         const clearVideoFileBtn = form.querySelector('.clear-video-file-btn');
         const clearVideoFileInput = form.querySelector('input[name="clear_video_file"]');
+        const videoUrlInput = form.querySelector('input[name="video_url"]');
         const existingVideoFileInfo = form.querySelector('.existing-video-file-info');
 
         if (lessonTypeSelect) {
@@ -2286,6 +2421,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (videoSourceSelect) {
             videoSourceSelect.addEventListener('change', function () {
                 syncSubTopicVideoSourceFields(form);
+            });
+        }
+
+        if (videoUrlInput) {
+            videoUrlInput.addEventListener('input', function () {
+                updateSelectedVideoUrlInfo(form);
             });
         }
 
@@ -2335,7 +2476,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     updateSelectedVideoFileInfo(form);
                 }
 
-                showToast('Video server akan dihapus setelah perubahan disimpan.', 'success');
+                if (videoUrlInput) {
+                    videoUrlInput.value = '';
+                    updateSelectedVideoUrlInfo(form);
+                }
+
+                showToast('Video akan dihapus setelah perubahan disimpan.', 'success');
             });
         }
 
@@ -2355,9 +2501,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 submitBtn.innerHTML = 'Update Sub Topic';
                 submitBtn.dataset.defaultText = 'Update Sub Topic';
 
+                const currentProvider = button.dataset.videoProvider || '';
                 const hasServerVideo = button.dataset.hasVideoFile === '1' || Boolean(button.dataset.videoPath || '');
-                const hasYoutubeVideo = Boolean(button.dataset.videoUrl || '');
-                const currentVideoSource = hasServerVideo ? 'server' : (hasYoutubeVideo ? 'youtube' : 'server');
+                const hasExternalVideo = Boolean(button.dataset.videoUrl || '');
+
+                let currentVideoSource = 'server';
+
+                if (currentProvider === 'bunny') {
+                    currentVideoSource = 'bunny';
+                } else if (currentProvider === 'youtube') {
+                    currentVideoSource = 'youtube';
+                } else if (hasServerVideo) {
+                    currentVideoSource = 'server';
+                } else if (hasExternalVideo) {
+                    currentVideoSource = 'youtube';
+                }
 
                 form.querySelector('input[name="id"]').value = button.dataset.id || '';
                 form.querySelector('input[name="_method"]').value = 'PUT';
@@ -2369,7 +2527,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 form.querySelector('select[name="lesson_type"]').value = button.dataset.lessonType || 'video';
                 form.querySelector('select[name="video_source"]').value = currentVideoSource;
-                form.querySelector('input[name="video_provider"]').value = currentVideoSource === 'youtube' ? 'youtube' : 'self_hosted';
+                form.querySelector('input[name="video_provider"]').value = currentVideoSource === 'bunny'
+                    ? 'bunny'
+                    : (currentVideoSource === 'youtube' ? 'youtube' : 'self_hosted');
                 form.querySelector('input[name="video_url"]').value = button.dataset.videoUrl || '';
                 form.querySelector('input[name="video_duration_minutes"]').value = button.dataset.videoDurationMinutes || '';
                 form.querySelector('input[name="thumbnail_url"]').value = button.dataset.thumbnailUrl || '';

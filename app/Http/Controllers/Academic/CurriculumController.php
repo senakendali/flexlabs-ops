@@ -713,10 +713,10 @@ class CurriculumController extends Controller
 
             'lesson_type' => ['nullable', 'string', 'in:video,live_session'],
 
-            // Legacy/external video support.
-            'video_provider' => ['nullable', 'string', 'in:youtube,self_hosted,server,upload'],
-            'video_source' => ['nullable', 'string', 'in:youtube,self_hosted,server,upload'],
-            'video_url' => ['nullable', 'url'],
+            // Video source support.
+            'video_provider' => ['nullable', 'string', 'in:youtube,bunny,self_hosted,server,upload'],
+            'video_source' => ['nullable', 'string', 'in:youtube,bunny,self_hosted,server,upload'],
+            'video_url' => ['nullable', 'url', 'max:2048'],
 
             // Get from server support.
             'server_video_path' => ['nullable', 'string', 'max:5000'],
@@ -774,12 +774,22 @@ class CurriculumController extends Controller
 
         $videoSource = $this->resolveVideoSource($request, $validated, $subTopic);
 
-        if ($videoSource === 'youtube') {
+        if (in_array($videoSource, ['bunny', 'youtube'], true)) {
             $this->deleteOwnedSubTopicVideo($subTopic);
 
+            $videoUrl = $validated['video_url'] ?? null;
+
+            if (! $videoUrl) {
+                throw ValidationException::withMessages([
+                    'video_url' => [$videoSource === 'bunny'
+                        ? 'Bunny Stream URL wajib diisi.'
+                        : 'Video URL wajib diisi.'],
+                ]);
+            }
+
             return array_merge($basePayload, [
-                'video_provider' => ! empty($validated['video_url']) ? 'youtube' : null,
-                'video_url' => $validated['video_url'] ?? null,
+                'video_provider' => $videoSource,
+                'video_url' => $videoUrl,
             ]);
         }
 
@@ -866,7 +876,7 @@ class CurriculumController extends Controller
             return 'upload';
         }
 
-        if (in_array($source, ['youtube', 'upload', 'server'], true)) {
+        if (in_array($source, ['youtube', 'bunny', 'upload', 'server'], true)) {
             return $source;
         }
 
@@ -887,7 +897,7 @@ class CurriculumController extends Controller
         }
 
         if (! empty($validated['video_url'])) {
-            return 'youtube';
+            return $subTopic && $subTopic->video_provider === 'bunny' ? 'bunny' : 'youtube';
         }
 
         if ($subTopic && $subTopic->video_path) {
