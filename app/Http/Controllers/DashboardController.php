@@ -54,7 +54,7 @@ class DashboardController extends Controller
 
             if ($batchActiveColumn === 'is_active') {
                 $query->where('is_active', 1);
-            }elseif ($batchActiveColumn === 'status') {
+            } elseif ($batchActiveColumn === 'status') {
                 $query->whereIn('status', $this->getActiveBatchStatuses());
             }
 
@@ -108,7 +108,7 @@ class DashboardController extends Controller
 
         if ($activeColumn === 'is_active') {
             $batchQuery->where('is_active', 1);
-        }elseif ($activeColumn === 'status') {
+        } elseif ($activeColumn === 'status') {
             $batchQuery->whereIn('status', $this->getActiveBatchStatuses());
         }
 
@@ -154,11 +154,23 @@ class DashboardController extends Controller
             ];
         }
 
-        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
-        $dateColumn = $this->findExistingColumn($paymentsTable, ['paid_at', 'payment_date', 'created_at']);
+        $amountColumn = $this->findExistingColumn($paymentsTable, [
+            'amount',
+            'paid_amount',
+            'total_amount',
+        ]);
+
+        /**
+         * Pakai fallback tanggal supaya data lama dan data baru tetap ikut.
+         * Prioritas:
+         * 1. payment_date  -> standar terbaru
+         * 2. paid_at       -> data lama / legacy
+         * 3. created_at    -> fallback kalau dua tanggal di atas kosong/tidak ada
+         */
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
         $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
 
-        if (! $amountColumn || ! $dateColumn) {
+        if (! $amountColumn || ! $dateExpression) {
             return [
                 'year' => $year,
                 'labels' => $labels,
@@ -167,23 +179,24 @@ class DashboardController extends Controller
             ];
         }
 
-        $query = DB::table($paymentsTable)
-            ->selectRaw('MONTH(' . $dateColumn . ') as month_number, SUM(' . $amountColumn . ') as total_amount')
-            ->whereYear($dateColumn, $year);
+        $amountExpression = $this->wrapColumn($amountColumn);
 
-        if ($statusColumn === 'status') {
-            $query->whereIn('status', ['paid', 'success', 'settled']);
-        } elseif ($statusColumn === 'payment_status') {
-            $query->whereIn('payment_status', ['paid', 'success', 'settled']);
+        $query = DB::table($paymentsTable)
+            ->selectRaw('MONTH(' . $dateExpression . ') as month_number, SUM(' . $amountExpression . ') as total_amount')
+            ->whereRaw('YEAR(' . $dateExpression . ') = ?', [$year]);
+
+        if ($statusColumn) {
+            $query->whereIn($statusColumn, $this->getPaidPaymentStatuses());
         }
 
         $rows = $query
-            ->groupByRaw('MONTH(' . $dateColumn . ')')
-            ->orderByRaw('MONTH(' . $dateColumn . ')')
+            ->groupByRaw('MONTH(' . $dateExpression . ')')
+            ->orderByRaw('MONTH(' . $dateExpression . ')')
             ->get();
 
         foreach ($rows as $row) {
             $index = ((int) $row->month_number) - 1;
+
             if ($index >= 0 && $index < 12) {
                 $data[$index] = (float) $row->total_amount;
             }
@@ -265,19 +278,17 @@ class DashboardController extends Controller
         }
 
         $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
-        $dateColumn = $this->findExistingColumn($paymentsTable, ['paid_at', 'payment_date', 'created_at']);
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
 
         $query = DB::table($paymentsTable);
 
-        if ($statusColumn === 'status') {
-            $query->whereIn('status', ['paid', 'success', 'settled']);
-        } elseif ($statusColumn === 'payment_status') {
-            $query->whereIn('payment_status', ['paid', 'success', 'settled']);
+        if ($statusColumn) {
+            $query->whereIn($statusColumn, $this->getPaidPaymentStatuses());
         }
 
-        if ($dateColumn && $dateFrom && $dateTo) {
-            $query->whereDate($dateColumn, '>=', $dateFrom)
-                ->whereDate($dateColumn, '<=', $dateTo);
+        if ($dateExpression && $dateFrom && $dateTo) {
+            $query->whereRaw('DATE(' . $dateExpression . ') >= ?', [$dateFrom])
+                ->whereRaw('DATE(' . $dateExpression . ') <= ?', [$dateTo]);
         }
 
         return (int) $query->count();
@@ -327,7 +338,7 @@ class DashboardController extends Controller
 
         if ($activeColumn === 'is_active') {
             $query->where($batchesTable . '.is_active', 1);
-        }elseif ($activeColumn === 'status') {
+        } elseif ($activeColumn === 'status') {
             $query->whereIn($batchesTable . '.status', $this->getActiveBatchStatuses());
         }
 
@@ -609,6 +620,50 @@ class DashboardController extends Controller
             ->pluck('total', 'batch_id')
             ->map(fn ($value) => (int) $value)
             ->all();
+    }
+
+    protected function buildPaymentDateExpression(string $paymentsTable): ?string
+    {
+        $dateColumns = [
+            'payment_date',
+            'paid_at',
+            'created_at',
+        ];
+
+        $existingColumns = [];
+
+        foreach ($dateColumns as $column) {
+            if (Schema::hasColumn($paymentsTable, $column)) {
+                $existingColumns[] = $this->wrapColumn($column);
+            }
+        }
+
+        if (empty($existingColumns)) {
+            return null;
+        }
+
+        if (count($existingColumns) === 1) {
+            return $existingColumns[0];
+        }
+
+        return 'COALESCE(' . implode(', ', $existingColumns) . ')';
+    }
+
+    protected function getPaidPaymentStatuses(): array
+    {
+        return [
+            'paid',
+            'success',
+            'settled',
+            'completed',
+            'confirmed',
+            'verified',
+        ];
+    }
+
+    protected function wrapColumn(string $column): string
+    {
+        return DB::connection()->getQueryGrammar()->wrap($column);
     }
 
     protected function getActiveBatchStatuses(): array
