@@ -572,6 +572,14 @@ class StudentLearningController extends Controller
             default => 'default',
         };
 
+        /**
+         * Untuk Bunny Stream, jangan kirim raw URL database lewat video_url.
+         * Frontend memakai video_embed_url / bunny_embed_url / protected_video_url.
+         */
+        $publicVideoUrl = $videoProvider === 'bunny'
+            ? null
+            : $videoPlaybackUrl;
+
         return [
             'id' => $subTopic->id,
             'slug' => $slug,
@@ -996,12 +1004,24 @@ class StudentLearningController extends Controller
             return $this->makeSelfHostedVideoSignedUrl($courseSlug, $lessonSlug);
         }
 
-        return $this->getColumnValue($subTopic, [
+        $rawVideoUrl = $this->getColumnValue($subTopic, [
             'video_url',
             'video_embed_url',
             'youtube_url',
             'content_url',
         ]);
+
+        if (! $rawVideoUrl) {
+            return null;
+        }
+
+        $rawVideoUrl = trim((string) $rawVideoUrl);
+
+        if ($this->isBunnyStreamUrl($rawVideoUrl)) {
+            return $this->makeProtectedBunnyEmbedUrl($rawVideoUrl);
+        }
+
+        return $rawVideoUrl;
     }
 
     private function makeSelfHostedVideoSignedUrl(string $courseSlug, string $lessonSlug): ?string
@@ -1252,6 +1272,166 @@ class StudentLearningController extends Controller
         $fileName = str_replace(["\r", "\n", '"'], '', $fileName);
 
         return $fileName !== '' ? $fileName : 'lesson-video.mp4';
+    }
+
+    private function isBunnyStreamUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return $host !== '' && str_contains($host, 'mediadelivery.net');
+    }
+
+    private function makeProtectedBunnyEmbedUrl(string $rawUrl): string
+    {
+        $bunnyVideo = $this->parseBunnyStreamUrl($rawUrl);
+
+        if (! $bunnyVideo) {
+            return $rawUrl;
+        }
+
+        $baseUrl = sprintf(
+            'https://iframe.mediadelivery.net/embed/%s/%s',
+            rawurlencode($bunnyVideo['library_id']),
+            rawurlencode($bunnyVideo['video_id'])
+        );
+
+        $query = $bunnyVideo['query'];
+
+        /**
+         * Selalu buang token/expires lama dari database, lalu generate ulang.
+         * Native Bunny controls dibiarkan aktif supaya playback stabil.
+         */
+        unset(
+            $query['token'],
+            $query['expires'],
+            $query['controls'],
+            $query['showControls'],
+            $query['show_controls'],
+            $query['preload'],
+            $query['show_heatmap']
+        );
+
+        $query['autoplay'] = 'false';
+        $query['muted'] = 'false';
+
+        $tokenSecurityKey = $this->resolveBunnyStreamTokenSecurityKey();
+
+        if ($tokenSecurityKey) {
+            $expires = now()
+                ->addMinutes($this->resolveBunnyStreamTokenExpiresMinutes())
+                ->timestamp;
+
+            /**
+             * Bunny Stream Embed View Token Authentication formula:
+             * SHA256(token_authentication_key + video_id + expires)
+             *
+             * Key yang dipakai adalah:
+             * Stream > Video Library > Security > Token authentication key
+             */
+            $query['token'] = hash(
+                'sha256',
+                $tokenSecurityKey . $bunnyVideo['video_id'] . $expires
+            );
+
+            $query['expires'] = $expires;
+        }
+
+        return $baseUrl . '?' . http_build_query($query);
+    }
+
+    private function parseBunnyStreamUrl(string $url): ?array
+    {
+        $parsedUrl = parse_url($url);
+
+        if (! is_array($parsedUrl)) {
+            return null;
+        }
+
+        $host = strtolower((string) ($parsedUrl['host'] ?? ''));
+
+        if (! str_contains($host, 'mediadelivery.net')) {
+            return null;
+        }
+
+        $path = trim((string) ($parsedUrl['path'] ?? ''), '/');
+        $segments = array_values(array_filter(explode('/', $path)));
+
+        if (count($segments) < 3) {
+            return null;
+        }
+
+        $mode = strtolower((string) ($segments[0] ?? ''));
+
+        if (! in_array($mode, ['embed', 'play'], true)) {
+            return null;
+        }
+
+        $libraryId = (string) ($segments[1] ?? '');
+        $videoId = (string) ($segments[2] ?? '');
+
+        if ($libraryId === '' || $videoId === '') {
+            return null;
+        }
+
+        $query = [];
+
+        if (! empty($parsedUrl['query'])) {
+            parse_str($parsedUrl['query'], $query);
+        }
+
+        unset($query['token'], $query['expires']);
+
+        return [
+            'library_id' => $libraryId,
+            'video_id' => $videoId,
+            'query' => $query,
+        ];
+    }
+
+    private function resolveBunnyStreamTokenSecurityKey(): ?string
+    {
+        /**
+         * Ini harus diisi dengan key dari Bunny Dashboard:
+         * Stream > Video Library > Security > Token authentication key
+         *
+         * Jangan pakai CDN token key, pull zone key, atau key library yang lama.
+         */
+        $key = config('services.bunny_stream.token_authentication_key')
+            ?: config('services.bunny_stream.token_security_key')
+            ?: config('services.bunny.stream_token_authentication_key')
+            ?: config('services.bunny.stream_token_security_key')
+            ?: config('services.bunny.stream.token_authentication_key')
+            ?: config('services.bunny.stream.token_security_key')
+            ?: config('services.bunny.token_authentication_key')
+            ?: config('services.bunny.token_security_key')
+            ?: env('BUNNY_STREAM_TOKEN_AUTHENTICATION_KEY')
+            ?: env('BUNNY_STREAM_TOKEN_AUTH_KEY')
+            ?: env('BUNNY_STREAM_TOKEN_SECURITY_KEY')
+            ?: env('BUNNY_STREAM_SECURITY_KEY')
+            ?: env('BUNNY_TOKEN_AUTHENTICATION_KEY')
+            ?: env('BUNNY_TOKEN_SECURITY_KEY');
+
+        $key = trim((string) $key);
+
+        return $key !== '' ? $key : null;
+    }
+
+    private function resolveBunnyStreamTokenExpiresMinutes(): int
+    {
+        $minutes = config('services.bunny_stream.token_expires_minutes')
+            ?: config('services.bunny.stream_token_expires_minutes')
+            ?: config('services.bunny.stream.token_expires_minutes')
+            ?: config('services.bunny.token_expires_minutes')
+            ?: env('BUNNY_STREAM_TOKEN_EXPIRES_MINUTES', 15);
+
+        $minutes = (int) $minutes;
+
+        /**
+         * Guardrail:
+         * - Minimum 1 menit supaya token tidak langsung expired.
+         * - Maksimum 120 menit supaya link tidak terlalu lama reusable kalau dicopy.
+         */
+        return max(1, min($minutes, 120));
     }
 
     private function isYouTubeUrl(string $url): bool
