@@ -1044,14 +1044,14 @@
                                     <div class="col-12 subtopic-video-url-wrap d-none">
                                         <label class="form-label">Video URL</label>
                                         <input
-                                            type="url"
+                                            type="text"
                                             name="video_url"
                                             class="form-control"
-                                            placeholder="https://player.mediadelivery.net/embed/library-id/video-id"
+                                            placeholder="Paste Bunny Video ID atau https://iframe.mediadelivery.net/embed/library-id/video-id"
                                         >
 
                                         <div class="form-text video-url-help">
-                                            Masukkan Bunny Stream embed URL dari dashboard Bunny.
+                                            Paste Bunny Video ID saja, atau Bunny embed URL. Sistem otomatis membentuk URL embed dan membersihkan token/expires.
                                         </div>
 
                                         <div class="selected-video-url-info d-none mt-3"></div>
@@ -1223,6 +1223,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const serverVideosUrl = "{{ Route::has('curriculum.server-videos') ? route('curriculum.server-videos') : '' }}";
+    const bunnyDefaultLibraryId = "{{ config('services.bunny.stream_library_id', env('BUNNY_STREAM_LIBRARY_ID', '672159')) }}";
     let subTopicContentEditor = null;
     let serverVideoFiles = [];
     let isLoadingServerVideos = false;
@@ -1538,6 +1539,81 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, '&#039;');
     }
 
+    function isBunnyVideoId(value) {
+        return /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || '').trim());
+    }
+
+    function buildBunnyEmbedUrlFromVideoId(videoId, libraryId = bunnyDefaultLibraryId) {
+        const safeVideoId = String(videoId || '').trim();
+        const safeLibraryId = String(libraryId || bunnyDefaultLibraryId || '').trim();
+
+        if (!safeVideoId || !safeLibraryId) {
+            return '';
+        }
+
+        return `https://iframe.mediadelivery.net/embed/${safeLibraryId}/${safeVideoId}`;
+    }
+
+    function normalizeBunnyVideoInputValue(value, options = {}) {
+        const rawValue = String(value || '').trim();
+
+        if (!rawValue) {
+            return '';
+        }
+
+        if (isBunnyVideoId(rawValue)) {
+            return buildBunnyEmbedUrlFromVideoId(rawValue);
+        }
+
+        try {
+            const parsedUrl = new URL(rawValue);
+            const host = parsedUrl.hostname.toLowerCase();
+
+            if (!host.includes('mediadelivery.net')) {
+                return rawValue;
+            }
+
+            const segments = parsedUrl.pathname.split('/').filter(Boolean);
+            const mode = String(segments[0] || '').toLowerCase();
+            const libraryId = segments[1] || bunnyDefaultLibraryId;
+            const videoId = segments[2] || '';
+
+            if ((mode === 'embed' || mode === 'play') && libraryId && videoId) {
+                return buildBunnyEmbedUrlFromVideoId(videoId, libraryId);
+            }
+
+            return rawValue;
+        } catch (error) {
+            if (options.onlyWhenComplete) {
+                return rawValue;
+            }
+
+            return isBunnyVideoId(rawValue)
+                ? buildBunnyEmbedUrlFromVideoId(rawValue)
+                : rawValue;
+        }
+    }
+
+    function normalizeBunnyVideoUrlInput(form, options = {}) {
+        if (!form) return '';
+
+        const source = form.querySelector('select[name="video_source"]')?.value || 'server';
+        const videoUrlInput = form.querySelector('input[name="video_url"]');
+
+        if (source !== 'bunny' || !videoUrlInput) {
+            return videoUrlInput?.value || '';
+        }
+
+        const currentValue = String(videoUrlInput.value || '').trim();
+        const normalizedValue = normalizeBunnyVideoInputValue(currentValue, options);
+
+        if (normalizedValue && normalizedValue !== currentValue) {
+            videoUrlInput.value = normalizedValue;
+        }
+
+        return videoUrlInput.value || '';
+    }
+
     function formatBytes(bytes) {
         const size = Number(bytes || 0);
 
@@ -1802,16 +1878,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (videoUrlInput) {
                 videoUrlInput.placeholder = source === 'bunny'
-                    ? 'https://player.mediadelivery.net/embed/library-id/video-id'
+                    ? 'Paste Bunny Video ID atau https://iframe.mediadelivery.net/embed/library-id/video-id'
                     : 'https://youtube.com/watch?v=... atau embed URL lain';
             }
 
             if (videoUrlHelp) {
                 videoUrlHelp.textContent = source === 'bunny'
-                    ? 'Masukkan Bunny Stream embed URL dari dashboard Bunny.'
+                    ? 'Paste Bunny Video ID saja, atau Bunny embed URL. Sistem otomatis membentuk URL embed dan membersihkan token/expires.'
                     : 'Masukkan URL YouTube atau external video.';
             }
 
+            normalizeBunnyVideoUrlInput(form, { onlyWhenComplete: true });
             updateSelectedVideoUrlInfo(form);
 
             return;
@@ -1894,6 +1971,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!videoUrlInput || !selectedInfo) return;
 
+        if (source === 'bunny') {
+            normalizeBunnyVideoUrlInput(form, { onlyWhenComplete: true });
+        }
+
         const videoUrl = (videoUrlInput.value || '').trim();
 
         if (!videoUrl || (source !== 'bunny' && source !== 'youtube')) {
@@ -1902,7 +1983,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const label = source === 'bunny' ? 'Bunny Stream URL' : 'External Video URL';
+        const label = source === 'bunny' ? 'Bunny Stream Embed URL' : 'External Video URL';
 
         selectedInfo.innerHTML = `
             <i class="bi bi-link-45deg me-1"></i>
@@ -2068,6 +2149,11 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
 
             syncMarkdownEditors();
+
+            if (form.id === 'subTopicForm') {
+                normalizeBunnyVideoUrlInput(form);
+                updateSelectedVideoUrlInfo(form);
+            }
 
             const submitBtn = form.querySelector('.submit-btn');
             const id = form.querySelector('input[name="id"]')?.value || '';
@@ -2426,7 +2512,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (videoUrlInput) {
             videoUrlInput.addEventListener('input', function () {
+                normalizeBunnyVideoUrlInput(form, { onlyWhenComplete: true });
                 updateSelectedVideoUrlInfo(form);
+            });
+
+            videoUrlInput.addEventListener('blur', function () {
+                normalizeBunnyVideoUrlInput(form);
+                updateSelectedVideoUrlInfo(form);
+            });
+
+            videoUrlInput.addEventListener('paste', function () {
+                window.setTimeout(function () {
+                    normalizeBunnyVideoUrlInput(form);
+                    updateSelectedVideoUrlInfo(form);
+                }, 0);
             });
         }
 
