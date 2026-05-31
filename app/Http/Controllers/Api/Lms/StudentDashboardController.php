@@ -831,18 +831,39 @@ class StudentDashboardController extends Controller
 
     private function canUseStageProgramPath(): bool
     {
-        return method_exists(SubTopic::class, 'topic')
-            && class_exists(\App\Models\Topic::class)
-            && class_exists(\App\Models\Module::class)
-            && class_exists(\App\Models\Stage::class)
-            && method_exists(\App\Models\Topic::class, 'module')
-            && method_exists(\App\Models\Module::class, 'stage')
-            && method_exists(\App\Models\Stage::class, 'program')
-            && Schema::hasTable('modules')
-            && Schema::hasTable('stages')
-            && Schema::hasColumn('modules', 'stage_id')
-            && Schema::hasColumn('stages', 'program_id');
+        if (
+            !method_exists(SubTopic::class, 'topic')
+            || !class_exists(\App\Models\Topic::class)
+            || !class_exists(\App\Models\Module::class)
+            || !method_exists(\App\Models\Topic::class, 'module')
+            || !method_exists(\App\Models\Module::class, 'stage')
+            || !Schema::hasTable('modules')
+        ) {
+            return false;
+        }
+
+        $hasStageForeignKey = collect([
+            'stage_id',
+            'program_stage_id',
+            'curriculum_stage_id',
+        ])->contains(fn ($column) => Schema::hasColumn('modules', $column));
+
+        if (!$hasStageForeignKey) {
+            return false;
+        }
+
+        foreach ($this->candidateStageTables() as $stageTable) {
+            if (
+                Schema::hasTable($stageTable)
+                && Schema::hasColumn($stageTable, 'program_id')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
+
 
     private function canUseModuleProgramPath(): bool
     {
@@ -1127,6 +1148,9 @@ class StudentDashboardController extends Controller
             ?? $module?->program
             ?? $this->resolveProgramFromDatabase($module);
 
+        $lessonType = $this->resolveSubTopicLessonType($currentSubTopic);
+        $isLiveSession = $this->isLiveSessionLessonType($lessonType);
+
         $progressPercentage = $this->resolveProgressPercentage($progress, $currentSubTopic);
         $isCompleted = $this->isProgressCompleted($progress);
 
@@ -1137,11 +1161,53 @@ class StudentDashboardController extends Controller
         $courseSlug = $this->resolveProgramSlug($program);
         $lessonSlug = $this->resolveSubTopicSlug($currentSubTopic);
         $learnUrl = '/learn/' . $courseSlug . '/' . $lessonSlug;
-        $videoUrl = $this->resolveSubTopicVideoUrl($currentSubTopic);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Live session bukan video.
+        |--------------------------------------------------------------------------
+        | Dashboard perlu tahu ini supaya frontend tidak menampilkan icon play,
+        | watched progress, last watched / video position, atau durasi video.
+        */
+        $videoUrl = $isLiveSession
+            ? null
+            : $this->resolveSubTopicVideoUrl($currentSubTopic);
+
         $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($currentSubTopic, $videoUrl);
-        $durationMinutes = $this->resolveDurationMinutes($currentSubTopic, $progress);
-        $durationSeconds = $this->resolveDurationSeconds($currentSubTopic, $progress);
-        $lastPositionSeconds = $this->resolveLastPositionSeconds($progress);
+
+        $durationMinutes = $isLiveSession
+            ? null
+            : $this->resolveDurationMinutes($currentSubTopic, $progress);
+
+        $durationSeconds = $isLiveSession
+            ? 0
+            : $this->resolveDurationSeconds($currentSubTopic, $progress);
+
+        $lastPositionSeconds = $isLiveSession
+            ? 0
+            : $this->resolveLastPositionSeconds($progress);
+
+        $hasVideo = !$isLiveSession && (
+            $lessonType === 'video'
+            || !blank($videoUrl)
+            || $durationSeconds > 0
+        );
+
+        $typeLabel = $isLiveSession
+            ? 'Live Session'
+            : ($hasVideo ? 'Video Lesson' : 'Learning Material');
+
+        $heroLabel = $isLiveSession
+            ? 'Live Session'
+            : 'Current Lesson';
+
+        $actionLabel = $isLiveSession
+            ? 'Open Session'
+            : 'Continue Learning';
+
+        $statusLabel = $isCompleted
+            ? 'Completed'
+            : ($isLiveSession ? 'Ready' : 'In Progress');
 
         return [
             'id' => $currentSubTopic->id,
@@ -1151,6 +1217,37 @@ class StudentDashboardController extends Controller
             'title' => $this->getColumnValue($currentSubTopic, ['name', 'title']) ?: 'Untitled Lesson',
             'description' => $this->getColumnValue($currentSubTopic, ['description', 'summary']) ?: 'Continue your current learning activity.',
 
+            /*
+            |--------------------------------------------------------------------------
+            | Lesson type flags for frontend dashboard.
+            |--------------------------------------------------------------------------
+            */
+            'lesson_type' => $lessonType,
+            'lessonType' => $lessonType,
+            'type' => $lessonType,
+            'session_type' => $lessonType,
+            'sessionType' => $lessonType,
+
+            'type_label' => $typeLabel,
+            'typeLabel' => $typeLabel,
+
+            'hero_label' => $heroLabel,
+            'heroLabel' => $heroLabel,
+
+            'action_label' => $actionLabel,
+            'actionLabel' => $actionLabel,
+
+            'is_live_session' => $isLiveSession,
+            'isLiveSession' => $isLiveSession,
+
+            'has_video' => $hasVideo,
+            'hasVideo' => $hasVideo,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Duration / media.
+            |--------------------------------------------------------------------------
+            */
             'duration_minutes' => $durationMinutes,
             'durationMinutes' => $durationMinutes,
             'duration_seconds' => $durationSeconds,
@@ -1158,9 +1255,17 @@ class StudentDashboardController extends Controller
 
             'thumbnail_url' => $thumbnailUrl,
             'thumbnailUrl' => $thumbnailUrl,
+            'image_url' => $thumbnailUrl,
+            'imageUrl' => $thumbnailUrl,
+
             'video_url' => $videoUrl,
             'videoUrl' => $videoUrl,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Curriculum info.
+            |--------------------------------------------------------------------------
+            */
             'module' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
             'module_title' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
             'moduleTitle' => $this->getColumnValue($module, ['name', 'title']) ?: '-',
@@ -1169,22 +1274,41 @@ class StudentDashboardController extends Controller
             'topic_title' => $this->getColumnValue($topic, ['name', 'title']) ?: '-',
             'topicTitle' => $this->getColumnValue($topic, ['name', 'title']) ?: '-',
 
-            'status' => $isCompleted ? 'Completed' : 'In Progress',
-            'status_label' => $isCompleted ? 'Completed' : 'In Progress',
-            'statusLabel' => $isCompleted ? 'Completed' : 'In Progress',
+            /*
+            |--------------------------------------------------------------------------
+            | Status.
+            |--------------------------------------------------------------------------
+            */
+            'status' => $statusLabel,
+            'status_label' => $statusLabel,
+            'statusLabel' => $statusLabel,
             'is_completed' => $isCompleted,
             'isCompleted' => $isCompleted,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Progress.
+            |--------------------------------------------------------------------------
+            | Untuk live session, progress umum tetap bisa 100 kalau student sudah
+            | manual mark completed. Video/watched progress dikirim 0 supaya card
+            | dashboard tidak menampilkan watched UI.
+            */
             'progress_percentage' => $progressPercentage,
             'progressPercentage' => $progressPercentage,
-            'video_progress_percentage' => $progressPercentage,
-            'videoProgressPercentage' => $progressPercentage,
-            'watched_percentage' => $progressPercentage,
-            'watchedPercentage' => $progressPercentage,
+
+            'video_progress_percentage' => $isLiveSession ? 0 : $progressPercentage,
+            'videoProgressPercentage' => $isLiveSession ? 0 : $progressPercentage,
+            'watched_percentage' => $isLiveSession ? 0 : $progressPercentage,
+            'watchedPercentage' => $isLiveSession ? 0 : $progressPercentage,
 
             'last_position_seconds' => $lastPositionSeconds,
             'lastPositionSeconds' => $lastPositionSeconds,
 
+            /*
+            |--------------------------------------------------------------------------
+            | URLs.
+            |--------------------------------------------------------------------------
+            */
             'course_slug' => $courseSlug,
             'courseSlug' => $courseSlug,
             'lesson_slug' => $lessonSlug,
@@ -1194,6 +1318,7 @@ class StudentDashboardController extends Controller
             'learnUrl' => $learnUrl,
         ];
     }
+
 
     private function resolveCurrentLessonFallback(Student $student, Collection $programIds, Collection $batchIds): ?array
     {
@@ -1320,6 +1445,31 @@ class StudentDashboardController extends Controller
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Struktur FlexLabs sekarang:
+        | modules.program_stage_id -> program_stages.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
+        if (
+            Schema::hasTable('program_stages')
+            && Schema::hasColumn('modules', 'program_stage_id')
+            && Schema::hasColumn('program_stages', 'program_id')
+        ) {
+            return DB::table('modules')
+                ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
+                ->join('programs', 'programs.id', '=', 'program_stages.program_id')
+                ->where('modules.id', $module->id)
+                ->select('programs.*')
+                ->first();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback lama:
+        | modules.stage_id -> stages.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
         if (
             Schema::hasTable('stages')
             && Schema::hasColumn('modules', 'stage_id')
@@ -1333,6 +1483,12 @@ class StudentDashboardController extends Controller
                 ->first();
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback:
+        | modules.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
         if (Schema::hasColumn('modules', 'program_id')) {
             return DB::table('modules')
                 ->join('programs', 'programs.id', '=', 'modules.program_id')
@@ -1343,6 +1499,7 @@ class StudentDashboardController extends Controller
 
         return null;
     }
+
 
     private function resolveProgramSlug($program): string
     {
@@ -2117,18 +2274,82 @@ class StudentDashboardController extends Controller
 
     private function resolveSubTopicThumbnailUrl($subTopic, ?string $videoUrl = null): string
     {
-        $lessonType = strtolower((string) $this->getColumnValue($subTopic, [
-            'lesson_type',
-            'type',
-            'session_type',
-        ]));
+        $lessonType = $this->resolveSubTopicLessonType($subTopic);
 
-        if (in_array($lessonType, ['live', 'live_session', 'live-session', 'mentoring', 'offline', 'online'], true)) {
+        if ($this->isLiveSessionLessonType($lessonType)) {
             return $this->defaultLiveSessionThumbnailUrl();
+        }
+
+        $thumbnailUrl = $this->getColumnValue($subTopic, [
+            'thumbnail_url',
+            'thumbnailUrl',
+            'image_url',
+            'imageUrl',
+        ]);
+
+        if ($thumbnailUrl) {
+            return (string) $thumbnailUrl;
         }
 
         return $this->defaultVideoThumbnailUrl();
     }
+
+    private function resolveSubTopicLessonType($subTopic): string
+    {
+        $lessonType = strtolower(trim((string) $this->getColumnValue($subTopic, [
+            'lesson_type',
+            'lessonType',
+            'type',
+            'session_type',
+            'sessionType',
+            'content_type',
+            'contentType',
+        ])));
+
+        if ($lessonType === '') {
+            return 'video';
+        }
+
+        $lessonType = str_replace([' ', '-'], '_', $lessonType);
+
+        return match ($lessonType) {
+            'live',
+            'live_session',
+            'live_class',
+            'online',
+            'online_session',
+            'webinar',
+            'meet',
+            'google_meet',
+            'zoom' => 'live_session',
+
+            'video_lesson',
+            'recorded_video',
+            'recorded',
+            'vod' => 'video',
+
+            default => $lessonType,
+        };
+    }
+
+    private function isLiveSessionLessonType(?string $lessonType): bool
+    {
+        $normalized = strtolower(trim((string) $lessonType));
+        $normalized = str_replace([' ', '-'], '_', $normalized);
+
+        return in_array($normalized, [
+            'live',
+            'live_session',
+            'live_class',
+            'online',
+            'online_session',
+            'webinar',
+            'meet',
+            'google_meet',
+            'zoom',
+        ], true);
+    }
+
 
     private function defaultVideoThumbnailUrl(): string
     {
@@ -2142,6 +2363,12 @@ class StudentDashboardController extends Controller
 
     private function resolveSubTopicVideoUrl($subTopic): ?string
     {
+        $lessonType = $this->resolveSubTopicLessonType($subTopic);
+
+        if ($this->isLiveSessionLessonType($lessonType)) {
+            return null;
+        }
+
         $videoUrl = $this->getColumnValue($subTopic, [
             'video_url',
             'youtube_url',
@@ -2153,6 +2380,7 @@ class StudentDashboardController extends Controller
 
         return $videoUrl ? (string) $videoUrl : null;
     }
+
 
     private function extractYoutubeVideoId(?string $url): ?string
     {
@@ -2430,10 +2658,24 @@ class StudentDashboardController extends Controller
         $topicName = $this->getColumnValue($topic, ['name', 'title']);
 
         $title = $this->getColumnValue($subTopic, ['name', 'title']) ?: 'Untitled Material';
-        $type = $this->getColumnValue($subTopic, ['lesson_type', 'type']) ?: 'lesson';
-        $url = $this->resolveLearningTimelineUrl($subTopic);
-        $videoUrl = $this->resolveSubTopicVideoUrl($subTopic);
+        $type = $this->resolveSubTopicLessonType($subTopic);
+        $isLiveSession = $this->isLiveSessionLessonType($type);
+
+        $videoUrl = $isLiveSession
+            ? null
+            : $this->resolveSubTopicVideoUrl($subTopic);
+
+        $hasVideo = !$isLiveSession && (
+            $type === 'video'
+            || !blank($videoUrl)
+        );
+
         $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($subTopic, $videoUrl);
+        $url = $this->resolveLearningTimelineUrl($subTopic);
+
+        $typeLabel = $isLiveSession
+            ? 'Live Session'
+            : ($hasVideo ? 'Video Lesson' : 'Learning Material');
 
         return [
             'id' => $subTopic->id,
@@ -2454,10 +2696,19 @@ class StudentDashboardController extends Controller
             'lesson_type' => $type,
             'lessonType' => $type,
 
+            'type_label' => $typeLabel,
+            'typeLabel' => $typeLabel,
+
+            'is_live_session' => $isLiveSession,
+            'isLiveSession' => $isLiveSession,
+            'has_video' => $hasVideo,
+            'hasVideo' => $hasVideo,
+
             'thumbnail_url' => $thumbnailUrl,
             'thumbnailUrl' => $thumbnailUrl,
             'image_url' => $thumbnailUrl,
             'imageUrl' => $thumbnailUrl,
+
             'video_url' => $videoUrl,
             'videoUrl' => $videoUrl,
 
@@ -2481,6 +2732,7 @@ class StudentDashboardController extends Controller
             'learnUrl' => $url,
         ];
     }
+
 
     private function resolveLearningTimelineUrl($subTopic): string
     {

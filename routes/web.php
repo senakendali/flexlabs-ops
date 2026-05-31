@@ -52,6 +52,7 @@ use App\Http\Controllers\Academic\PublicLearningMaterialBlockController;
 use App\Http\Controllers\Academic\PublicLearningMaterialImageController;
 use App\Http\Controllers\Academic\PublicLearningMaterialPageController;
 use App\Http\Controllers\Academic\LearningVideoController;
+use App\Http\Controllers\Academic\StudentProgressMonitoringController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
 use App\Http\Controllers\Marketing\MarketingDashboardController;
@@ -1257,6 +1258,24 @@ Route::middleware('auth')->group(function () {
                     ->middleware('permission:workshops.delete')
                     ->name('destroy');
             });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Student Progress Monitoring
+        |--------------------------------------------------------------------------
+        | Route names used by menu config:
+        | - academic.student-progress.index
+        | - academic.student-progress.show
+        */
+
+        Route::get('/student-progress', [StudentProgressMonitoringController::class, 'index'])
+            ->middleware('permission:student_progress.view')
+            ->name('student-progress.index');
+
+        Route::get('/student-progress/{student}', [StudentProgressMonitoringController::class, 'show'])
+            ->whereNumber('student')
+            ->middleware('permission:student_progress.view')
+            ->name('student-progress.show');
 
         /*
         |--------------------------------------------------------------------------

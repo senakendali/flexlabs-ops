@@ -271,6 +271,8 @@ return [
             'students.create',
             'students.update',
 
+            'student_progress.view',
+
             'trial_themes.view',
             'trial_themes.create',
             'trial_themes.update',
@@ -469,6 +471,7 @@ return [
                 'batches.*',
                 'enrollments.*',
                 'students.*',
+                'academic.student-progress.*',
                 'curriculum.*',
                 'public-learning-materials.*',
                 'academic.learning-videos.*',
@@ -556,6 +559,14 @@ return [
                             'icon' => 'bi bi-people-fill',
                             'permission' => 'enrollments.view',
                             'desc' => 'Data student, enrollment, dan batch student.',
+                        ],
+                        [
+                            'label' => 'Student Progress',
+                            'route' => 'academic.student-progress.index',
+                            'active' => ['academic.student-progress.*'],
+                            'icon' => 'bi bi-graph-up-arrow',
+                            'permission' => 'student_progress.view',
+                            'desc' => 'Monitoring progress belajar, materi selesai, last activity, dan student yang butuh follow up.',
                         ],
                         [
                             'label' => 'Announcements',
