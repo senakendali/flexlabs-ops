@@ -122,7 +122,7 @@ class AssignmentController extends Controller
                     'slug' => $this->generateUniqueSlug($validated['title']),
 
                     'assignment_type' => $validated['assignment_type'],
-                    'instruction' => $validated['instruction'] ?? null,
+                    'instruction' => $this->normalizeInstructionHtml($validated['instruction'] ?? null),
                     'attachment_url' => $validated['attachment_url'] ?? null,
                     'starter_file_url' => $validated['starter_file_url'] ?? null,
                     'reference_url' => $validated['reference_url'] ?? null,
@@ -171,7 +171,7 @@ class AssignmentController extends Controller
                     'slug' => $this->generateUniqueSlug($validated['title'], $assignment->id),
 
                     'assignment_type' => $validated['assignment_type'],
-                    'instruction' => $validated['instruction'] ?? null,
+                    'instruction' => $this->normalizeInstructionHtml($validated['instruction'] ?? null),
                     'attachment_url' => $validated['attachment_url'] ?? null,
                     'starter_file_url' => $validated['starter_file_url'] ?? null,
                     'reference_url' => $validated['reference_url'] ?? null,
@@ -327,6 +327,302 @@ class AssignmentController extends Controller
         }
 
         return $validated;
+    }
+
+    private function normalizeInstructionHtml(?string $instruction): ?string
+    {
+        if ($instruction === null) {
+            return null;
+        }
+
+        $instruction = trim($instruction);
+
+        if ($instruction === '') {
+            return null;
+        }
+
+        $instruction = str_replace(["\r\n", "\r"], "\n", $instruction);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Kalau HTML Quill terkirim dalam bentuk escaped:
+        | &lt;p&gt;Instruksi&lt;/p&gt;
+        |--------------------------------------------------------------------------
+        */
+        if ($this->looksLikeEscapedHtml($instruction)) {
+            $instruction = html_entity_decode($instruction, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $instruction = trim($instruction);
+        }
+
+        if ($this->isEmptyQuillHtml($instruction)) {
+            return null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Kalau sudah HTML, jangan di-convert ulang jadi paragraph.
+        | Cukup dibersihkan dari tag/attribute yang berbahaya.
+        |--------------------------------------------------------------------------
+        */
+        if ($this->containsHtmlTag($instruction)) {
+            $html = $this->cleanInstructionHtml($instruction);
+
+            return $this->isEmptyInstructionHtml($html)
+                ? null
+                : $html;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback kalau frontend masih kirim plain text.
+        | Double enter => paragraph baru.
+        | Single enter => <br>, bukan paragraph baru.
+        |--------------------------------------------------------------------------
+        */
+        $html = $this->plainTextToInstructionHtml($instruction);
+
+        return $this->isEmptyInstructionHtml($html)
+            ? null
+            : $html;
+    }
+
+    private function looksLikeEscapedHtml(string $value): bool
+    {
+        return (bool) preg_match(
+            '/&lt;\s*\/?\s*(p|br|h1|h2|h3|h4|h5|h6|ul|ol|li|strong|b|em|i|u|s|a|blockquote|pre|code|span|div)\b/i',
+            $value
+        );
+    }
+
+    private function containsHtmlTag(string $value): bool
+    {
+        return (bool) preg_match('/<\s*\/?\s*[a-z][^>]*>/i', $value);
+    }
+
+    private function isEmptyQuillHtml(string $html): bool
+    {
+        $normalized = strtolower(
+            preg_replace('/\s+/', '', str_replace('&nbsp;', '', $html)) ?? ''
+        );
+
+        return in_array($normalized, [
+            '',
+            '<p></p>',
+            '<p><br></p>',
+            '<p><br/></p>',
+            '<div></div>',
+            '<div><br></div>',
+            '<div><br/></div>',
+        ], true);
+    }
+
+    private function isEmptyInstructionHtml(?string $html): bool
+    {
+        if ($html === null) {
+            return true;
+        }
+
+        $html = trim($html);
+
+        if ($html === '' || $this->isEmptyQuillHtml($html)) {
+            return true;
+        }
+
+        $text = trim(
+            html_entity_decode(
+                strip_tags(str_replace('&nbsp;', ' ', $html)),
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8'
+            )
+        );
+
+        $hasMeaningfulTag = (bool) preg_match(
+            '/<(img|video|audio|iframe|table|ul|ol|li|blockquote|pre|code)\b/i',
+            $html
+        );
+
+        return $text === '' && !$hasMeaningfulTag;
+    }
+
+    private function cleanInstructionHtml(string $html): string
+    {
+        $html = trim($html);
+
+        if ($html === '') {
+            return '';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Buang tag berbahaya.
+        |--------------------------------------------------------------------------
+        */
+        $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
+
+        $html = preg_replace(
+            '/<\s*(script|style|iframe|object|embed|form|input|button|textarea|select|option|meta|link|base)\b[^>]*>.*?<\s*\/\s*\1\s*>/is',
+            '',
+            $html
+        ) ?? $html;
+
+        $html = preg_replace(
+            '/<\s*(script|style|iframe|object|embed|form|input|button|textarea|select|option|meta|link|base)\b[^>]*\/?>/is',
+            '',
+            $html
+        ) ?? $html;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Hanya izinkan tag yang umum dipakai Quill untuk assignment.
+        |--------------------------------------------------------------------------
+        */
+        $allowedTags = implode('', [
+            '<p>',
+            '<br>',
+            '<strong>',
+            '<b>',
+            '<em>',
+            '<i>',
+            '<u>',
+            '<s>',
+            '<ol>',
+            '<ul>',
+            '<li>',
+            '<a>',
+            '<h1>',
+            '<h2>',
+            '<h3>',
+            '<h4>',
+            '<h5>',
+            '<h6>',
+            '<blockquote>',
+            '<pre>',
+            '<code>',
+            '<span>',
+            '<div>',
+        ]);
+
+        $html = strip_tags($html, $allowedTags);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Buang attribute berbahaya.
+        |--------------------------------------------------------------------------
+        */
+        $html = preg_replace('/\s+on[a-z]+\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/is', '', $html) ?? $html;
+        $html = preg_replace('/\s+style\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/is', '', $html) ?? $html;
+        $html = preg_replace('/\s+src\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/is', '', $html) ?? $html;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Bersihkan tag <a>. Hanya href aman yang dipertahankan.
+        |--------------------------------------------------------------------------
+        */
+        $html = preg_replace_callback('/<a\b([^>]*)>/i', function ($matches) {
+            $attributes = $matches[1] ?? '';
+            $href = null;
+
+            if (preg_match('/href\s*=\s*("([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $attributes, $hrefMatches)) {
+                $href = $hrefMatches[2] ?? $hrefMatches[3] ?? $hrefMatches[4] ?? null;
+            }
+
+            $href = trim((string) $href);
+
+            if ($href === '' || !$this->isSafeInstructionUrl($href)) {
+                return '<a>';
+            }
+
+            return '<a href="' . e($href) . '" target="_blank" rel="noopener noreferrer">';
+        }, $html) ?? $html;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Untuk tag selain <a>, pertahankan class Quill saja.
+        | Contoh: ql-align-center, ql-indent-1.
+        |--------------------------------------------------------------------------
+        */
+        $html = preg_replace_callback('/<(?!\/|a\b|br\b)([a-z0-9]+)\b([^>]*)>/i', function ($matches) {
+            $tag = strtolower($matches[1]);
+            $attributes = $matches[2] ?? '';
+            $classAttr = '';
+
+            if (preg_match('/class\s*=\s*("([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $attributes, $classMatches)) {
+                $classValue = $classMatches[2] ?? $classMatches[3] ?? $classMatches[4] ?? '';
+
+                $allowedClasses = collect(preg_split('/\s+/', trim($classValue)) ?: [])
+                    ->filter(fn ($className) => preg_match('/^ql-[a-z0-9_-]+$/i', $className))
+                    ->values()
+                    ->all();
+
+                if (!empty($allowedClasses)) {
+                    $classAttr = ' class="' . e(implode(' ', $allowedClasses)) . '"';
+                }
+            }
+
+            return '<' . $tag . $classAttr . '>';
+        }, $html) ?? $html;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Rapikan whitespace antar tag tanpa mengubah isi text.
+        |--------------------------------------------------------------------------
+        */
+        $html = preg_replace('/>\s+</', '><', $html) ?? $html;
+
+        return trim($html);
+    }
+
+    private function isSafeInstructionUrl(string $url): bool
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            return false;
+        }
+
+        $lowerUrl = strtolower($url);
+
+        if (
+            str_starts_with($lowerUrl, 'javascript:')
+            || str_starts_with($lowerUrl, 'data:')
+            || str_starts_with($lowerUrl, 'vbscript:')
+        ) {
+            return false;
+        }
+
+        return str_starts_with($lowerUrl, 'http://')
+            || str_starts_with($lowerUrl, 'https://')
+            || str_starts_with($lowerUrl, 'mailto:')
+            || str_starts_with($lowerUrl, 'tel:')
+            || str_starts_with($lowerUrl, '#')
+            || str_starts_with($lowerUrl, '/');
+    }
+
+    private function plainTextToInstructionHtml(string $text): string
+    {
+        $text = trim(str_replace(["\r\n", "\r"], "\n", $text));
+
+        if ($text === '') {
+            return '';
+        }
+
+        $paragraphs = preg_split("/\n{2,}/", $text) ?: [];
+
+        return collect($paragraphs)
+            ->map(function ($paragraph) {
+                $paragraph = trim((string) $paragraph);
+
+                if ($paragraph === '') {
+                    return null;
+                }
+
+                $paragraph = e($paragraph);
+                $paragraph = preg_replace("/\n/", '<br>', $paragraph);
+
+                return '<p>' . $paragraph . '</p>';
+            })
+            ->filter()
+            ->implode('');
     }
 
     private function assignmentTypes(): array

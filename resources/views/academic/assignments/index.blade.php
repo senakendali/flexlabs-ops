@@ -351,7 +351,9 @@
                 @csrf
                 <input type="hidden" name="_method" value="POST">
                 <input type="hidden" name="id" value="">
-                <input type="hidden" name="instruction" value="">
+
+                {{-- Pakai textarea supaya HTML Quill panjang lebih aman dibanding input hidden --}}
+                <textarea name="instruction" class="d-none" hidden></textarea>
 
                 <div class="modal-header border-0 pb-0">
                     <div>
@@ -648,14 +650,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const methodInput = form.querySelector('input[name="_method"]');
         const alertBox = form.querySelector('.form-alert');
         const submitBtn = form.querySelector('.submit-btn');
-        const instructionInput = form.querySelector('input[name="instruction"]');
+        const instructionInput = form.querySelector('[name="instruction"]');
 
         if (idInput) idInput.value = '';
         if (methodInput) methodInput.value = 'POST';
         if (instructionInput) instructionInput.value = '';
 
         if (instructionQuill) {
-            instructionQuill.setText('');
+            instructionQuill.setContents([]);
         }
 
         if (alertBox) {
@@ -722,9 +724,26 @@ document.addEventListener('DOMContentLoaded', function () {
     function getInstructionHtml() {
         if (!instructionQuill) return '';
 
-        const html = instructionQuill.root.innerHTML.trim();
+        let html = '';
 
-        if (html === '<p><br></p>') {
+        if (typeof instructionQuill.getSemanticHTML === 'function') {
+            html = instructionQuill.getSemanticHTML();
+        } else {
+            html = instructionQuill.root.innerHTML;
+        }
+
+        html = String(html || '').trim();
+
+        const emptyHtml = html
+            .replace(/\s+/g, '')
+            .toLowerCase();
+
+        if (
+            emptyHtml === '' ||
+            emptyHtml === '<p></p>' ||
+            emptyHtml === '<p><br></p>' ||
+            emptyHtml === '<p><br/></p>'
+        ) {
             return '';
         }
 
@@ -734,7 +753,27 @@ document.addEventListener('DOMContentLoaded', function () {
     function setInstructionHtml(html) {
         if (!instructionQuill) return;
 
-        instructionQuill.clipboard.dangerouslyPasteHTML(html || '');
+        instructionQuill.setContents([]);
+
+        html = String(html || '').trim();
+
+        if (!html) {
+            return;
+        }
+
+        instructionQuill.clipboard.dangerouslyPasteHTML(0, html, 'silent');
+    }
+
+    function syncInstructionInput(form) {
+        const instructionInput = form.querySelector('[name="instruction"]');
+
+        if (!instructionInput) return '';
+
+        const instructionHtml = getInstructionHtml();
+
+        instructionInput.value = instructionHtml;
+
+        return instructionHtml;
     }
 
     function getInstructionFromJsonScript(scriptId) {
@@ -828,8 +867,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('select[name="assignment_type"]').value = button.dataset.assignmentType || 'mixed';
 
                 const instructionHtml = getInstructionFromJsonScript(button.dataset.instructionJsonId);
+
                 setInstructionHtml(instructionHtml);
-                form.querySelector('input[name="instruction"]').value = instructionHtml;
+
+                const instructionInput = form.querySelector('[name="instruction"]');
+                if (instructionInput) {
+                    instructionInput.value = instructionHtml;
+                }
 
                 form.querySelector('input[name="attachment_url"]').value = button.dataset.attachmentUrl || '';
                 form.querySelector('input[name="starter_file_url"]').value = button.dataset.starterFileUrl || '';
@@ -854,6 +898,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.querySelector('select[name="is_active"]').value = '1';
 
                 setInstructionHtml('');
+
+                const instructionInput = form.querySelector('[name="instruction"]');
+                if (instructionInput) {
+                    instructionInput.value = '';
+                }
             }
 
             filterSubTopics(form);
@@ -876,8 +925,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? `{{ route('assignments.update', ['assignment' => '__ID__']) }}`.replace('__ID__', id)
                 : createUrl;
 
-            const instructionHtml = getInstructionHtml();
-            form.querySelector('input[name="instruction"]').value = instructionHtml;
+            syncInstructionInput(form);
 
             const formData = new FormData(form);
 
