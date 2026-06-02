@@ -27,6 +27,21 @@
 
     $rating = (int) ($workshop['rating'] ?? 0);
     $ratingCount = (int) ($workshop['rating_count'] ?? 0);
+
+    /**
+     * Menampilkan text dari textarea dengan aman.
+     * - Tetap escape HTML agar aman dari XSS.
+     * - New line dari textarea tetap tampil sebagai baris/paragraf.
+     */
+    $formatTextarea = function ($value, string $fallback = '-') {
+        $text = trim((string) ($value ?? ''));
+
+        if ($text === '') {
+            return e($fallback);
+        }
+
+        return nl2br(e($text));
+    };
 @endphp
 
 <section class="relative isolate overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(91,62,142,0.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f4ff_100%)] pt-32 pb-14 sm:pt-36 lg:pt-40 lg:pb-16">
@@ -46,9 +61,7 @@
                     {{ $workshop['title'] }}
                 </h1>
 
-                <p class="mt-6 max-w-4xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                    {{ $workshop['overview'] ?? $workshop['short_description'] ?? '-' }}
-                </p>
+                
 
                 <div class="mt-7 flex flex-wrap items-center gap-3">
                     <span class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-black text-amber-700">
@@ -119,6 +132,10 @@
                     </div>
                 </div>
             </div>
+
+            <p class="mt-6 max-w-4xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
+                {!! $formatTextarea($workshop['overview'] ?? $workshop['short_description'] ?? '-') !!}
+            </p>
         </div>
     </div>
 </section>
@@ -217,7 +234,7 @@
                                     </span>
 
                                     <span class="pt-1 text-base font-bold leading-7 text-slate-700">
-                                        {{ $benefit }}
+                                        {!! $formatTextarea($benefit) !!}
                                     </span>
                                 </div>
                             @empty
@@ -233,7 +250,7 @@
                             </h3>
 
                             <p class="mt-3 text-base font-medium leading-8 text-slate-600">
-                                {{ $workshop['audience'] ?? '-' }}
+                                {!! $formatTextarea($workshop['audience'] ?? '-') !!}
                             </p>
                         </div>
                     </div>
@@ -252,7 +269,7 @@
 
                     <div class="p-6 sm:p-8">
                         <p class="text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                            {{ $workshop['short_description'] ?? '-' }}
+                            {!! $formatTextarea($workshop['short_description'] ?? '-') !!}
                         </p>
                     </div>
                 </div>
