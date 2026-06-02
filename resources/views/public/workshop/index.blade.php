@@ -5,7 +5,7 @@
 @section('brand_url', url('/workshop'))
 
 @section('content')
-<section class="relative isolate overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(91,62,142,0.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f4ff_100%)] pt-32 pb-16 sm:pt-36 lg:pt-40 lg:pb-20">
+<section class="workshop-hero-section relative isolate overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(91,62,142,0.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f4ff_100%)] pt-32 pb-16 sm:pt-36 lg:pt-40 lg:pb-20">
     <div class="pointer-events-none absolute inset-0 -z-10 opacity-60 [background-image:linear-gradient(rgba(91,62,142,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(91,62,142,0.06)_1px,transparent_1px)] [background-size:42px_42px]"></div>
 
     <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
@@ -327,6 +327,19 @@
 
 @push('styles')
 <style>
+    .workshop-hero-section {
+        display: flex;
+        align-items: center;
+        min-height: 100vh;
+        min-height: 100svh;
+    }
+
+    @supports (height: 100dvh) {
+        .workshop-hero-section {
+            min-height: 100dvh;
+        }
+    }
+
     .hero-tilt-card {
         transform: rotate(0deg) scale(1);
         transform-origin: center center;
