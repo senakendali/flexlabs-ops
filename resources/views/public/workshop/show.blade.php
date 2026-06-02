@@ -6,11 +6,14 @@
 
 @section('content')
 @php
-    $workshopItems = $workshops instanceof \Illuminate\Pagination\AbstractPaginator
-        ? $workshops->items()
-        : ($workshops ?? []);
-
-    $heroWorkshop = collect($workshopItems)->first();
+    /*
+    |--------------------------------------------------------------------------
+    | Safe Workshop Data
+    |--------------------------------------------------------------------------
+    | Supaya tidak error Undefined variable $workshops kalau view kepanggil
+    | dari route/controller yang belum mengirim data.
+    */
+    $workshops = $workshops ?? collect();
 
     $fallbackImageUrl = asset('images/universal.png');
 
@@ -24,18 +27,6 @@
         }
 
         return $default;
-    };
-
-    $getWorkshopImageValue = function ($item) use ($getWorkshopValue) {
-        foreach (['image', 'image_url', 'thumbnail', 'thumbnail_url', 'cover_image', 'cover_image_url'] as $field) {
-            $value = $getWorkshopValue($item, $field);
-
-            if (!empty($value)) {
-                return $value;
-            }
-        }
-
-        return null;
     };
 
     $resolveImageUrl = function ($image) use ($fallbackImageUrl) {
@@ -62,7 +53,20 @@
         return asset('storage/' . $image);
     };
 
-    $heroImageUrl = $resolveImageUrl($getWorkshopImageValue($heroWorkshop));
+    $workshopItems = $workshops instanceof \Illuminate\Pagination\AbstractPaginator
+        ? $workshops->items()
+        : $workshops;
+
+    $workshopCollection = collect($workshopItems);
+    $heroWorkshop = $workshopCollection->first();
+
+    $heroImageUrl = $resolveImageUrl(
+        $getWorkshopValue($heroWorkshop, 'image_url')
+            ?: $getWorkshopValue($heroWorkshop, 'image')
+            ?: $getWorkshopValue($heroWorkshop, 'thumbnail')
+            ?: $getWorkshopValue($heroWorkshop, 'cover_image')
+    );
+
     $heroImageAlt = $getWorkshopValue($heroWorkshop, 'title', 'Workshop FlexLabs');
 @endphp
 
@@ -271,60 +275,80 @@
         </div>
 
         <div class="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            @forelse ($workshops as $workshop)
+            @forelse ($workshopCollection as $workshop)
                 @php
-                    $priceText = 'Rp ' . number_format($workshop['price'] ?? 0, 0, ',', '.');
+                    $title = $getWorkshopValue($workshop, 'title', 'Workshop FlexLabs');
+                    $slug = $getWorkshopValue($workshop, 'slug');
+                    $badge = $getWorkshopValue($workshop, 'badge');
+                    $level = $getWorkshopValue($workshop, 'level');
+                    $duration = $getWorkshopValue($workshop, 'duration');
+                    $shortDescription = $getWorkshopValue($workshop, 'short_description', 'Workshop praktis dari FlexLabs.');
 
-                    $oldPriceText = !empty($workshop['old_price'])
-                        ? 'Rp ' . number_format($workshop['old_price'], 0, ',', '.')
+                    $price = (float) $getWorkshopValue($workshop, 'price', 0);
+                    $oldPrice = $getWorkshopValue($workshop, 'old_price');
+
+                    $rating = max(0, min(5, (int) $getWorkshopValue($workshop, 'rating', 0)));
+                    $ratingCount = (int) $getWorkshopValue($workshop, 'rating_count', 0);
+
+                    $imageUrl = $resolveImageUrl(
+                        $getWorkshopValue($workshop, 'image_url')
+                            ?: $getWorkshopValue($workshop, 'image')
+                            ?: $getWorkshopValue($workshop, 'thumbnail')
+                            ?: $getWorkshopValue($workshop, 'cover_image')
+                    );
+
+                    $priceText = 'Rp ' . number_format($price, 0, ',', '.');
+
+                    $oldPriceText = !empty($oldPrice)
+                        ? 'Rp ' . number_format((float) $oldPrice, 0, ',', '.')
                         : null;
 
-                    $rating = (int) ($workshop['rating'] ?? 0);
-                    $ratingCount = (int) ($workshop['rating_count'] ?? 0);
-                    $imageUrl = $resolveImageUrl($getWorkshopImageValue($workshop));
+                    $detailUrl = $slug
+                        ? route('workshop.show', $slug)
+                        : '#';
                 @endphp
 
                 <a
-                    href="{{ route('workshop.show', $workshop['slug']) }}"
+                    href="{{ $detailUrl }}"
                     class="group block h-full no-underline"
                 >
                     <article class="flex h-full flex-col overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:border-flex-primary/20 hover:shadow-[0_28px_70px_rgba(91,62,142,0.18)]">
                         <div class="relative overflow-hidden bg-flex-primary/5 p-3">
                             <img
                                 src="{{ $imageUrl }}"
-                                alt="{{ $workshop['title'] }}"
+                                alt="{{ $title }}"
                                 class="h-56 w-full rounded-[1.45rem] object-cover transition duration-500 group-hover:scale-[1.04]"
                                 onerror="this.onerror=null; this.src='{{ $fallbackImageUrl }}'"
                             >
 
-                            @if (!empty($workshop['badge']))
+                            @if (!empty($badge))
                                 <span class="absolute left-1/2 top-6 inline-flex max-w-[calc(100%-3rem)] -translate-x-1/2 justify-center rounded-full bg-white px-4 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-flex-primary shadow-[0_12px_30px_rgba(15,23,42,0.14)] sm:left-6 sm:max-w-none sm:translate-x-0 sm:text-left">
-                                    {{ $workshop['badge'] }}
+                                    {{ $badge }}
                                 </span>
                             @endif
                         </div>
 
                         <div class="flex flex-1 flex-col p-6">
                             <div class="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
-                                @if (!empty($workshop['level']))
-                                    <span>{{ $workshop['level'] }}</span>
+                                @if (!empty($level))
+                                    <span>{{ $level }}</span>
                                 @endif
 
-                                @if (!empty($workshop['level']) && !empty($workshop['duration']))
+                                @if (!empty($level) && !empty($duration))
                                     <span class="h-1.5 w-1.5 rounded-full bg-flex-primary/35"></span>
                                 @endif
 
-                                @if (!empty($workshop['duration']))
-                                    <span>{{ $workshop['duration'] }}</span>
+                                @if (!empty($duration))
+                                    <span>{{ $duration }}</span>
                                 @endif
                             </div>
 
                             <h3 class="mt-4 text-xl font-black leading-snug tracking-[-0.04em] text-slate-950 transition group-hover:text-flex-primary">
-                                {{ $workshop['title'] }}
+                                {{ $title }}
                             </h3>
 
                             <p class="mt-3 line-clamp-3 text-sm font-medium leading-7 text-slate-600">
-                                {{ $workshop['short_description'] }}
+                                {{ $shortDescription }}
                             </p>
 
                             <div class="mt-5 rounded-2xl border border-flex-primary/10 bg-flex-soft p-4">
