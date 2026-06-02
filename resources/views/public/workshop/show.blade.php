@@ -133,7 +133,7 @@
                 </div>
             </div>
 
-            <p class="mt-6 max-w-4xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
+            <p class="mt-6 w-full max-w-none text-base font-medium leading-8 text-slate-600 sm:text-lg">
                 {!! $formatTextarea($workshop['overview'] ?? $workshop['short_description'] ?? '-') !!}
             </p>
         </div>
