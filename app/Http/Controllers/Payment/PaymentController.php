@@ -135,7 +135,6 @@ class PaymentController extends Controller
                 'batch.program:id,name',
                 'workshop',
             ])
-            ->whereIn('status', ['pending', 'partial'])
             ->orderByDesc('id')
             ->get([
                 'id',
@@ -170,7 +169,6 @@ class PaymentController extends Controller
                 'order.batch.program:id,name',
                 'order.workshop',
             ])
-            ->whereIn('status', ['pending', 'overdue'])
             ->orderByDesc('id')
             ->get(['id', 'order_id', 'title', 'amount', 'due_date', 'status']);
 
@@ -186,7 +184,28 @@ class PaymentController extends Controller
             'order.batch.program:id,name',
             'order.workshop',
             'paymentSchedule:id,order_id,title,amount,due_date,status',
+            'paymentSchedule.order' => function ($query) {
+                $query->select([
+                    'id',
+                    'student_id',
+                    'batch_id',
+                    'workshop_id',
+                    'order_type',
+                    'original_price',
+                    'discount',
+                    'final_price',
+                    'status',
+                    'notes',
+                ]);
+            },
+            'paymentSchedule.order.student:id,full_name,email,phone',
+            'paymentSchedule.order.batch:id,program_id,name',
+            'paymentSchedule.order.batch.program:id,name',
+            'paymentSchedule.order.workshop',
         ]);
+
+        $orderOption = $this->formatOrderOption($payment->order);
+        $paymentScheduleOption = $this->formatPaymentScheduleOption($payment->paymentSchedule);
 
         return response()->json([
             'success' => true,
@@ -210,50 +229,20 @@ class PaymentController extends Controller
                 'public_payment_link' => $payment->public_token
                     ? route('public.payments.show', $payment->public_token)
                     : null,
-                'order' => $payment->order ? [
-                    'id' => $payment->order->id,
-                    'order_type' => $payment->order->order_type,
-                    'batch_id' => $payment->order->batch_id,
-                    'workshop_id' => $payment->order->workshop_id,
-                    'original_price' => (float) $payment->order->original_price,
-                    'discount' => (float) $payment->order->discount,
-                    'final_price' => (float) $payment->order->final_price,
-                    'status' => $payment->order->status,
-                    'notes' => $payment->order->notes,
-                    'student' => $payment->order->student ? [
-                        'id' => $payment->order->student->id,
-                        'full_name' => $payment->order->student->full_name,
-                        'email' => $payment->order->student->email,
-                        'phone' => $payment->order->student->phone,
-                    ] : null,
-                    'batch' => $payment->order->batch ? [
-                        'id' => $payment->order->batch->id,
-                        'name' => $payment->order->batch->name,
-                        'program' => $payment->order->batch->program ? [
-                            'id' => $payment->order->batch->program->id,
-                            'name' => $payment->order->batch->program->name,
-                        ] : null,
-                    ] : null,
-                    'workshop' => $payment->order->workshop ? [
-                        'id' => $payment->order->workshop->id,
-                        'title' => $this->firstFilledAttribute($payment->order->workshop, [
-                            'title',
-                            'name',
-                            'workshop_title',
-                            'theme_name',
-                            'theme',
-                            'topic',
-                            'subject',
-                        ]),
-                    ] : null,
-                ] : null,
-                'payment_schedule' => $payment->paymentSchedule ? [
-                    'id' => $payment->paymentSchedule->id,
-                    'title' => $payment->paymentSchedule->title,
-                    'amount' => (float) $payment->paymentSchedule->amount,
-                    'due_date' => optional($payment->paymentSchedule->due_date)->format('Y-m-d'),
-                    'status' => $payment->paymentSchedule->status,
-                ] : null,
+                'order' => $orderOption,
+                'payment_schedule' => $paymentScheduleOption,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Select option aliases untuk modal edit
+                |--------------------------------------------------------------------------
+                | Beberapa frontend mengisi select dari array option global yang dibawa dari
+                | halaman index. Kalau order / payment schedule sudah paid, option tersebut
+                | sebelumnya bisa tidak ada karena query index dibatasi status tertentu.
+                | Alias ini membantu frontend append selected option saat open edit modal.
+                */
+                'selected_order_option' => $orderOption,
+                'selected_payment_schedule_option' => $paymentScheduleOption,
                 'source_context' => $this->resolvePaymentSourceContext($payment),
             ],
         ]);
@@ -621,6 +610,98 @@ class PaymentController extends Controller
         $payment = $this->findPaymentByPublicToken($token);
 
         return $this->downloadInvoicePdf($payment);
+    }
+
+
+
+    private function formatOrderOption(?Order $order): ?array
+    {
+        if (!$order) {
+            return null;
+        }
+
+        $student = $order->student;
+        $batch = $order->batch;
+        $program = $batch?->program;
+        $workshopTitle = $order->workshop
+            ? $this->firstFilledAttribute($order->workshop, [
+                'title',
+                'name',
+                'workshop_title',
+                'theme_name',
+                'theme',
+                'topic',
+                'subject',
+            ])
+            : null;
+
+        $sourceTitle = $workshopTitle
+            ?: collect([
+                $program?->name,
+                $batch?->name,
+            ])
+                ->filter(fn ($value) => filled($value))
+                ->implode(' · ');
+
+        $studentName = $student?->full_name ?: 'Unknown Student';
+        $orderType = Str::headline((string) ($order->order_type ?: 'order'));
+        $sourceTitle = $sourceTitle ?: 'FlexLabs Order #' . $order->id;
+
+        return [
+            'id' => $order->id,
+            'value' => $order->id,
+            'label' => trim($studentName . ' - ' . $sourceTitle . ' (' . $orderType . ')'),
+            'student_id' => $order->student_id,
+            'batch_id' => $order->batch_id,
+            'workshop_id' => $order->workshop_id,
+            'order_type' => $order->order_type,
+            'original_price' => (float) $order->original_price,
+            'discount' => (float) $order->discount,
+            'final_price' => (float) $order->final_price,
+            'status' => $order->status,
+            'notes' => $order->notes,
+            'student' => $student ? [
+                'id' => $student->id,
+                'full_name' => $student->full_name,
+                'email' => $student->email,
+                'phone' => $student->phone,
+            ] : null,
+            'batch' => $batch ? [
+                'id' => $batch->id,
+                'name' => $batch->name,
+                'program' => $program ? [
+                    'id' => $program->id,
+                    'name' => $program->name,
+                ] : null,
+            ] : null,
+            'workshop' => $order->workshop ? [
+                'id' => $order->workshop->id,
+                'title' => $workshopTitle,
+            ] : null,
+        ];
+    }
+
+    private function formatPaymentScheduleOption(?PaymentSchedule $paymentSchedule): ?array
+    {
+        if (!$paymentSchedule) {
+            return null;
+        }
+
+        $orderOption = $this->formatOrderOption($paymentSchedule->order);
+        $title = $paymentSchedule->title ?: 'Payment Schedule #' . $paymentSchedule->id;
+        $orderLabel = $orderOption['label'] ?? ('Order #' . $paymentSchedule->order_id);
+
+        return [
+            'id' => $paymentSchedule->id,
+            'value' => $paymentSchedule->id,
+            'label' => trim($title . ' - ' . $orderLabel),
+            'order_id' => $paymentSchedule->order_id,
+            'title' => $paymentSchedule->title,
+            'amount' => (float) $paymentSchedule->amount,
+            'due_date' => optional($paymentSchedule->due_date)->format('Y-m-d'),
+            'status' => $paymentSchedule->status,
+            'order' => $orderOption,
+        ];
     }
 
 
@@ -1841,15 +1922,30 @@ class PaymentController extends Controller
     {
         $batchCode = $this->resolveInvoiceBatchCode($order);
         $programCode = $this->resolveInvoiceProgramCode($order);
-        $dateCode = now()->format('Ymd');
+        $monthCode = now()->format('Ym');
 
-        // Format: FLX-B1-SE-20260507-0001
-        // Nomor urut dihitung per batch + program, bukan per tanggal/bulan.
-        $sequencePrefix = 'FLX-' . $batchCode . '-' . $programCode . '-';
-        $documentPrefix = $sequencePrefix . $dateCode . '-';
-        $pattern = '/^' . preg_quote($sequencePrefix, '/') . '\d{8}-(\d+)$/';
+        /*
+        |--------------------------------------------------------------------------
+        | Format invoice bulanan
+        |--------------------------------------------------------------------------
+        | Contoh: FLX-B1-SE-202606-0001
+        |
+        | Nomor urut sekarang dihitung per bulan untuk kombinasi batch + program.
+        | Jadi bulan baru akan mulai lagi dari 0001.
+        |
+        | Pattern lama harian seperti FLX-B1-SE-20260602-0001 tetap ikut dibaca
+        | agar invoice yang sudah dibuat pada bulan berjalan tidak diabaikan.
+        */
+        $sequencePrefix = 'FLX-' . $batchCode . '-' . $programCode . '-' . $monthCode;
+        $documentPrefix = $sequencePrefix . '-';
+        $pattern = '/^' . preg_quote($sequencePrefix, '/') . '(?:\d{2})?-(\d+)$/';
 
-        $maxSequence = Payment::where('invoice_number', 'like', $sequencePrefix . '%')
+        $maxSequence = Payment::query()
+            ->where(function ($query) use ($documentPrefix, $sequencePrefix) {
+                $query
+                    ->where('invoice_number', 'like', $documentPrefix . '%')
+                    ->orWhere('invoice_number', 'like', $sequencePrefix . '__-%');
+            })
             ->lockForUpdate()
             ->pluck('invoice_number')
             ->map(function ($invoiceNumber) use ($pattern) {
