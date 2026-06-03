@@ -16,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
@@ -24,7 +23,6 @@ class StudentLearningController extends Controller
 {
     public function show(Request $request, string $courseSlug, string $lessonSlug): JsonResponse
     {
-        // FAST_LESSON_SHOW_QUERY_V1
         $user = $request->user();
 
         $user->load([
@@ -72,19 +70,6 @@ class StudentLearningController extends Controller
 
         $resolvedCourseSlug = $this->getProgramSlug($program);
 
-        /*
-         |--------------------------------------------------------------------------
-         | Fast path: ambil daftar lesson memakai flat SQL join.
-         |--------------------------------------------------------------------------
-         |
-         | Relasi curriculum FlexLabs sudah jelas:
-         | programs -> program_stages -> modules -> topics -> sub_topics.
-         |
-         | Jadi tidak perlu hydrate Eloquent nested topic.module.stage.program untuk
-         | semua lesson. Content lesson juga tidak ikut ditarik untuk semua subtopic;
-         | content hanya diambil untuk lesson aktif lewat hydrateCurrentLessonDetail().
-         |
-         */
         $subTopics = $this->getSubTopicsForProgram((int) $program->id);
 
         if ($subTopics->isEmpty()) {
@@ -103,7 +88,6 @@ class StudentLearningController extends Controller
             ], 404);
         }
 
-        $currentSubTopic = $this->hydrateCurrentLessonDetail($currentSubTopic);
         $orderedSubTopics = $subTopics->values();
 
         $currentIndex = $orderedSubTopics->search(
@@ -118,13 +102,14 @@ class StudentLearningController extends Controller
             ? $orderedSubTopics->get($currentIndex + 1)
             : null;
 
-        $progressRows = $this->getProgressRowsForSubTopics(
-            student: $student,
-            subTopicIds: $orderedSubTopics->pluck('id')->filter()->unique()->values()
-        );
+        $progressRows = StudentLessonProgress::query()
+            ->where('student_id', $student->id)
+            ->whereIn('sub_topic_id', $orderedSubTopics->pluck('id'))
+            ->get()
+            ->keyBy('sub_topic_id');
 
-        $currentProgress = $progressRows->get((int) $currentSubTopic->id);
-        $currentTopic = $currentSubTopic->topic ?? null;
+        $currentProgress = $progressRows->get($currentSubTopic->id);
+        $currentTopic = $currentSubTopic->topic;
 
         $batchIds = $activeEnrollments
             ->pluck('batch_id')
@@ -148,6 +133,10 @@ class StudentLearningController extends Controller
                     $currentProgress
                 ),
 
+                /**
+                 * Topic-level resources.
+                 * Ini yang dipakai sidebar LearningPage.
+                 */
                 'topic' => $this->formatTopic($currentTopic),
                 'topic_resources' => $this->formatTopicResources($currentTopic),
 
@@ -170,8 +159,6 @@ class StudentLearningController extends Controller
             ],
         ]);
     }
-
-    
 
     public function saveProgress(Request $request, string $courseSlug, string $lessonSlug): JsonResponse
     {
@@ -529,7 +516,7 @@ class StudentLearningController extends Controller
         $subTopic,
         string $courseSlug,
         bool $isActive = false,
-        ?object $progress = null
+        ?StudentLessonProgress $progress = null
     ): array {
         $topic = $subTopic->topic;
         $module = $topic?->module;
@@ -848,7 +835,7 @@ class StudentLearningController extends Controller
         $subTopic,
         string $courseSlug,
         int $activeSubTopicId,
-        ?object $progress = null
+        ?StudentLessonProgress $progress = null
     ): array {
         $title = $subTopic->name
             ?? $subTopic->title
@@ -858,7 +845,9 @@ class StudentLearningController extends Controller
 
         $isCompleted = (bool) ($progress?->is_completed ?? false);
 
-        $hasContent = (bool) ($subTopic->has_content ?? false);
+        $hasContent = ! empty($this->getColumnValue($subTopic, [
+            'content',
+        ]));
 
         $status = match (true) {
             (int) $subTopic->id === $activeSubTopicId => 'active',
@@ -894,314 +883,120 @@ class StudentLearningController extends Controller
 
     private function getSubTopicsForProgram(int $programId): Collection
     {
-        if (
-            ! Schema::hasTable('sub_topics')
-            || ! Schema::hasTable('topics')
-            || ! Schema::hasTable('modules')
-            || ! Schema::hasTable('program_stages')
-        ) {
-            return collect();
-        }
-
-        $selects = [
-            'sub_topics.id',
-            'sub_topics.topic_id',
-            'sub_topics.name',
-            'sub_topics.description',
-            'sub_topics.sort_order',
-            'sub_topics.lesson_type',
-            'sub_topics.video_url',
-            'sub_topics.video_provider',
-            'sub_topics.video_disk',
-            'sub_topics.video_path',
-            'sub_topics.video_mime',
-            'sub_topics.video_duration_minutes',
-            'sub_topics.video_duration_seconds',
-            'sub_topics.thumbnail_url',
-            'topics.id as topic_id',
-            'topics.name as topic_name',
-            'topics.description as topic_description',
-            'topics.sort_order as topic_sort_order',
-            'topics.slide_url as topic_slide_url',
-            'topics.starter_code_url as topic_starter_code_url',
-            'topics.supporting_file_url as topic_supporting_file_url',
-            'topics.external_reference_url as topic_external_reference_url',
-            'topics.practice_brief as topic_practice_brief',
-            'modules.id as module_id',
-            'modules.name as module_name',
-            'modules.description as module_description',
-            'modules.sort_order as module_sort_order',
-            'program_stages.id as stage_id',
-            'program_stages.name as stage_name',
-            'program_stages.sort_order as stage_sort_order',
-        ];
-
-        if (Schema::hasColumn('sub_topics', 'slug')) {
-            $selects[] = 'sub_topics.slug';
-        }
-
-        if (Schema::hasColumn('sub_topics', 'content')) {
-            $selects[] = DB::raw("CASE WHEN sub_topics.content IS NULL OR sub_topics.content = '' THEN 0 ELSE 1 END as has_content");
-        } else {
-            $selects[] = DB::raw('0 as has_content');
-        }
-
-        $query = DB::table('sub_topics')
-            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
-            ->join('modules', 'modules.id', '=', 'topics.module_id')
-            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
-            ->where('program_stages.program_id', $programId)
-            ->select($selects);
-
-        if (Schema::hasColumn('program_stages', 'is_active')) {
-            $query->where('program_stages.is_active', true);
-        }
-
-        if (Schema::hasColumn('modules', 'is_active')) {
-            $query->where('modules.is_active', true);
-        }
-
-        if (Schema::hasColumn('topics', 'is_active')) {
-            $query->where('topics.is_active', true);
-        }
+        $query = SubTopic::query()
+            ->with([
+                'topic.module.stage.program',
+            ])
+            ->whereHas('topic.module.stage', function ($stageQuery) use ($programId) {
+                $stageQuery->where('program_id', $programId);
+            });
 
         if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('sub_topics.is_active', true);
+            $query->where('is_active', true);
         }
 
-        return $query
-            ->orderBy('program_stages.sort_order')
-            ->orderBy('modules.sort_order')
-            ->orderBy('topics.sort_order')
-            ->orderBy('sub_topics.sort_order')
-            ->orderBy('sub_topics.id')
-            ->get()
-            ->map(fn ($row) => $this->hydrateFlatSubTopicRelations($row))
+        $subTopics = $query->get();
+
+        return $subTopics
+            ->sortBy(function ($subTopic) {
+                return sprintf(
+                    '%06d-%06d-%06d-%06d-%06d',
+                    $subTopic->topic?->module?->stage?->sort_order ?? 999999,
+                    $subTopic->topic?->module?->sort_order ?? 999999,
+                    $subTopic->topic?->sort_order ?? 999999,
+                    $subTopic->sort_order ?? 999999,
+                    $subTopic->id ?? 999999
+                );
+            })
             ->values();
     }
-
-    private function hydrateFlatSubTopicRelations(object $row): object
-    {
-        $program = (object) [
-            'id' => null,
-            'name' => null,
-        ];
-
-        $stage = (object) [
-            'id' => $row->stage_id ?? null,
-            'name' => $row->stage_name ?? null,
-            'title' => $row->stage_name ?? null,
-            'sort_order' => $row->stage_sort_order ?? null,
-            'program' => $program,
-        ];
-
-        $module = (object) [
-            'id' => $row->module_id ?? null,
-            'name' => $row->module_name ?? null,
-            'title' => $row->module_name ?? null,
-            'description' => $row->module_description ?? null,
-            'sort_order' => $row->module_sort_order ?? null,
-            'stage' => $stage,
-        ];
-
-        $topic = (object) [
-            'id' => $row->topic_id ?? null,
-            'name' => $row->topic_name ?? null,
-            'title' => $row->topic_name ?? null,
-            'description' => $row->topic_description ?? null,
-            'sort_order' => $row->topic_sort_order ?? null,
-            'slide_url' => $row->topic_slide_url ?? null,
-            'starter_code_url' => $row->topic_starter_code_url ?? null,
-            'supporting_file_url' => $row->topic_supporting_file_url ?? null,
-            'external_reference_url' => $row->topic_external_reference_url ?? null,
-            'practice_brief' => $row->topic_practice_brief ?? null,
-            'module' => $module,
-        ];
-
-        $row->title = $row->name ?? null;
-        $row->topic = $topic;
-
-        return $row;
-    }
-
-    private function hydrateCurrentLessonDetail(object $subTopic): object
-    {
-        $selects = [
-            'id',
-        ];
-
-        if (Schema::hasColumn('sub_topics', 'content_format')) {
-            $selects[] = 'content_format';
-        }
-
-        if (Schema::hasColumn('sub_topics', 'content')) {
-            $selects[] = 'content';
-        }
-
-        if (Schema::hasColumn('sub_topics', 'slug')) {
-            $selects[] = 'slug';
-        }
-
-        $detail = DB::table('sub_topics')
-            ->where('id', $subTopic->id)
-            ->select($selects)
-            ->first();
-
-        if ($detail) {
-            foreach ((array) $detail as $key => $value) {
-                $subTopic->{$key} = $value;
-            }
-
-            $subTopic->has_content = ! empty($subTopic->content);
-        }
-
-        return $subTopic;
-    }
-
-    private function getProgressRowsForSubTopics(Student $student, Collection $subTopicIds): Collection
-    {
-        $subTopicIds = $subTopicIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        if ($subTopicIds->isEmpty() || ! Schema::hasTable('student_lesson_progresses')) {
-            return collect();
-        }
-
-        return DB::table('student_lesson_progresses')
-            ->where('student_id', $student->id)
-            ->whereIn('sub_topic_id', $subTopicIds->all())
-            ->select([
-                'id',
-                'student_id',
-                'sub_topic_id',
-                'last_position_seconds',
-                'duration_seconds',
-                'progress_percentage',
-                'is_completed',
-                'completed_at',
-                'last_watched_at',
-                'updated_at',
-            ])
-            ->get()
-            ->keyBy(fn ($progress) => (int) $progress->sub_topic_id);
-    }
-
-    
 
     private function countPendingTasks(Student $student, Collection $batchIds): int
     {
-        $batchIds = $batchIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
         if ($batchIds->isEmpty()) {
             return 0;
         }
 
-        $assignmentCount = 0;
+        $submittedBatchAssignmentIds = AssignmentSubmission::query()
+            ->where('student_id', $student->id)
+            ->whereNotNull('batch_assignment_id')
+            ->whereIn('status', [
+                'submitted',
+                'late',
+                'reviewed',
+                'returned',
+            ])
+            ->pluck('batch_assignment_id')
+            ->filter()
+            ->unique()
+            ->values();
 
-        if (Schema::hasTable('batch_assignments')) {
-            $assignmentQuery = BatchAssignment::query()
-                ->whereIn('batch_id', $batchIds->all());
+        $assignmentQuery = BatchAssignment::query()
+            ->whereIn('batch_id', $batchIds)
+            ->whereNotIn('id', $submittedBatchAssignmentIds);
 
-            if (Schema::hasColumn('batch_assignments', 'is_active')) {
-                $assignmentQuery->where('is_active', true);
-            }
-
-            if (Schema::hasColumn('batch_assignments', 'status')) {
-                $assignmentQuery->whereIn('status', [
-                    'published',
-                    'active',
-                    'open',
-                ]);
-            }
-
-            if (Schema::hasTable('assignment_submissions')) {
-                $assignmentQuery->whereNotExists(function ($submissionQuery) use ($student) {
-                    $submissionQuery
-                        ->selectRaw('1')
-                        ->from('assignment_submissions')
-                        ->whereColumn('assignment_submissions.batch_assignment_id', 'batch_assignments.id')
-                        ->where('assignment_submissions.student_id', $student->id)
-                        ->whereIn('assignment_submissions.status', [
-                            'submitted',
-                            'late',
-                            'reviewed',
-                            'returned',
-                            'graded',
-                            'completed',
-                        ]);
-                });
-            }
-
-            $assignmentCount = $assignmentQuery->count();
+        if (Schema::hasColumn('batch_assignments', 'is_active')) {
+            $assignmentQuery->where('is_active', true);
         }
 
-        $quizCount = 0;
-
-        if (Schema::hasTable('batch_learning_quizzes')) {
-            $quizQuery = BatchLearningQuiz::query()
-                ->whereIn('batch_id', $batchIds->all());
-
-            if (Schema::hasColumn('batch_learning_quizzes', 'is_active')) {
-                $quizQuery->where('is_active', true);
-            }
-
-            if (Schema::hasColumn('batch_learning_quizzes', 'status')) {
-                $quizQuery->whereIn('status', [
-                    'published',
-                    'active',
-                    'open',
-                ]);
-            }
-
-            if (Schema::hasColumn('batch_learning_quizzes', 'available_at')) {
-                $quizQuery->where(function ($availableQuery) {
-                    $availableQuery
-                        ->whereNull('available_at')
-                        ->orWhere('available_at', '<=', now());
-                });
-            }
-
-            if (Schema::hasColumn('batch_learning_quizzes', 'closed_at')) {
-                $quizQuery->where(function ($closedQuery) {
-                    $closedQuery
-                        ->whereNull('closed_at')
-                        ->orWhere('closed_at', '>=', now());
-                });
-            }
-
-            if (Schema::hasTable('learning_quiz_attempts')) {
-                $quizQuery->whereNotExists(function ($attemptQuery) use ($student) {
-                    $attemptQuery
-                        ->selectRaw('1')
-                        ->from('learning_quiz_attempts')
-                        ->whereColumn('learning_quiz_attempts.batch_learning_quiz_id', 'batch_learning_quizzes.id')
-                        ->where('learning_quiz_attempts.student_id', $student->id)
-                        ->whereIn('learning_quiz_attempts.status', [
-                            'submitted',
-                            'completed',
-                            'finished',
-                            'passed',
-                            'done',
-                            'reviewed',
-                            'graded',
-                        ]);
-                });
-            }
-
-            $quizCount = $quizQuery->count();
+        if (Schema::hasColumn('batch_assignments', 'status')) {
+            $assignmentQuery->whereIn('status', [
+                'published',
+                'active',
+                'open',
+            ]);
         }
+
+        $assignmentCount = $assignmentQuery->count();
+
+        $completedBatchQuizIds = LearningQuizAttempt::query()
+            ->where('student_id', $student->id)
+            ->whereNotNull('batch_learning_quiz_id')
+            ->whereIn('status', [
+                'submitted',
+                'graded',
+            ])
+            ->pluck('batch_learning_quiz_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $quizQuery = BatchLearningQuiz::query()
+            ->whereIn('batch_id', $batchIds)
+            ->whereNotIn('id', $completedBatchQuizIds);
+
+        if (Schema::hasColumn('batch_learning_quizzes', 'is_active')) {
+            $quizQuery->where('is_active', true);
+        }
+
+        if (Schema::hasColumn('batch_learning_quizzes', 'status')) {
+            $quizQuery->whereIn('status', [
+                'published',
+                'active',
+                'open',
+            ]);
+        }
+
+        if (Schema::hasColumn('batch_learning_quizzes', 'available_at')) {
+            $quizQuery->where(function ($availableQuery) {
+                $availableQuery
+                    ->whereNull('available_at')
+                    ->orWhere('available_at', '<=', now());
+            });
+        }
+
+        if (Schema::hasColumn('batch_learning_quizzes', 'closed_at')) {
+            $quizQuery->where(function ($closedQuery) {
+                $closedQuery
+                    ->whereNull('closed_at')
+                    ->orWhere('closed_at', '>=', now());
+            });
+        }
+
+        $quizCount = $quizQuery->count();
 
         return $assignmentCount + $quizCount;
     }
-
-    
 
     private function resolveSubTopicVideoPlaybackUrl($subTopic, string $courseSlug, string $lessonSlug): ?string
     {
@@ -1268,28 +1063,36 @@ class StudentLearningController extends Controller
         $normalizedCourseSlug = $this->slugify($courseSlug);
         $normalizedLessonSlug = $this->slugify($lessonSlug);
 
-        $program = DB::table('programs')
-            ->where(function ($query) use ($normalizedCourseSlug, $courseSlug) {
-                $query->where('slug', $normalizedCourseSlug)
-                    ->orWhere('id', $courseSlug);
-            })
-            ->select(['id', 'name', 'slug'])
-            ->first();
+        $query = SubTopic::query()
+            ->with([
+                'topic.module.stage.program',
+            ]);
 
-        if (! $program) {
-            return null;
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('is_active', true);
         }
 
-        return $this->getSubTopicsForProgram((int) $program->id)
-            ->first(function ($subTopic) use ($normalizedLessonSlug, $lessonSlug) {
+        return $query
+            ->get()
+            ->first(function ($subTopic) use ($normalizedCourseSlug, $normalizedLessonSlug, $courseSlug, $lessonSlug) {
+                $program = $subTopic->topic?->module?->stage?->program;
+
+                if (! $program) {
+                    return false;
+                }
+
+                $programSlug = $this->getProgramSlug($program);
                 $subTopicSlug = $this->getSubTopicSlug($subTopic);
 
-                return $subTopicSlug === $normalizedLessonSlug
+                $courseMatches = $programSlug === $normalizedCourseSlug
+                    || (string) $program->id === (string) $courseSlug;
+
+                $lessonMatches = $subTopicSlug === $normalizedLessonSlug
                     || (string) $subTopic->id === (string) $lessonSlug;
+
+                return $courseMatches && $lessonMatches;
             });
     }
-
-    
 
     private function resolveSubTopicVideoProvider($subTopic): ?string
     {
@@ -1344,7 +1147,7 @@ class StudentLearningController extends Controller
         ]);
     }
 
-    private function resolveSubTopicDurationSeconds($subTopic, ?object $progress = null): ?int
+    private function resolveSubTopicDurationSeconds($subTopic, ?StudentLessonProgress $progress = null): ?int
     {
         if ($progress?->duration_seconds) {
             return (int) $progress->duration_seconds;
@@ -1716,35 +1519,17 @@ class StudentLearningController extends Controller
         }
 
         foreach ($columns as $column) {
-            $value = null;
-            $exists = false;
-
-            if (is_array($model)) {
-                if (array_key_exists($column, $model)) {
-                    $exists = true;
-                    $value = $model[$column];
-                }
-            } elseif ($model instanceof \Illuminate\Database\Eloquent\Model) {
-                if (array_key_exists($column, $model->getAttributes())) {
-                    $exists = true;
-                    $value = $model->getAttribute($column);
-                }
-            } elseif (is_object($model)) {
-                if (property_exists($model, $column) || isset($model->{$column})) {
-                    $exists = true;
-                    $value = $model->{$column} ?? null;
-                }
+            if (!Schema::hasColumn($model->getTable(), $column)) {
+                continue;
             }
 
-            if ($exists && $value !== null && $value !== '') {
-                return $value;
+            if (!empty($model->{$column})) {
+                return $model->{$column};
             }
         }
 
         return null;
     }
-
-    
 
     private function slugify(?string $value): string
     {
