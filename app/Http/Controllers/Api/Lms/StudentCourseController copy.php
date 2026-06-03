@@ -23,6 +23,7 @@ use Illuminate\Support\Str;
 
 class StudentCourseController extends Controller
 {
+    private const DEFAULT_VIDEO_THUMBNAIL_PATH = 'images/video-thumbnail.png';
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -1038,6 +1039,8 @@ class StudentCourseController extends Controller
             'summary',
         ]);
 
+        $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($subTopic);
+
         $progressPercentage = (float) ($progress?->progress_percentage ?? 0);
         $isCompleted = (bool) ($progress?->is_completed ?? false);
 
@@ -1055,6 +1058,10 @@ class StudentCourseController extends Controller
             'slug' => $slug,
 
             'description' => $description,
+
+            'thumbnail_url' => $thumbnailUrl,
+            'thumbnailUrl' => $thumbnailUrl,
+            'image_url' => $thumbnailUrl,
 
             'duration' => $duration,
             'duration_label' => $duration,
@@ -1097,6 +1104,26 @@ class StudentCourseController extends Controller
             ->whereIn('sub_topic_id', $subTopicIds)
             ->get()
             ->keyBy('sub_topic_id');
+    }
+
+    private function resolveSubTopicThumbnailUrl($subTopic): ?string
+    {
+        $lessonType = $this->getColumnValue($subTopic, [
+            'lesson_type',
+        ]) ?: 'video';
+
+        if ($lessonType === 'video') {
+            return asset(self::DEFAULT_VIDEO_THUMBNAIL_PATH);
+        }
+
+        $thumbnailUrl = $this->getColumnValue($subTopic, [
+            'thumbnail_url',
+            'thumbnail',
+            'image_url',
+            'image',
+        ]);
+
+        return $thumbnailUrl ? (string) $thumbnailUrl : null;
     }
 
     private function resolveSubTopicDuration($subTopic): ?string
@@ -1191,11 +1218,15 @@ class StudentCourseController extends Controller
             ?? 'Untitled Sub Topic';
 
         $slug = $this->getSubTopicSlug($subTopic);
+        $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($subTopic);
 
         return [
             'id' => $subTopic->id,
             'title' => $title,
             'slug' => $slug,
+            'thumbnail_url' => $thumbnailUrl,
+            'thumbnailUrl' => $thumbnailUrl,
+            'image_url' => $thumbnailUrl,
             'url' => '/learn/' . $courseSlug . '/' . $slug,
         ];
     }

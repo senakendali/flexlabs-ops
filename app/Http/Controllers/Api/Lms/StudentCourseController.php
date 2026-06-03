@@ -936,12 +936,9 @@ class StudentCourseController extends Controller
     private function formatModules(Collection $subTopics, string $courseSlug, Collection $progressRows): Collection
     {
         return $subTopics
-            ->groupBy(function ($subTopic) {
-                return $subTopic->topic?->module?->id ?? 'module-unknown';
-            })
+            ->groupBy(fn ($subTopic) => $this->resolveSubTopicModuleId($subTopic))
             ->map(function (Collection $moduleSubTopics, $moduleKey) use ($courseSlug, $progressRows) {
                 $firstSubTopic = $moduleSubTopics->first();
-                $module = $firstSubTopic?->topic?->module;
 
                 $topics = $this->formatTopics(
                     moduleSubTopics: $moduleSubTopics,
@@ -953,14 +950,11 @@ class StudentCourseController extends Controller
                 $completedSubTopics = (int) $topics->sum('completed_sub_topics');
 
                 return [
-                    'id' => $module->id ?? $moduleKey,
-                    'title' => $module->name ?? $module->title ?? 'Untitled Module',
-                    'name' => $module->name ?? $module->title ?? 'Untitled Module',
+                    'id' => $this->resolveSubTopicModuleId($firstSubTopic) ?: $moduleKey,
+                    'title' => $this->resolveSubTopicModuleName($firstSubTopic),
+                    'name' => $this->resolveSubTopicModuleName($firstSubTopic),
 
-                    'description' => $this->getColumnValue($module, [
-                        'description',
-                        'summary',
-                    ]) ?: 'Module learning content',
+                    'description' => $this->resolveSubTopicModuleDescription($firstSubTopic) ?: 'Module learning content',
 
                     'total_lessons' => $totalSubTopics,
                     'completed_lessons' => $completedSubTopics,
@@ -979,18 +973,15 @@ class StudentCourseController extends Controller
     private function formatTopics(Collection $moduleSubTopics, string $courseSlug, Collection $progressRows): Collection
     {
         return $moduleSubTopics
-            ->groupBy(function ($subTopic) {
-                return $subTopic->topic?->id ?? 'topic-unknown';
-            })
+            ->groupBy(fn ($subTopic) => $this->resolveSubTopicTopicId($subTopic))
             ->map(function (Collection $topicSubTopics, $topicKey) use ($courseSlug, $progressRows) {
                 $firstSubTopic = $topicSubTopics->first();
-                $topic = $firstSubTopic?->topic;
 
                 $formattedSubTopics = $topicSubTopics
                     ->map(fn ($subTopic) => $this->formatSubTopic(
                         subTopic: $subTopic,
                         courseSlug: $courseSlug,
-                        progress: $progressRows->get($subTopic->id)
+                        progress: $progressRows->get((int) $subTopic->id)
                     ))
                     ->values();
 
@@ -1001,14 +992,11 @@ class StudentCourseController extends Controller
                     ->count();
 
                 return [
-                    'id' => $topic->id ?? $topicKey,
-                    'title' => $topic->name ?? $topic->title ?? 'Untitled Topic',
-                    'name' => $topic->name ?? $topic->title ?? 'Untitled Topic',
+                    'id' => $this->resolveSubTopicTopicId($firstSubTopic) ?: $topicKey,
+                    'title' => $this->resolveSubTopicTopicName($firstSubTopic),
+                    'name' => $this->resolveSubTopicTopicName($firstSubTopic),
 
-                    'description' => $this->getColumnValue($topic, [
-                        'description',
-                        'summary',
-                    ]),
+                    'description' => $this->resolveSubTopicTopicDescription($firstSubTopic),
 
                     'total_sub_topics' => $totalSubTopics,
                     'completed_sub_topics' => $completedSubTopics,
@@ -1024,7 +1012,61 @@ class StudentCourseController extends Controller
             ->values();
     }
 
-    private function formatSubTopic($subTopic, string $courseSlug, ?StudentLessonProgress $progress = null): array
+    private function resolveSubTopicModuleId($subTopic)
+    {
+        return $subTopic->module_id
+            ?? data_get($subTopic, 'topic.module.id')
+            ?? 'module-unknown';
+    }
+
+    private function resolveSubTopicModuleName($subTopic): string
+    {
+        return (string) (
+            $subTopic->module_name
+            ?? data_get($subTopic, 'topic.module.name')
+            ?? data_get($subTopic, 'topic.module.title')
+            ?? 'Untitled Module'
+        );
+    }
+
+    private function resolveSubTopicModuleDescription($subTopic): ?string
+    {
+        $description = $subTopic->module_description
+            ?? data_get($subTopic, 'topic.module.description')
+            ?? data_get($subTopic, 'topic.module.summary')
+            ?? null;
+
+        return $description !== null && $description !== '' ? (string) $description : null;
+    }
+
+    private function resolveSubTopicTopicId($subTopic)
+    {
+        return $subTopic->topic_id
+            ?? data_get($subTopic, 'topic.id')
+            ?? 'topic-unknown';
+    }
+
+    private function resolveSubTopicTopicName($subTopic): string
+    {
+        return (string) (
+            $subTopic->topic_name
+            ?? data_get($subTopic, 'topic.name')
+            ?? data_get($subTopic, 'topic.title')
+            ?? 'Untitled Topic'
+        );
+    }
+
+    private function resolveSubTopicTopicDescription($subTopic): ?string
+    {
+        $description = $subTopic->topic_description
+            ?? data_get($subTopic, 'topic.description')
+            ?? data_get($subTopic, 'topic.summary')
+            ?? null;
+
+        return $description !== null && $description !== '' ? (string) $description : null;
+    }
+
+    private function formatSubTopic($subTopic, string $courseSlug, $progress = null): array
     {
         $title = $subTopic->name
             ?? $subTopic->title
@@ -1092,6 +1134,7 @@ class StudentCourseController extends Controller
         $subTopicIds = $subTopics
             ->pluck('id')
             ->filter()
+            ->map(fn ($id) => (int) $id)
             ->unique()
             ->values();
 
@@ -1099,11 +1142,13 @@ class StudentCourseController extends Controller
             return collect();
         }
 
-        return StudentLessonProgress::query()
+        return DB::table((new StudentLessonProgress())->getTable())
             ->where('student_id', $student->id)
-            ->whereIn('sub_topic_id', $subTopicIds)
+            ->whereIn('sub_topic_id', $subTopicIds->all())
+            ->orderByDesc('updated_at')
             ->get()
-            ->keyBy('sub_topic_id');
+            ->unique(fn ($progress) => (int) ($progress->sub_topic_id ?? 0))
+            ->keyBy(fn ($progress) => (int) ($progress->sub_topic_id ?? 0));
     }
 
     private function resolveSubTopicThumbnailUrl($subTopic): ?string
@@ -1151,32 +1196,59 @@ class StudentCourseController extends Controller
 
     private function getSubTopicsForProgram(int $programId): Collection
     {
-        $query = SubTopic::query()
-            ->with([
-                'topic.module.stage.program',
+        /*
+         * FAST_COURSE_SHOW_QUERY_V1
+         *
+         * Struktur curriculum FlexLabs sekarang sudah jelas:
+         * programs -> program_stages -> modules -> topics -> sub_topics.
+         *
+         * Untuk halaman show course, jangan hydrate Eloquent nested relation dan jangan ambil
+         * kolom berat seperti sub_topics.content. Query flat ini cukup untuk membentuk
+         * modules/topics/sub_topics di response.
+         */
+        return DB::table('sub_topics')
+            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+            ->join('modules', 'modules.id', '=', 'topics.module_id')
+            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
+            ->where('program_stages.program_id', $programId)
+            ->where('program_stages.is_active', true)
+            ->where('modules.is_active', true)
+            ->where('topics.is_active', true)
+            ->where('sub_topics.is_active', true)
+            ->orderBy('program_stages.sort_order')
+            ->orderBy('program_stages.name')
+            ->orderBy('modules.sort_order')
+            ->orderBy('modules.name')
+            ->orderBy('topics.sort_order')
+            ->orderBy('topics.name')
+            ->orderBy('sub_topics.sort_order')
+            ->orderBy('sub_topics.name')
+            ->select([
+                'sub_topics.id',
+                'sub_topics.topic_id',
+                'sub_topics.name',
+                'sub_topics.description',
+                'sub_topics.sort_order',
+                'sub_topics.lesson_type',
+                'sub_topics.video_url',
+                'sub_topics.video_duration_minutes',
+                'sub_topics.thumbnail_url',
+                'sub_topics.video_duration_seconds',
+
+                'topics.name as topic_name',
+                'topics.description as topic_description',
+                'topics.sort_order as topic_sort_order',
+
+                'modules.id as module_id',
+                'modules.name as module_name',
+                'modules.description as module_description',
+                'modules.sort_order as module_sort_order',
+
+                'program_stages.id as stage_id',
+                'program_stages.name as stage_name',
+                'program_stages.sort_order as stage_sort_order',
             ])
-            ->whereHas('topic.module.stage', function ($stageQuery) use ($programId) {
-                $stageQuery->where('program_id', $programId);
-            });
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        $subTopics = $query->get();
-
-        return $subTopics
-            ->sortBy(function ($subTopic) {
-                return sprintf(
-                    '%06d-%06d-%06d-%06d-%06d',
-                    $subTopic->topic?->module?->stage?->sort_order ?? 999999,
-                    $subTopic->topic?->module?->sort_order ?? 999999,
-                    $subTopic->topic?->sort_order ?? 999999,
-                    $subTopic->sort_order ?? 999999,
-                    $subTopic->id ?? 999999
-                );
-            })
-            ->values();
+            ->get();
     }
 
     private function getNextSubTopicForProgram(Collection $subTopics, string $courseSlug, Collection $progressRows): ?array
@@ -1329,23 +1401,8 @@ class StudentCourseController extends Controller
             return 0;
         }
 
-        $submittedBatchAssignmentIds = AssignmentSubmission::query()
-            ->where('student_id', $student->id)
-            ->whereNotNull('batch_assignment_id')
-            ->whereIn('status', [
-                'submitted',
-                'late',
-                'reviewed',
-                'returned',
-            ])
-            ->pluck('batch_assignment_id')
-            ->filter()
-            ->unique()
-            ->values();
-
         $assignmentQuery = BatchAssignment::query()
-            ->whereIn('batch_id', $batchIds)
-            ->whereNotIn('id', $submittedBatchAssignmentIds);
+            ->whereIn('batch_id', $batchIds);
 
         if (Schema::hasColumn('batch_assignments', 'is_active')) {
             $assignmentQuery->where('is_active', true);
@@ -1359,23 +1416,25 @@ class StudentCourseController extends Controller
             ]);
         }
 
+        if (Schema::hasTable('assignment_submissions')) {
+            $assignmentQuery->whereNotExists(function ($query) use ($student) {
+                $query->select(DB::raw(1))
+                    ->from('assignment_submissions')
+                    ->whereColumn('assignment_submissions.batch_assignment_id', 'batch_assignments.id')
+                    ->where('assignment_submissions.student_id', $student->id)
+                    ->whereIn('assignment_submissions.status', [
+                        'submitted',
+                        'late',
+                        'reviewed',
+                        'returned',
+                    ]);
+            });
+        }
+
         $assignmentCount = $assignmentQuery->count();
 
-        $completedBatchQuizIds = LearningQuizAttempt::query()
-            ->where('student_id', $student->id)
-            ->whereNotNull('batch_learning_quiz_id')
-            ->whereIn('status', [
-                'submitted',
-                'graded',
-            ])
-            ->pluck('batch_learning_quiz_id')
-            ->filter()
-            ->unique()
-            ->values();
-
         $quizQuery = BatchLearningQuiz::query()
-            ->whereIn('batch_id', $batchIds)
-            ->whereNotIn('id', $completedBatchQuizIds);
+            ->whereIn('batch_id', $batchIds);
 
         if (Schema::hasColumn('batch_learning_quizzes', 'is_active')) {
             $quizQuery->where('is_active', true);
@@ -1402,6 +1461,19 @@ class StudentCourseController extends Controller
                 $closedQuery
                     ->whereNull('closed_at')
                     ->orWhere('closed_at', '>=', now());
+            });
+        }
+
+        if (Schema::hasTable('learning_quiz_attempts')) {
+            $quizQuery->whereNotExists(function ($query) use ($student) {
+                $query->select(DB::raw(1))
+                    ->from('learning_quiz_attempts')
+                    ->whereColumn('learning_quiz_attempts.batch_learning_quiz_id', 'batch_learning_quizzes.id')
+                    ->where('learning_quiz_attempts.student_id', $student->id)
+                    ->whereIn('learning_quiz_attempts.status', [
+                        'submitted',
+                        'graded',
+                    ]);
             });
         }
 
@@ -1490,12 +1562,24 @@ class StudentCourseController extends Controller
         }
 
         foreach ($columns as $column) {
-            if (!Schema::hasColumn($model->getTable(), $column)) {
-                continue;
+            $value = null;
+
+            if (is_array($model)) {
+                $value = $model[$column] ?? null;
+            } elseif ($model instanceof \Illuminate\Database\Eloquent\Model) {
+                $attributes = $model->getAttributes();
+
+                if (array_key_exists($column, $attributes)) {
+                    $value = $model->getAttribute($column);
+                } elseif (isset($model->{$column})) {
+                    $value = $model->{$column};
+                }
+            } elseif (is_object($model)) {
+                $value = $model->{$column} ?? null;
             }
 
-            if (!empty($model->{$column})) {
-                return $model->{$column};
+            if ($value !== null && $value !== '') {
+                return $value;
             }
         }
 
