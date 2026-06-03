@@ -58,26 +58,19 @@ class StudentDashboardController extends Controller
         $batchIds = $this->resolveBatchIds($activeEnrollments);
         $programIds = $this->resolveProgramIds($activeEnrollments);
 
-        /*
-         * Struktur curriculum FlexLabs sekarang sudah jelas:
-         * programs -> program_stages -> modules -> topics -> sub_topics.
-         * Jadi dashboard tidak perlu lagi mencari sub topic lewat banyak fallback path.
-         */
         $subTopics = $this->getSubTopicsForPrograms($programIds);
         $progressRows = $this->getProgressRows($student, $subTopics);
 
-        if ($subTopics->isEmpty()) {
-            $subTopics = $this->getFallbackSubTopics($programIds, $batchIds);
-            $progressRows = $this->getProgressRows($student, $subTopics);
-        }
+        // FAST_DASHBOARD_QUERY_V2
+        // Jangan merge semua progress student di flow normal. Progress dashboard
+        // cukup dibatasi ke subtopic dari program aktif supaya request tetap ringan.
+        $subTopics = $this->mergeIncompleteProgressSubTopics(
+            subTopics: $subTopics,
+            progressRows: $progressRows
+        );
 
         $courses = collect($activeEnrollments->all())
-            ->map(fn ($enrollment) => $this->formatCourse(
-                enrollment: $enrollment,
-                student: $student,
-                allSubTopics: $subTopics,
-                allProgressRows: $progressRows,
-            ))
+            ->map(fn ($enrollment) => $this->formatCourse($enrollment, $student))
             ->filter()
             ->unique(fn (array $course) => $course['id'] ?? null)
             ->values();
@@ -121,6 +114,9 @@ class StudentDashboardController extends Controller
                  * Upcoming sessions sengaja tidak diambil dari DashboardController.
                  * Sumber jadwal student sekarang satu pintu:
                  * GET /api/lms/student/schedules
+                 *
+                 * Dashboard Vue tetap mengambil upcoming sessions lewat endpoint schedules
+                 * supaya hasilnya sama dengan halaman Schedule.
                  */
                 'announcements' => $this->getDashboardAnnouncements(
                     programIds: $programIds,
@@ -425,7 +421,6 @@ class StudentDashboardController extends Controller
         $dates = DB::table($progressTable)
             ->where('student_id', $student->id)
             ->whereNotNull($dateColumn)
-            ->whereDate($dateColumn, '>=', now()->subDays(60)->toDateString())
             ->orderByDesc($dateColumn)
             ->pluck($dateColumn)
             ->map(fn ($date) => Carbon::parse($date)->toDateString())
@@ -467,106 +462,12 @@ class StudentDashboardController extends Controller
         return 'Last active ' . Carbon::parse($date)->diffForHumans();
     }
 
-
-    private function canUseProgramStageCurriculumPath(): bool
-    {
-        return Schema::hasTable('sub_topics')
-            && Schema::hasTable('topics')
-            && Schema::hasTable('modules')
-            && Schema::hasTable('program_stages')
-            && Schema::hasColumn('sub_topics', 'topic_id')
-            && Schema::hasColumn('topics', 'module_id')
-            && Schema::hasColumn('modules', 'program_stage_id')
-            && Schema::hasColumn('program_stages', 'program_id');
-    }
-
-    private function subTopicDashboardColumns(): array
-    {
-        $candidateColumns = [
-            'id',
-            'topic_id',
-            'name',
-            'description',
-            'sort_order',
-            'is_active',
-            'status',
-            'slug',
-            'lesson_type',
-            'video_url',
-            'video_duration_minutes',
-            'thumbnail_url',
-            'video_provider',
-            'video_disk',
-            'video_path',
-            'video_mime',
-            'video_size',
-            'video_duration_seconds',
-            'duration_minutes',
-            'duration_seconds',
-            'created_at',
-            'updated_at',
-        ];
-
-        return collect($candidateColumns)
-            ->filter(fn ($column) => Schema::hasColumn('sub_topics', $column))
-            ->map(fn ($column) => 'sub_topics.' . $column)
-            ->values()
-            ->all();
-    }
-
-    private function applyCurriculumVisibilityFilters($query): void
-    {
-        $this->applySubTopicVisibilityFilters($query);
-
-        foreach ([
-            ['topics', 'topics'],
-            ['modules', 'modules'],
-            ['program_stages', 'program_stages'],
-        ] as [$table, $alias]) {
-            if (Schema::hasColumn($table, 'is_active')) {
-                $query->where(function ($activeQuery) use ($alias) {
-                    $activeQuery->where($alias . '.is_active', true)
-                        ->orWhereNull($alias . '.is_active');
-                });
-            }
-
-            if (Schema::hasColumn($table, 'status')) {
-                $query->where(function ($statusQuery) use ($alias) {
-                    $statusQuery->whereNull($alias . '.status')
-                        ->orWhereNotIn($alias . '.status', ['inactive', 'archived', 'deleted']);
-                });
-            }
-        }
-    }
-
-    private function applySubTopicVisibilityFilters($query): void
-    {
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where(function ($activeQuery) {
-                $activeQuery->where('sub_topics.is_active', true)
-                    ->orWhereNull('sub_topics.is_active');
-            });
-        }
-
-        if (Schema::hasColumn('sub_topics', 'status')) {
-            $query->where(function ($statusQuery) {
-                $statusQuery->whereNull('sub_topics.status')
-                    ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
-            });
-        }
-    }
-
-    private function subTopicBelongsToProgram($subTopic, int $programId): bool
-    {
-        $topic = $subTopic->topic ?? null;
-        $module = $topic?->module ?? null;
-        $stage = $module?->stage ?? null;
-
-        return (int) ($stage?->program_id ?? $stage?->program?->id ?? 0) === $programId;
-    }
-
     private function getSubTopicsForPrograms(Collection $programIds): Collection
     {
+        // FAST_CURRICULUM_QUERY_V2
+        // Struktur curriculum FlexLabs sudah jelas:
+        // programs -> program_stages -> modules -> topics -> sub_topics.
+        // Jadi tidak perlu lagi mencoba banyak fallback path/pivot table.
         if (!$this->canUseProgramStageCurriculumPath()) {
             return collect();
         }
@@ -581,17 +482,21 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
-        $query = SubTopic::query()
-            ->select($this->subTopicDashboardColumns())
-            ->with($this->resolveSubTopicRelations())
+        $subTopicIds = DB::table('sub_topics')
             ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
             ->join('modules', 'modules.id', '=', 'topics.module_id')
             ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
-            ->whereIn('program_stages.program_id', $programIds->all());
-
-        $this->applyCurriculumVisibilityFilters($query);
-
-        return $query
+            ->whereIn('program_stages.program_id', $programIds->all())
+            ->when(Schema::hasColumn('program_stages', 'is_active'), fn ($query) => $query->where('program_stages.is_active', true))
+            ->when(Schema::hasColumn('modules', 'is_active'), fn ($query) => $query->where('modules.is_active', true))
+            ->when(Schema::hasColumn('topics', 'is_active'), fn ($query) => $query->where('topics.is_active', true))
+            ->when(Schema::hasColumn('sub_topics', 'is_active'), fn ($query) => $query->where('sub_topics.is_active', true))
+            ->when(Schema::hasColumn('sub_topics', 'status'), function ($query) {
+                $query->where(function ($statusQuery) {
+                    $statusQuery->whereNull('sub_topics.status')
+                        ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
+                });
+            })
             ->orderBy('program_stages.sort_order')
             ->orderBy('program_stages.name')
             ->orderBy('modules.sort_order')
@@ -600,9 +505,19 @@ class StudentDashboardController extends Controller
             ->orderBy('topics.name')
             ->orderBy('sub_topics.sort_order')
             ->orderBy('sub_topics.name')
-            ->orderBy('sub_topics.id')
+            ->pluck('sub_topics.id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($subTopicIds->isEmpty()) {
+            return collect();
+        }
+
+        return $this->querySubTopicsByIds($subTopicIds, false)
             ->get()
-            ->unique(fn ($subTopic) => (int) $subTopic->id)
+            ->sortBy(fn ($subTopic) => $this->formatSubTopicSortKey($subTopic))
             ->values();
     }
 
@@ -615,13 +530,57 @@ class StudentDashboardController extends Controller
             ->unique()
             ->values();
 
-        $query = SubTopic::query()
-            ->select($this->subTopicDashboardColumns())
-            ->with($this->resolveSubTopicRelations())
-            ->whereIn('sub_topics.id', $subTopicIds->all());
+        $query = SubTopic::query();
 
-        if ($applyVisibilityFilters) {
-            $this->applySubTopicVisibilityFilters($query);
+        // Jangan select * karena sub_topics punya content panjang.
+        $selectColumns = collect([
+            'id',
+            'topic_id',
+            'name',
+            'description',
+            'sort_order',
+            'is_active',
+            'lesson_type',
+            'video_url',
+            'video_duration_minutes',
+            'thumbnail_url',
+            'video_provider',
+            'video_disk',
+            'video_path',
+            'video_mime',
+            'video_size',
+            'video_duration_seconds',
+            'created_at',
+            'updated_at',
+        ])->filter(fn ($column) => Schema::hasColumn('sub_topics', $column))
+            ->map(fn ($column) => 'sub_topics.' . $column)
+            ->values()
+            ->all();
+
+        if (!empty($selectColumns)) {
+            $query->select($selectColumns);
+        }
+
+        $relations = $this->resolveSubTopicRelations();
+
+        if (!empty($relations)) {
+            $query->with($relations);
+        }
+
+        $query->whereIn('sub_topics.id', $subTopicIds);
+
+        if ($applyVisibilityFilters && Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where(function ($activeQuery) {
+                $activeQuery->where('sub_topics.is_active', true)
+                    ->orWhereNull('sub_topics.is_active');
+            });
+        }
+
+        if ($applyVisibilityFilters && Schema::hasColumn('sub_topics', 'status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery->whereNull('sub_topics.status')
+                    ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
+            });
         }
 
         return $query;
@@ -649,11 +608,28 @@ class StudentDashboardController extends Controller
             ->join('modules', 'modules.id', '=', 'topics.module_id')
             ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
             ->whereIn('program_stages.program_id', $programIds->all())
+            ->when(Schema::hasColumn('program_stages', 'is_active'), fn ($query) => $query->where('program_stages.is_active', true))
+            ->when(Schema::hasColumn('modules', 'is_active'), fn ($query) => $query->where('modules.is_active', true))
+            ->when(Schema::hasColumn('topics', 'is_active'), fn ($query) => $query->where('topics.is_active', true))
+            ->when(Schema::hasColumn('sub_topics', 'is_active'), fn ($query) => $query->where('sub_topics.is_active', true))
             ->pluck('sub_topics.id')
             ->filter()
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->values();
+    }
+
+
+    private function canUseProgramStageCurriculumPath(): bool
+    {
+        return Schema::hasTable('program_stages')
+            && Schema::hasTable('modules')
+            && Schema::hasTable('topics')
+            && Schema::hasTable('sub_topics')
+            && Schema::hasColumn('program_stages', 'program_id')
+            && Schema::hasColumn('modules', 'program_stage_id')
+            && Schema::hasColumn('topics', 'module_id')
+            && Schema::hasColumn('sub_topics', 'topic_id');
     }
 
 
@@ -697,12 +673,15 @@ class StudentDashboardController extends Controller
             return [];
         }
 
-        return [
-            'topic:id,module_id,name,description,sort_order,is_active',
-            'topic.module:id,program_stage_id,name,description,sort_order,is_active',
-            'topic.module.stage:id,program_id,name,slug,description,sort_order,is_active',
-            'topic.module.stage.program:id,name,slug,description,is_active',
-        ];
+        if ($this->canUseStageProgramPath()) {
+            return ['topic.module.stage.program'];
+        }
+
+        if ($this->canUseModuleProgramPath()) {
+            return ['topic.module.program'];
+        }
+
+        return ['topic.module'];
     }
 
     private function canUseStageProgramPath(): bool
@@ -791,21 +770,50 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
+        $columns = collect([
+            'id',
+            'student_id',
+            'sub_topic_id',
+            'status',
+            'is_completed',
+            'progress_percentage',
+            'video_progress_percentage',
+            'watched_percentage',
+            'percentage',
+            'last_position_seconds',
+            'current_position_seconds',
+            'position_seconds',
+            'watch_seconds',
+            'watched_seconds',
+            'total_watch_seconds',
+            'duration_seconds',
+            'video_duration_seconds',
+            'duration_minutes',
+            'video_duration_minutes',
+            'last_watched_at',
+            'watched_at',
+            'completed_at',
+            'created_at',
+            'updated_at',
+        ])->filter(fn ($column) => Schema::hasColumn($progressTable, $column))
+            ->values()
+            ->all();
+
         $query = DB::table($progressTable)
+            ->select($columns ?: ['*'])
             ->where('student_id', $student->id)
             ->whereIn('sub_topic_id', $subTopicIds->all());
 
-        foreach (['last_watched_at', 'completed_at', 'updated_at', 'created_at'] as $column) {
+        foreach (['last_watched_at', 'watched_at', 'completed_at', 'updated_at', 'created_at', 'id'] as $column) {
             if (Schema::hasColumn($progressTable, $column)) {
                 $query->orderByDesc($column);
-                break;
             }
         }
 
         return $query->get();
     }
 
-    private function formatCourse($enrollment, Student $student, ?Collection $allSubTopics = null, ?Collection $allProgressRows = null): ?array
+    private function formatCourse($enrollment, Student $student): ?array
     {
         $program = $enrollment->program ?? $enrollment->batch?->program;
 
@@ -813,26 +821,8 @@ class StudentDashboardController extends Controller
             return null;
         }
 
-        $programId = (int) $program->id;
-
-        $subTopics = $allSubTopics
-            ? $allSubTopics
-                ->filter(fn ($subTopic) => $this->subTopicBelongsToProgram($subTopic, $programId))
-                ->values()
-            : $this->getSubTopicsForPrograms(collect([$programId]));
-
-        $subTopicIds = $subTopics
-            ->pluck('id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        $progressRows = $allProgressRows
-            ? $allProgressRows
-                ->filter(fn ($progress) => $subTopicIds->contains((int) $this->getColumnValue($progress, ['sub_topic_id'])))
-                ->values()
-            : $this->getProgressRows($student, $subTopics);
+        $subTopics = $this->getSubTopicsForPrograms(collect([(int) $program->id]));
+        $progressRows = $this->getProgressRows($student, $subTopics);
 
         $totalSubTopics = $subTopics->count();
 
@@ -1282,16 +1272,16 @@ class StudentDashboardController extends Controller
             $query->whereNotNull('sub_topic_id');
         }
 
-        foreach (['last_watched_at', 'completed_at', 'updated_at', 'created_at'] as $column) {
-            if (Schema::hasColumn($progressTable, $column)) {
-                $query->orderByDesc($column);
-                break;
-            }
-        }
-
         return $query
-            ->limit(500)
-            ->get();
+            ->get()
+            ->sortByDesc(function ($progress) {
+                $activityAt = $this->resolveProgressActivityAt($progress);
+
+                return $activityAt
+                    ? Carbon::parse($activityAt)->timestamp
+                    : 0;
+            })
+            ->values();
     }
 
     private function getSubTopicsByIds(Collection $subTopicIds): Collection
@@ -1358,15 +1348,53 @@ class StudentDashboardController extends Controller
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Struktur FlexLabs sekarang:
+        | modules.program_stage_id -> program_stages.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
         if (
             Schema::hasTable('program_stages')
-            && Schema::hasTable('modules')
             && Schema::hasColumn('modules', 'program_stage_id')
             && Schema::hasColumn('program_stages', 'program_id')
         ) {
             return DB::table('modules')
                 ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
                 ->join('programs', 'programs.id', '=', 'program_stages.program_id')
+                ->where('modules.id', $module->id)
+                ->select('programs.*')
+                ->first();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback lama:
+        | modules.stage_id -> stages.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
+        if (
+            Schema::hasTable('stages')
+            && Schema::hasColumn('modules', 'stage_id')
+            && Schema::hasColumn('stages', 'program_id')
+        ) {
+            return DB::table('modules')
+                ->join('stages', 'stages.id', '=', 'modules.stage_id')
+                ->join('programs', 'programs.id', '=', 'stages.program_id')
+                ->where('modules.id', $module->id)
+                ->select('programs.*')
+                ->first();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback:
+        | modules.program_id -> programs.id
+        |--------------------------------------------------------------------------
+        */
+        if (Schema::hasColumn('modules', 'program_id')) {
+            return DB::table('modules')
+                ->join('programs', 'programs.id', '=', 'modules.program_id')
                 ->where('modules.id', $module->id)
                 ->select('programs.*')
                 ->first();
@@ -1451,11 +1479,9 @@ class StudentDashboardController extends Controller
             ->when(Schema::hasColumn('batch_assignments', 'is_active'), fn ($query) => $query->where('is_active', true))
             ->get();
 
-        $submittedRows = $this->getSubmittedAssignmentRows($student, $assignments);
-
         return collect(
             $assignments
-                ->reject(fn (BatchAssignment $assignment) => $this->assignmentHasSubmittedRow($assignment, $submittedRows))
+                ->reject(fn (BatchAssignment $assignment) => $this->hasSubmittedAssignment($student, $assignment))
                 ->map(fn (BatchAssignment $assignment) => $this->formatAssignmentTask($assignment))
                 ->all()
         )->values();
@@ -1474,96 +1500,6 @@ class StudentDashboardController extends Controller
         }
 
         return $relations;
-    }
-
-
-    private function getSubmittedAssignmentRows(Student $student, Collection $assignments): Collection
-    {
-        if ($assignments->isEmpty() || !Schema::hasTable('assignment_submissions')) {
-            return collect();
-        }
-
-        $query = AssignmentSubmission::query()
-            ->where('student_id', $student->id);
-
-        if (Schema::hasColumn('assignment_submissions', 'status')) {
-            $query->whereIn('status', [
-                'submitted',
-                'late',
-                'reviewed',
-                'returned',
-                'graded',
-                'completed',
-            ]);
-        }
-
-        $query->where(function ($submissionQuery) use ($assignments) {
-            $hasCondition = false;
-
-            if (Schema::hasColumn('assignment_submissions', 'batch_assignment_id')) {
-                $ids = $assignments->pluck('id')->filter()->unique()->values();
-
-                if ($ids->isNotEmpty()) {
-                    $submissionQuery->whereIn('batch_assignment_id', $ids->all());
-                    $hasCondition = true;
-                }
-            }
-
-            if (Schema::hasColumn('assignment_submissions', 'assignment_id')) {
-                $ids = $assignments->pluck('assignment_id')->filter()->unique()->values();
-
-                if ($ids->isNotEmpty()) {
-                    $hasCondition
-                        ? $submissionQuery->orWhereIn('assignment_id', $ids->all())
-                        : $submissionQuery->whereIn('assignment_id', $ids->all());
-
-                    $hasCondition = true;
-                }
-            }
-
-            if (Schema::hasColumn('assignment_submissions', 'batch_id')) {
-                $ids = $assignments->pluck('batch_id')->filter()->unique()->values();
-
-                if ($ids->isNotEmpty()) {
-                    $hasCondition
-                        ? $submissionQuery->orWhereIn('batch_id', $ids->all())
-                        : $submissionQuery->whereIn('batch_id', $ids->all());
-
-                    $hasCondition = true;
-                }
-            }
-
-            if (!$hasCondition) {
-                $submissionQuery->whereRaw('1 = 0');
-            }
-        });
-
-        return $query->get();
-    }
-
-    private function assignmentHasSubmittedRow(BatchAssignment $assignment, Collection $submittedRows): bool
-    {
-        return $submittedRows->contains(function ($row) use ($assignment) {
-            $hasCondition = false;
-            $matches = true;
-
-            if (Schema::hasColumn('assignment_submissions', 'batch_assignment_id')) {
-                $hasCondition = true;
-                $matches = $matches && (int) $this->getColumnValue($row, ['batch_assignment_id']) === (int) $assignment->id;
-            }
-
-            if (Schema::hasColumn('assignment_submissions', 'assignment_id') && isset($assignment->assignment_id)) {
-                $hasCondition = true;
-                $matches = $matches && (int) $this->getColumnValue($row, ['assignment_id']) === (int) $assignment->assignment_id;
-            }
-
-            if (Schema::hasColumn('assignment_submissions', 'batch_id') && $assignment->batch_id) {
-                $hasCondition = true;
-                $matches = $matches && (int) $this->getColumnValue($row, ['batch_id']) === (int) $assignment->batch_id;
-            }
-
-            return $hasCondition && $matches;
-        });
     }
 
     private function hasSubmittedAssignment(Student $student, BatchAssignment $assignment): bool
@@ -1679,203 +1615,13 @@ class StudentDashboardController extends Controller
         }
 
         $quizzes = $query->get();
-        $completedRows = $this->getCompletedQuizAttemptRows($student, $quizzes);
 
         return collect(
             $quizzes
-                ->reject(fn ($quiz) => $this->quizHasCompletedAttemptRow($quiz, $completedRows))
+                ->reject(fn ($quiz) => $this->hasCompletedQuiz($student, $quiz))
                 ->map(fn ($quiz) => $this->formatQuizTask($quiz))
                 ->all()
         )->values();
-    }
-
-
-    private function getCompletedQuizAttemptRows(Student $student, Collection $quizzes): Collection
-    {
-        if ($quizzes->isEmpty() || !Schema::hasTable('learning_quiz_attempts')) {
-            return collect();
-        }
-
-        $hasIdentifierColumn = Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')
-            || Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id')
-            || Schema::hasColumn('learning_quiz_attempts', 'quiz_id');
-
-        if (!$hasIdentifierColumn) {
-            return collect();
-        }
-
-        $query = LearningQuizAttempt::query()
-            ->where('student_id', $student->id)
-            ->where(function ($attemptQuery) use ($quizzes) {
-                $hasCondition = false;
-
-                if (Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')) {
-                    $ids = $quizzes->pluck('id')->filter()->unique()->values();
-
-                    if ($ids->isNotEmpty()) {
-                        $attemptQuery->whereIn('batch_learning_quiz_id', $ids->all());
-                        $hasCondition = true;
-                    }
-                }
-
-                if (Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id')) {
-                    $ids = $quizzes
-                        ->map(fn ($quiz) => $this->getColumnValue($quiz, ['learning_quiz_id'])
-                            ?? data_get($quiz, 'learningQuiz.id')
-                            ?? data_get($quiz, 'quiz.id'))
-                        ->filter()
-                        ->map(fn ($id) => (int) $id)
-                        ->unique()
-                        ->values();
-
-                    if ($ids->isNotEmpty()) {
-                        $hasCondition
-                            ? $attemptQuery->orWhereIn('learning_quiz_id', $ids->all())
-                            : $attemptQuery->whereIn('learning_quiz_id', $ids->all());
-
-                        $hasCondition = true;
-                    }
-                }
-
-                if (Schema::hasColumn('learning_quiz_attempts', 'quiz_id')) {
-                    $ids = $quizzes
-                        ->flatMap(function ($quiz) {
-                            return [
-                                $this->getColumnValue($quiz, ['learning_quiz_id'])
-                                    ?? data_get($quiz, 'learningQuiz.id')
-                                    ?? data_get($quiz, 'quiz.id'),
-                                $this->getColumnValue($quiz, ['id']),
-                            ];
-                        })
-                        ->filter()
-                        ->map(fn ($id) => (int) $id)
-                        ->unique()
-                        ->values();
-
-                    if ($ids->isNotEmpty()) {
-                        $hasCondition
-                            ? $attemptQuery->orWhereIn('quiz_id', $ids->all())
-                            : $attemptQuery->whereIn('quiz_id', $ids->all());
-
-                        $hasCondition = true;
-                    }
-                }
-
-                if (!$hasCondition) {
-                    $attemptQuery->whereRaw('1 = 0');
-                }
-            });
-
-        $this->applyCompletedQuizAttemptFilters($query);
-
-        return $query->get();
-    }
-
-    private function applyCompletedQuizAttemptFilters($query): void
-    {
-        $hasCompletionIndicator = Schema::hasColumn('learning_quiz_attempts', 'status')
-            || Schema::hasColumn('learning_quiz_attempts', 'submitted_at')
-            || Schema::hasColumn('learning_quiz_attempts', 'completed_at')
-            || Schema::hasColumn('learning_quiz_attempts', 'finished_at')
-            || Schema::hasColumn('learning_quiz_attempts', 'ended_at')
-            || Schema::hasColumn('learning_quiz_attempts', 'is_submitted')
-            || Schema::hasColumn('learning_quiz_attempts', 'is_completed');
-
-        if (!$hasCompletionIndicator) {
-            return;
-        }
-
-        $query->where(function ($completedQuery) {
-            $hasCondition = false;
-
-            if (Schema::hasColumn('learning_quiz_attempts', 'status')) {
-                $completedQuery->whereIn('status', [
-                    'submitted',
-                    'completed',
-                    'finished',
-                    'passed',
-                    'done',
-                    'reviewed',
-                    'graded',
-                ]);
-
-                $hasCondition = true;
-            }
-
-            foreach (['submitted_at', 'completed_at', 'finished_at', 'ended_at'] as $column) {
-                if (!Schema::hasColumn('learning_quiz_attempts', $column)) {
-                    continue;
-                }
-
-                $hasCondition
-                    ? $completedQuery->orWhereNotNull($column)
-                    : $completedQuery->whereNotNull($column);
-
-                $hasCondition = true;
-            }
-
-            foreach (['is_submitted', 'is_completed'] as $column) {
-                if (!Schema::hasColumn('learning_quiz_attempts', $column)) {
-                    continue;
-                }
-
-                $hasCondition
-                    ? $completedQuery->orWhere($column, true)
-                    : $completedQuery->where($column, true);
-
-                $hasCondition = true;
-            }
-
-            if (!$hasCondition) {
-                $completedQuery->whereRaw('1 = 0');
-            }
-        });
-    }
-
-    private function quizHasCompletedAttemptRow($quiz, Collection $completedRows): bool
-    {
-        $batchLearningQuizId = $this->getColumnValue($quiz, ['id']);
-
-        $learningQuizId = $this->getColumnValue($quiz, ['learning_quiz_id'])
-            ?? data_get($quiz, 'learningQuiz.id')
-            ?? data_get($quiz, 'quiz.id');
-
-        $possibleQuizIds = collect([
-            $learningQuizId,
-            $batchLearningQuizId,
-        ])
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        return $completedRows->contains(function ($row) use ($batchLearningQuizId, $learningQuizId, $possibleQuizIds) {
-            if (
-                Schema::hasColumn('learning_quiz_attempts', 'batch_learning_quiz_id')
-                && $batchLearningQuizId
-                && (int) $this->getColumnValue($row, ['batch_learning_quiz_id']) === (int) $batchLearningQuizId
-            ) {
-                return true;
-            }
-
-            if (
-                Schema::hasColumn('learning_quiz_attempts', 'learning_quiz_id')
-                && $learningQuizId
-                && (int) $this->getColumnValue($row, ['learning_quiz_id']) === (int) $learningQuizId
-            ) {
-                return true;
-            }
-
-            if (
-                Schema::hasColumn('learning_quiz_attempts', 'quiz_id')
-                && $possibleQuizIds->isNotEmpty()
-                && $possibleQuizIds->contains((int) $this->getColumnValue($row, ['quiz_id']))
-            ) {
-                return true;
-            }
-
-            return false;
-        });
     }
 
     private function hasCompletedQuiz(Student $student, $quiz): bool
@@ -2571,19 +2317,40 @@ class StudentDashboardController extends Controller
 
     private function getColumnValue($model, array $columns)
     {
+        // FAST_ATTRIBUTE_LOOKUP_V2
+        // Jangan panggil Schema::hasColumn() di sini. Helper ini dipakai berkali-kali
+        // saat mapping timeline/dashboard, jadi Schema lookup di loop bikin endpoint lambat.
         if (!$model) {
             return null;
         }
 
-        if (method_exists($model, 'getTable')) {
-            $table = $model->getTable();
-
+        if (is_array($model)) {
             foreach ($columns as $column) {
-                if (!Schema::hasColumn($table, $column)) {
-                    continue;
+                if (array_key_exists($column, $model) && !blank($model[$column])) {
+                    return $model[$column];
                 }
 
-                if (!blank($model->{$column})) {
+                if (array_key_exists($column, $model) && $model[$column] === 0) {
+                    return 0;
+                }
+            }
+
+            return null;
+        }
+
+        if ($model instanceof \Illuminate\Database\Eloquent\Model) {
+            $attributes = $model->getAttributes();
+
+            foreach ($columns as $column) {
+                if (array_key_exists($column, $attributes) && !blank($attributes[$column])) {
+                    return $attributes[$column];
+                }
+
+                if (array_key_exists($column, $attributes) && $attributes[$column] === 0) {
+                    return 0;
+                }
+
+                if (isset($model->{$column}) && !blank($model->{$column})) {
                     return $model->{$column};
                 }
 
@@ -2610,6 +2377,9 @@ class StudentDashboardController extends Controller
 
     public function learningTimeline(Request $request): JsonResponse
     {
+        // FAST_TIMELINE_QUERY_V2
+        // Endpoint timeline dibuat khusus pakai flat query supaya tidak hydrate nested Eloquent
+        // dan tidak menarik semua progress student.
         $user = $request->user();
 
         if (!$user) {
@@ -2637,46 +2407,27 @@ class StudentDashboardController extends Controller
         if ($activeEnrollments->isEmpty()) {
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'timeline' => [],
-                    'summary' => [
-                        'total' => 0,
-                        'completed' => 0,
-                        'in_progress' => 0,
-                        'not_started' => 0,
-                        'progress_percentage' => 0,
-                    ],
-                ],
+                'data' => $this->emptyLearningTimelinePayload(),
             ]);
         }
 
         $batchIds = $this->resolveBatchIds($activeEnrollments);
         $programIds = $this->resolveProgramIds($activeEnrollments);
 
-        $subTopics = $this->getSubTopicsForPrograms($programIds);
-        $progressRows = $this->getProgressRows($student, $subTopics);
+        $subTopics = $this->getFastTimelineSubTopics($programIds);
 
         if ($subTopics->isEmpty()) {
             $subTopics = $this->getFallbackSubTopics($programIds, $batchIds);
-            $progressRows = $this->getProgressRows($student, $subTopics);
         }
 
         if ($subTopics->isEmpty()) {
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'timeline' => [],
-                    'summary' => [
-                        'total' => 0,
-                        'completed' => 0,
-                        'in_progress' => 0,
-                        'not_started' => 0,
-                        'progress_percentage' => 0,
-                    ],
-                ],
+                'data' => $this->emptyLearningTimelinePayload(),
             ]);
         }
 
+        $progressRows = $this->getFastTimelineProgressRows($student, $subTopics->pluck('id'));
         $progressBySubTopic = $this->mapLatestProgressBySubTopic($progressRows);
         $currentSubTopicId = $this->resolveCurrentTimelineSubTopicId(
             subTopics: $subTopics,
@@ -2688,7 +2439,7 @@ class StudentDashboardController extends Controller
             ->map(function ($subTopic, int $index) use ($progressBySubTopic, $currentSubTopicId) {
                 $progress = $progressBySubTopic->get((int) $subTopic->id);
 
-                return $this->formatLearningTimelineItem(
+                return $this->formatFastLearningTimelineItem(
                     subTopic: $subTopic,
                     progress: $progress,
                     index: $index,
@@ -2720,6 +2471,7 @@ class StudentDashboardController extends Controller
 
         if ($request->boolean('debug')) {
             $responseData['debug'] = [
+                'query_mode' => 'FAST_TIMELINE_QUERY_V2',
                 'student_id' => $student->id,
                 'batch_ids' => $batchIds->values()->all(),
                 'program_ids' => $programIds->values()->all(),
@@ -2741,6 +2493,280 @@ class StudentDashboardController extends Controller
             'success' => true,
             'data' => $responseData,
         ]);
+    }
+
+    private function emptyLearningTimelinePayload(): array
+    {
+        return [
+            'timeline' => [],
+            'summary' => [
+                'total' => 0,
+                'completed' => 0,
+                'in_progress' => 0,
+                'not_started' => 0,
+                'progress_percentage' => 0,
+                'progressPercentage' => 0,
+            ],
+        ];
+    }
+
+    private function getFastTimelineSubTopics(Collection $programIds): Collection
+    {
+        if (!$this->canUseProgramStageCurriculumPath()) {
+            return collect();
+        }
+
+        $programIds = $programIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($programIds->isEmpty()) {
+            return collect();
+        }
+
+        $query = DB::table('sub_topics')
+            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+            ->join('modules', 'modules.id', '=', 'topics.module_id')
+            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
+            ->join('programs', 'programs.id', '=', 'program_stages.program_id')
+            ->whereIn('programs.id', $programIds->all());
+
+        if (Schema::hasColumn('programs', 'is_active')) {
+            $query->where('programs.is_active', true);
+        }
+
+        if (Schema::hasColumn('program_stages', 'is_active')) {
+            $query->where('program_stages.is_active', true);
+        }
+
+        if (Schema::hasColumn('modules', 'is_active')) {
+            $query->where('modules.is_active', true);
+        }
+
+        if (Schema::hasColumn('topics', 'is_active')) {
+            $query->where('topics.is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('sub_topics.is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery->whereNull('sub_topics.status')
+                    ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
+            });
+        }
+
+        return $query
+            ->select([
+                'sub_topics.id',
+                'sub_topics.topic_id',
+                'sub_topics.name',
+                'sub_topics.description',
+                'sub_topics.sort_order',
+                'sub_topics.lesson_type',
+                'sub_topics.video_url',
+                'sub_topics.video_duration_minutes',
+                'sub_topics.thumbnail_url',
+                'sub_topics.video_duration_seconds',
+                'topics.name as topic_name',
+                'topics.sort_order as topic_sort_order',
+                'modules.name as module_name',
+                'modules.sort_order as module_sort_order',
+                'program_stages.name as stage_name',
+                'program_stages.sort_order as stage_sort_order',
+                'programs.id as program_id',
+                'programs.name as program_name',
+                'programs.slug as program_slug',
+            ])
+            ->orderBy('program_stages.sort_order')
+            ->orderBy('program_stages.name')
+            ->orderBy('modules.sort_order')
+            ->orderBy('modules.name')
+            ->orderBy('topics.sort_order')
+            ->orderBy('topics.name')
+            ->orderBy('sub_topics.sort_order')
+            ->orderBy('sub_topics.name')
+            ->orderBy('sub_topics.id')
+            ->get()
+            ->unique(fn ($subTopic) => (int) $subTopic->id)
+            ->values();
+    }
+
+    private function getFastTimelineProgressRows(Student $student, Collection $subTopicIds): Collection
+    {
+        $progressTable = $this->studentLessonProgressTable();
+
+        if (!$progressTable || !Schema::hasColumn($progressTable, 'student_id') || !Schema::hasColumn($progressTable, 'sub_topic_id')) {
+            return collect();
+        }
+
+        $subTopicIds = $subTopicIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($subTopicIds->isEmpty()) {
+            return collect();
+        }
+
+        $columns = collect([
+            'id',
+            'student_id',
+            'sub_topic_id',
+            'status',
+            'is_completed',
+            'progress_percentage',
+            'video_progress_percentage',
+            'watched_percentage',
+            'percentage',
+            'last_position_seconds',
+            'current_position_seconds',
+            'position_seconds',
+            'watch_seconds',
+            'watched_seconds',
+            'total_watch_seconds',
+            'duration_seconds',
+            'video_duration_seconds',
+            'duration_minutes',
+            'video_duration_minutes',
+            'last_watched_at',
+            'watched_at',
+            'completed_at',
+            'created_at',
+            'updated_at',
+        ])->filter(fn ($column) => Schema::hasColumn($progressTable, $column))
+            ->values()
+            ->all();
+
+        $query = DB::table($progressTable)
+            ->select($columns ?: ['*'])
+            ->where('student_id', $student->id)
+            ->whereIn('sub_topic_id', $subTopicIds->all());
+
+        foreach (['last_watched_at', 'watched_at', 'completed_at', 'updated_at', 'created_at', 'id'] as $column) {
+            if (Schema::hasColumn($progressTable, $column)) {
+                $query->orderByDesc($column);
+            }
+        }
+
+        return $query->get();
+    }
+
+    private function formatFastLearningTimelineItem($subTopic, $progress, int $index, ?int $currentSubTopicId): array
+    {
+        $progressPercentage = $this->resolveProgressPercentage($progress, $subTopic);
+        $isCompleted = $this->isProgressCompleted($progress);
+
+        if ($isCompleted) {
+            $progressPercentage = 100;
+            $status = 'done';
+        } elseif ($currentSubTopicId && (int) $subTopic->id === $currentSubTopicId) {
+            $status = 'in_progress';
+        } elseif ($progressPercentage > 0) {
+            $status = 'in_progress';
+        } else {
+            $status = 'not_started';
+        }
+
+        $moduleName = $this->getColumnValue($subTopic, ['module_name']);
+        $topicName = $this->getColumnValue($subTopic, ['topic_name']);
+        $title = $this->getColumnValue($subTopic, ['name', 'title']) ?: 'Untitled Material';
+        $type = $this->resolveSubTopicLessonType($subTopic);
+        $isLiveSession = $this->isLiveSessionLessonType($type);
+
+        $videoUrl = $isLiveSession
+            ? null
+            : $this->resolveSubTopicVideoUrl($subTopic);
+
+        $hasVideo = !$isLiveSession && (
+            $type === 'video'
+            || !blank($videoUrl)
+        );
+
+        $thumbnailUrl = $this->resolveSubTopicThumbnailUrl($subTopic, $videoUrl);
+        $url = $this->resolveFastLearningTimelineUrl($subTopic);
+
+        $typeLabel = $isLiveSession
+            ? 'Live Session'
+            : ($hasVideo ? 'Video Lesson' : 'Learning Material');
+
+        return [
+            'id' => $subTopic->id,
+            'number' => $index + 1,
+
+            'title' => $title,
+            'name' => $title,
+
+            'subtitle' => $moduleName ?: $topicName ?: '',
+            'module' => $moduleName ?: '',
+            'module_title' => $moduleName ?: '',
+            'moduleTitle' => $moduleName ?: '',
+            'topic' => $topicName ?: '',
+            'topic_title' => $topicName ?: '',
+            'topicTitle' => $topicName ?: '',
+
+            'type' => $type,
+            'lesson_type' => $type,
+            'lessonType' => $type,
+
+            'type_label' => $typeLabel,
+            'typeLabel' => $typeLabel,
+
+            'is_live_session' => $isLiveSession,
+            'isLiveSession' => $isLiveSession,
+            'has_video' => $hasVideo,
+            'hasVideo' => $hasVideo,
+
+            'thumbnail_url' => $thumbnailUrl,
+            'thumbnailUrl' => $thumbnailUrl,
+            'image_url' => $thumbnailUrl,
+            'imageUrl' => $thumbnailUrl,
+
+            'video_url' => $videoUrl,
+            'videoUrl' => $videoUrl,
+
+            'status' => $status,
+            'progress_status' => $status,
+            'progressStatus' => $status,
+
+            'progress' => $progressPercentage,
+            'progress_percentage' => $progressPercentage,
+            'progressPercentage' => $progressPercentage,
+
+            'is_completed' => $isCompleted,
+            'isCompleted' => $isCompleted,
+            'is_current' => $status === 'in_progress',
+            'isCurrent' => $status === 'in_progress',
+            'is_locked' => false,
+            'isLocked' => false,
+
+            'url' => $url,
+            'learn_url' => $url,
+            'learnUrl' => $url,
+        ];
+    }
+
+    private function resolveFastLearningTimelineUrl($subTopic): string
+    {
+        $programSlug = $this->getColumnValue($subTopic, ['program_slug']);
+
+        if (!$programSlug) {
+            $programSlug = $this->getColumnValue($subTopic, ['program_name']);
+        }
+
+        $courseSlug = $programSlug ? Str::slug((string) $programSlug) : 'course';
+        $lessonSlug = $this->resolveSubTopicSlug($subTopic);
+
+        if ($courseSlug !== 'course' && $lessonSlug !== 'lesson') {
+            return '/learn/' . $courseSlug . '/' . $lessonSlug;
+        }
+
+        return '/learn/sub-topics/' . $subTopic->id;
     }
 
     private function resolveCurrentTimelineSubTopicId(Collection $subTopics, Collection $progressBySubTopic): ?int
