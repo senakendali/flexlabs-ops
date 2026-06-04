@@ -627,12 +627,18 @@ class StudentLearningController extends Controller
 
             /**
              * Untuk self-hosted video, URL ini adalah temporary signed stream URL.
-             * Jangan expose video_path asli ke frontend.
+             * Untuk Bunny Stream, jangan expose URL database/raw lewat video_url.
+             * Frontend LearningPage versi rewind membaca urutan:
+             * protected_video_url -> bunny_embed_url -> video_embed_url.
              */
-            'video_url' => $videoPlaybackUrl,
-            'videoUrl' => $videoPlaybackUrl,
+            'video_url' => $publicVideoUrl,
+            'videoUrl' => $publicVideoUrl,
             'video_embed_url' => $videoEmbedUrl,
             'videoEmbedUrl' => $videoEmbedUrl,
+            'bunny_embed_url' => $videoProvider === 'bunny' ? $videoEmbedUrl : null,
+            'bunnyEmbedUrl' => $videoProvider === 'bunny' ? $videoEmbedUrl : null,
+            'protected_video_url' => $videoProvider === 'bunny' ? $videoEmbedUrl : $videoPlaybackUrl,
+            'protectedVideoUrl' => $videoProvider === 'bunny' ? $videoEmbedUrl : $videoPlaybackUrl,
 
             'thumbnail_url' => $thumbnailUrl,
             'thumbnailUrl' => $thumbnailUrl,
@@ -1293,14 +1299,6 @@ class StudentLearningController extends Controller
 
     private function resolveSubTopicVideoProvider($subTopic): ?string
     {
-        $provider = $this->getColumnValue($subTopic, [
-            'video_provider',
-        ]);
-
-        if ($provider) {
-            return (string) $provider;
-        }
-
         if ($this->hasSelfHostedVideo($subTopic)) {
             return 'self_hosted';
         }
@@ -1311,6 +1309,23 @@ class StudentLearningController extends Controller
             'youtube_url',
             'content_url',
         ]);
+
+        if ($videoUrl && $this->isBunnyStreamUrl((string) $videoUrl)) {
+            return 'bunny';
+        }
+
+        $provider = strtolower(trim((string) $this->getColumnValue($subTopic, [
+            'video_provider',
+        ])));
+
+        if ($provider) {
+            return match ($provider) {
+                'bunny', 'bunny_stream', 'bunnystream' => 'bunny',
+                'youtube', 'yt' => 'youtube',
+                'self_hosted', 'self-hosted', 'local' => 'self_hosted',
+                default => $provider,
+            };
+        }
 
         if ($videoUrl && $this->isYouTubeUrl((string) $videoUrl)) {
             return 'youtube';
@@ -1495,7 +1510,9 @@ class StudentLearningController extends Controller
         $query = $bunnyVideo['query'];
 
         /**
-         * Selalu buang token/expires lama dari database, lalu generate ulang.
+         * Selalu buang token/expires lama dari database.
+         * Kalau BUNNY_STREAM_SIGN_EMBED_URL=true, token baru digenerate.
+         * Kalau false, URL embed keluar bersih tanpa token/expires.
          * Native Bunny controls dibiarkan aktif supaya playback stabil.
          */
         unset(
@@ -1511,7 +1528,9 @@ class StudentLearningController extends Controller
         $query['autoplay'] = 'false';
         $query['muted'] = 'false';
 
-        $tokenSecurityKey = $this->resolveBunnyStreamTokenSecurityKey();
+        $tokenSecurityKey = $this->shouldSignBunnyEmbedUrl()
+            ? $this->resolveBunnyStreamTokenSecurityKey()
+            : null;
 
         if ($tokenSecurityKey) {
             $expires = now()
@@ -1534,6 +1553,23 @@ class StudentLearningController extends Controller
         }
 
         return $baseUrl . '?' . http_build_query($query);
+    }
+
+    private function shouldSignBunnyEmbedUrl(): bool
+    {
+        /**
+         * Default false supaya saat kondisi darurat/student sedang menonton,
+         * Bunny Embed View Token Authentication bisa dimatikan hanya dari .env.
+         * Jika mau mode secure lagi, set BUNNY_STREAM_SIGN_EMBED_URL=true
+         * dan enable Embed view token authentication di Bunny Dashboard.
+         */
+        return filter_var(
+            config('services.bunny_stream.sign_embed_url')
+                ?? config('services.bunny.stream_sign_embed_url')
+                ?? config('services.bunny.stream.sign_embed_url')
+                ?? env('BUNNY_STREAM_SIGN_EMBED_URL', false),
+            FILTER_VALIDATE_BOOL
+        );
     }
 
     private function parseBunnyStreamUrl(string $url): ?array
