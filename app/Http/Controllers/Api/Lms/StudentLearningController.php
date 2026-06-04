@@ -626,13 +626,18 @@ class StudentLearningController extends Controller
             'hasVideo' => ! empty($videoPlaybackUrl),
 
             /**
-             * Untuk self-hosted video, URL ini adalah temporary signed stream URL.
-             * Jangan expose video_path asli ke frontend.
+             * Untuk Bunny Stream, jangan expose URL mentah sebagai video_url.
+             * Frontend akan mengambil embed URL dari bunny_embed_url / video_embed_url.
+             * Ini mencegah fallback salah ke URL lama atau signed URL yang sudah tidak dipakai.
              */
-            'video_url' => $videoPlaybackUrl,
-            'videoUrl' => $videoPlaybackUrl,
+            'video_url' => $publicVideoUrl,
+            'videoUrl' => $publicVideoUrl,
             'video_embed_url' => $videoEmbedUrl,
             'videoEmbedUrl' => $videoEmbedUrl,
+            'bunny_embed_url' => $videoProvider === 'bunny' ? $videoEmbedUrl : null,
+            'bunnyEmbedUrl' => $videoProvider === 'bunny' ? $videoEmbedUrl : null,
+            'protected_video_url' => $videoProvider === 'bunny' ? $videoEmbedUrl : $videoPlaybackUrl,
+            'protectedVideoUrl' => $videoProvider === 'bunny' ? $videoEmbedUrl : $videoPlaybackUrl,
 
             'thumbnail_url' => $thumbnailUrl,
             'thumbnailUrl' => $thumbnailUrl,
@@ -1293,17 +1298,13 @@ class StudentLearningController extends Controller
 
     private function resolveSubTopicVideoProvider($subTopic): ?string
     {
-        $provider = $this->getColumnValue($subTopic, [
-            'video_provider',
-        ]);
-
-        if ($provider) {
-            return (string) $provider;
-        }
-
         if ($this->hasSelfHostedVideo($subTopic)) {
             return 'self_hosted';
         }
+
+        $provider = strtolower(trim((string) $this->getColumnValue($subTopic, [
+            'video_provider',
+        ])));
 
         $videoUrl = $this->getColumnValue($subTopic, [
             'video_url',
@@ -1311,6 +1312,19 @@ class StudentLearningController extends Controller
             'youtube_url',
             'content_url',
         ]);
+
+        if ($videoUrl && $this->isBunnyStreamUrl((string) $videoUrl)) {
+            return 'bunny';
+        }
+
+        if ($provider !== '') {
+            return match ($provider) {
+                'bunny', 'bunny_stream', 'bunnystream', 'bunny-stream' => 'bunny',
+                'youtube', 'yt' => 'youtube',
+                'self_hosted', 'self-hosted', 'selfhosted', 'local' => 'self_hosted',
+                default => $provider,
+            };
+        }
 
         if ($videoUrl && $this->isYouTubeUrl((string) $videoUrl)) {
             return 'youtube';
@@ -1475,7 +1489,10 @@ class StudentLearningController extends Controller
     {
         $host = strtolower((string) parse_url($url, PHP_URL_HOST));
 
-        return $host !== '' && str_contains($host, 'mediadelivery.net');
+        return $host !== '' && (
+            str_contains($host, 'mediadelivery.net')
+            || str_contains($host, 'b-cdn.net')
+        );
     }
 
     private function makeProtectedBunnyEmbedUrl(string $rawUrl): string
@@ -1486,8 +1503,13 @@ class StudentLearningController extends Controller
             return $rawUrl;
         }
 
+        /**
+         * Bunny Stream embed URL yang direkomendasikan sekarang memakai
+         * player.mediadelivery.net. Root domain memang 404; yang valid adalah
+         * /embed/{library_id}/{video_id}.
+         */
         $baseUrl = sprintf(
-            'https://iframe.mediadelivery.net/embed/%s/%s',
+            'https://player.mediadelivery.net/embed/%s/%s',
             rawurlencode($bunnyVideo['library_id']),
             rawurlencode($bunnyVideo['video_id'])
         );
@@ -1495,8 +1517,9 @@ class StudentLearningController extends Controller
         $query = $bunnyVideo['query'];
 
         /**
-         * Selalu buang token/expires lama dari database, lalu generate ulang.
-         * Native Bunny controls dibiarkan aktif supaya playback stabil.
+         * Selalu buang token/expires lama dari database.
+         * Kalau Embed view token authentication sedang OFF di Bunny,
+         * URL harus bersih tanpa token/expires.
          */
         unset(
             $query['token'],
@@ -1508,29 +1531,33 @@ class StudentLearningController extends Controller
             $query['show_heatmap']
         );
 
-        $query['autoplay'] = 'false';
-        $query['muted'] = 'false';
+        $query['autoplay'] = $query['autoplay'] ?? 'false';
+        $query['muted'] = $query['muted'] ?? 'false';
 
-        $tokenSecurityKey = $this->resolveBunnyStreamTokenSecurityKey();
+        /**
+         * Signing hanya aktif kalau benar-benar diaktifkan lewat env/config.
+         * Default: false, supaya disable Embed view token authentication
+         * di Bunny langsung sinkron dengan response API.
+         */
+        if ($this->shouldSignBunnyEmbedUrl()) {
+            $tokenSecurityKey = $this->resolveBunnyStreamTokenSecurityKey();
 
-        if ($tokenSecurityKey) {
-            $expires = now()
-                ->addMinutes($this->resolveBunnyStreamTokenExpiresMinutes())
-                ->timestamp;
+            if ($tokenSecurityKey) {
+                $expires = now()
+                    ->addMinutes($this->resolveBunnyStreamTokenExpiresMinutes())
+                    ->timestamp;
 
-            /**
-             * Bunny Stream Embed View Token Authentication formula:
-             * SHA256(token_authentication_key + video_id + expires)
-             *
-             * Key yang dipakai adalah:
-             * Stream > Video Library > Security > Token authentication key
-             */
-            $query['token'] = hash(
-                'sha256',
-                $tokenSecurityKey . $bunnyVideo['video_id'] . $expires
-            );
+                /**
+                 * Bunny Stream Embed View Token Authentication formula:
+                 * SHA256(token_authentication_key + video_id + expires)
+                 */
+                $query['token'] = hash(
+                    'sha256',
+                    $tokenSecurityKey . $bunnyVideo['video_id'] . $expires
+                );
 
-            $query['expires'] = $expires;
+                $query['expires'] = $expires;
+            }
         }
 
         return $baseUrl . '?' . http_build_query($query);
@@ -1583,6 +1610,25 @@ class StudentLearningController extends Controller
             'video_id' => $videoId,
             'query' => $query,
         ];
+    }
+
+    private function shouldSignBunnyEmbedUrl(): bool
+    {
+        $value = config('services.bunny_stream.sign_embed_url');
+
+        if ($value === null) {
+            $value = config('services.bunny.stream_sign_embed_url');
+        }
+
+        if ($value === null) {
+            $value = config('services.bunny.stream.sign_embed_url');
+        }
+
+        if ($value === null) {
+            $value = env('BUNNY_STREAM_SIGN_EMBED_URL', false);
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function resolveBunnyStreamTokenSecurityKey(): ?string
