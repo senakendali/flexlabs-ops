@@ -229,7 +229,10 @@
                                 ? $submission->reviewed_at->format('d M Y, H:i')
                                 : 'Not reviewed';
 
-                            $studentLabel = $submission->student?->name ?? 'Unknown Student';
+                            $studentLabel = $submission->student?->full_name
+                                ?? $submission->student?->email
+                                ?? 'Unknown Student';
+
                             $assignmentLabel = $assignment?->title ?? 'Untitled Assignment';
                             $batchLabel = ($batch?->program?->name ? $batch->program->name . ' - ' : '') . ($batch?->name ?? 'Batch');
 
