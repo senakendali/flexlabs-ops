@@ -77,55 +77,7 @@ use App\Http\Controllers\Settings\UserManagementController;
 
 /*
 |--------------------------------------------------------------------------
-| Public Subdomain Routes
-|--------------------------------------------------------------------------
-| workshop.flexlabs.co.id => Public Workshop
-| webinar.flexlabs.co.id  => Public Trial Class / Webinar
-|
-| Important:
-| These routes must stay above the default root route, dashboard route,
-| auth routes, and any fallback/catch-all route. Otherwise, the subdomains
-| will follow the normal "/" route and may redirect to login/dashboard.
-|--------------------------------------------------------------------------
-*/
-Route::domain('workshop.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicWorkshopController::class, 'index'])
-        ->name('workshop.index');
-
-    Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
-        ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('workshop.show');
-});
-
-Route::domain('webinar.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicTrialRegistrationController::class, 'index'])
-        ->name('trial-class.index');
-
-    Route::post('/', [PublicTrialRegistrationController::class, 'store'])
-        ->name('trial-class.store');
-
-    /*
-    |----------------------------------------------------------------------
-    | Backward Compatible Trial Class URL on Webinar Subdomain
-    |----------------------------------------------------------------------
-    | If an old link/form still points to /trial-class on webinar domain,
-    | keep it working instead of showing 404.
-    |----------------------------------------------------------------------
-    */
-    Route::get('/trial-class', function () {
-        return redirect()->route('trial-class.index');
-    })->name('webinar.trial-class.redirect');
-
-    Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
-        ->name('webinar.trial-class.store');
-});
-
-/*
-|--------------------------------------------------------------------------
-| Public Route - Ops Default
-|--------------------------------------------------------------------------
-| Root URL for the main ops app stays protected and goes to dashboard.
-| The dashboard route itself still controls auth/permission.
+| Public Route
 |--------------------------------------------------------------------------
 */
 Route::get('/', function () {
@@ -140,19 +92,22 @@ Route::get('/', function () {
 Route::get('/certificates/verify/{token}', [CertificateController::class, 'verify'])
     ->name('public.certificates.verify');
 
+
 /*
 |--------------------------------------------------------------------------
-| Public Trial Registration - Legacy URL
-|--------------------------------------------------------------------------
-| Old URL still works:
-| https://ops.flexlabs.co.id/trial-class
+| Public Trial Registration
 |--------------------------------------------------------------------------
 */
 Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
-    ->name('legacy.trial-class.index');
+    ->name('trial-class.index');
 
 Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
-    ->name('legacy.trial-class.store');
+    ->name('trial-class.store');
+
+
+/*|--------------------------------------------------------------------------
+| Public Learning Materials
+|--------------------------------------------------------------------------*/   
 
 /*
 |--------------------------------------------------------------------------
@@ -164,20 +119,13 @@ Route::get(
     [PublicLearningMaterialPageController::class, 'show']
 )->name('public-learning-materials.show');
 
-/*
-|--------------------------------------------------------------------------
-| Public Workshops - Legacy URL
-|--------------------------------------------------------------------------
-| Old URL still works:
-| https://ops.flexlabs.co.id/workshop
-|--------------------------------------------------------------------------
-*/
-Route::get('/workshop', [PublicWorkshopController::class, 'index'])
-    ->name('legacy.workshop.index');
 
-Route::get('/workshop/{slug}', [PublicWorkshopController::class, 'show'])
-    ->where('slug', '[A-Za-z0-9\-]+')
-    ->name('legacy.workshop.show');
+/*|--------------------------------------------------------------------------
+| Public Workshops
+|--------------------------------------------------------------------------*/
+
+Route::get('/workshop', [PublicWorkshopController::class, 'index'])->name('workshop.index');
+Route::get('/workshop/{slug}', [PublicWorkshopController::class, 'show'])->name('workshop.show');
 
 /*
 |--------------------------------------------------------------------------
