@@ -143,7 +143,22 @@
                 : (request()->is('trial-class*') ? url('/trial-class') : url('/')),
         };
 
-        $publicHomeUrl = $brandUrlFromSection !== '' ? $brandUrlFromSection : $defaultHomeUrl;
+        /*
+        |--------------------------------------------------------------------------
+        | Logo home URL
+        |--------------------------------------------------------------------------
+        | On real subdomains, the logo must always go to the subdomain root.
+        | This prevents workshop pages that define @section('brand_url', url('/workshop'))
+        | from becoming https://workshop.flexlabs.co.id/workshop.
+        |
+        | For local/legacy URLs, the page-level brand_url is still respected.
+        |--------------------------------------------------------------------------
+        */
+        $publicHomeUrl = match ($currentHost) {
+            'workshop.flexlabs.co.id' => $workshopHomeUrl,
+            'webinar.flexlabs.co.id' => $webinarHomeUrl,
+            default => $brandUrlFromSection !== '' ? $brandUrlFromSection : $defaultHomeUrl,
+        };
 
         $webinarNavUrl = $currentHost === 'webinar.flexlabs.co.id'
             ? url('/')
