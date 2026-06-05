@@ -120,39 +120,24 @@
 </head>
 
 <body class="bg-white font-sans text-slate-900 antialiased">
-    @php
-        $currentHost = request()->getHost();
-
-        $workshopHomeUrl = 'https://workshop.flexlabs.co.id';
-        $webinarHomeUrl = 'https://webinar.flexlabs.co.id';
-
-        $publicHomeUrl = match ($currentHost) {
-            'workshop.flexlabs.co.id' => $workshopHomeUrl,
-            'webinar.flexlabs.co.id' => $webinarHomeUrl,
-            default => request()->is('workshop*')
-                ? url('/workshop')
-                : (request()->is('trial-class*') ? url('/trial-class') : url('/')),
-        };
-    @endphp
-
     <header
         id="publicNavbar"
         class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-flex-primary py-3 shadow-[0_16px_42px_rgba(43,29,72,0.22)] backdrop-blur-xl transition-all duration-300"
     >
         <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
             <div class="flex min-h-[70px] items-center justify-between gap-4">
-                <a
-                    href="{{ $publicHomeUrl }}"
-                    class="inline-flex shrink-0 items-center"
-                    aria-label="FlexLabs Home"
+                <div
+                    class="inline-flex shrink-0 items-center cursor-default select-none"
+                    aria-label="FlexLabs Logo"
                 >
                     <img
                         src="{{ asset('images/logo.png') }}"
                         alt="FlexLabs Logo"
                         class="h-auto w-[180px] max-w-[180px] object-contain brightness-0 invert transition duration-300"
                         id="navbarLogo"
+                        draggable="false"
                     >
-                </a>
+                </div>
 
                 <div class="ml-auto flex items-center justify-end gap-3">
                     
@@ -184,7 +169,21 @@
                 class="hidden border-t border-white/10 pb-4 pt-3 md:hidden"
             >
                 <div class="grid gap-2">
-                   
+                    <a
+                        href="{{ url('/trial-class') }}"
+                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('trial-class*') ? 'bg-white/15' : '' }}"
+                    >
+                        <span>Webinar</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+
+                    <a
+                        href="{{ url('/workshop') }}"
+                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('workshop*') ? 'bg-white/15' : '' }}"
+                    >
+                        <span>Workshop</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
 
                     <a
                         href="https://wa.me/62811134759?text=Halo%20FlexLabs%2C%20saya%20ingin%20konsultasi%20program."
@@ -265,7 +264,7 @@
 
                         <div class="grid gap-3">
                             <a
-                                href="https://webinar.flexlabs.co.id" target="_blank"
+                                href="{{ url('/trial-class') }}"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
@@ -273,7 +272,7 @@
                             </a>
 
                             <a
-                                href="https://workshop.flexlabs.co.id" target="_blank"
+                                href="{{ url('/workshop') }}"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
@@ -398,19 +397,32 @@
                         Flexlabs
                     </a>
 
-                    <!--a
-                        href="{{ url('/trial-class') }}"
+                    <a
+                        href="https://event.flexlabs.co.id"
+                        target="_blank"
+                        rel="noopener"
+                        class="font-bold text-white/70 no-underline transition hover:text-white"
+                    >
+                        Event
+                    </a>
+
+                    <a
+                        href="https://webinar.flexlabs.co.id"
+                        target="_blank"
+                        rel="noopener"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Webinar
-                    </!--a>
+                    </a>
 
-                    <a--
-                        href="{{ url('/workshop') }}"
+                    <a
+                        href="https://workshop.flexlabs.co.id"
+                        target="_blank"
+                        rel="noopener"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Workshop
-                    </a-->
+                    </a>
                 </div>
             </div>
         </div>

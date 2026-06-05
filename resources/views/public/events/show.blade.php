@@ -237,7 +237,7 @@
                     <div class="grid gap-5 md:grid-cols-2">
                         <div>
                             <label for="position" class="mb-2 block text-sm font-black text-slate-700">
-                                Posisi
+                                Status
                             </label>
                             <select
                                 id="position"
