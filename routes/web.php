@@ -120,7 +120,7 @@ Route::domain('webinar.flexlabs.co.id')->group(function () {
         ->name('webinar.trial-class.store');
 });
 
-/*Route::domain('event.flexlabs.co.id')->group(function () {
+Route::domain('event.flexlabs.co.id')->group(function () {
     Route::get('/', [PublicEventLeadController::class, 'index'])
         ->name('events.index');
 
@@ -131,7 +131,7 @@ Route::domain('webinar.flexlabs.co.id')->group(function () {
     Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
         ->where('slug', '[A-Za-z0-9\-]+')
         ->name('events.leads.store');
-});*/
+});
 /*
 |--------------------------------------------------------------------------
 | Public Event Routes - Local Development
