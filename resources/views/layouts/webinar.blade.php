@@ -107,7 +107,8 @@
             domains: [
                 'flexlabs.co.id',
                 'workshop.flexlabs.co.id',
-                'webinar.flexlabs.co.id'
+                'webinar.flexlabs.co.id',
+                'event.flexlabs.co.id'
             ]
         });
 
@@ -183,21 +184,7 @@
                 class="hidden border-t border-white/10 pb-4 pt-3 md:hidden"
             >
                 <div class="grid gap-2">
-                    <a
-                        href="{{ url('/trial-class') }}"
-                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('trial-class*') ? 'bg-white/15' : '' }}"
-                    >
-                        <span>Webinar</span>
-                        <i class="bi bi-arrow-right"></i>
-                    </a>
-
-                    <a
-                        href="{{ url('/workshop') }}"
-                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('workshop*') ? 'bg-white/15' : '' }}"
-                    >
-                        <span>Workshop</span>
-                        <i class="bi bi-arrow-right"></i>
-                    </a>
+                   
 
                     <a
                         href="https://wa.me/62811134759?text=Halo%20FlexLabs%2C%20saya%20ingin%20konsultasi%20program."

@@ -71,7 +71,7 @@ use App\Http\Controllers\Academic\WorkshopController;
 use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
-
+use App\Http\Controllers\PublicEventLeadController;
 
 
 
@@ -119,6 +119,42 @@ Route::domain('webinar.flexlabs.co.id')->group(function () {
     Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
         ->name('webinar.trial-class.store');
 });
+
+/*Route::domain('event.flexlabs.co.id')->group(function () {
+    Route::get('/', [PublicEventLeadController::class, 'index'])
+        ->name('events.index');
+
+    Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
+        ->where('slug', '[A-Za-z0-9\-]+')
+        ->name('events.show');
+
+    Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
+        ->where('slug', '[A-Za-z0-9\-]+')
+        ->name('events.leads.store');
+});*/
+/*
+|--------------------------------------------------------------------------
+| Public Event Routes - Local Development
+|--------------------------------------------------------------------------
+| Local URL:
+| /event
+| /event/{slug}
+|--------------------------------------------------------------------------
+*/
+Route::prefix('event')
+    ->name('events.')
+    ->group(function () {
+        Route::get('/', [PublicEventLeadController::class, 'index'])
+            ->name('index');
+
+        Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('show');
+
+        Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('leads.store');
+    });
 
 /*
 |--------------------------------------------------------------------------
