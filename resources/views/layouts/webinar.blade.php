@@ -278,7 +278,7 @@
 
                         <div class="grid gap-3">
                             <a
-                                href="https://webinar.flexlabs.co.id"
+                                href="https://webinar.flexlabs.co.id" target="_blank"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
@@ -286,7 +286,7 @@
                             </a>
 
                             <a
-                                href="https://workshop.flexlabs.co.id"
+                                href="https://workshop.flexlabs.co.id" target="_blank"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
