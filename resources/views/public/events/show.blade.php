@@ -66,6 +66,16 @@
             <h1 class="text-3xl font-black leading-[1.08] tracking-[-0.05em] text-slate-950 sm:text-5xl lg:text-6xl">
                 {{ $event->title }}
             </h1>
+
+            <div class="mt-6 flex justify-center">
+                <a
+                    href="#event-registration-form"
+                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-flex-primary px-7 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)]"
+                >
+                    Isi Data
+                    <i class="bi bi-arrow-down-short text-xl"></i>
+                </a>
+            </div>
         </div>
     </div>
 </section>
@@ -121,7 +131,7 @@
     </div>
 </section>
 
-<section class="bg-[#F2F4FA] py-16 lg:py-20" id="event-registration-form">
+<section class="scroll-mt-24 bg-[#F2F4FA] py-16 lg:py-20" id="event-registration-form">
     <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
         <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
             <div class="border-b border-slate-200 bg-[radial-gradient(circle_at_top_right,rgba(91,62,142,0.14),transparent_34%),linear-gradient(135deg,#ffffff_0%,#faf8ff_100%)] p-6 sm:p-8">
@@ -317,6 +327,10 @@
 
 @push('styles')
 <style>
+    html {
+        scroll-behavior: smooth;
+    }
+
     .workshop-hero-section {
         display: flex;
         align-items: stretch;
