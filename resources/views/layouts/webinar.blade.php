@@ -120,28 +120,76 @@
 </head>
 
 <body class="bg-white font-sans text-slate-900 antialiased">
+    @php
+        $currentHost = request()->getHost();
+        $currentRouteName = (string) optional(request()->route())->getName();
+
+        $workshopHomeUrl = 'https://workshop.flexlabs.co.id';
+        $webinarHomeUrl = 'https://webinar.flexlabs.co.id';
+        $eventHomeUrl = 'https://event.flexlabs.co.id';
+
+        $brandUrlFromSection = trim($__env->yieldContent('brand_url', ''));
+
+        $isEventPublicPage = $currentHost === 'event.flexlabs.co.id'
+            || request()->is('event*')
+            || str_starts_with($currentRouteName, 'events.')
+            || str_starts_with($currentRouteName, 'local.events.');
+
+        $defaultHomeUrl = match ($currentHost) {
+            'workshop.flexlabs.co.id' => $workshopHomeUrl,
+            'webinar.flexlabs.co.id' => $webinarHomeUrl,
+            default => request()->is('workshop*')
+                ? url('/workshop')
+                : (request()->is('trial-class*') ? url('/trial-class') : url('/')),
+        };
+
+        $publicHomeUrl = $brandUrlFromSection !== '' ? $brandUrlFromSection : $defaultHomeUrl;
+
+        $webinarNavUrl = $currentHost === 'webinar.flexlabs.co.id'
+            ? url('/')
+            : $webinarHomeUrl;
+
+        $workshopNavUrl = $currentHost === 'workshop.flexlabs.co.id'
+            ? url('/')
+            : $workshopHomeUrl;
+    @endphp
+
     <header
         id="publicNavbar"
         class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-flex-primary py-3 shadow-[0_16px_42px_rgba(43,29,72,0.22)] backdrop-blur-xl transition-all duration-300"
     >
         <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
             <div class="flex min-h-[70px] items-center justify-between gap-4">
-                <div
-                    class="inline-flex shrink-0 items-center cursor-default select-none"
-                    aria-label="FlexLabs Logo"
-                >
-                    <img
-                        src="{{ asset('images/logo.png') }}"
-                        alt="FlexLabs Logo"
-                        class="h-auto w-[180px] max-w-[180px] object-contain brightness-0 invert transition duration-300"
-                        id="navbarLogo"
-                        draggable="false"
+                @if($isEventPublicPage)
+                    <div
+                        class="inline-flex shrink-0 cursor-default select-none items-center"
+                        aria-label="FlexLabs Logo"
                     >
-                </div>
+                        <img
+                            src="{{ asset('images/logo.png') }}"
+                            alt="FlexLabs Logo"
+                            class="h-auto w-[180px] max-w-[180px] object-contain brightness-0 invert transition duration-300"
+                            id="navbarLogo"
+                            draggable="false"
+                        >
+                    </div>
+                @else
+                    <a
+                        href="{{ $publicHomeUrl }}"
+                        class="inline-flex shrink-0 items-center"
+                        aria-label="FlexLabs Home"
+                    >
+                        <img
+                            src="{{ asset('images/logo.png') }}"
+                            alt="FlexLabs Logo"
+                            class="h-auto w-[180px] max-w-[180px] object-contain brightness-0 invert transition duration-300"
+                            id="navbarLogo"
+                            draggable="false"
+                        >
+                    </a>
+                @endif
 
                 <div class="ml-auto flex items-center justify-end gap-3">
-                    
-
                     <a
                         href="https://wa.me/62811134759?text=Halo%20FlexLabs%2C%20saya%20ingin%20konsultasi%20program."
                         class="hidden min-h-11 items-center justify-center gap-2 rounded-full border border-white/20 bg-white px-4 py-2 text-sm font-extrabold text-flex-primary shadow-[0_14px_30px_rgba(21,12,36,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-white hover:text-flex-primaryDark hover:shadow-[0_18px_38px_rgba(21,12,36,0.24)] sm:inline-flex sm:px-5"
@@ -170,16 +218,16 @@
             >
                 <div class="grid gap-2">
                     <a
-                        href="{{ url('/trial-class') }}"
-                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('trial-class*') ? 'bg-white/15' : '' }}"
+                        href="{{ $webinarNavUrl }}"
+                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('trial-class*') || $currentHost === 'webinar.flexlabs.co.id' ? 'bg-white/15' : '' }}"
                     >
                         <span>Webinar</span>
                         <i class="bi bi-arrow-right"></i>
                     </a>
 
                     <a
-                        href="{{ url('/workshop') }}"
-                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('workshop*') ? 'bg-white/15' : '' }}"
+                        href="{{ $workshopNavUrl }}"
+                        class="flex min-h-12 items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 {{ request()->is('workshop*') || $currentHost === 'workshop.flexlabs.co.id' ? 'bg-white/15' : '' }}"
                     >
                         <span>Workshop</span>
                         <i class="bi bi-arrow-right"></i>
@@ -264,7 +312,7 @@
 
                         <div class="grid gap-3">
                             <a
-                                href="{{ url('/trial-class') }}"
+                                href="{{ $webinarNavUrl }}"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
@@ -272,11 +320,19 @@
                             </a>
 
                             <a
-                                href="{{ url('/workshop') }}"
+                                href="{{ $workshopNavUrl }}"
                                 class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
                             >
                                 <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
                                 Workshop
+                            </a>
+
+                            <a
+                                href="{{ $eventHomeUrl }}"
+                                class="group inline-flex w-fit items-center gap-2.5 text-sm font-bold text-white/75 no-underline transition duration-200 hover:translate-x-1 hover:text-white"
+                            >
+                                <i class="bi bi-arrow-right text-xs text-white/55 transition group-hover:text-white"></i>
+                                Event
                             </a>
 
                             <a
@@ -366,7 +422,7 @@
                         </p>
 
                         <p class="mt-1 text-sm leading-6 text-white/75">
-                            Ikuti webinar, workshop, atau hubungi admin untuk konsultasi program yang paling cocok.
+                            Ikuti webinar, workshop, event, atau hubungi admin untuk konsultasi program yang paling cocok.
                         </p>
                     </div>
 
@@ -398,27 +454,21 @@
                     </a>
 
                     <a
-                        href="https://event.flexlabs.co.id"
-                        target="_blank"
-                        rel="noopener"
+                        href="{{ $eventHomeUrl }}"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Event
                     </a>
 
                     <a
-                        href="https://webinar.flexlabs.co.id"
-                        target="_blank"
-                        rel="noopener"
+                        href="{{ $webinarNavUrl }}"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Webinar
                     </a>
 
                     <a
-                        href="https://workshop.flexlabs.co.id"
-                        target="_blank"
-                        rel="noopener"
+                        href="{{ $workshopNavUrl }}"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Workshop
