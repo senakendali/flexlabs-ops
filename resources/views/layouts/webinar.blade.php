@@ -116,21 +116,7 @@
                 </a>
 
                 <div class="ml-auto flex items-center justify-end gap-3">
-                    <nav class="hidden items-center justify-end gap-2 md:flex" aria-label="Public Navigation">
-                        <a
-                            href="{{ url('/trial-class') }}"
-                            class="inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2 text-sm font-black text-white/80 transition duration-200 hover:bg-white/10 hover:text-white {{ request()->is('trial-class*') ? 'bg-white/15 text-white' : '' }}"
-                        >
-                            Webinar
-                        </a>
-
-                        <a
-                            href="{{ url('/workshop') }}"
-                            class="inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2 text-sm font-black text-white/80 transition duration-200 hover:bg-white/10 hover:text-white {{ request()->is('workshop*') ? 'bg-white/15 text-white' : '' }}"
-                        >
-                            Workshop
-                        </a>
-                    </nav>
+                    
 
                     <a
                         href="https://wa.me/62811134759?text=Halo%20FlexLabs%2C%20saya%20ingin%20konsultasi%20program."
