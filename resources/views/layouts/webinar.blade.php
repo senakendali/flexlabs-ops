@@ -103,7 +103,7 @@
         <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
             <div class="flex min-h-[70px] items-center justify-between gap-4">
                 <a
-                    href="@yield('brand_url', url('/trial-class'))"
+                    href=""
                     class="inline-flex shrink-0 items-center"
                     aria-label="FlexLabs Home"
                 >
@@ -370,22 +370,22 @@
                         rel="noopener"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
-                        Website
+                        Flexlabs
                     </a>
 
-                    <a
+                    <!--a
                         href="{{ url('/trial-class') }}"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Webinar
-                    </a>
+                    </!--a>
 
-                    <a
+                    <a--
                         href="{{ url('/workshop') }}"
                         class="font-bold text-white/70 no-underline transition hover:text-white"
                     >
                         Workshop
-                    </a>
+                    </a-->
                 </div>
             </div>
         </div>
