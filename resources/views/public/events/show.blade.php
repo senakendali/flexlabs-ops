@@ -254,7 +254,7 @@
                                 name="position"
                                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none transition focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
                             >
-                                <option value="">Pilih posisi</option>
+                                <option value="">Pilih status</option>
                                 <option value="student" @selected(old('position') === 'student')>Siswa / Mahasiswa</option>
                                 <option value="alumni" @selected(old('position') === 'alumni')>Alumni</option>
                                 <option value="teacher" @selected(old('position') === 'teacher')>Guru / Pengajar</option>
