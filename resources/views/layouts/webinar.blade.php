@@ -119,6 +119,21 @@
 </head>
 
 <body class="bg-white font-sans text-slate-900 antialiased">
+    @php
+        $currentHost = request()->getHost();
+
+        $workshopHomeUrl = 'https://workshop.flexlabs.co.id';
+        $webinarHomeUrl = 'https://webinar.flexlabs.co.id';
+
+        $publicHomeUrl = match ($currentHost) {
+            'workshop.flexlabs.co.id' => $workshopHomeUrl,
+            'webinar.flexlabs.co.id' => $webinarHomeUrl,
+            default => request()->is('workshop*')
+                ? url('/workshop')
+                : (request()->is('trial-class*') ? url('/trial-class') : url('/')),
+        };
+    @endphp
+
     <header
         id="publicNavbar"
         class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-flex-primary py-3 shadow-[0_16px_42px_rgba(43,29,72,0.22)] backdrop-blur-xl transition-all duration-300"
@@ -126,7 +141,7 @@
         <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
             <div class="flex min-h-[70px] items-center justify-between gap-4">
                 <a
-                    href=""
+                    href="{{ $publicHomeUrl }}"
                     class="inline-flex shrink-0 items-center"
                     aria-label="FlexLabs Home"
                 >
