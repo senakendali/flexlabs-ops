@@ -92,6 +92,29 @@
         };
     </script>
 
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GT-KTPL2PKG"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+
+        gtag('js', new Date());
+
+        gtag('set', 'linker', {
+            domains: [
+                'flexlabs.co.id',
+                'workshop.flexlabs.co.id',
+                'webinar.flexlabs.co.id'
+            ]
+        });
+
+        gtag('config', 'GT-KTPL2PKG');
+        gtag('config', 'AW-17838931358');
+    </script>
+
     @stack('styles')
 </head>
 
