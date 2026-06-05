@@ -124,45 +124,76 @@ Route::domain('webinar.flexlabs.co.id')->group(function () {
 |--------------------------------------------------------------------------
 | Public Event Routes
 |--------------------------------------------------------------------------
-| Local:
-| http://127.0.0.1:8000/event
-| http://127.0.0.1:8000/event/{slug}
+| Production/Public URL:
+| - https://event.flexlabs.co.id
+| - https://event.flexlabs.co.id/{slug}
 |
-| Production:
-| https://event.flexlabs.co.id
-| https://event.flexlabs.co.id/{slug}
+| Local Development URL:
+| - /event
+| - /event/{slug}
 |
 | Important:
-| Do not enable the local prefix route and production domain route with
-| the same route names at the same time. The conditional below keeps route
-| names clean:
-| - events.index
-| - events.show
-| - events.leads.store
+| - Production routes use name: events.*
+| - Local routes use name: local.events.*
+| - This prevents route-name collisions that can make production links
+|   generate with /event/{slug}.
 |--------------------------------------------------------------------------
 */
-$eventRoutes = function () {
-    Route::get('/', [PublicEventLeadController::class, 'index'])
-        ->name('index');
+Route::domain('event.flexlabs.co.id')
+    ->name('events.')
+    ->group(function () {
+        Route::get('/', [PublicEventLeadController::class, 'index'])
+            ->name('index');
 
-    Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
-        ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('show');
+        Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('show');
 
-    Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
-        ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('leads.store');
-};
+        Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('leads.store');
 
-if (app()->environment('local')) {
-    Route::prefix('event')
-        ->name('events.')
-        ->group($eventRoutes);
-} else {
-    Route::domain('event.flexlabs.co.id')
-        ->name('events.')
-        ->group($eventRoutes);
-}
+        /*
+        |----------------------------------------------------------------------
+        | Backward Compatible URL on Event Subdomain
+        |----------------------------------------------------------------------
+        | If an old link still points to /event/{slug} on event.flexlabs.co.id,
+        | redirect it to /{slug}.
+        |----------------------------------------------------------------------
+        */
+        Route::get('/event/{slug}', function (string $slug) {
+            return redirect()->route('events.show', $slug, 301);
+        })->where('slug', '[A-Za-z0-9\-]+')
+            ->name('legacy.redirect');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Public Event Routes - Local Development URL
+|--------------------------------------------------------------------------
+| Local URL:
+| /event
+| /event/{slug}
+|
+| Note:
+| These routes intentionally use local.events.* route names so they do not
+| override production event route names.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('event')
+    ->name('local.events.')
+    ->group(function () {
+        Route::get('/', [PublicEventLeadController::class, 'index'])
+            ->name('index');
+
+        Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('show');
+
+        Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('leads.store');
+    });
 
 /*
 |--------------------------------------------------------------------------
