@@ -74,64 +74,42 @@ use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\PublicEventLeadController;
 
 
-
 /*
 |--------------------------------------------------------------------------
-| Public Subdomain Routes
+| Public Event Routes
 |--------------------------------------------------------------------------
-| workshop.flexlabs.co.id => Public Workshop
-| webinar.flexlabs.co.id  => Public Trial Class / Webinar
+| Local:
+| /event
+| /event/{slug}
 |
-| Important:
-| These routes must stay above the default root route, dashboard route,
-| auth routes, and any fallback/catch-all route. Otherwise, the subdomains
-| will follow the normal "/" route and may redirect to login/dashboard.
+| Production:
+| event.flexlabs.co.id
+| event.flexlabs.co.id/{slug}
 |--------------------------------------------------------------------------
 */
-Route::domain('workshop.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicWorkshopController::class, 'index'])
-        ->name('workshop.index');
 
-    Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
-        ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('workshop.show');
-});
-
-Route::domain('webinar.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicTrialRegistrationController::class, 'index'])
-        ->name('trial-class.index');
-
-    Route::post('/', [PublicTrialRegistrationController::class, 'store'])
-        ->name('trial-class.store');
-
-    /*
-    |----------------------------------------------------------------------
-    | Backward Compatible Trial Class URL on Webinar Subdomain
-    |----------------------------------------------------------------------
-    | If an old link/form still points to /trial-class on webinar domain,
-    | keep it working instead of showing 404.
-    |----------------------------------------------------------------------
-    */
-    Route::get('/trial-class', function () {
-        return redirect()->route('trial-class.index');
-    })->name('webinar.trial-class.redirect');
-
-    Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
-        ->name('webinar.trial-class.store');
-});
-
-Route::domain('event.flexlabs.co.id')->group(function () {
+$eventRoutes = function () {
     Route::get('/', [PublicEventLeadController::class, 'index'])
-        ->name('events.index');
+        ->name('index');
 
     Route::get('/{slug}', [PublicEventLeadController::class, 'show'])
         ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('events.show');
+        ->name('show');
 
     Route::post('/{slug}', [PublicEventLeadController::class, 'store'])
         ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('events.leads.store');
-});
+        ->name('leads.store');
+};
+
+if (app()->environment('local')) {
+    Route::prefix('event')
+        ->name('events.')
+        ->group($eventRoutes);
+} else {
+    Route::domain('event.flexlabs.co.id')
+        ->name('events.')
+        ->group($eventRoutes);
+}
 /*
 |--------------------------------------------------------------------------
 | Public Event Routes - Local Development
