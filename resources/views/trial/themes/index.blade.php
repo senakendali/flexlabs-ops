@@ -63,6 +63,7 @@
                         <thead>
                             <tr>
                                 <th class="text-nowrap" style="width: 80px;">No</th>
+                                <th class="text-nowrap" style="width: 96px;">Image</th>
                                 <th class="text-nowrap">Theme</th>
                                 <th class="text-nowrap">Program</th>
                                 <th class="text-end text-nowrap">Sort Order</th>
@@ -76,6 +77,22 @@
                                 <tr>
                                     <td class="text-muted">
                                         {{ ($themes->currentPage() - 1) * $themes->perPage() + $loop->iteration }}
+                                    </td>
+
+                                    <td>
+                                        @php
+                                            $themeImageUrl = ! empty($theme->image)
+                                                ? asset('storage/' . ltrim($theme->image, '/'))
+                                                : asset('images/placeholders/webinar-theme.png');
+                                        @endphp
+
+                                        <img
+                                            src="{{ $themeImageUrl }}"
+                                            alt="{{ $theme->name }}"
+                                            class="rounded-3 border bg-light"
+                                            style="width: 72px; height: 48px; object-fit: cover;"
+                                            onerror="this.onerror=null;this.src='{{ asset('images/placeholders/webinar-theme.png') }}';"
+                                        >
                                     </td>
 
                                     <td>
@@ -192,7 +209,7 @@
 {{-- Theme Form Modal --}}
 <div class="modal fade" id="themeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form id="themeForm">
+        <form id="themeForm" enctype="multipart/form-data">
             @csrf
             <input type="hidden" id="theme_id">
 
@@ -226,7 +243,7 @@
                                     <label for="program_id" class="form-label">
                                         Program <span class="text-danger">*</span>
                                     </label>
-                                    <select id="program_id" class="form-select">
+                                    <select id="program_id" name="program_id" class="form-select">
                                         <option value="">Select Program</option>
                                         @foreach ($programs as $program)
                                             <option value="{{ $program->id }}">{{ $program->name }}</option>
@@ -237,7 +254,7 @@
 
                                 <div class="col-md-6">
                                     <label for="is_active" class="form-label">Status Active</label>
-                                    <select id="is_active" class="form-select">
+                                    <select id="is_active" name="is_active" class="form-select">
                                         <option value="1">Active</option>
                                         <option value="0">Inactive</option>
                                     </select>
@@ -248,21 +265,47 @@
                                     <label for="name" class="form-label">
                                         Theme Name <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" id="name" class="form-control">
+                                    <input type="text" id="name" name="name" class="form-control">
                                     <div class="invalid-feedback" id="error_name"></div>
                                 </div>
 
                                 <div class="col-md-6">
                                     <label for="slug" class="form-label">Slug</label>
-                                    <input type="text" id="slug" class="form-control">
+                                    <input type="text" id="slug" name="slug" class="form-control">
                                     <div class="form-text">Optional. Will auto-generate from theme name if empty.</div>
                                     <div class="invalid-feedback" id="error_slug"></div>
                                 </div>
 
                                 <div class="col-md-6">
                                     <label for="sort_order" class="form-label">Sort Order</label>
-                                    <input type="number" min="0" id="sort_order" class="form-control" value="0">
+                                    <input type="number" min="0" id="sort_order" name="sort_order" class="form-control" value="0">
                                     <div class="invalid-feedback" id="error_sort_order"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="image" class="form-label">Theme Image</label>
+                                    <input
+                                        type="file"
+                                        id="image"
+                                        name="image"
+                                        class="form-control"
+                                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                                    >
+                                    <div class="form-text">Recommended: 16:9 image, JPG/PNG/WebP, max 2MB.</div>
+                                    <div class="invalid-feedback" id="error_image"></div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Image Preview</label>
+                                    <div class="border rounded-3 p-2 bg-light">
+                                        <img
+                                            id="imagePreview"
+                                            src="{{ asset('images/placeholders/webinar-theme.png') }}"
+                                            alt="Theme image preview"
+                                            class="rounded-3 w-100"
+                                            style="height: 140px; object-fit: cover;"
+                                        >
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -282,6 +325,7 @@
                             <label for="description" class="form-label">Description</label>
                             <textarea
                                 id="description"
+                                name="description"
                                 rows="4"
                                 class="form-control"
                                 placeholder="Short description about this trial theme"
@@ -380,7 +424,12 @@
         sort_order: document.getElementById('sort_order'),
         description: document.getElementById('description'),
         is_active: document.getElementById('is_active'),
+        image: document.getElementById('image'),
     };
+
+    const imagePreview = document.getElementById('imagePreview');
+    const defaultImagePreview = @js(asset('images/placeholders/webinar-theme.png'));
+    let previewObjectUrl = null;
 
     let isEditMode = false;
     let autoSlug = true;
@@ -444,6 +493,33 @@
             .replace(/-+/g, '-');
     }
 
+    function clearPreviewObjectUrl() {
+        if (previewObjectUrl) {
+            URL.revokeObjectURL(previewObjectUrl);
+            previewObjectUrl = null;
+        }
+    }
+
+    function setImagePreview(src = null) {
+        imagePreview.src = src || defaultImagePreview;
+    }
+
+    function resolveThemeImageUrl(data = {}) {
+        if (data.image_url) {
+            return data.image_url;
+        }
+
+        if (!data.image) {
+            return defaultImagePreview;
+        }
+
+        if (String(data.image).startsWith('http') || String(data.image).startsWith('/storage/')) {
+            return data.image;
+        }
+
+        return `/storage/${String(data.image).replace(/^\/+/, '')}`;
+    }
+
     function clearValidationErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
         document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
@@ -487,6 +563,9 @@
         fields.sort_order.value = 0;
         fields.description.value = '';
         fields.is_active.value = '1';
+        fields.image.value = '';
+        clearPreviewObjectUrl();
+        setImagePreview();
         formAlert.classList.add('d-none');
         formAlert.innerHTML = '';
         clearValidationErrors();
@@ -530,6 +609,7 @@
             fields.sort_order.value = data.sort_order ?? 0;
             fields.description.value = data.description ?? '';
             fields.is_active.value = data.is_active ? '1' : '0';
+            setImagePreview(resolveThemeImageUrl(data));
 
             autoSlug = false;
             themeModal.show();
@@ -557,6 +637,19 @@
         autoSlug = this.value.trim() === '';
     });
 
+    fields.image.addEventListener('change', function () {
+        const file = this.files?.[0];
+        clearPreviewObjectUrl();
+
+        if (!file) {
+            setImagePreview();
+            return;
+        }
+
+        previewObjectUrl = URL.createObjectURL(file);
+        setImagePreview(previewObjectUrl);
+    });
+
     themeForm.addEventListener('submit', async function (e) {
         e.preventDefault();
 
@@ -567,27 +660,34 @@
         const id = fields.id.value;
         const url = id ? `/trial/themes/${id}` : `/trial/themes`;
 
-        const payload = {
-            program_id: fields.program_id.value,
-            name: fields.name.value.trim(),
-            slug: fields.slug.value.trim(),
-            sort_order: fields.sort_order.value === '' ? 0 : Number(fields.sort_order.value),
-            description: fields.description.value.trim(),
-            is_active: fields.is_active.value === '1' ? 1 : 0,
-        };
+        const payload = new FormData();
+
+        payload.append('program_id', fields.program_id.value);
+        payload.append('name', fields.name.value.trim());
+        payload.append('slug', fields.slug.value.trim());
+        payload.append('sort_order', fields.sort_order.value === '' ? '0' : fields.sort_order.value);
+        payload.append('description', fields.description.value.trim());
+        payload.append('is_active', fields.is_active.value === '1' ? '1' : '0');
+
+        if (fields.image.files && fields.image.files[0]) {
+            payload.append('image', fields.image.files[0]);
+        }
+
+        if (id) {
+            payload.append('_method', 'PUT');
+        }
 
         setSubmitLoading(true);
 
         try {
             const response = await fetch(url, {
-                method: id ? 'PUT' : 'POST',
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify(payload),
+                body: payload,
             });
 
             const result = await response.json();

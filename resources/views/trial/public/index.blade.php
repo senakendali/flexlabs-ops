@@ -1,14 +1,10 @@
 @extends('layouts.webinar')
 
 @section('title', 'Webinar | FlexLabs')
+@section('meta_description', 'Webinar FlexLabs untuk mengenal skill digital, alur belajar, dan pilihan program yang relevan untuk kebutuhan kerja maupun project nyata.')
+@section('brand_url', url('/webinar'))
 
 @section('content')
-<div
-    id="toastContainer"
-    class="fixed right-4 top-[96px] z-[999999] grid w-[calc(100%-2rem)] max-w-sm gap-3 sm:right-6 sm:w-full"
-    style="z-index: 999999;"
-></div>
-
 <section class="webinar-hero-section relative isolate overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(91,62,142,0.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f4ff_100%)] pt-32 pb-16 sm:pt-36 lg:pt-40 lg:pb-20">
     <div class="pointer-events-none absolute inset-0 -z-10 opacity-60 [background-image:linear-gradient(rgba(91,62,142,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(91,62,142,0.06)_1px,transparent_1px)] [background-size:42px_42px]"></div>
 
@@ -17,20 +13,20 @@
             <div class="lg:col-span-7">
                 <div class="max-w-3xl">
                     <span class="inline-flex items-center gap-2 rounded-full border border-flex-primary/15 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary shadow-[0_12px_35px_rgba(91,62,142,0.10)] backdrop-blur">
-                        <i class="bi bi-stars text-sm"></i>
+                        <i class="bi bi-broadcast text-sm"></i>
                         Webinar FlexLabs
                     </span>
 
                     <h1 class="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.06em] text-slate-950 sm:text-5xl lg:text-6xl">
-                        Mulai langkah pertamamu
-                        <span class="text-flex-primary">di dunia digital</span>
-                        bareng FlexLabs
+                        Kenali skill digital
+                        <span class="text-flex-primary">yang paling cocok</span>
+                        buat langkahmu
                     </h1>
 
                     <p class="mt-6 max-w-2xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                        Ikuti webinar FlexLabs dan rasakan langsung pengalaman belajar yang terarah,
-                        praktis, dan relevan dengan kebutuhan industri. Cocok buat pemula, career switcher,
-                        maupun kamu yang ingin naik level lebih cepat.
+                        Ikuti webinar FlexLabs untuk mengenal topik belajar, arah karier, dan cara membangun skill
+                        digital secara lebih terstruktur. Cocok buat pemula, career switcher, pelajar, mahasiswa,
+                        sampai profesional yang ingin mulai upgrade skill.
                     </p>
 
                     {{-- Hero image mobile --}}
@@ -47,25 +43,25 @@
 
                                 <img
                                     src="{{ asset('images/triall-hero.png') }}"
-                                    alt="Hero FlexLabs"
+                                    alt="Webinar FlexLabs"
                                     class="h-auto w-full rounded-[1.5rem] object-cover"
                                 >
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-8 flex flex-wrap items-center gap-3">
+                    <div class="mt-8 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                         <a
-                            href="#registration-form"
-                            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)]"
+                            href="#webinar-list"
+                            class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)] sm:w-auto"
                         >
-                            Daftar Webinar
+                            Lihat Webinar
                             <i class="bi bi-arrow-down-short text-xl"></i>
                         </a>
 
                         <a
                             href="#about-flexlabs"
-                            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-flex-primary/15 bg-white px-6 py-3 text-sm font-black text-flex-primary shadow-[0_12px_30px_rgba(91,62,142,0.10)] transition duration-200 hover:-translate-y-0.5 hover:border-flex-primary/25 hover:bg-flex-soft"
+                            class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-flex-primary/15 bg-white px-6 py-3 text-sm font-black text-flex-primary shadow-[0_12px_30px_rgba(91,62,142,0.10)] transition duration-200 hover:-translate-y-0.5 hover:border-flex-primary/25 hover:bg-flex-soft sm:w-auto"
                         >
                             Kenapa FlexLabs?
                         </a>
@@ -88,7 +84,7 @@
 
                         <img
                             src="{{ asset('images/triall-hero.png') }}"
-                            alt="Hero FlexLabs"
+                            alt="Webinar FlexLabs"
                             class="h-auto w-full max-w-[460px] rounded-[1.75rem] object-cover"
                         >
                     </div>
@@ -98,7 +94,7 @@
     </div>
 </section>
 
-{{-- Stats bawah hero --}}
+{{-- Benefit bar --}}
 <section class="relative z-10 bg-flex-primary">
     <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
         <div class="grid overflow-hidden border-white/10 sm:grid-cols-2 lg:grid-cols-4">
@@ -111,25 +107,23 @@
                     <div class="text-lg font-black leading-tight text-white">
                         Beginner-Friendly
                     </div>
-
                     <p class="mt-2 text-sm font-semibold leading-6 text-white/65">
-                        Cocok untuk teman-teman yang baru mulai belajar skill digital.
+                        Cocok buat teman-teman yang baru mulai eksplor skill digital.
                     </p>
                 </div>
             </div>
 
             <div class="flex min-h-[150px] items-center gap-5 border-b border-white/10 py-8 sm:pl-7 lg:border-b-0 lg:border-r lg:py-10">
                 <div class="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-white/15 text-3xl text-white shadow-[0_16px_36px_rgba(21,12,36,0.14)]">
-                    <i class="bi bi-tools"></i>
+                    <i class="bi bi-lightbulb"></i>
                 </div>
 
                 <div>
                     <div class="text-lg font-black leading-tight text-white">
-                        Hands-On Learning
+                        Clear Direction
                     </div>
-
                     <p class="mt-2 text-sm font-semibold leading-6 text-white/65">
-                        Belajar langsung lewat praktik sederhana dan mudah diikuti.
+                        Peserta dapat gambaran topik, tools, dan arah belajar yang jelas.
                     </p>
                 </div>
             </div>
@@ -143,9 +137,8 @@
                     <div class="text-lg font-black leading-tight text-white">
                         Guided Session
                     </div>
-
                     <p class="mt-2 text-sm font-semibold leading-6 text-white/65">
-                        Peserta diarahkan step by step supaya tidak bingung saat mulai.
+                        Sesi diarahkan step by step supaya peserta tidak bingung saat mulai.
                     </p>
                 </div>
             </div>
@@ -157,11 +150,10 @@
 
                 <div>
                     <div class="text-lg font-black leading-tight text-white">
-                        Real Preview
+                        Program Preview
                     </div>
-
                     <p class="mt-2 text-sm font-semibold leading-6 text-white/65">
-                        Rasakan langsung seperti apa alur belajar di FlexLabs.
+                        Kenali pengalaman belajar sebelum lanjut ke program utama.
                     </p>
                 </div>
             </div>
@@ -185,17 +177,14 @@
             <div class="lg:col-span-7">
                 <div class="rounded-[2rem] border border-slate-200 bg-slate-50/70 p-6 sm:p-8">
                     <p class="text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                        FlexLabs adalah akademi digital dengan kurikulum yang dirancang agar peserta
-                        belajar secara praktis, terstruktur, dan relevan dengan kebutuhan industri nyata.
-                        Fokus kami bukan hanya membuat peserta memahami teori, tetapi juga membangun skill
-                        yang benar-benar bisa dipakai dalam dunia kerja.
+                        FlexLabs adalah akademi digital dengan kurikulum yang dirancang agar peserta belajar secara
+                        praktis, terstruktur, dan relevan dengan kebutuhan industri nyata. Fokusnya bukan cuma teori,
+                        tapi membantu peserta memahami alur kerja dan membangun skill yang benar-benar bisa dipakai.
                     </p>
 
                     <p class="mt-5 text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                        Melalui pendekatan mentoring, pembelajaran berbasis praktik, dan arah kurikulum
-                        yang selaras dengan kebutuhan industri, FlexLabs membantu peserta membangun fondasi
-                        yang lebih kuat untuk berkembang dan membuka peluang karier, termasuk kesempatan
-                        untuk direkrut oleh PT. System Ever Indonesia.
+                        Melalui webinar, teman-teman bisa mengenal topik dan arah belajar sebelum memilih program
+                        lanjutan yang paling sesuai dengan tujuan masing-masing.
                     </p>
                 </div>
             </div>
@@ -203,215 +192,132 @@
     </div>
 </section>
 
-<section class="bg-[#F2F4FA] py-16 lg:py-20" id="registration-form">
-    <div class="mx-auto w-full max-w-5xl px-5 sm:px-7 lg:px-10">
-        <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-            <div class="border-b border-slate-200 bg-[radial-gradient(circle_at_top_right,rgba(91,62,142,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#faf8ff_100%)] p-6 sm:p-8 lg:p-10">
-                <span class="inline-flex rounded-full bg-flex-primary/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
-                    Webinar Registration
-                </span>
+<section class="bg-[#F2F4FA] py-16 lg:py-20" id="webinar-list">
+    <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
+        <div class="mx-auto max-w-3xl text-center">
+            <span class="inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary shadow-[0_10px_28px_rgba(91,62,142,0.10)]">
+                Webinar List
+            </span>
 
-                <h2 class="mt-4 text-3xl font-black leading-tight tracking-[-0.05em] text-slate-950 sm:text-4xl">
-                    Daftar Webinar Sekarang
-                </h2>
+            <h2 class="mt-4 text-3xl font-black leading-tight tracking-[-0.05em] text-slate-950 sm:text-4xl lg:text-5xl">
+                Pilih webinar yang mau kamu ikutin
+            </h2>
 
-                <p class="mt-3 max-w-2xl text-base font-medium leading-7 text-slate-600">
-                    Isi data dirimu dan pilih jadwal webinar yang paling cocok buat kamu.
-                </p>
-            </div>
+            <p class="mx-auto mt-4 max-w-2xl text-base font-medium leading-7 text-slate-600">
+                Pilih topik webinar yang paling sesuai dengan kebutuhanmu. Klik salah satu webinar untuk melihat detail lengkap dan jadwal yang tersedia.
+            </p>
+        </div>
 
-            <div class="p-6 sm:p-8 lg:p-10">
-                <form id="trialRegistrationForm">
-                    @csrf
+        <div class="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            @forelse ($themes as $theme)
+                @php
+                    $themeImage = $theme->image_url
+                        ?? (! empty($theme->image)
+                            ? asset('storage/' . $theme->image)
+                            : asset('images/triall-hero.png'));
 
-                    <div id="formContainer">
-                        <div
-                            id="formAlert"
-                            class="mb-5 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700"
-                        ></div>
+                    $themeSchedules = isset($schedules)
+                        ? $schedules->where('trial_theme_id', $theme->id)->take(2)
+                        : collect();
 
-                        <div class="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label for="full_name" class="mb-2 block text-sm font-black text-slate-800">
-                                    Nama Lengkap <span class="text-red-500">*</span>
-                                </label>
+                    $upcomingCount = (int) ($theme->upcoming_schedules_count ?? $themeSchedules->count());
 
-                                <input
-                                    type="text"
-                                    id="full_name"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Masukkan nama lengkap"
-                                >
+                    $detailUrl = route('webinar.show', $theme->slug ?: $theme->id);
+                @endphp
 
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_full_name"></div>
-                            </div>
+                <article class="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:border-flex-primary/20 hover:shadow-[0_28px_70px_rgba(91,62,142,0.18)]">
+                    <div class="relative overflow-hidden bg-flex-primary/5 p-3">
+                        <img
+                            src="{{ $themeImage }}"
+                            alt="{{ $theme->name }}"
+                            class="h-56 w-full rounded-[1.45rem] object-cover transition duration-500 group-hover:scale-[1.04]"
+                            onerror="this.src='{{ asset('images/triall-hero.png') }}'"
+                        >
 
-                            <div>
-                                <label for="email" class="mb-2 block text-sm font-black text-slate-800">
-                                    Email <span class="text-red-500">*</span>
-                                </label>
-
-                                <input
-                                    type="email"
-                                    id="email"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Masukkan email aktif"
-                                >
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_email"></div>
-                            </div>
-
-                            <div>
-                                <label for="phone" class="mb-2 block text-sm font-black text-slate-800">
-                                    Nomor HP <span class="text-red-500">*</span>
-                                </label>
-
-                                <input
-                                    type="text"
-                                    id="phone"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Masukkan nomor WhatsApp aktif"
-                                >
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_phone"></div>
-                            </div>
-
-                            <div>
-                                <label for="domicile_city" class="mb-2 block text-sm font-black text-slate-800">
-                                    Domisili <span class="text-red-500">*</span>
-                                </label>
-
-                                <input
-                                    type="text"
-                                    id="domicile_city"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Contoh: Jakarta"
-                                >
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_domicile_city"></div>
-                            </div>
-
-                            <div>
-                                <label for="current_activity" class="mb-2 block text-sm font-black text-slate-800">
-                                    Aktivitas Saat Ini <span class="text-red-500">*</span>
-                                </label>
-
-                                <input
-                                    type="text"
-                                    id="current_activity"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Contoh: Mahasiswa, Karyawan, Freelancer"
-                                >
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_current_activity"></div>
-                            </div>
-
-                            <div>
-                                <label for="trial_schedule_id" class="mb-2 block text-sm font-black text-slate-800">
-                                    Pilih Jadwal Webinar <span class="text-red-500">*</span>
-                                </label>
-
-                                <select
-                                    id="trial_schedule_id"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                >
-                                    <option value="">Pilih jadwal yang tersedia</option>
-
-                                    @foreach ($schedules as $schedule)
-                                        <option
-                                            value="{{ $schedule->id }}"
-                                            data-theme-id="{{ $schedule->trial_theme_id }}"
-                                        >
-                                            {{ $schedule->name }}
-                                            - {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
-                                            ({{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
-                                            - {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }})
-                                        </option>
-                                    @endforeach
-                                </select>
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_trial_schedule_id"></div>
-                            </div>
-
-                            <div class="md:col-span-2">
-                                <label for="trial_theme_id" class="mb-2 block text-sm font-black text-slate-800">
-                                    Tema Webinar
-                                </label>
-
-                                <select
-                                    id="trial_theme_id"
-                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                >
-                                    <option value="">Pilih tema webinar</option>
-
-                                    @foreach ($themes as $theme)
-                                        <option value="{{ $theme->id }}">
-                                            {{ $theme->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_trial_theme_id"></div>
-                            </div>
-
-                            <div class="md:col-span-2">
-                                <label for="goal" class="mb-2 block text-sm font-black text-slate-800">
-                                    Tujuan Mengikuti Webinar <span class="text-red-500">*</span>
-                                </label>
-
-                                <textarea
-                                    id="goal"
-                                    rows="5"
-                                    class="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
-                                    placeholder="Ceritakan secara singkat kenapa kamu ingin ikut webinar ini"
-                                ></textarea>
-
-                                <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_goal"></div>
-                            </div>
-
-                            <div class="md:col-span-2">
-                                <button
-                                    type="submit"
-                                    class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-                                    id="submitBtn"
-                                >
-                                    <span class="default-text">
-                                        Kirim Pendaftaran
-                                    </span>
-
-                                    <span class="loading-text hidden items-center gap-2">
-                                        <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
-                                        Mengirim...
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
+                        <span class="absolute left-6 top-6 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-flex-primary shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
+                            Webinar
+                        </span>
                     </div>
 
-                    <div id="successState" class="hidden text-center">
-                        <div class="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-[1.7rem] bg-emerald-100 text-4xl text-emerald-600">
-                            <i class="bi bi-check-lg"></i>
+                    <div class="flex flex-1 flex-col p-6">
+                        <div class="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
+                            @if (! empty($theme->program?->name))
+                                <span>{{ $theme->program->name }}</span>
+                            @else
+                                <span>FlexLabs Program</span>
+                            @endif
+
+                            <span class="h-1.5 w-1.5 rounded-full bg-flex-primary/35"></span>
+
+                            <span>
+                                {{ $upcomingCount > 0 ? $upcomingCount . ' jadwal tersedia' : 'Jadwal segera hadir' }}
+                            </span>
                         </div>
 
-                        <h4 class="mt-5 text-2xl font-black tracking-[-0.04em] text-slate-950">
-                            Pendaftaran Berhasil Dikirim
-                        </h4>
+                        <h3 class="mt-4 text-xl font-black leading-snug tracking-[-0.04em] text-slate-950 transition group-hover:text-flex-primary">
+                            {{ $theme->name }}
+                        </h3>
+
+                        @if ($themeSchedules->count())
+                            <div class="mt-5 rounded-2xl border border-flex-primary/10 bg-flex-soft p-4">
+                                <div class="mb-3 text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
+                                    Jadwal Terdekat
+                                </div>
+
+                                <div class="space-y-3">
+                                    @foreach ($themeSchedules as $schedule)
+                                        <div class="flex items-start gap-3 rounded-2xl bg-white/80 p-3">
+                                            <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-flex-primary/10 text-flex-primary">
+                                                <i class="bi bi-calendar-event"></i>
+                                            </div>
+
+                                            <div class="min-w-0">
+                                                <div class="truncate text-sm font-black text-slate-900">
+                                                    {{ $schedule->name }}
+                                                </div>
+
+                                                <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
+                                                    {{ \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y') }}
+                                                    •
+                                                    {{ \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i') }}
+                                                    -
+                                                    {{ \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i') }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        <div class="mt-auto pt-6">
+                            <a
+                                href="{{ $detailUrl }}"
+                                class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(91,62,142,0.22)] transition duration-200 hover:bg-flex-primaryDark"
+                            >
+                                <span>Lihat detail webinar</span>
+                                <i class="bi bi-arrow-right transition duration-200 group-hover:translate-x-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            @empty
+                <div class="md:col-span-2 lg:col-span-3">
+                    <div class="rounded-[2rem] border border-dashed border-flex-primary/20 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+                        <div class="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-flex-primary/10 text-3xl text-flex-primary">
+                            <i class="bi bi-calendar-x"></i>
+                        </div>
+
+                        <h3 class="mt-5 text-2xl font-black tracking-[-0.04em] text-slate-950">
+                            Webinar belum tersedia
+                        </h3>
 
                         <p class="mx-auto mt-3 max-w-xl text-base font-medium leading-7 text-slate-600">
-                            Terima kasih, data kamu sudah masuk. Tim FlexLabs akan segera menghubungi kamu untuk informasi webinar selanjutnya.
+                            Saat ini belum ada webinar yang dibuka. Silakan cek kembali halaman ini nanti.
                         </p>
-
-                        <button
-                            type="button"
-                            class="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-flex-primary/15 bg-flex-soft px-6 py-3 text-sm font-black text-flex-primary transition duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_30px_rgba(91,62,142,0.12)]"
-                            id="btnRegisterAgain"
-                        >
-                            <i class="bi bi-arrow-repeat"></i>
-                            Isi Form Lagi
-                        </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            @endforelse
         </div>
     </div>
 </section>
@@ -510,286 +416,32 @@
                 }, 750);
             });
         }, 2000);
-    });
 
-    const trialRegistrationForm = document.getElementById('trialRegistrationForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const formAlert = document.getElementById('formAlert');
-    const formContainer = document.getElementById('formContainer');
-    const successState = document.getElementById('successState');
-    const btnRegisterAgain = document.getElementById('btnRegisterAgain');
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const target = this.getAttribute('href');
 
-    const fields = {
-        full_name: document.getElementById('full_name'),
-        email: document.getElementById('email'),
-        phone: document.getElementById('phone'),
-        domicile_city: document.getElementById('domicile_city'),
-        current_activity: document.getElementById('current_activity'),
-        trial_schedule_id: document.getElementById('trial_schedule_id'),
-        trial_theme_id: document.getElementById('trial_theme_id'),
-        goal: document.getElementById('goal'),
-    };
-
-    const invalidClasses = [
-        'border-red-400',
-        'ring-4',
-        'ring-red-100',
-    ];
-
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-
-        if (!container) {
-            return;
-        }
-
-        const id = 'toast-' + Date.now();
-
-        const theme = {
-            success: {
-                wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-                icon: 'bg-emerald-100 text-emerald-600',
-                iconClass: 'bi-check-circle',
-            },
-            danger: {
-                wrapper: 'border-red-200 bg-red-50 text-red-800',
-                icon: 'bg-red-100 text-red-600',
-                iconClass: 'bi-x-circle',
-            },
-            warning: {
-                wrapper: 'border-amber-200 bg-amber-50 text-amber-800',
-                icon: 'bg-amber-100 text-amber-600',
-                iconClass: 'bi-exclamation-triangle',
-            },
-            info: {
-                wrapper: 'border-sky-200 bg-sky-50 text-sky-800',
-                icon: 'bg-sky-100 text-sky-600',
-                iconClass: 'bi-info-circle',
-            },
-        }[type] || {
-            wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-            icon: 'bg-emerald-100 text-emerald-600',
-            iconClass: 'bi-check-circle',
-        };
-
-        const toast = document.createElement('div');
-        toast.id = id;
-        toast.style.zIndex = '999999';
-
-        toast.className = `relative flex items-start gap-3 rounded-2xl border p-4 shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition duration-300 ${theme.wrapper}`;
-
-        toast.innerHTML = `
-            <div class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.icon}">
-                <i class="bi ${theme.iconClass}"></i>
-            </div>
-
-            <div class="min-w-0 flex-1 pt-0.5 text-sm font-bold leading-6">
-                ${message}
-            </div>
-
-            <button
-                type="button"
-                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-800"
-                aria-label="Close"
-                data-toast-close="${id}"
-            >
-                <i class="bi bi-x-lg text-xs"></i>
-            </button>
-        `;
-
-        container.appendChild(toast);
-
-        const removeToast = () => {
-            toast.classList.add('opacity-0', 'translate-y-1');
-
-            setTimeout(() => {
-                toast.remove();
-            }, 250);
-        };
-
-        toast.querySelector(`[data-toast-close="${id}"]`)?.addEventListener('click', removeToast);
-
-        setTimeout(removeToast, 3500);
-    }
-
-    function clearValidationErrors() {
-        Object.values(fields).forEach(field => {
-            if (!field || !field.classList) {
-                return;
-            }
-
-            field.classList.remove(...invalidClasses);
-        });
-
-        document.querySelectorAll('[id^="error_"]').forEach(errorEl => {
-            errorEl.textContent = '';
-            errorEl.classList.add('hidden');
-        });
-    }
-
-    function setValidationErrors(errors = {}) {
-        clearValidationErrors();
-
-        Object.keys(errors).forEach(key => {
-            const field = fields[key];
-            const errorEl = document.getElementById(`error_${key}`);
-
-            if (field && field.classList) {
-                field.classList.add(...invalidClasses);
-            }
-
-            if (errorEl) {
-                errorEl.textContent = Array.isArray(errors[key]) ? errors[key][0] : errors[key];
-                errorEl.classList.remove('hidden');
-            }
-        });
-    }
-
-    function setSubmitLoading(isLoading) {
-        if (!submitBtn) {
-            return;
-        }
-
-        const defaultText = submitBtn.querySelector('.default-text');
-        const loadingText = submitBtn.querySelector('.loading-text');
-
-        submitBtn.disabled = isLoading;
-
-        if (defaultText) {
-            defaultText.classList.toggle('hidden', isLoading);
-        }
-
-        if (loadingText) {
-            loadingText.classList.toggle('hidden', !isLoading);
-            loadingText.classList.toggle('inline-flex', isLoading);
-        }
-    }
-
-    function resetForm() {
-        trialRegistrationForm.reset();
-        clearValidationErrors();
-
-        formAlert.classList.add('hidden');
-        formAlert.innerHTML = '';
-
-        formContainer.classList.remove('hidden');
-        successState.classList.add('hidden');
-
-        fields.trial_theme_id.value = '';
-
-        setSubmitLoading(false);
-    }
-
-    function syncThemeFromSchedule() {
-        const selectedOption = fields.trial_schedule_id.options[fields.trial_schedule_id.selectedIndex];
-
-        if (!selectedOption) {
-            return;
-        }
-
-        const themeId = selectedOption.dataset.themeId || '';
-
-        if (themeId) {
-            fields.trial_theme_id.value = themeId;
-        }
-    }
-
-    function scrollToSection(selector) {
-        const section = document.querySelector(selector);
-
-        if (!section) {
-            return;
-        }
-
-        const navOffset = 96;
-        const top = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
-
-        window.scrollTo({
-            top,
-            behavior: 'smooth'
-        });
-    }
-
-    fields.trial_schedule_id.addEventListener('change', syncThemeFromSchedule);
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            const target = this.getAttribute('href');
-
-            if (target && target.startsWith('#')) {
-                const el = document.querySelector(target);
-
-                if (el) {
-                    e.preventDefault();
-                    scrollToSection(target);
+                if (!target || !target.startsWith('#')) {
+                    return;
                 }
-            }
-        });
-    });
 
-    trialRegistrationForm.addEventListener('submit', async function (e) {
-        e.preventDefault();
+                const section = document.querySelector(target);
 
-        clearValidationErrors();
+                if (!section) {
+                    return;
+                }
 
-        formAlert.classList.add('hidden');
-        formAlert.innerHTML = '';
+                e.preventDefault();
 
-        const payload = {
-            full_name: fields.full_name.value.trim(),
-            email: fields.email.value.trim(),
-            phone: fields.phone.value.trim(),
-            domicile_city: fields.domicile_city.value.trim(),
-            current_activity: fields.current_activity.value.trim(),
-            trial_schedule_id: fields.trial_schedule_id.value,
-            trial_theme_id: fields.trial_theme_id.value || null,
-            goal: fields.goal.value.trim(),
-        };
+                const navOffset = 96;
+                const top = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
 
-        setSubmitLoading(true);
-
-        try {
-            const response = await fetch(`{{ route('trial-class.store') }}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify(payload),
+                window.scrollTo({
+                    top,
+                    behavior: 'smooth'
+                });
             });
-
-            const result = await response.json();
-
-            if (response.status === 422) {
-                setValidationErrors(result.errors || {});
-                throw new Error(result.message || 'Validation failed.');
-            }
-
-            if (!response.ok || !result.success) {
-                throw new Error(result.message || 'Pendaftaran webinar gagal dikirim.');
-            }
-
-            formContainer.classList.add('hidden');
-            successState.classList.remove('hidden');
-
-            showToast(result.message || 'Pendaftaran webinar berhasil dikirim.', 'success');
-            scrollToSection('#registration-form');
-        } catch (error) {
-            if (error.message !== 'Validation failed.') {
-                formAlert.classList.remove('hidden');
-                formAlert.innerHTML = error.message || 'Terjadi kesalahan. Silakan coba lagi.';
-                showToast(error.message || 'Terjadi kesalahan.', 'danger');
-            }
-        } finally {
-            setSubmitLoading(false);
-        }
-    });
-
-    btnRegisterAgain.addEventListener('click', function () {
-        resetForm();
-        scrollToSection('#registration-form');
+        });
     });
 </script>
 @endpush
