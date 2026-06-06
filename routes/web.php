@@ -77,48 +77,134 @@ use App\Http\Controllers\PublicEventLeadController;
 
 /*
 |--------------------------------------------------------------------------
-| Public Subdomain Routes
+| Public Workshop & Webinar Routes
 |--------------------------------------------------------------------------
-| workshop.flexlabs.co.id => Public Workshop
-| webinar.flexlabs.co.id  => Public Trial Class / Webinar
+|
+| Production:
+| - https://workshop.flexlabs.co.id
+| - https://webinar.flexlabs.co.id
+|
+| Local:
+| - http://127.0.0.1:8000/workshop
+| - http://127.0.0.1:8000/webinar
 |
 | Important:
-| These routes must stay above the default root route, dashboard route,
-| auth routes, and any fallback/catch-all route. Otherwise, the subdomains
-| will follow the normal "/" route and may redirect to login/dashboard.
+| - Production route names tetap: workshop.* dan trial-class.*
+| - Local route names juga pakai nama yang sama, tapi hanya saat non-production.
+|   Jadi kalau Blade pakai route('workshop.index'), route('workshop.show'),
+|   route('trial-class.index'), atau route('trial-class.store'), URL-nya
+|   otomatis jadi local saat APP_ENV bukan production.
 |--------------------------------------------------------------------------
 */
-Route::domain('workshop.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicWorkshopController::class, 'index'])
-        ->name('workshop.index');
 
-    Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
-        ->where('slug', '[A-Za-z0-9\-]+')
-        ->name('workshop.show');
-});
+/*
+|--------------------------------------------------------------------------
+| Public Workshop - Production Subdomain
+|--------------------------------------------------------------------------
+*/
+Route::domain('workshop.flexlabs.co.id')
+    ->name('workshop.')
+    ->group(function () {
+        Route::get('/', [PublicWorkshopController::class, 'index'])
+            ->name('index');
 
-Route::domain('webinar.flexlabs.co.id')->group(function () {
-    Route::get('/', [PublicTrialRegistrationController::class, 'index'])
-        ->name('trial-class.index');
+        Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('show');
+    });
 
-    Route::post('/', [PublicTrialRegistrationController::class, 'store'])
-        ->name('trial-class.store');
+/*
+|--------------------------------------------------------------------------
+| Public Webinar / Trial Class - Production Subdomain
+|--------------------------------------------------------------------------
+*/
+Route::domain('webinar.flexlabs.co.id')
+    ->name('trial-class.')
+    ->group(function () {
+        Route::get('/', [PublicTrialRegistrationController::class, 'index'])
+            ->name('index');
 
-    /*
-    |----------------------------------------------------------------------
-    | Backward Compatible Trial Class URL on Webinar Subdomain
-    |----------------------------------------------------------------------
-    | If an old link/form still points to /trial-class on webinar domain,
-    | keep it working instead of showing 404.
-    |----------------------------------------------------------------------
-    */
-    Route::get('/trial-class', function () {
-        return redirect()->route('trial-class.index');
-    })->name('webinar.trial-class.redirect');
+        Route::post('/', [PublicTrialRegistrationController::class, 'store'])
+            ->name('store');
 
-    Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
-        ->name('webinar.trial-class.store');
-});
+        /*
+        |----------------------------------------------------------------------
+        | Backward Compatible URL on Webinar Subdomain
+        |----------------------------------------------------------------------
+        | Old link:
+        | https://webinar.flexlabs.co.id/trial-class
+        |----------------------------------------------------------------------
+        */
+        Route::get('/trial-class', function () {
+            return redirect()->route('trial-class.index');
+        })->name('legacy.redirect');
+
+        Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
+            ->name('legacy.store');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Public Workshop - Local Development / Legacy URL
+|--------------------------------------------------------------------------
+|
+| Local URL:
+| - /workshop
+| - /workshop/{slug}
+|
+| Production legacy URL:
+| - https://ops.flexlabs.co.id/workshop
+| - https://ops.flexlabs.co.id/workshop/{slug}
+|
+| In local, this route intentionally uses workshop.* route names so Blade
+| route('workshop.index') and route('workshop.show') generate local URLs.
+|
+| In production, this route uses legacy.workshop.* names so production links
+| tetap generate ke workshop.flexlabs.co.id via workshop.* routes.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('workshop')
+    ->name(app()->environment('production') ? 'legacy.workshop.' : 'workshop.')
+    ->group(function () {
+        Route::get('/', [PublicWorkshopController::class, 'index'])
+            ->name('index');
+
+        Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
+            ->where('slug', '[A-Za-z0-9\-]+')
+            ->name('show');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Public Webinar / Trial Class - Local Development URL
+|--------------------------------------------------------------------------
+|
+| Local URL:
+| - /webinar
+| - /webinar/trial-class
+|
+| This only exists outside production. In local, it uses trial-class.* names
+| so Blade form actions using route('trial-class.store') stay local.
+|--------------------------------------------------------------------------
+*/
+if (! app()->environment('production')) {
+    Route::prefix('webinar')
+        ->name('trial-class.')
+        ->group(function () {
+            Route::get('/', [PublicTrialRegistrationController::class, 'index'])
+                ->name('index');
+
+            Route::post('/', [PublicTrialRegistrationController::class, 'store'])
+                ->name('store');
+
+            Route::get('/trial-class', function () {
+                return redirect()->route('trial-class.index');
+            })->name('legacy.redirect');
+
+            Route::post('/trial-class', [PublicTrialRegistrationController::class, 'store'])
+                ->name('legacy.store');
+        });
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -220,7 +306,8 @@ Route::get('/certificates/verify/{token}', [CertificateController::class, 'verif
 | Public Trial Registration - Legacy URL
 |--------------------------------------------------------------------------
 | Old URL still works:
-| https://ops.flexlabs.co.id/trial-class
+| - https://ops.flexlabs.co.id/trial-class
+| - http://127.0.0.1:8000/trial-class
 |--------------------------------------------------------------------------
 */
 Route::get('/trial-class', [PublicTrialRegistrationController::class, 'index'])
@@ -238,21 +325,6 @@ Route::get(
     '/materials/{token}/{slug}',
     [PublicLearningMaterialPageController::class, 'show']
 )->name('public-learning-materials.show');
-
-/*
-|--------------------------------------------------------------------------
-| Public Workshops - Legacy URL
-|--------------------------------------------------------------------------
-| Old URL still works:
-| https://ops.flexlabs.co.id/workshop
-|--------------------------------------------------------------------------
-*/
-Route::get('/workshop', [PublicWorkshopController::class, 'index'])
-    ->name('legacy.workshop.index');
-
-Route::get('/workshop/{slug}', [PublicWorkshopController::class, 'show'])
-    ->where('slug', '[A-Za-z0-9\-]+')
-    ->name('legacy.workshop.show');
 
 /*
 |--------------------------------------------------------------------------
