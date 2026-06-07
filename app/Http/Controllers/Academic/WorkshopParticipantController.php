@@ -9,6 +9,7 @@ use App\Models\PaymentSchedule;
 use App\Models\Student;
 use App\Models\Workshop;
 use App\Models\WorkshopParticipant;
+use App\Models\WorkshopSchedule;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class WorkshopParticipantController extends Controller
         $query = WorkshopParticipant::query()
             ->with([
                 'workshop',
+                'workshopSchedule',
                 'student',
                 'order.paymentSchedules',
             ])
@@ -30,6 +32,10 @@ class WorkshopParticipantController extends Controller
 
         if ($request->filled('workshop_id')) {
             $query->where('workshop_id', $request->workshop_id);
+        }
+
+        if ($request->filled('workshop_schedule_id')) {
+            $query->where('workshop_schedule_id', $request->workshop_schedule_id);
         }
 
         if ($request->filled('status')) {
@@ -50,6 +56,11 @@ class WorkshopParticipantController extends Controller
                     $workshopQuery
                         ->where('title', 'like', "%{$keyword}%")
                         ->orWhere('name', 'like', "%{$keyword}%");
+                })
+                ->orWhereHas('workshopSchedule', function ($scheduleQuery) use ($keyword) {
+                    $scheduleQuery
+                        ->where('title', 'like', "%{$keyword}%")
+                        ->orWhere('location', 'like', "%{$keyword}%");
                 });
             });
         }
@@ -60,9 +71,19 @@ class WorkshopParticipantController extends Controller
             ->latest()
             ->get();
 
+        $workshopSchedules = WorkshopSchedule::query()
+            ->with('workshop')
+            ->where('is_active', true)
+            ->whereIn('status', ['open', 'draft'])
+            ->orderBy('schedule_date')
+            ->orderBy('start_time')
+            ->orderBy('sort_order')
+            ->get();
+
         return view('academic.workshop-participants.index', compact(
             'participants',
-            'workshops'
+            'workshops',
+            'workshopSchedules'
         ));
     }
 
@@ -70,6 +91,15 @@ class WorkshopParticipantController extends Controller
     {
         $workshops = Workshop::query()
             ->latest()
+            ->get();
+
+        $workshopSchedules = WorkshopSchedule::query()
+            ->with('workshop')
+            ->where('is_active', true)
+            ->whereIn('status', ['open', 'draft'])
+            ->orderBy('schedule_date')
+            ->orderBy('start_time')
+            ->orderBy('sort_order')
             ->get();
 
         $selectedWorkshop = null;
@@ -80,6 +110,7 @@ class WorkshopParticipantController extends Controller
 
         return view('academic.workshop-participants.create', compact(
             'workshops',
+            'workshopSchedules',
             'selectedWorkshop'
         ));
     }
@@ -90,21 +121,29 @@ class WorkshopParticipantController extends Controller
 
         try {
             $participant = DB::transaction(function () use ($validated) {
-                $workshop = Workshop::query()->findOrFail($validated['workshop_id']);
+                [$workshop, $workshopSchedule] = $this->resolveWorkshopAndSchedule(
+                    (int) $validated['workshop_id'],
+                    (int) $validated['workshop_schedule_id']
+                );
 
                 $student = $this->findOrCreateStudent($validated);
 
-                $this->ensureStudentIsNotRegistered($workshop->id, $student->id);
+                $this->ensureStudentIsNotRegistered(
+                    $workshopSchedule->id,
+                    $student->id
+                );
 
-                $price = $this->getWorkshopPrice($workshop);
+                $price = $this->getWorkshopSchedulePrice($workshopSchedule, $workshop);
                 $discount = (float) ($validated['discount'] ?? 0);
                 $finalPrice = max($price - $discount, 0);
 
                 $participant = WorkshopParticipant::create([
                     'workshop_id' => $workshop->id,
+                    'workshop_schedule_id' => $workshopSchedule->id,
                     'student_id' => $student->id,
-                    'status' => 'pending_payment',
+                    'status' => $finalPrice <= 0 ? 'confirmed' : 'pending_payment',
                     'registered_at' => now(),
+                    'paid_at' => $finalPrice <= 0 ? now() : null,
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
@@ -117,26 +156,27 @@ class WorkshopParticipantController extends Controller
                     'discount' => $discount,
                     'final_price' => $finalPrice,
                     'status' => $finalPrice <= 0 ? 'paid' : 'pending',
-                    'notes' => 'Workshop: ' . $this->getWorkshopTitle($workshop),
+                    'notes' => $this->makeOrderNotes($workshop, $workshopSchedule),
                 ]);
 
                 $participant->update([
                     'order_id' => $order->id,
-                    'status' => $finalPrice <= 0 ? 'confirmed' : 'pending_payment',
-                    'paid_at' => $finalPrice <= 0 ? now() : null,
                 ]);
 
                 PaymentSchedule::create([
                     'order_id' => $order->id,
-                    'title' => 'Pembayaran Workshop: ' . $this->getWorkshopTitle($workshop),
+                    'title' => $this->makePaymentTitle($workshop, $workshopSchedule),
                     'amount' => $finalPrice,
                     'due_date' => $validated['due_date'] ?? now()->toDateString(),
                     'status' => $finalPrice <= 0 ? 'paid' : 'pending',
                     'notes' => $validated['payment_notes'] ?? null,
                 ]);
 
+                $this->incrementScheduleRegisteredCount($workshopSchedule);
+
                 return $participant->fresh([
                     'workshop',
+                    'workshopSchedule',
                     'student',
                     'order.paymentSchedules',
                 ]);
@@ -154,7 +194,7 @@ class WorkshopParticipantController extends Controller
         } catch (QueryException $exception) {
             return response()->json([
                 'success' => false,
-                'message' => 'Peserta kemungkinan sudah terdaftar di workshop ini.',
+                'message' => 'Peserta kemungkinan sudah terdaftar di jadwal workshop ini.',
                 'error' => app()->isLocal() ? $exception->getMessage() : null,
             ], 422);
         } catch (\Throwable $exception) {
@@ -172,6 +212,7 @@ class WorkshopParticipantController extends Controller
     {
         $workshopParticipant->load([
             'workshop',
+            'workshopSchedule',
             'student',
             'order.paymentSchedules',
         ]);
@@ -185,6 +226,7 @@ class WorkshopParticipantController extends Controller
     {
         $workshopParticipant->load([
             'workshop',
+            'workshopSchedule',
             'student',
             'order.paymentSchedules',
         ]);
@@ -193,9 +235,19 @@ class WorkshopParticipantController extends Controller
             ->latest()
             ->get();
 
+        $workshopSchedules = WorkshopSchedule::query()
+            ->with('workshop')
+            ->where('is_active', true)
+            ->whereIn('status', ['open', 'draft'])
+            ->orderBy('schedule_date')
+            ->orderBy('start_time')
+            ->orderBy('sort_order')
+            ->get();
+
         return view('academic.workshop-participants.edit', [
             'participant' => $workshopParticipant,
             'workshops' => $workshops,
+            'workshopSchedules' => $workshopSchedules,
         ]);
     }
 
@@ -208,6 +260,7 @@ class WorkshopParticipantController extends Controller
                 $workshopParticipant->load([
                     'student',
                     'workshop',
+                    'workshopSchedule',
                     'order.paymentSchedules',
                 ]);
 
@@ -225,35 +278,54 @@ class WorkshopParticipantController extends Controller
                     ]);
                 }
 
-                $oldWorkshopId = $workshopParticipant->workshop_id;
-                $newWorkshopId = (int) ($validated['workshop_id'] ?? $oldWorkshopId);
+                $oldWorkshopId = (int) $workshopParticipant->workshop_id;
+                $oldScheduleId = $workshopParticipant->workshop_schedule_id
+                    ? (int) $workshopParticipant->workshop_schedule_id
+                    : null;
 
-                if ($newWorkshopId !== (int) $oldWorkshopId) {
+                $newWorkshopId = (int) ($validated['workshop_id'] ?? $oldWorkshopId);
+                $newScheduleId = (int) ($validated['workshop_schedule_id'] ?? $oldScheduleId);
+
+                [$workshop, $workshopSchedule] = $this->resolveWorkshopAndSchedule(
+                    $newWorkshopId,
+                    $newScheduleId
+                );
+
+                if (
+                    $newScheduleId !== $oldScheduleId
+                    || $newWorkshopId !== $oldWorkshopId
+                ) {
                     $this->ensureStudentIsNotRegistered(
-                        $newWorkshopId,
+                        $workshopSchedule->id,
                         $workshopParticipant->student_id,
                         $workshopParticipant->id
                     );
                 }
 
-                $workshop = Workshop::query()->findOrFail($newWorkshopId);
+                $newStatus = $validated['status'] ?? $workshopParticipant->status;
 
                 $workshopParticipant->update([
                     'workshop_id' => $workshop->id,
-                    'status' => $validated['status'] ?? $workshopParticipant->status,
+                    'workshop_schedule_id' => $workshopSchedule->id,
+                    'status' => $newStatus,
                     'notes' => $validated['notes'] ?? $workshopParticipant->notes,
                     'paid_at' => $this->resolvePaidAt(
-                        $validated['status'] ?? $workshopParticipant->status,
+                        $newStatus,
                         $workshopParticipant->paid_at
                     ),
                     'attended_at' => $this->resolveAttendedAt(
-                        $validated['status'] ?? $workshopParticipant->status,
+                        $newStatus,
                         $workshopParticipant->attended_at
                     ),
                 ]);
 
+                if ($oldScheduleId && $oldScheduleId !== $workshopSchedule->id) {
+                    $this->decrementScheduleRegisteredCountById($oldScheduleId);
+                    $this->incrementScheduleRegisteredCount($workshopSchedule);
+                }
+
                 if ($workshopParticipant->order) {
-                    $price = $this->getWorkshopPrice($workshop);
+                    $price = $this->getWorkshopSchedulePrice($workshopSchedule, $workshop);
                     $discount = array_key_exists('discount', $validated)
                         ? (float) $validated['discount']
                         : (float) $workshopParticipant->order->discount;
@@ -266,10 +338,11 @@ class WorkshopParticipantController extends Controller
                         'discount' => $discount,
                         'final_price' => $finalPrice,
                         'status' => $this->resolveOrderStatus(
-                            $validated['status'] ?? $workshopParticipant->status,
-                            $workshopParticipant->order->status
+                            $newStatus,
+                            $workshopParticipant->order->status,
+                            $finalPrice
                         ),
-                        'notes' => 'Workshop: ' . $this->getWorkshopTitle($workshop),
+                        'notes' => $this->makeOrderNotes($workshop, $workshopSchedule),
                     ]);
 
                     $paymentSchedule = $workshopParticipant->order
@@ -279,7 +352,7 @@ class WorkshopParticipantController extends Controller
 
                     if ($paymentSchedule && $paymentSchedule->status !== 'paid') {
                         $paymentSchedule->update([
-                            'title' => 'Pembayaran Workshop: ' . $this->getWorkshopTitle($workshop),
+                            'title' => $this->makePaymentTitle($workshop, $workshopSchedule),
                             'amount' => $finalPrice,
                             'due_date' => $validated['due_date'] ?? $paymentSchedule->due_date,
                             'status' => $finalPrice <= 0 ? 'paid' : $paymentSchedule->status,
@@ -290,6 +363,7 @@ class WorkshopParticipantController extends Controller
 
                 return $workshopParticipant->fresh([
                     'workshop',
+                    'workshopSchedule',
                     'student',
                     'order.paymentSchedules',
                 ]);
@@ -307,7 +381,7 @@ class WorkshopParticipantController extends Controller
         } catch (QueryException $exception) {
             return response()->json([
                 'success' => false,
-                'message' => 'Data peserta tidak valid atau peserta sudah terdaftar di workshop tersebut.',
+                'message' => 'Data peserta tidak valid atau peserta sudah terdaftar di jadwal workshop tersebut.',
                 'error' => app()->isLocal() ? $exception->getMessage() : null,
             ], 422);
         } catch (\Throwable $exception) {
@@ -330,6 +404,7 @@ class WorkshopParticipantController extends Controller
                 ]);
 
                 $order = $workshopParticipant->order;
+                $scheduleId = $workshopParticipant->workshop_schedule_id;
 
                 if ($order) {
                     $hasPaidPayment = Payment::query()
@@ -338,9 +413,15 @@ class WorkshopParticipantController extends Controller
                         ->exists();
 
                     if ($hasPaidPayment || $order->status === 'paid') {
-                        $workshopParticipant->update([
-                            'status' => 'cancelled',
-                        ]);
+                        if ($workshopParticipant->status !== 'cancelled') {
+                            $workshopParticipant->update([
+                                'status' => 'cancelled',
+                            ]);
+
+                            if ($scheduleId) {
+                                $this->decrementScheduleRegisteredCountById((int) $scheduleId);
+                            }
+                        }
 
                         $order->update([
                             'status' => 'cancelled',
@@ -364,12 +445,20 @@ class WorkshopParticipantController extends Controller
 
                     $workshopParticipant->delete();
 
+                    if ($scheduleId) {
+                        $this->decrementScheduleRegisteredCountById((int) $scheduleId);
+                    }
+
                     $order->delete();
 
                     return;
                 }
 
                 $workshopParticipant->delete();
+
+                if ($scheduleId) {
+                    $this->decrementScheduleRegisteredCountById((int) $scheduleId);
+                }
             });
 
             return response()->json([
@@ -392,6 +481,7 @@ class WorkshopParticipantController extends Controller
         $participants = WorkshopParticipant::query()
             ->with([
                 'student',
+                'workshopSchedule',
                 'order.paymentSchedules',
             ])
             ->where('workshop_id', $workshop->id)
@@ -407,8 +497,19 @@ class WorkshopParticipantController extends Controller
 
     public function createForWorkshop(Workshop $workshop)
     {
+        $workshopSchedules = WorkshopSchedule::query()
+            ->with('workshop')
+            ->where('workshop_id', $workshop->id)
+            ->where('is_active', true)
+            ->whereIn('status', ['open', 'draft'])
+            ->orderBy('schedule_date')
+            ->orderBy('start_time')
+            ->orderBy('sort_order')
+            ->get();
+
         return view('academic.workshop-participants.create', [
             'workshops' => collect([$workshop]),
+            'workshopSchedules' => $workshopSchedules,
             'selectedWorkshop' => $workshop,
         ]);
     }
@@ -429,6 +530,11 @@ class WorkshopParticipantController extends Controller
                 'required',
                 'integer',
                 Rule::exists('workshops', 'id'),
+            ],
+            'workshop_schedule_id' => [
+                'required',
+                'integer',
+                Rule::exists('workshop_schedules', 'id'),
             ],
             'full_name' => [
                 'required',
@@ -471,6 +577,12 @@ class WorkshopParticipantController extends Controller
                 'nullable',
                 'string',
             ],
+        ], [
+            'workshop_id.required' => 'Workshop wajib dipilih.',
+            'workshop_schedule_id.required' => 'Jadwal workshop wajib dipilih.',
+            'workshop_schedule_id.exists' => 'Jadwal workshop yang dipilih tidak valid.',
+            'full_name.required' => 'Nama peserta wajib diisi.',
+            'phone.required' => 'Nomor WhatsApp wajib diisi.',
         ]);
     }
 
@@ -482,6 +594,12 @@ class WorkshopParticipantController extends Controller
                 'required',
                 'integer',
                 Rule::exists('workshops', 'id'),
+            ],
+            'workshop_schedule_id' => [
+                'sometimes',
+                'required',
+                'integer',
+                Rule::exists('workshop_schedules', 'id'),
             ],
             'full_name' => [
                 'sometimes',
@@ -537,16 +655,40 @@ class WorkshopParticipantController extends Controller
                 'nullable',
                 'string',
             ],
+        ], [
+            'workshop_id.required' => 'Workshop wajib dipilih.',
+            'workshop_schedule_id.required' => 'Jadwal workshop wajib dipilih.',
+            'workshop_schedule_id.exists' => 'Jadwal workshop yang dipilih tidak valid.',
+            'full_name.required' => 'Nama peserta wajib diisi.',
+            'phone.required' => 'Nomor WhatsApp wajib diisi.',
         ]);
+    }
+
+    private function resolveWorkshopAndSchedule(int $workshopId, int $workshopScheduleId): array
+    {
+        $workshop = Workshop::query()->findOrFail($workshopId);
+
+        $workshopSchedule = WorkshopSchedule::query()
+            ->where('id', $workshopScheduleId)
+            ->where('workshop_id', $workshop->id)
+            ->first();
+
+        if (! $workshopSchedule) {
+            throw ValidationException::withMessages([
+                'workshop_schedule_id' => 'Jadwal yang dipilih tidak sesuai dengan workshop.',
+            ]);
+        }
+
+        return [$workshop, $workshopSchedule];
     }
 
     private function findOrCreateStudent(array $data): Student
     {
         $student = Student::query()
-            ->when(!empty($data['email']), function ($query) use ($data) {
+            ->when(! empty($data['email']), function ($query) use ($data) {
                 $query->where('email', $data['email']);
             })
-            ->when(empty($data['email']) && !empty($data['phone']), function ($query) use ($data) {
+            ->when(empty($data['email']) && ! empty($data['phone']), function ($query) use ($data) {
                 $query->where('phone', $data['phone']);
             })
             ->first();
@@ -577,19 +719,20 @@ class WorkshopParticipantController extends Controller
         ]);
     }
 
-    private function ensureStudentIsNotRegistered(int $workshopId, int $studentId, ?int $ignoreParticipantId = null): void
+    private function ensureStudentIsNotRegistered(int $workshopScheduleId, int $studentId, ?int $ignoreParticipantId = null): void
     {
         $exists = WorkshopParticipant::query()
-            ->where('workshop_id', $workshopId)
+            ->where('workshop_schedule_id', $workshopScheduleId)
             ->where('student_id', $studentId)
             ->when($ignoreParticipantId, function ($query) use ($ignoreParticipantId) {
                 $query->where('id', '!=', $ignoreParticipantId);
             })
+            ->where('status', '!=', 'cancelled')
             ->exists();
 
         if ($exists) {
             throw ValidationException::withMessages([
-                'student' => 'Peserta ini sudah terdaftar di workshop tersebut.',
+                'workshop_schedule_id' => 'Peserta ini sudah terdaftar di jadwal workshop tersebut.',
             ]);
         }
     }
@@ -601,6 +744,40 @@ class WorkshopParticipantController extends Controller
             ?? 'Workshop FlexLabs';
     }
 
+    private function getWorkshopScheduleTitle(WorkshopSchedule $schedule): string
+    {
+        $date = $schedule->schedule_date
+            ? $schedule->schedule_date->format('d M Y')
+            : null;
+
+        $time = trim(implode(' - ', array_filter([
+            $schedule->start_time ? substr((string) $schedule->start_time, 0, 5) : null,
+            $schedule->end_time ? substr((string) $schedule->end_time, 0, 5) : null,
+        ])));
+
+        return trim(implode(' - ', array_filter([
+            $schedule->title,
+            $date,
+            $time,
+        ]))) ?: 'Jadwal Workshop';
+    }
+
+    private function makeOrderNotes(Workshop $workshop, WorkshopSchedule $schedule): string
+    {
+        return 'Workshop: '
+            . $this->getWorkshopTitle($workshop)
+            . ' | Jadwal: '
+            . $this->getWorkshopScheduleTitle($schedule);
+    }
+
+    private function makePaymentTitle(Workshop $workshop, WorkshopSchedule $schedule): string
+    {
+        return 'Pembayaran Workshop: '
+            . $this->getWorkshopTitle($workshop)
+            . ' - '
+            . $this->getWorkshopScheduleTitle($schedule);
+    }
+
     private function getWorkshopPrice(Workshop $workshop): float
     {
         return (float) (
@@ -609,6 +786,30 @@ class WorkshopParticipantController extends Controller
             ?? $workshop->registration_fee
             ?? 0
         );
+    }
+
+    private function getWorkshopSchedulePrice(WorkshopSchedule $schedule, Workshop $workshop): float
+    {
+        return (float) (
+            $schedule->price
+            ?? $workshop->price
+            ?? $workshop->final_price
+            ?? $workshop->registration_fee
+            ?? 0
+        );
+    }
+
+    private function incrementScheduleRegisteredCount(WorkshopSchedule $schedule): void
+    {
+        $schedule->increment('registered_count');
+    }
+
+    private function decrementScheduleRegisteredCountById(int $scheduleId): void
+    {
+        WorkshopSchedule::query()
+            ->where('id', $scheduleId)
+            ->where('registered_count', '>', 0)
+            ->decrement('registered_count');
     }
 
     private function resolvePaidAt(string $status, $currentPaidAt)
@@ -637,8 +838,12 @@ class WorkshopParticipantController extends Controller
         return $currentAttendedAt;
     }
 
-    private function resolveOrderStatus(string $participantStatus, string $currentOrderStatus): string
+    private function resolveOrderStatus(string $participantStatus, string $currentOrderStatus, float $finalPrice = 0): string
     {
+        if ($finalPrice <= 0 && in_array($participantStatus, ['registered', 'pending_payment', 'confirmed', 'attended'], true)) {
+            return 'paid';
+        }
+
         return match ($participantStatus) {
             'confirmed', 'attended' => 'paid',
             'cancelled' => 'cancelled',

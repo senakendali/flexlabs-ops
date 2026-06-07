@@ -63,4 +63,19 @@ class Workshop extends Model
             ])
             ->withTimestamps();
     }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(WorkshopSchedule::class);
+    }
+
+    public function activeSchedules(): HasMany
+    {
+        return $this->hasMany(WorkshopSchedule::class)
+            ->where('is_active', true)
+            ->where('status', 'open')
+            ->orderBy('schedule_date')
+            ->orderBy('start_time')
+            ->orderBy('sort_order');
+    }
 }

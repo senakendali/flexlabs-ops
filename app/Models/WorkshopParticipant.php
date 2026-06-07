@@ -9,6 +9,7 @@ class WorkshopParticipant extends Model
 {
     protected $fillable = [
         'workshop_id',
+        'workshop_schedule_id',
         'student_id',
         'order_id',
         'status',
@@ -42,5 +43,10 @@ class WorkshopParticipant extends Model
     public function isPaid(): bool
     {
         return in_array($this->status, ['confirmed', 'attended'], true);
+    }
+
+    public function workshopSchedule(): BelongsTo
+    {
+        return $this->belongsTo(WorkshopSchedule::class);
     }
 }

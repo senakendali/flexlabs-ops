@@ -4,6 +4,39 @@
 
 @section('content')
 @php
+    $workshopSchedules = $workshopSchedules ?? collect();
+
+    $workshopSchedulesForJs = $workshopSchedules
+        ->map(function ($schedule) {
+            $scheduleDate = $schedule->schedule_date
+                ? \Illuminate\Support\Carbon::parse($schedule->schedule_date)->format('d M Y')
+                : '-';
+
+            $startTime = $schedule->start_time
+                ? \Illuminate\Support\Carbon::parse($schedule->start_time)->format('H:i')
+                : null;
+
+            $endTime = $schedule->end_time
+                ? \Illuminate\Support\Carbon::parse($schedule->end_time)->format('H:i')
+                : null;
+
+            $timeLabel = trim(implode(' - ', array_filter([
+                $startTime,
+                $endTime,
+            ])));
+
+            return [
+                'id' => $schedule->id,
+                'workshop_id' => $schedule->workshop_id,
+                'title' => $schedule->title ?: 'Schedule #' . $schedule->id,
+                'schedule_date_label' => $scheduleDate,
+                'time_label' => $timeLabel,
+                'status' => $schedule->status,
+                'is_active' => (bool) $schedule->is_active,
+            ];
+        })
+        ->values();
+
     $totalParticipants = $participants->total();
 
     $confirmedCount = $participants->getCollection()
@@ -132,6 +165,43 @@
                 </select>
 
                 <select
+                    name="workshop_schedule_id"
+                    class="form-select form-select-sm"
+                    style="width: 240px;"
+                    onchange="this.form.submit()"
+                >
+                    <option value="">All Schedules</option>
+                    @foreach ($workshopSchedules as $workshopSchedule)
+                        @php
+                            $scheduleWorkshop = $workshopSchedule->workshop;
+                            $scheduleDate = $workshopSchedule->schedule_date
+                                ? \Illuminate\Support\Carbon::parse($workshopSchedule->schedule_date)->format('d M Y')
+                                : '-';
+
+                            $scheduleTime = trim(implode(' - ', array_filter([
+                                $workshopSchedule->start_time ? \Illuminate\Support\Carbon::parse($workshopSchedule->start_time)->format('H:i') : null,
+                                $workshopSchedule->end_time ? \Illuminate\Support\Carbon::parse($workshopSchedule->end_time)->format('H:i') : null,
+                            ])));
+                        @endphp
+
+                        <option
+                            value="{{ $workshopSchedule->id }}"
+                            data-workshop-id="{{ $workshopSchedule->workshop_id }}"
+                            {{ (string) request('workshop_schedule_id') === (string) $workshopSchedule->id ? 'selected' : '' }}
+                        >
+                            {{ $scheduleWorkshop?->title ?? 'Workshop #' . $workshopSchedule->workshop_id }}
+                            —
+                            {{ $workshopSchedule->title ?: 'Schedule' }}
+                            —
+                            {{ $scheduleDate }}
+                            @if($scheduleTime)
+                                ({{ $scheduleTime }})
+                            @endif
+                        </option>
+                    @endforeach
+                </select>
+
+                <select
                     name="status"
                     class="form-select form-select-sm"
                     style="width: 180px;"
@@ -158,7 +228,7 @@
                     </button>
                 </div>
 
-                @if(request()->hasAny(['workshop_id', 'status', 'keyword']))
+                @if(request()->hasAny(['workshop_id', 'workshop_schedule_id', 'status', 'keyword']))
                     <a href="{{ route('academic.workshop-participants.index') }}" class="btn btn-sm btn-outline-secondary">
                         Reset
                     </a>
@@ -175,6 +245,7 @@
                                 <th class="text-nowrap" style="width: 70px;">No</th>
                                 <th class="text-nowrap">Participant</th>
                                 <th class="text-nowrap">Workshop</th>
+                                <th class="text-nowrap">Schedule</th>
                                 <th class="text-nowrap">Order</th>
                                 <th class="text-nowrap">Payment Schedule</th>
                                 <th class="text-nowrap">Status</th>
@@ -188,8 +259,18 @@
                                 @php
                                     $student = $participant->student;
                                     $workshop = $participant->workshop;
+                                    $workshopSchedule = $participant->workshopSchedule;
                                     $order = $participant->order;
                                     $schedule = $order?->paymentSchedules?->first();
+
+                                    $workshopScheduleDate = $workshopSchedule?->schedule_date
+                                        ? \Illuminate\Support\Carbon::parse($workshopSchedule->schedule_date)->format('d M Y')
+                                        : null;
+
+                                    $workshopScheduleTime = trim(implode(' - ', array_filter([
+                                        $workshopSchedule?->start_time ? \Illuminate\Support\Carbon::parse($workshopSchedule->start_time)->format('H:i') : null,
+                                        $workshopSchedule?->end_time ? \Illuminate\Support\Carbon::parse($workshopSchedule->end_time)->format('H:i') : null,
+                                    ])));
 
                                     $studentName = $student?->full_name ?? '-';
                                     $workshopTitle = $workshop?->title ?? $workshop?->name ?? '-';
@@ -222,6 +303,7 @@
                                     $editPayload = [
                                         'id' => $participant->id,
                                         'workshop_id' => $participant->workshop_id,
+                                        'workshop_schedule_id' => $participant->workshop_schedule_id,
                                         'student_id' => $participant->student_id,
                                         'full_name' => $student?->full_name,
                                         'email' => $student?->email,
@@ -266,6 +348,24 @@
                                                 · {{ $workshop->level }}
                                             @endif
                                         </div>
+                                    </td>
+
+                                    <td>
+                                        @if($workshopSchedule)
+                                            <div class="fw-semibold text-dark">
+                                                {{ $workshopSchedule->title ?: 'Schedule #' . $workshopSchedule->id }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ $workshopScheduleDate ?: '-' }}
+                                                @if($workshopScheduleTime)
+                                                    · {{ $workshopScheduleTime }}
+                                                @endif
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                            <div class="small text-muted">No schedule selected</div>
+                                        @endif
                                     </td>
 
                                     <td>
@@ -397,7 +497,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
-                <div class="modal-body pt-4">
+                <div class="modal-body pt-4 workshop-participant-modal-body">
                     <div id="formAlert" class="alert alert-danger d-none"></div>
 
                     <div class="row g-3">
@@ -415,6 +515,19 @@
                                 @endforeach
                             </select>
                             <div class="invalid-feedback" id="error_workshop_id"></div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="workshop_schedule_id" class="form-label">
+                                Workshop Schedule <span class="text-danger">*</span>
+                            </label>
+                            <select id="workshop_schedule_id" class="form-select">
+                                <option value="">Select Schedule</option>
+                            </select>
+                            <div class="form-text">
+                                Pilih jadwal pelaksanaan workshop yang akan diikuti peserta.
+                            </div>
+                            <div class="invalid-feedback" id="error_workshop_schedule_id"></div>
                         </div>
 
                         <div class="col-md-6">
@@ -580,6 +693,17 @@
         border-bottom: 1px solid #eef2f7;
     }
 
+    .workshop-participant-modal-body {
+        max-height: calc(100vh - 220px);
+        overflow-y: auto;
+    }
+
+    @media (max-width: 575.98px) {
+        .workshop-participant-modal-body {
+            max-height: calc(100vh - 190px);
+        }
+    }
+
     .delete-warning-box {
         display: flex;
         gap: 1rem;
@@ -619,9 +743,12 @@
 
     const csrfToken = @js(csrf_token());
 
+    const workshopSchedules = @json($workshopSchedulesForJs);
+
     const fields = {
         participant_id: document.getElementById('participant_id'),
         workshop_id: document.getElementById('workshop_id'),
+        workshop_schedule_id: document.getElementById('workshop_schedule_id'),
         full_name: document.getElementById('full_name'),
         email: document.getElementById('email'),
         phone: document.getElementById('phone'),
@@ -640,7 +767,43 @@
 
         document.getElementById('participantForm').addEventListener('submit', submitParticipantForm);
         document.getElementById('confirmDeleteParticipantBtn').addEventListener('click', deleteParticipant);
+
+        fields.workshop_id.addEventListener('change', function () {
+            renderWorkshopScheduleOptions(this.value, '');
+            fields.workshop_schedule_id.value = '';
+        });
     });
+
+    function renderWorkshopScheduleOptions(workshopId, selectedScheduleId = '') {
+        const scheduleSelect = fields.workshop_schedule_id;
+
+        if (!scheduleSelect) {
+            return;
+        }
+
+        let options = '<option value="">Select Schedule</option>';
+
+        if (workshopId) {
+            const filteredSchedules = workshopSchedules.filter(schedule => {
+                return String(schedule.workshop_id) === String(workshopId);
+            });
+
+            filteredSchedules.forEach(schedule => {
+                const selected = String(schedule.id) === String(selectedScheduleId) ? 'selected' : '';
+                const statusLabel = schedule.status ? ` • ${schedule.status}` : '';
+                const activeLabel = schedule.is_active ? '' : ' • inactive';
+                const timeLabel = schedule.time_label ? ` (${schedule.time_label})` : '';
+
+                options += `
+                    <option value="${schedule.id}" ${selected}>
+                        ${schedule.title} — ${schedule.schedule_date_label}${timeLabel}${statusLabel}${activeLabel}
+                    </option>
+                `;
+            });
+        }
+
+        scheduleSelect.innerHTML = options;
+    }
 
     function openCreateModal() {
         isEditMode = false;
@@ -663,6 +826,8 @@
 
         fields.participant_id.value = payload.id || '';
         fields.workshop_id.value = payload.workshop_id || '';
+        renderWorkshopScheduleOptions(payload.workshop_id || '', payload.workshop_schedule_id || '');
+        fields.workshop_schedule_id.value = payload.workshop_schedule_id || '';
         fields.full_name.value = payload.full_name || '';
         fields.email.value = payload.email || '';
         fields.phone.value = payload.phone || '';
@@ -694,6 +859,7 @@
 
         const payload = {
             workshop_id: fields.workshop_id.value,
+            workshop_schedule_id: fields.workshop_schedule_id.value,
             full_name: fields.full_name.value.trim(),
             email: fields.email.value.trim(),
             phone: fields.phone.value.trim(),
@@ -797,6 +963,8 @@
     function resetForm() {
         document.getElementById('participantForm').reset();
         fields.participant_id.value = '';
+        renderWorkshopScheduleOptions('', '');
+        fields.workshop_schedule_id.value = '';
         fields.discount.value = 0;
         fields.due_date.value = @js(now()->toDateString());
         fields.status.value = 'pending_payment';

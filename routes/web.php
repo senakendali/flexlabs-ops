@@ -68,6 +68,7 @@ use App\Http\Controllers\Marketing\MarketingSetupAdController;
 use App\Http\Controllers\Academic\InstructorScheduleController;
 use App\Http\Controllers\PublicWorkshopController;
 use App\Http\Controllers\Academic\WorkshopController;
+use App\Http\Controllers\Academic\WorkshopScheduleController;
 use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
@@ -1490,7 +1491,7 @@ Route::middleware('auth')->group(function () {
                     ->name('create');
 
                 Route::post('/', 'store')
-                    ->middleware('permission:workshops.create')
+                    ->middleware('permission:workshop_schedules.create')
                     ->name('store');
 
                 Route::get('/{workshop}', 'show')
@@ -1504,17 +1505,81 @@ Route::middleware('auth')->group(function () {
 
                 Route::put('/{workshop}', 'update')
                     ->whereNumber('workshop')
-                    ->middleware('permission:workshops.update')
+                    ->middleware('permission:workshop_schedules.update')
                     ->name('update');
 
                 Route::patch('/{workshop}', 'update')
                     ->whereNumber('workshop')
-                    ->middleware('permission:workshops.update')
+                    ->middleware('permission:workshop_schedules.update')
                     ->name('patch');
 
                 Route::delete('/{workshop}', 'destroy')
                     ->whereNumber('workshop')
-                    ->middleware('permission:workshops.delete')
+                    ->middleware('permission:workshop_schedules.delete')
+                    ->name('destroy');
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workshop Schedules
+        |--------------------------------------------------------------------------
+        |
+        | Route names:
+        | - academic.workshop-schedules.index
+        | - academic.workshop-schedules.show
+        | - academic.workshop-schedules.store
+        | - academic.workshop-schedules.update
+        | - academic.workshop-schedules.patch
+        | - academic.workshop-schedules.destroy
+        | - academic.workshop-schedules.workshops.pricing
+        |
+        | Notes:
+        | - Index bisa render Blade atau JSON untuk async table.
+        | - Store/update/delete dibuat async lewat JSON.
+        | - Pricing endpoint dipakai untuk auto-fill harga dari workshop.
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('workshop-schedules')
+            ->name('workshop-schedules.')
+            ->middleware('permission:workshop_schedules.view')
+            ->controller(WorkshopScheduleController::class)
+            ->group(function () {
+                Route::get('/', 'index')
+                    ->name('index');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Helper: Get Workshop Pricing
+                |--------------------------------------------------------------------------
+                | Must stay before /{workshopSchedule} routes.
+                | Used by async form when admin selects a workshop.
+                |--------------------------------------------------------------------------
+                */
+                Route::get('/workshops/{workshop}/pricing', 'workshopPricing')
+                    ->whereNumber('workshop')
+                    ->name('workshops.pricing');
+
+                Route::get('/{workshopSchedule}', 'show')
+                    ->whereNumber('workshopSchedule')
+                    ->name('show');
+
+                Route::post('/', 'store')
+                    ->middleware('permission:workshop_schedules.create')
+                    ->name('store');
+
+                Route::put('/{workshopSchedule}', 'update')
+                    ->whereNumber('workshopSchedule')
+                    ->middleware('permission:workshop_schedules.update')
+                    ->name('update');
+
+                Route::patch('/{workshopSchedule}', 'update')
+                    ->whereNumber('workshopSchedule')
+                    ->middleware('permission:workshop_schedules.update')
+                    ->name('patch');
+
+                Route::delete('/{workshopSchedule}', 'destroy')
+                    ->whereNumber('workshopSchedule')
+                    ->middleware('permission:workshop_schedules.delete')
                     ->name('destroy');
             });
 

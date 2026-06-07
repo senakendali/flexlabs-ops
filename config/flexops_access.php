@@ -166,6 +166,11 @@ return [
             'workshops.update',
             'workshops.delete',
 
+            'workshop_schedules.view',
+            'workshop_schedules.create',
+            'workshop_schedules.update',
+            'workshop_schedules.delete',
+
             'workshop_participants.view',
             'workshop_participants.create',
             'workshop_participants.update',
@@ -215,6 +220,11 @@ return [
             'workshops.create',
             'workshops.update',
             'workshops.delete',
+
+            'workshop_schedules.view',
+            'workshop_schedules.create',
+            'workshop_schedules.update',
+            'workshop_schedules.delete',
 
             'workshop_participants.view',
             'workshop_participants.create',
@@ -293,6 +303,11 @@ return [
             'workshops.update',
             'workshops.delete',
 
+            'workshop_schedules.view',
+            'workshop_schedules.create',
+            'workshop_schedules.update',
+            'workshop_schedules.delete',
+
             'workshop_participants.view',
             'workshop_participants.create',
             'workshop_participants.update',
@@ -350,6 +365,11 @@ return [
             'academic.view',
 
             'workshops.view',
+
+            'workshop_schedules.view',
+            'workshop_schedules.create',
+            'workshop_schedules.update',
+            'workshop_schedules.delete',
 
             'workshop_participants.view',
             'workshop_participants.create',
@@ -489,6 +509,7 @@ return [
                 'trial-schedules.*',
                 'trial-participants.*',
                 'academic.workshops.*',
+                'academic.workshop-schedules.*',
                 'academic.workshop-participants.*',
                 'academic.mentoring-sessions.*',
                 'academic.announcements.*',
@@ -767,6 +788,14 @@ return [
                             'icon' => 'bi bi-easel2-fill',
                             'permission' => 'workshops.view',
                             'desc' => 'Workshop public dan internal.',
+                        ],
+                        [
+                            'label' => 'Workshop Schedules',
+                            'route' => 'academic.workshop-schedules.index',
+                            'active' => ['academic.workshop-schedules.*'],
+                            'icon' => 'bi bi-calendar2-week-fill',
+                            'permission' => 'workshop_schedules.view',
+                            'desc' => 'Jadwal pelaksanaan workshop, kuota, harga per jadwal, dan status pendaftaran.',
                         ],
                         [
                             'label' => 'Workshop Participants',
