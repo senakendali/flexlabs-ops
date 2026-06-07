@@ -544,29 +544,15 @@
             position: sticky !important;
             top: 7rem;
             align-self: flex-start;
-            max-height: calc(100vh - 8rem);
-            overflow-y: auto;
-            overscroll-behavior: contain;
-        }
-
-        .workshop-detail-sidebar-sticky::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .workshop-detail-sidebar-sticky::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .workshop-detail-sidebar-sticky::-webkit-scrollbar-thumb {
-            background: rgba(91, 62, 142, 0.22);
-            border-radius: 999px;
+            height: fit-content;
+            overflow: visible;
         }
     }
 
     @media (max-width: 1023.98px) {
         .workshop-detail-sidebar-sticky {
             position: static;
-            max-height: none;
+            height: auto;
             overflow: visible;
         }
     }
