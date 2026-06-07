@@ -585,6 +585,7 @@
 
         const desktopQuery = window.matchMedia('(min-width: 1024px)');
         const topOffset = 112; // 7rem, aman untuk fixed navbar
+        const bottomGap = 32; // jarak aman sebelum footer / akhir section
 
         function resetSidebar() {
             sidebar.style.position = '';
@@ -618,7 +619,7 @@
             wrapper.style.minHeight = `${sidebarHeight}px`;
 
             const startFixedAt = wrapperTop - topOffset;
-            const stopFixedAt = sectionBottom - sidebarHeight - topOffset;
+            const stopFixedAt = sectionBottom - sidebarHeight - topOffset - bottomGap;
 
             if (scrollY < startFixedAt) {
                 sidebar.style.position = 'static';
@@ -630,7 +631,7 @@
             }
 
             if (scrollY >= stopFixedAt) {
-                const absoluteTop = Math.max(0, sectionBottom - wrapperTop - sidebarHeight);
+                const absoluteTop = Math.max(0, sectionBottom - wrapperTop - sidebarHeight - bottomGap);
 
                 sidebar.style.position = 'absolute';
                 sidebar.style.top = `${absoluteTop}px`;
