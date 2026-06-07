@@ -317,7 +317,7 @@
             </div>
 
             <div class="lg:col-span-4 lg:self-start">
-                <aside class="lg:sticky lg:top-28">
+                <aside class="workshop-detail-sidebar-sticky">
                     <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
                     <div class="bg-flex-primary/5 p-3">
                         <img
@@ -527,3 +527,48 @@
     </div>
 </section>
 @endsection
+
+@push('styles')
+<style>
+    /*
+    |--------------------------------------------------------------------------
+    | Sticky Sidebar - Workshop Detail
+    |--------------------------------------------------------------------------
+    | Jangan cuma mengandalkan class Tailwind sticky karena beberapa parent layout
+    | dashboard/public layout bisa punya overflow/height behavior yang bikin sticky
+    | tidak jalan konsisten. Ini dibuat explicit untuk desktop.
+    |--------------------------------------------------------------------------
+    */
+    @media (min-width: 1024px) {
+        .workshop-detail-sidebar-sticky {
+            position: sticky !important;
+            top: 7rem;
+            align-self: flex-start;
+            max-height: calc(100vh - 8rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .workshop-detail-sidebar-sticky::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .workshop-detail-sidebar-sticky::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .workshop-detail-sidebar-sticky::-webkit-scrollbar-thumb {
+            background: rgba(91, 62, 142, 0.22);
+            border-radius: 999px;
+        }
+    }
+
+    @media (max-width: 1023.98px) {
+        .workshop-detail-sidebar-sticky {
+            position: static;
+            max-height: none;
+            overflow: visible;
+        }
+    }
+</style>
+@endpush
