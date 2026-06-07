@@ -247,7 +247,7 @@
     </div>
 </section>
 
-<section class="bg-[#F2F4FA] py-16 lg:py-20">
+<section class="workshop-detail-section bg-[#F2F4FA] py-16 lg:py-20" data-workshop-detail-section>
     <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
         <div class="grid gap-8 lg:grid-cols-12 lg:items-start">
             <div class="lg:col-span-8">
@@ -316,8 +316,8 @@
                 </div>
             </div>
 
-            <div class="lg:col-span-4 lg:self-start">
-                <aside class="workshop-detail-sidebar-sticky">
+            <div class="lg:col-span-4 lg:self-start" data-workshop-sidebar-wrapper>
+                <aside class="workshop-detail-sidebar-sticky" data-workshop-sidebar>
                     <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
                     <div class="bg-flex-primary/5 p-3">
                         <img
@@ -539,22 +539,136 @@
     | tidak jalan konsisten. Ini dibuat explicit untuk desktop.
     |--------------------------------------------------------------------------
     */
+    .workshop-detail-section {
+        position: relative;
+    }
+
+    [data-workshop-sidebar-wrapper] {
+        position: relative;
+    }
+
     @media (min-width: 1024px) {
         .workshop-detail-sidebar-sticky {
-            position: sticky !important;
-            top: 7rem;
-            align-self: flex-start;
-            height: fit-content;
-            overflow: visible;
+            position: static;
+            width: 100%;
+            z-index: 20;
+            will-change: top, left, width;
         }
     }
 
     @media (max-width: 1023.98px) {
         .workshop-detail-sidebar-sticky {
-            position: static;
-            height: auto;
-            overflow: visible;
+            position: static !important;
+            inset: auto !important;
+            width: auto !important;
+            transform: none !important;
+        }
+
+        [data-workshop-sidebar-wrapper] {
+            min-height: 0 !important;
         }
     }
 </style>
+@endpush
+
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const section = document.querySelector('[data-workshop-detail-section]');
+        const wrapper = document.querySelector('[data-workshop-sidebar-wrapper]');
+        const sidebar = document.querySelector('[data-workshop-sidebar]');
+
+        if (!section || !wrapper || !sidebar) {
+            return;
+        }
+
+        const desktopQuery = window.matchMedia('(min-width: 1024px)');
+        const topOffset = 112; // 7rem, aman untuk fixed navbar
+
+        function resetSidebar() {
+            sidebar.style.position = '';
+            sidebar.style.top = '';
+            sidebar.style.left = '';
+            sidebar.style.width = '';
+            sidebar.style.zIndex = '';
+            wrapper.style.minHeight = '';
+        }
+
+        function getPageTop(element) {
+            return element.getBoundingClientRect().top + window.scrollY;
+        }
+
+        function updateFloatingSidebar() {
+            if (!desktopQuery.matches) {
+                resetSidebar();
+                return;
+            }
+
+            const scrollY = window.scrollY || window.pageYOffset;
+            const sectionTop = getPageTop(section);
+            const sectionBottom = sectionTop + section.offsetHeight;
+            const wrapperTop = getPageTop(wrapper);
+            const wrapperRect = wrapper.getBoundingClientRect();
+
+            const sidebarHeight = sidebar.offsetHeight;
+            const wrapperWidth = wrapper.offsetWidth;
+            const wrapperLeft = wrapperRect.left + window.scrollX;
+
+            wrapper.style.minHeight = `${sidebarHeight}px`;
+
+            const startFixedAt = wrapperTop - topOffset;
+            const stopFixedAt = sectionBottom - sidebarHeight - topOffset;
+
+            if (scrollY < startFixedAt) {
+                sidebar.style.position = 'static';
+                sidebar.style.top = '';
+                sidebar.style.left = '';
+                sidebar.style.width = '';
+                sidebar.style.zIndex = '';
+                return;
+            }
+
+            if (scrollY >= stopFixedAt) {
+                const absoluteTop = Math.max(0, sectionBottom - wrapperTop - sidebarHeight);
+
+                sidebar.style.position = 'absolute';
+                sidebar.style.top = `${absoluteTop}px`;
+                sidebar.style.left = '0';
+                sidebar.style.width = '100%';
+                sidebar.style.zIndex = '20';
+                return;
+            }
+
+            sidebar.style.position = 'fixed';
+            sidebar.style.top = `${topOffset}px`;
+            sidebar.style.left = `${wrapperLeft}px`;
+            sidebar.style.width = `${wrapperWidth}px`;
+            sidebar.style.zIndex = '20';
+        }
+
+        let ticking = false;
+
+        function requestSidebarUpdate() {
+            if (ticking) {
+                return;
+            }
+
+            ticking = true;
+
+            window.requestAnimationFrame(() => {
+                updateFloatingSidebar();
+                ticking = false;
+            });
+        }
+
+        window.addEventListener('scroll', requestSidebarUpdate, { passive: true });
+        window.addEventListener('resize', requestSidebarUpdate);
+        window.addEventListener('load', requestSidebarUpdate);
+
+        desktopQuery.addEventListener?.('change', requestSidebarUpdate);
+
+        requestSidebarUpdate();
+    });
+</script>
 @endpush
