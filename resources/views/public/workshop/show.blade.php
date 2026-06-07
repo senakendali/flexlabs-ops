@@ -21,9 +21,42 @@
 
     $fallbackImage = asset('images/universal.png');
 
-    $workshopImage = !empty($workshop['image'])
-        ? asset($workshop['image'])
-        : $fallbackImage;
+    /*
+    |--------------------------------------------------------------------------
+    | Workshop Image
+    |--------------------------------------------------------------------------
+    | Priority:
+    | 1. image_url dari controller, kalau ada.
+    | 2. image dari database.
+    | 3. fallback image.
+    |
+    | Jadi kalau DB menyimpan:
+    | - images/workshop.png
+    | - storage/workshops/image.jpg
+    | - workshops/image.jpg
+    | semuanya tetap aman ditampilkan.
+    |--------------------------------------------------------------------------
+    */
+    $workshopImage = $workshop['image_url'] ?? null;
+
+    if (empty($workshopImage)) {
+        $rawImage = $workshop['image'] ?? null;
+
+        if (! empty($rawImage)) {
+            $workshopImage = str_starts_with($rawImage, 'images/')
+                || str_starts_with($rawImage, 'storage/')
+                || str_starts_with($rawImage, 'http://')
+                || str_starts_with($rawImage, 'https://')
+                    ? asset($rawImage)
+                    : asset('storage/' . $rawImage);
+        }
+    }
+
+    $workshopImage = $workshopImage ?: $fallbackImage;
+
+    $schedules = collect($workshop['schedules'] ?? []);
+    $availableScheduleCount = (int) ($workshop['available_schedule_count'] ?? $schedules->count());
+    $nearestSchedule = $workshop['nearest_schedule'] ?? $schedules->first();
 
     $rating = (int) ($workshop['rating'] ?? 0);
     $ratingCount = (int) ($workshop['rating_count'] ?? 0);
@@ -87,6 +120,11 @@
                         <i class="bi bi-grid text-flex-primary"></i>
                         {{ $workshop['category'] ?? '-' }}
                     </span>
+
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                        <i class="bi bi-calendar-event text-flex-primary"></i>
+                        {{ $availableScheduleCount > 0 ? $availableScheduleCount . ' jadwal tersedia' : 'Jadwal segera hadir' }}
+                    </span>
                 </div>
             </div>
 
@@ -97,23 +135,25 @@
                     <div class="absolute -bottom-6 -left-6 -z-10 h-32 w-32 rounded-full bg-purple-300/30 blur-2xl"></div>
 
                     <div class="overflow-hidden rounded-[2.25rem] border border-flex-primary/10 bg-white p-3 shadow-[0_28px_80px_rgba(91,62,142,0.18)]">
-                        <div class="relative aspect-[16/7] overflow-hidden rounded-[1.75rem] bg-flex-soft max-lg:aspect-video">
+                        <div class="relative overflow-hidden rounded-[1.75rem] bg-flex-soft">
                             @if ($hasIntroVideo)
                                 @if ($introVideoType === 'youtube')
-                                    <iframe
-                                        src="{{ $introVideoUrl }}"
-                                        title="{{ $workshop['title'] }} Intro Video"
-                                        class="h-full w-full"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        allowfullscreen
-                                    ></iframe>
+                                    <div class="aspect-video w-full">
+                                        <iframe
+                                            src="{{ $introVideoUrl }}"
+                                            title="{{ $workshop['title'] }} Intro Video"
+                                            class="h-full w-full"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen
+                                        ></iframe>
+                                    </div>
                                 @else
                                     <video
                                         controls
                                         playsinline
                                         preload="metadata"
-                                        class="h-full w-full object-cover"
-                                        poster="{{ $fallbackImage }}"
+                                        class="h-auto w-full"
+                                        poster="{{ $workshopImage }}"
                                     >
                                         <source src="{{ $introVideoUrl }}" type="video/mp4">
                                         Browser lu belum support video.
@@ -121,9 +161,10 @@
                                 @endif
                             @else
                                 <img
-                                    src="{{ $fallbackImage }}"
-                                    alt="Workshop FlexLabs"
-                                    class="h-full w-full object-cover"
+                                    src="{{ $workshopImage }}"
+                                    alt="{{ $workshop['title'] }}"
+                                    class="h-auto w-full object-contain"
+                                    onerror="this.src='{{ $fallbackImage }}'"
                                 >
 
                                
@@ -275,8 +316,9 @@
                 </div>
             </div>
 
-            <div class="lg:col-span-4">
-                <aside class="sticky top-28 overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
+            <div class="lg:col-span-4 lg:self-start">
+                <aside class="lg:sticky lg:top-28">
+                    <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
                     <div class="bg-flex-primary/5 p-3">
                         <img
                             src="{{ $workshopImage }}"
@@ -297,6 +339,130 @@
                             <div class="mt-1 text-3xl font-black tracking-[-0.05em] text-flex-primary">
                                 {{ $priceText }}
                             </div>
+
+                            @if($nearestSchedule && ! empty($nearestSchedule['formatted_price']))
+                                <div class="mt-2 text-xs font-bold leading-5 text-slate-500">
+                                    Harga jadwal dapat berbeda. Pilih jadwal di bawah untuk melihat detail harga.
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="mt-4 rounded-2xl border border-flex-primary/10 bg-white p-5">
+                            <div class="flex items-center justify-between gap-4">
+                                <div>
+                                    <div class="text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
+                                        Jadwal Tersedia
+                                    </div>
+
+                                    <div class="mt-1 text-sm font-bold text-slate-500">
+                                        {{ $availableScheduleCount > 0 ? $availableScheduleCount . ' pilihan jadwal' : 'Belum ada jadwal aktif' }}
+                                    </div>
+                                </div>
+
+                                <div class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-flex-primary/10 text-flex-primary">
+                                    <i class="bi bi-calendar-event"></i>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 space-y-3">
+                                @forelse($schedules as $schedule)
+                                    @php
+                                        $scheduleTitle = $schedule['display_title']
+                                            ?? $schedule['title']
+                                            ?? $workshop['title'];
+
+                                        $scheduleDateLabel = $schedule['schedule_date_label']
+                                            ?? (! empty($schedule['schedule_date'])
+                                                ? \Illuminate\Support\Carbon::parse($schedule['schedule_date'])->format('d M Y')
+                                                : '-');
+
+                                        $scheduleDayLabel = $schedule['schedule_day_label'] ?? null;
+
+                                        $scheduleTimeLabel = $schedule['time_label']
+                                            ?? trim(implode(' - ', array_filter([
+                                                $schedule['start_time'] ?? null,
+                                                $schedule['end_time'] ?? null,
+                                            ])));
+
+                                        $scheduleLocationLabel = $schedule['location_type_label'] ?? null;
+
+                                        $scheduleRemainingQuota = $schedule['remaining_quota'] ?? null;
+                                        $scheduleIsFull = (bool) ($schedule['is_full'] ?? false);
+
+                                        $schedulePriceText = $schedule['formatted_price']
+                                            ?? 'Rp ' . number_format((float) ($schedule['price'] ?? $workshop['price'] ?? 0), 0, ',', '.');
+
+                                        $scheduleOldPriceText = ! empty($schedule['formatted_old_price'])
+                                            ? $schedule['formatted_old_price']
+                                            : (! empty($schedule['old_price'])
+                                                ? 'Rp ' . number_format((float) $schedule['old_price'], 0, ',', '.')
+                                                : null);
+                                    @endphp
+
+                                    <div class="rounded-2xl border {{ $scheduleIsFull ? 'border-red-100 bg-red-50/50' : 'border-slate-200 bg-slate-50/70' }} p-4">
+                                        <div class="flex items-start gap-3">
+                                            <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-flex-primary/10 text-flex-primary">
+                                                <i class="bi bi-calendar-event"></i>
+                                            </div>
+
+                                            <div class="min-w-0 flex-1">
+                                                <div class="text-sm font-black leading-6 text-slate-900">
+                                                    {{ $scheduleTitle }}
+                                                </div>
+
+                                                <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
+                                                    @if($scheduleDayLabel)
+                                                        {{ $scheduleDayLabel }},
+                                                    @endif
+
+                                                    {{ $scheduleDateLabel }}
+
+                                                    @if($scheduleTimeLabel && $scheduleTimeLabel !== '-')
+                                                        • {{ $scheduleTimeLabel }}
+                                                    @endif
+                                                </div>
+
+                                                @if($scheduleLocationLabel || ! empty($schedule['location']))
+                                                    <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
+                                                        {{ $scheduleLocationLabel ?: 'Lokasi' }}
+                                                        @if(! empty($schedule['location']))
+                                                            • {{ $schedule['location'] }}
+                                                        @endif
+                                                    </div>
+                                                @endif
+
+                                                <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        @if($scheduleOldPriceText)
+                                                            <div class="text-xs font-bold text-slate-400 line-through">
+                                                                {{ $scheduleOldPriceText }}
+                                                            </div>
+                                                        @endif
+
+                                                        <div class="text-base font-black tracking-[-0.03em] text-flex-primary">
+                                                            {{ $schedulePriceText }}
+                                                        </div>
+                                                    </div>
+
+                                                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-black {{ $scheduleIsFull ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700' }}">
+                                                        @if($scheduleIsFull)
+                                                            Full
+                                                        @elseif($scheduleRemainingQuota !== null)
+                                                            Sisa {{ $scheduleRemainingQuota }} seat
+                                                        @else
+                                                            Open
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="rounded-2xl border border-dashed border-flex-primary/20 bg-flex-soft p-5 text-sm font-bold leading-7 text-slate-600">
+                                        Jadwal workshop belum tersedia. Hubungi tim FlexLabs untuk info jadwal berikutnya.
+                                    </div>
+                                @endforelse
+                            </div>
                         </div>
 
                         <a
@@ -306,7 +472,7 @@
                             class="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)]"
                         >
                             <i class="bi bi-whatsapp"></i>
-                            Daftar Workshop
+                            Daftar via WhatsApp
                         </a>
 
                         <a
@@ -340,12 +506,20 @@
                             </div>
 
                             <div class="flex items-center justify-between gap-4 p-4">
+                                <span class="text-sm font-bold text-slate-500">Jadwal</span>
+                                <strong class="text-right text-sm font-black text-slate-900">
+                                    {{ $availableScheduleCount > 0 ? $availableScheduleCount . ' tersedia' : 'Segera hadir' }}
+                                </strong>
+                            </div>
+
+                            <div class="flex items-center justify-between gap-4 p-4">
                                 <span class="text-sm font-bold text-slate-500">Rating</span>
                                 <strong class="text-right text-sm font-black text-slate-900">
                                     {{ $workshop['rating'] ?? 0 }}/5
                                 </strong>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </aside>
             </div>

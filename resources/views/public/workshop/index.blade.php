@@ -219,6 +219,9 @@
                     $rating = (int) ($workshop['rating'] ?? 0);
                     $ratingCount = (int) ($workshop['rating_count'] ?? 0);
                     $image = $workshop['image'] ?? 'images/workshop.png';
+
+                    $workshopSchedules = collect($workshop['schedules'] ?? [])->take(2);
+                    $availableScheduleCount = (int) ($workshop['available_schedule_count'] ?? $workshopSchedules->count());
                 @endphp
 
                 <a
@@ -254,6 +257,14 @@
                                 @if (!empty($workshop['duration']))
                                     <span>{{ $workshop['duration'] }}</span>
                                 @endif
+
+                                @if ((!empty($workshop['level']) || !empty($workshop['duration'])))
+                                    <span class="h-1.5 w-1.5 rounded-full bg-flex-primary/35"></span>
+                                @endif
+
+                                <span>
+                                    {{ $availableScheduleCount > 0 ? $availableScheduleCount . ' jadwal tersedia' : 'Jadwal segera hadir' }}
+                                </span>
                             </div>
 
                             <h3 class="mt-4 text-xl font-black leading-snug tracking-[-0.04em] text-slate-950 transition group-hover:text-flex-primary">
@@ -263,6 +274,64 @@
                             <p class="mt-3 line-clamp-3 text-sm font-medium leading-7 text-slate-600">
                                 {{ $workshop['short_description'] }}
                             </p>
+
+                            @if ($workshopSchedules->count())
+                                <div class="mt-5 rounded-2xl border border-flex-primary/10 bg-flex-soft p-4">
+                                    <div class="mb-3 text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
+                                        Jadwal Terdekat
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        @foreach ($workshopSchedules as $schedule)
+                                            @php
+                                                $scheduleTitle = $schedule['display_title']
+                                                    ?? $schedule['title']
+                                                    ?? $workshop['title'];
+
+                                                $scheduleDateLabel = $schedule['schedule_date_label']
+                                                    ?? (! empty($schedule['schedule_date'])
+                                                        ? \Illuminate\Support\Carbon::parse($schedule['schedule_date'])->format('d M Y')
+                                                        : '-');
+
+                                                $scheduleTimeLabel = $schedule['time_label']
+                                                    ?? trim(implode(' - ', array_filter([
+                                                        $schedule['start_time'] ?? null,
+                                                        $schedule['end_time'] ?? null,
+                                                    ])));
+
+                                                $scheduleLocationLabel = $schedule['location_type_label']
+                                                    ?? null;
+                                            @endphp
+
+                                            <div class="flex items-start gap-3 rounded-2xl bg-white/80 p-3">
+                                                <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-flex-primary/10 text-flex-primary">
+                                                    <i class="bi bi-calendar-event"></i>
+                                                </div>
+
+                                                <div class="min-w-0">
+                                                    <div class="truncate text-sm font-black text-slate-900">
+                                                        {{ $scheduleTitle }}
+                                                    </div>
+
+                                                    <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
+                                                        {{ $scheduleDateLabel }}
+
+                                                        @if($scheduleTimeLabel && $scheduleTimeLabel !== '-')
+                                                            • {{ $scheduleTimeLabel }}
+                                                        @endif
+                                                    </div>
+
+                                                    @if($scheduleLocationLabel)
+                                                        <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
+                                                            {{ $scheduleLocationLabel }}
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
 
                             <div class="mt-5 rounded-2xl border border-flex-primary/10 bg-flex-soft p-4">
                                 @if ($oldPriceText)
