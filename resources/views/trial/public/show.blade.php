@@ -8,10 +8,38 @@
 @php
     $fallbackImage = asset('images/triall-hero.png');
 
-    $themeImage = $theme->image_url
-        ?? (! empty($theme->image)
-            ? asset('storage/' . $theme->image)
-            : $fallbackImage);
+    /*
+    |--------------------------------------------------------------------------
+    | Webinar Image
+    |--------------------------------------------------------------------------
+    | Priority:
+    | 1. image_url dari controller.
+    | 2. image dari database.
+    | 3. fallback image.
+    |
+    | Support isi DB:
+    | - images/file.png
+    | - storage/trial-themes/file.jpg
+    | - trial-themes/file.jpg
+    | - http(s) URL
+    |--------------------------------------------------------------------------
+    */
+    $themeImage = $theme->image_url ?? null;
+
+    if (empty($themeImage)) {
+        $rawImage = $theme->image ?? null;
+
+        if (! empty($rawImage)) {
+            $themeImage = str_starts_with($rawImage, 'images/')
+                || str_starts_with($rawImage, 'storage/')
+                || str_starts_with($rawImage, 'http://')
+                || str_starts_with($rawImage, 'https://')
+                    ? asset($rawImage)
+                    : asset('storage/' . $rawImage);
+        }
+    }
+
+    $themeImage = $themeImage ?: $fallbackImage;
 
     $programName = $theme->program->name ?? 'FlexLabs Program';
 
@@ -104,11 +132,11 @@
                     <div class="absolute -bottom-6 -left-6 -z-10 h-32 w-32 rounded-full bg-purple-300/30 blur-2xl"></div>
 
                     <div class="overflow-hidden rounded-[2.25rem] border border-flex-primary/10 bg-white p-3 shadow-[0_28px_80px_rgba(91,62,142,0.18)]">
-                        <div class="relative aspect-[16/7] overflow-hidden rounded-[1.75rem] bg-flex-soft max-lg:aspect-video">
+                        <div class="relative overflow-hidden rounded-[1.75rem] bg-flex-soft">
                             <img
                                 src="{{ $themeImage }}"
                                 alt="{{ $theme->name }}"
-                                class="h-full w-full object-cover"
+                                class="h-auto w-full object-contain"
                                 onerror="this.src='{{ $fallbackImage }}'"
                             >
                         </div>
@@ -376,12 +404,14 @@
                 <aside class="lg:sticky lg:top-28">
                     <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
                         <div class="bg-flex-primary/5 p-3">
-                            <img
-                                src="{{ $themeImage }}"
-                                alt="{{ $theme->name }}"
-                                class="h-64 w-full rounded-[1.5rem] object-cover"
-                                onerror="this.src='{{ $fallbackImage }}'"
-                            >
+                            <div class="overflow-hidden rounded-[1.5rem] bg-white">
+                                <img
+                                    src="{{ $themeImage }}"
+                                    alt="{{ $theme->name }}"
+                                    class="h-auto w-full object-contain"
+                                    onerror="this.src='{{ $fallbackImage }}'"
+                                >
+                            </div>
                         </div>
 
                         <div class="border-b border-slate-200 p-6">
