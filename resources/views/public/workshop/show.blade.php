@@ -58,6 +58,21 @@
     $availableScheduleCount = (int) ($workshop['available_schedule_count'] ?? $schedules->count());
     $nearestSchedule = $workshop['nearest_schedule'] ?? $schedules->first();
 
+    /*
+    |--------------------------------------------------------------------------
+    | Public Workshop Registration Endpoint
+    |--------------------------------------------------------------------------
+    | Route utama nanti:
+    | - local: /workshop/{slug}/register
+    | - production subdomain: /{slug}/register
+    |
+    | Pakai relative route supaya aman di local dan subdomain.
+    |--------------------------------------------------------------------------
+    */
+    $registrationEndpoint = \Illuminate\Support\Facades\Route::has('workshop.registration.store')
+        ? route('workshop.registration.store', ['slug' => $workshop['slug']], false)
+        : '/workshop/' . ($workshop['slug'] ?? $workshop['id']) . '/register';
+
     $rating = (int) ($workshop['rating'] ?? 0);
     $ratingCount = (int) ($workshop['rating_count'] ?? 0);
 
@@ -76,6 +91,12 @@
         return nl2br(e($text));
     };
 @endphp
+
+<div
+    id="toastContainer"
+    class="fixed right-4 top-[96px] z-[999999] grid w-[calc(100%-2rem)] max-w-sm gap-3 sm:right-6 sm:w-full"
+    style="z-index: 999999;"
+></div>
 
 <section class="relative isolate overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(91,62,142,0.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f7f4ff_100%)] pt-32 pb-14 sm:pt-36 lg:pt-40 lg:pb-16">
     <div class="pointer-events-none absolute inset-0 -z-10 opacity-60 [background-image:linear-gradient(rgba(91,62,142,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(91,62,142,0.06)_1px,transparent_1px)] [background-size:42px_42px]"></div>
@@ -454,6 +475,17 @@
                                                         @endif
                                                     </span>
                                                 </div>
+
+                                                <button
+                                                    type="button"
+                                                    data-register-schedule
+                                                    data-schedule-id="{{ $schedule['id'] }}"
+                                                    class="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full {{ $scheduleIsFull ? 'cursor-not-allowed bg-slate-200 text-slate-400' : 'bg-flex-primary text-white shadow-[0_12px_24px_rgba(91,62,142,0.18)] hover:bg-flex-primaryDark' }} px-4 py-2 text-xs font-black transition duration-200"
+                                                    {{ $scheduleIsFull ? 'disabled' : '' }}
+                                                >
+                                                    <i class="bi bi-pencil-square"></i>
+                                                    {{ $scheduleIsFull ? 'Jadwal penuh' : 'Pilih jadwal ini' }}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -469,10 +501,10 @@
                             href="{{ $waUrl }}"
                             target="_blank"
                             rel="noopener"
-                            class="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)]"
+                            class="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-flex-primary/15 bg-white px-6 py-3 text-sm font-black text-flex-primary transition duration-200 hover:-translate-y-0.5 hover:bg-flex-soft"
                         >
                             <i class="bi bi-whatsapp"></i>
-                            Daftar via WhatsApp
+                            Tanya via WhatsApp
                         </a>
 
                         <a
@@ -526,6 +558,245 @@
         </div>
     </div>
 </section>
+
+<section
+    id="workshop-registration-section"
+    class="bg-white py-16 lg:py-20"
+    data-workshop-registration-section
+>
+    <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
+        <div class="grid gap-8 lg:grid-cols-12 lg:items-start">
+            <div class="lg:col-span-5">
+                <span class="inline-flex rounded-full bg-flex-soft px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary">
+                    Workshop Registration
+                </span>
+
+                <h2 class="mt-4 text-3xl font-black leading-tight tracking-[-0.05em] text-slate-950 sm:text-4xl lg:text-5xl">
+                    Daftar workshop ini
+                </h2>
+
+                <p class="mt-4 max-w-xl text-base font-medium leading-8 text-slate-600">
+                    Isi data diri kamu dan pastikan jadwal yang dipilih sudah sesuai. Setelah submit,
+                    tim FlexLabs akan menghubungi kamu untuk konfirmasi pembayaran dan detail sesi.
+                </p>
+
+                <div id="selectedSchedulePreview" class="mt-6 rounded-[1.75rem] border border-flex-primary/10 bg-flex-soft p-5">
+                    <div class="flex items-start gap-4">
+                        <div class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-flex-primary/10 text-xl text-flex-primary">
+                            <i class="bi bi-calendar-event"></i>
+                        </div>
+
+                        <div class="min-w-0">
+                            <div class="text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
+                                Jadwal dipilih
+                            </div>
+
+                            <div id="selectedScheduleTitle" class="mt-2 text-lg font-black leading-6 text-slate-950">
+                                Pilih jadwal terlebih dahulu
+                            </div>
+
+                            <div id="selectedScheduleMeta" class="mt-2 text-sm font-bold leading-6 text-slate-500">
+                                Klik tombol daftar pada jadwal yang kamu inginkan.
+                            </div>
+
+                            <div id="selectedSchedulePrice" class="mt-3 text-xl font-black tracking-[-0.04em] text-flex-primary"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-7">
+                <div class="overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+                    <div class="border-b border-slate-200 bg-[radial-gradient(circle_at_top_right,rgba(91,62,142,0.14),transparent_34%),linear-gradient(135deg,#ffffff_0%,#faf8ff_100%)] p-6 sm:p-8">
+                        <h3 class="text-2xl font-black tracking-[-0.04em] text-slate-950">
+                            Form Pendaftaran
+                        </h3>
+
+                        <p class="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                            Data ini akan dipakai untuk membuat registrasi, order, dan payment schedule workshop.
+                        </p>
+                    </div>
+
+                    <div class="p-6 sm:p-8">
+                        <form id="workshopRegistrationForm">
+                            @csrf
+
+                            <div id="registrationFormAlert" class="mb-5 hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700"></div>
+
+                            <div class="grid gap-5 md:grid-cols-2">
+                                <div class="md:col-span-2">
+                                    <label for="workshop_schedule_id" class="mb-2 block text-sm font-black text-slate-800">
+                                        Jadwal Workshop <span class="text-red-500">*</span>
+                                    </label>
+
+                                    <select
+                                        id="workshop_schedule_id"
+                                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                    >
+                                        <option value="">Pilih jadwal</option>
+
+                                        @foreach ($schedules as $schedule)
+                                            @php
+                                                $optionTitle = $schedule['display_title']
+                                                    ?? $schedule['title']
+                                                    ?? $workshop['title'];
+
+                                                $optionDate = $schedule['schedule_date_label']
+                                                    ?? (! empty($schedule['schedule_date'])
+                                                        ? \Illuminate\Support\Carbon::parse($schedule['schedule_date'])->format('d M Y')
+                                                        : '-');
+
+                                                $optionTime = $schedule['time_label']
+                                                    ?? trim(implode(' - ', array_filter([
+                                                        $schedule['start_time'] ?? null,
+                                                        $schedule['end_time'] ?? null,
+                                                    ])));
+
+                                                $optionIsFull = (bool) ($schedule['is_full'] ?? false);
+                                            @endphp
+
+                                            <option
+                                                value="{{ $schedule['id'] }}"
+                                                {{ $optionIsFull ? 'disabled' : '' }}
+                                            >
+                                                {{ $optionTitle }}
+                                                - {{ $optionDate }}
+                                                @if($optionTime && $optionTime !== '-')
+                                                    ({{ $optionTime }})
+                                                @endif
+                                                {{ $optionIsFull ? '- FULL' : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_workshop_schedule_id"></div>
+                                </div>
+
+                                <div>
+                                    <label for="full_name" class="mb-2 block text-sm font-black text-slate-800">
+                                        Nama Lengkap <span class="text-red-500">*</span>
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="full_name"
+                                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                        placeholder="Nama lengkap"
+                                    >
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_full_name"></div>
+                                </div>
+
+                                <div>
+                                    <label for="phone" class="mb-2 block text-sm font-black text-slate-800">
+                                        Nomor HP / WhatsApp <span class="text-red-500">*</span>
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="phone"
+                                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                        placeholder="Nomor WhatsApp aktif"
+                                    >
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_phone"></div>
+                                </div>
+
+                                <div>
+                                    <label for="email" class="mb-2 block text-sm font-black text-slate-800">
+                                        Email <span class="text-red-500">*</span>
+                                    </label>
+
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                        placeholder="Email aktif"
+                                    >
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_email"></div>
+                                </div>
+
+                                <div>
+                                    <label for="city" class="mb-2 block text-sm font-black text-slate-800">
+                                        Domisili
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="city"
+                                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                        placeholder="Contoh: Jakarta"
+                                    >
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_city"></div>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label for="goal" class="mb-2 block text-sm font-black text-slate-800">
+                                        Tujuan Mengikuti Workshop
+                                    </label>
+
+                                    <textarea
+                                        id="goal"
+                                        rows="5"
+                                        class="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                        placeholder="Ceritakan tujuan kamu mengikuti workshop ini"
+                                    ></textarea>
+
+                                    <div class="mt-2 hidden text-sm font-bold text-red-600" id="error_goal"></div>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <button
+                                        type="submit"
+                                        id="submitRegistrationBtn"
+                                        class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-flex-primary px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(91,62,142,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-flex-primaryDark hover:shadow-[0_22px_44px_rgba(91,62,142,0.34)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                                        {{ $schedules->isEmpty() ? 'disabled' : '' }}
+                                    >
+                                        <span class="default-text">
+                                            Kirim Pendaftaran
+                                        </span>
+
+                                        <span class="loading-text hidden items-center gap-2">
+                                            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                                            Mengirim...
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div id="registrationSuccessState" class="hidden text-center">
+                            <div class="mx-auto inline-flex h-20 w-20 items-center justify-center rounded-[1.7rem] bg-emerald-100 text-4xl text-emerald-600">
+                                <i class="bi bi-check-lg"></i>
+                            </div>
+
+                            <h4 class="mt-5 text-2xl font-black tracking-[-0.04em] text-slate-950">
+                                Pendaftaran Berhasil
+                            </h4>
+
+                            <p class="mx-auto mt-3 max-w-xl text-base font-medium leading-7 text-slate-600">
+                                Terima kasih, data kamu sudah kami terima. Tim FlexLabs akan menghubungi kamu untuk konfirmasi pembayaran dan detail workshop.
+                            </p>
+
+                            <a
+                                href="{{ $waUrl }}"
+                                target="_blank"
+                                rel="noopener"
+                                class="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-flex-primary/15 bg-white px-6 py-3 text-sm font-black text-flex-primary transition duration-200 hover:-translate-y-0.5 hover:bg-flex-soft"
+                            >
+                                <i class="bi bi-whatsapp"></i>
+                                Hubungi WhatsApp FlexLabs
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
 @endsection
 
 @push('styles')
@@ -670,6 +941,318 @@
         desktopQuery.addEventListener?.('change', requestSidebarUpdate);
 
         requestSidebarUpdate();
+    });
+</script>
+@endpush
+
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const registrationEndpoint = @js($registrationEndpoint);
+        const workshopId = @js($workshop['id']);
+        const schedules = @json($schedules->values());
+
+        const registrationSection = document.querySelector('[data-workshop-registration-section]');
+        const registrationForm = document.getElementById('workshopRegistrationForm');
+        const registrationAlert = document.getElementById('registrationFormAlert');
+        const registrationSuccessState = document.getElementById('registrationSuccessState');
+        const submitRegistrationBtn = document.getElementById('submitRegistrationBtn');
+
+        const selectedScheduleTitle = document.getElementById('selectedScheduleTitle');
+        const selectedScheduleMeta = document.getElementById('selectedScheduleMeta');
+        const selectedSchedulePrice = document.getElementById('selectedSchedulePrice');
+
+        const registrationFields = {
+            workshop_schedule_id: document.getElementById('workshop_schedule_id'),
+            full_name: document.getElementById('full_name'),
+            email: document.getElementById('email'),
+            phone: document.getElementById('phone'),
+            city: document.getElementById('city'),
+            goal: document.getElementById('goal'),
+        };
+
+        const invalidClasses = [
+            'border-red-400',
+            'ring-4',
+            'ring-red-100',
+        ];
+
+        function findSchedule(scheduleId) {
+            return schedules.find((schedule) => String(schedule.id) === String(scheduleId));
+        }
+
+        function getUrlParam(name) {
+            return new URLSearchParams(window.location.search).get(name);
+        }
+
+        function scrollToRegistrationSection() {
+            if (!registrationSection) {
+                return;
+            }
+
+            const navOffset = 96;
+            const top = registrationSection.getBoundingClientRect().top + window.pageYOffset - navOffset;
+
+            window.scrollTo({
+                top,
+                behavior: 'smooth',
+            });
+        }
+
+        function setSelectedSchedule(scheduleId, shouldScroll = false) {
+            const schedule = findSchedule(scheduleId);
+
+            if (!schedule || schedule.is_full) {
+                return;
+            }
+
+            registrationFields.workshop_schedule_id.value = schedule.id;
+
+            const title = schedule.display_title || schedule.title || @js($workshop['title']);
+            const date = schedule.schedule_date_label || schedule.schedule_date || '-';
+            const time = schedule.time_label && schedule.time_label !== '-' ? ` • ${schedule.time_label}` : '';
+            const locationType = schedule.location_type_label ? ` • ${schedule.location_type_label}` : '';
+            const location = schedule.location ? ` • ${schedule.location}` : '';
+            const price = schedule.formatted_price || '';
+
+            if (selectedScheduleTitle) {
+                selectedScheduleTitle.textContent = title;
+            }
+
+            if (selectedScheduleMeta) {
+                selectedScheduleMeta.textContent = `${date}${time}${locationType}${location}`;
+            }
+
+            if (selectedSchedulePrice) {
+                selectedSchedulePrice.textContent = price;
+            }
+
+            if (shouldScroll) {
+                scrollToRegistrationSection();
+            }
+        }
+
+        function openRegistrationWithSchedule(scheduleId) {
+            if (scheduleId) {
+                setSelectedSchedule(scheduleId, true);
+                return;
+            }
+
+            const firstAvailableSchedule = schedules.find((schedule) => !schedule.is_full);
+
+            if (firstAvailableSchedule) {
+                setSelectedSchedule(firstAvailableSchedule.id, true);
+            } else {
+                scrollToRegistrationSection();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+
+            if (!container) {
+                return;
+            }
+
+            const id = 'toast-' + Date.now();
+
+            const theme = {
+                success: {
+                    wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                    icon: 'bg-emerald-100 text-emerald-600',
+                    iconClass: 'bi-check-circle',
+                },
+                danger: {
+                    wrapper: 'border-red-200 bg-red-50 text-red-800',
+                    icon: 'bg-red-100 text-red-600',
+                    iconClass: 'bi-x-circle',
+                },
+                warning: {
+                    wrapper: 'border-amber-200 bg-amber-50 text-amber-800',
+                    icon: 'bg-amber-100 text-amber-600',
+                    iconClass: 'bi-exclamation-triangle',
+                },
+            }[type] || {
+                wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                icon: 'bg-emerald-100 text-emerald-600',
+                iconClass: 'bi-check-circle',
+            };
+
+            const toast = document.createElement('div');
+            toast.id = id;
+            toast.style.zIndex = '999999';
+
+            toast.className = `relative flex items-start gap-3 rounded-2xl border p-4 shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition duration-300 ${theme.wrapper}`;
+
+            toast.innerHTML = `
+                <div class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.icon}">
+                    <i class="bi ${theme.iconClass}"></i>
+                </div>
+
+                <div class="min-w-0 flex-1 pt-0.5 text-sm font-bold leading-6">
+                    ${message}
+                </div>
+
+                <button
+                    type="button"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-800"
+                    aria-label="Close"
+                    data-toast-close="${id}"
+                >
+                    <i class="bi bi-x-lg text-xs"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            const removeToast = () => {
+                toast.classList.add('opacity-0', 'translate-y-1');
+
+                setTimeout(() => {
+                    toast.remove();
+                }, 250);
+            };
+
+            toast.querySelector(`[data-toast-close="${id}"]`)?.addEventListener('click', removeToast);
+
+            setTimeout(removeToast, 3500);
+        }
+
+        function clearRegistrationErrors() {
+            Object.values(registrationFields).forEach(field => {
+                if (!field || !field.classList) {
+                    return;
+                }
+
+                field.classList.remove(...invalidClasses);
+            });
+
+            document.querySelectorAll('[id^="error_"]').forEach(errorEl => {
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+            });
+        }
+
+        function setRegistrationErrors(errors = {}) {
+            clearRegistrationErrors();
+
+            Object.keys(errors).forEach(key => {
+                const field = registrationFields[key];
+                const errorEl = document.getElementById(`error_${key}`);
+
+                if (field && field.classList) {
+                    field.classList.add(...invalidClasses);
+                }
+
+                if (errorEl) {
+                    errorEl.textContent = Array.isArray(errors[key]) ? errors[key][0] : errors[key];
+                    errorEl.classList.remove('hidden');
+                }
+            });
+        }
+
+        function setRegistrationLoading(isLoading) {
+            if (!submitRegistrationBtn) {
+                return;
+            }
+
+            const defaultText = submitRegistrationBtn.querySelector('.default-text');
+            const loadingText = submitRegistrationBtn.querySelector('.loading-text');
+
+            submitRegistrationBtn.disabled = isLoading;
+
+            if (defaultText) {
+                defaultText.classList.toggle('hidden', isLoading);
+            }
+
+            if (loadingText) {
+                loadingText.classList.toggle('hidden', !isLoading);
+                loadingText.classList.toggle('inline-flex', isLoading);
+            }
+        }
+
+        document.querySelectorAll('[data-register-schedule]').forEach((button) => {
+            button.addEventListener('click', function () {
+                openRegistrationWithSchedule(this.dataset.scheduleId);
+            });
+        });
+
+        registrationFields.workshop_schedule_id?.addEventListener('change', function () {
+            setSelectedSchedule(this.value, false);
+        });
+
+        const defaultAvailableSchedule = schedules.find((schedule) => !schedule.is_full);
+
+        if (defaultAvailableSchedule && registrationFields.workshop_schedule_id && !registrationFields.workshop_schedule_id.value) {
+            setSelectedSchedule(defaultAvailableSchedule.id, false);
+        }
+
+        registrationForm?.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            clearRegistrationErrors();
+
+            registrationAlert.classList.add('hidden');
+            registrationAlert.innerHTML = '';
+
+            const payload = {
+                workshop_id: workshopId,
+                workshop_schedule_id: registrationFields.workshop_schedule_id.value,
+                full_name: registrationFields.full_name.value.trim(),
+                email: registrationFields.email.value.trim(),
+                phone: registrationFields.phone.value.trim(),
+                city: registrationFields.city.value.trim(),
+                goal: registrationFields.goal.value.trim(),
+                input_source: 'self_registration',
+                utm_source: getUrlParam('utm_source'),
+                utm_medium: getUrlParam('utm_medium'),
+                utm_campaign: getUrlParam('utm_campaign'),
+                utm_content: getUrlParam('utm_content'),
+                utm_term: getUrlParam('utm_term'),
+                referrer_url: document.referrer || null,
+                landing_page_url: window.location.href,
+            };
+
+            setRegistrationLoading(true);
+
+            try {
+                const response = await fetch(registrationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+
+                if (response.status === 422) {
+                    setRegistrationErrors(result.errors || {});
+                    throw new Error(result.message || 'Validation failed.');
+                }
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Pendaftaran workshop gagal dikirim.');
+                }
+
+                registrationForm.classList.add('hidden');
+                registrationSuccessState.classList.remove('hidden');
+
+                showToast(result.message || 'Pendaftaran workshop berhasil dikirim.', 'success');
+            } catch (error) {
+                if (error.message !== 'Validation failed.') {
+                    registrationAlert.classList.remove('hidden');
+                    registrationAlert.innerHTML = error.message || 'Terjadi kesalahan. Silakan coba lagi.';
+                    showToast(error.message || 'Terjadi kesalahan.', 'danger');
+                }
+            } finally {
+                setRegistrationLoading(false);
+            }
+        });
     });
 </script>
 @endpush

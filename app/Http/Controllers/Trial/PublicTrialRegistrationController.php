@@ -17,8 +17,12 @@ class PublicTrialRegistrationController extends Controller
 {
     private const DEFAULT_THEME_IMAGE = 'images/triall-hero.png';
 
-    public function index(): View
+    private const ATTRIBUTION_SESSION_KEY = 'trial_registration_attribution';
+
+    public function index(Request $request): View
     {
+        $this->captureAttribution($request);
+
         $today = now()->toDateString();
 
         $schedules = $this->getUpcomingSchedules();
@@ -68,8 +72,10 @@ class PublicTrialRegistrationController extends Controller
         ));
     }
 
-    public function show(string $slug): View
+    public function show(Request $request, string $slug): View
     {
+        $this->captureAttribution($request);
+
         $theme = TrialTheme::query()
             ->with('program:id,name')
             ->where('is_active', true)
@@ -131,7 +137,25 @@ class PublicTrialRegistrationController extends Controller
             'domicile_city' => ['required', 'string', 'max:255'],
             'current_activity' => ['required', 'string', 'max:255'],
             'goal' => ['required', 'string'],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Source Tracking / Campaign Attribution
+            |--------------------------------------------------------------------------
+            | Public form boleh mengirim data ini dari hidden fields / JavaScript.
+            | Kalau tidak dikirim, controller akan fallback ke session attribution
+            | yang ditangkap saat user membuka halaman webinar.
+            |--------------------------------------------------------------------------
+            */
             'input_source' => ['nullable', Rule::in(['admin', 'self_registration'])],
+            'utm_source' => ['nullable', 'string', 'max:255'],
+            'utm_medium' => ['nullable', 'string', 'max:255'],
+            'utm_campaign' => ['nullable', 'string', 'max:255'],
+            'utm_content' => ['nullable', 'string', 'max:255'],
+            'utm_term' => ['nullable', 'string', 'max:255'],
+            'referrer_url' => ['nullable', 'string', 'max:2048'],
+            'landing_page_url' => ['nullable', 'string', 'max:2048'],
+
             'status' => [
                 'nullable',
                 Rule::in([
@@ -176,6 +200,11 @@ class PublicTrialRegistrationController extends Controller
         if ($schedule->trial_theme_id) {
             $validated['trial_theme_id'] = $schedule->trial_theme_id;
         }
+
+        $validated = array_merge(
+            $validated,
+            $this->resolveAttributionData($request, $validated)
+        );
 
         $validated['input_source'] = 'self_registration';
         $validated['status'] = 'registered';
@@ -225,6 +254,107 @@ class PublicTrialRegistrationController extends Controller
 
                 return $schedule;
             });
+    }
+
+    private function captureAttribution(Request $request): void
+    {
+        $incomingAttribution = $this->extractAttributionFromRequest($request);
+
+        $hasIncomingUtm = collect([
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_content',
+            'utm_term',
+        ])->contains(fn (string $key) => filled($incomingAttribution[$key] ?? null));
+
+        $existingAttribution = session(self::ATTRIBUTION_SESSION_KEY, []);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Attribution Storage Strategy
+        |--------------------------------------------------------------------------
+        | - Kalau ada UTM baru, simpan sebagai attribution terbaru.
+        | - Kalau belum ada session attribution, simpan landing/referrer awal.
+        | - Kalau sudah ada session dan request berikutnya tanpa UTM, jangan overwrite
+        |   campaign awal dengan URL internal.
+        |--------------------------------------------------------------------------
+        */
+        if ($hasIncomingUtm || empty($existingAttribution)) {
+            session([
+                self::ATTRIBUTION_SESSION_KEY => array_merge(
+                    $existingAttribution,
+                    array_filter($incomingAttribution, fn ($value) => filled($value))
+                ),
+            ]);
+        }
+    }
+
+    private function extractAttributionFromRequest(Request $request): array
+    {
+        return [
+            'utm_source' => $this->cleanTrackingValue($request->query('utm_source')),
+            'utm_medium' => $this->cleanTrackingValue($request->query('utm_medium')),
+            'utm_campaign' => $this->cleanTrackingValue($request->query('utm_campaign')),
+            'utm_content' => $this->cleanTrackingValue($request->query('utm_content')),
+            'utm_term' => $this->cleanTrackingValue($request->query('utm_term')),
+            'referrer_url' => $this->cleanTrackingValue($request->headers->get('referer'), 2048),
+            'landing_page_url' => $this->cleanTrackingValue($request->fullUrl(), 2048),
+        ];
+    }
+
+    private function resolveAttributionData(Request $request, array $validated): array
+    {
+        $sessionAttribution = session(self::ATTRIBUTION_SESSION_KEY, []);
+
+        $referrerFromRequest = $request->input('referrer_url')
+            ?: $request->headers->get('referer');
+
+        $landingPageFromRequest = $request->input('landing_page_url')
+            ?: $sessionAttribution['landing_page_url']
+            ?? $request->headers->get('referer')
+            ?? $request->fullUrl();
+
+        return [
+            'utm_source' => $this->cleanTrackingValue(
+                $validated['utm_source'] ?? $request->input('utm_source') ?? $sessionAttribution['utm_source'] ?? null
+            ),
+            'utm_medium' => $this->cleanTrackingValue(
+                $validated['utm_medium'] ?? $request->input('utm_medium') ?? $sessionAttribution['utm_medium'] ?? null
+            ),
+            'utm_campaign' => $this->cleanTrackingValue(
+                $validated['utm_campaign'] ?? $request->input('utm_campaign') ?? $sessionAttribution['utm_campaign'] ?? null
+            ),
+            'utm_content' => $this->cleanTrackingValue(
+                $validated['utm_content'] ?? $request->input('utm_content') ?? $sessionAttribution['utm_content'] ?? null
+            ),
+            'utm_term' => $this->cleanTrackingValue(
+                $validated['utm_term'] ?? $request->input('utm_term') ?? $sessionAttribution['utm_term'] ?? null
+            ),
+            'referrer_url' => $this->cleanTrackingValue(
+                $validated['referrer_url'] ?? $referrerFromRequest ?? $sessionAttribution['referrer_url'] ?? null,
+                2048
+            ),
+            'landing_page_url' => $this->cleanTrackingValue(
+                $validated['landing_page_url'] ?? $landingPageFromRequest,
+                2048
+            ),
+        ];
+    }
+
+    private function cleanTrackingValue(mixed $value, int $limit = 255): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return mb_substr($value, 0, $limit);
     }
 
     private function getThemeImageUrl(TrialTheme $theme): string

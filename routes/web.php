@@ -113,6 +113,11 @@ if (app()->environment('production')) {
             Route::get('/', [PublicWorkshopController::class, 'index'])
                 ->name('index');
 
+
+            Route::post('/{slug}/register', [PublicWorkshopController::class, 'storeRegistration'])
+                ->where('slug', '[A-Za-z0-9\-]+')
+                ->name('registration.store');
+
             Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
                 ->where('slug', '[A-Za-z0-9\-]+')
                 ->name('show');
@@ -183,6 +188,11 @@ if (app()->environment('production')) {
             Route::get('/', [PublicWorkshopController::class, 'index'])
                 ->name('index');
 
+
+            Route::post('/{slug}/register', [PublicWorkshopController::class, 'storeRegistration'])
+                ->where('slug', '[A-Za-z0-9\-]+')
+                ->name('registration.store');
+
             Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
                 ->where('slug', '[A-Za-z0-9\-]+')
                 ->name('show');
@@ -207,6 +217,11 @@ if (app()->environment('production')) {
         ->group(function () {
             Route::get('/', [PublicWorkshopController::class, 'index'])
                 ->name('index');
+
+
+            Route::post('/{slug}/register', [PublicWorkshopController::class, 'storeRegistration'])
+                ->where('slug', '[A-Za-z0-9\-]+')
+                ->name('registration.store');
 
             Route::get('/{slug}', [PublicWorkshopController::class, 'show'])
                 ->where('slug', '[A-Za-z0-9\-]+')
