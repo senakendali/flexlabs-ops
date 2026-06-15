@@ -23,6 +23,7 @@ class BatchAssignment extends Model
         'allow_late_submission',
         'status',
         'is_active',
+        'notification_sent_at',
         'created_by',
         'updated_by',
     ];
@@ -34,6 +35,7 @@ class BatchAssignment extends Model
         'max_score' => 'integer',
         'allow_late_submission' => 'boolean',
         'is_active' => 'boolean',
+        'notification_sent_at' => 'datetime',
     ];
 
     public function assignment(): BelongsTo

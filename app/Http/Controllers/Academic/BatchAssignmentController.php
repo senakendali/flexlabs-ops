@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Assignment;
 use App\Models\Batch;
 use App\Models\BatchAssignment;
+use App\Notifications\AssignmentPublishedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -127,11 +129,16 @@ class BatchAssignmentController extends Controller
                 ]);
             });
 
+            $notificationSentCount = $this->sendAssignmentPublishedNotificationIfNeeded($batchAssignment);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Batch assignment berhasil ditambahkan.',
+                'message' => $notificationSentCount > 0
+                    ? "Batch assignment berhasil ditambahkan. Email notifikasi dikirim ke {$notificationSentCount} student."
+                    : 'Batch assignment berhasil ditambahkan.',
                 'data' => [
                     'id' => $batchAssignment->id,
+                    'notification_sent_count' => $notificationSentCount,
                 ],
             ]);
         } catch (ValidationException $e) {
@@ -165,11 +172,18 @@ class BatchAssignmentController extends Controller
                 ]);
             });
 
+            $batchAssignment->refresh();
+
+            $notificationSentCount = $this->sendAssignmentPublishedNotificationIfNeeded($batchAssignment);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Batch assignment berhasil diperbarui.',
+                'message' => $notificationSentCount > 0
+                    ? "Batch assignment berhasil diperbarui. Email notifikasi dikirim ke {$notificationSentCount} student."
+                    : 'Batch assignment berhasil diperbarui.',
                 'data' => [
                     'id' => $batchAssignment->id,
+                    'notification_sent_count' => $notificationSentCount,
                 ],
             ]);
         } catch (ValidationException $e) {
@@ -193,6 +207,77 @@ class BatchAssignmentController extends Controller
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus batch assignment.', $e);
         }
+    }
+
+    private function sendAssignmentPublishedNotificationIfNeeded(BatchAssignment $batchAssignment): int
+    {
+        $batchAssignment->loadMissing([
+            'assignment:id,title,assignment_type,max_score',
+            'batch:id,name',
+        ]);
+
+        if ($batchAssignment->status !== 'published') {
+            return 0;
+        }
+
+        if (! $batchAssignment->is_active) {
+            return 0;
+        }
+
+        if ($batchAssignment->notification_sent_at) {
+            return 0;
+        }
+
+        if (! $batchAssignment->batch) {
+            return 0;
+        }
+
+        $students = $batchAssignment->batch
+            ->activeStudentEnrollments()
+            ->with([
+                'student:id,full_name,email,status',
+            ])
+            ->where(function ($query) {
+                $query->whereNull('access_expires_at')
+                    ->orWhere('access_expires_at', '>', now());
+            })
+            ->get()
+            ->pluck('student')
+            ->filter(function ($student) {
+                return $student
+                    && filled($student->email)
+                    && ($student->status ?? 'active') === 'active';
+            })
+            ->unique('email')
+            ->values();
+
+        if ($students->isEmpty()) {
+            return 0;
+        }
+
+        $sentCount = 0;
+
+        foreach ($students as $student) {
+            try {
+                $student->notify(new AssignmentPublishedNotification($batchAssignment));
+                $sentCount++;
+            } catch (Throwable $e) {
+                Log::warning('Failed to send assignment published notification.', [
+                    'batch_assignment_id' => $batchAssignment->id,
+                    'student_id' => $student->id ?? null,
+                    'student_email' => $student->email ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($sentCount > 0) {
+            $batchAssignment->forceFill([
+                'notification_sent_at' => now(),
+            ])->saveQuietly();
+        }
+
+        return $sentCount;
     }
 
     private function validateBatchAssignment(Request $request, ?BatchAssignment $batchAssignment = null): array
