@@ -15,15 +15,34 @@
         'year' => now()->year,
         'total' => 0,
     ];
-    $trialParticipantStatusCounts = $trialParticipantStatusCounts ?? [];
-    $upcomingTrialSchedules = $upcomingTrialSchedules ?? collect();
-    $upcomingBatches = $upcomingBatches ?? collect();
 
-    // Data baru dari DashboardController untuk management insight lokal.
+    $trialParticipantStatusCounts = collect($trialParticipantStatusCounts ?? [
+        'registered' => 0,
+        'contacted' => 0,
+        'confirmed' => 0,
+        'attended' => 0,
+        'cancelled' => 0,
+        'no_show' => 0,
+    ]);
+    $trialFollowUpProgress = (int) ($trialFollowUpProgress ?? 0);
+    $upcomingTrialSchedules = $upcomingTrialSchedules ?? collect();
+
+    $workshopInsight = $workshopInsight ?? [];
+    $workshopStats = $workshopStats ?? [];
+    $workshopParticipantStatusCounts = collect($workshopParticipantStatusCounts ?? [
+        'registered' => 0,
+        'pending_payment' => 0,
+        'confirmed' => 0,
+        'attended' => 0,
+        'cancelled' => 0,
+    ]);
+    $workshopFollowUpProgress = (int) ($workshopFollowUpProgress ?? 0);
+    $upcomingWorkshopSchedules = $upcomingWorkshopSchedules ?? collect();
+
     $financeInsight = $financeInsight ?? [];
     $orderInsight = $orderInsight ?? [];
-    $workshopInsight = $workshopInsight ?? [];
     $managementSummary = $managementSummary ?? [];
+    $upcomingBatches = $upcomingBatches ?? collect();
 
     $salesLeads = (int) ($salesInsight['leads'] ?? 0);
     $salesInteracted = (int) ($salesInsight['interacted'] ?? $salesInsight['trial'] ?? 0);
@@ -34,52 +53,23 @@
     $salesClosingRate = (float) ($salesInsight['closing_rate'] ?? $salesInsight['deal_rate'] ?? $salesInsight['conversion_join'] ?? 0);
     $salesPaidRate = (float) ($salesInsight['paid_rate'] ?? $salesInsight['conversion_paid'] ?? 0);
 
+    $dashboardAiHeadline = (string) ($managementSummary['headline'] ?? 'Management Summary');
+    $dashboardAiSummaryText = (string) ($dashboardAiSummaryText ?? ($managementSummary['summary_text'] ?? ''));
+    $dashboardAiGeneratedAt = (string) ($managementSummary['generated_at'] ?? now()->format('d M Y H:i'));
+    $dashboardAiFocusItems = collect($managementSummary['focus'] ?? ($managementSummary['items'] ?? []))
+        ->take(3)
+        ->values();
+
+    if (blank($dashboardAiSummaryText)) {
+        $dashboardAiSummaryText = 'Summary dashboard belum tersedia karena data utama masih kosong.';
+    }
+
     $currentUser = auth()->user();
 
     $canManageCurriculum = $currentUser
         && method_exists($currentUser, 'canAccess')
         && $currentUser->canAccess('curriculum.view')
         && Route::has('curriculum.index');
-
-    // AI/local management summary dari controller.
-    $dashboardAiHeadline = $managementSummary['headline'] ?? 'Management Summary';
-    $dashboardAiSummaryText = $dashboardAiSummaryText
-        ?? ($managementSummary['summary_text'] ?? '');
-    $dashboardAiGeneratedAt = $managementSummary['generated_at'] ?? now()->format('d M Y H:i');
-    $dashboardAiFocusItems = collect($managementSummary['focus'] ?? ($managementSummary['items'] ?? []))
-        ->take(3)
-        ->values();
-
-    // Fallback kalau controller lama belum dipatch atau data summary masih kosong.
-    if (blank($dashboardAiSummaryText)) {
-        $fallbackSummary = [];
-
-        if ($salesLeads > 0) {
-            $fallbackSummary[] = 'Sales mencatat ' . number_format($salesLeads) . ' leads dengan interaction rate ' . number_format($salesInteractionRate, 1) . '%.';
-        } else {
-            $fallbackSummary[] = 'Data leads belum tersedia, jadi performa sales belum bisa dibaca secara penuh.';
-        }
-
-        if ($salesClosing <= 0) {
-            $fallbackSummary[] = 'Belum ada closing yang tercatat, sehingga follow-up leads perlu diprioritaskan.';
-        } elseif ($salesPaid <= 0) {
-            $fallbackSummary[] = 'Closing sudah ada, tapi pembayaran terkonfirmasi belum terlihat.';
-        }
-
-        if ((float) ($revenueChart['total'] ?? 0) > 0) {
-            $fallbackSummary[] = 'Revenue tahun ' . ($revenueChart['year'] ?? now()->year) . ' sudah mencapai Rp ' . number_format((float) ($revenueChart['total'] ?? 0), 0, ',', '.') . '.';
-        }
-
-        if ((int) ($batchCapacity['remaining_seats'] ?? 0) > 0) {
-            $fallbackSummary[] = 'Masih ada ' . number_format((int) ($batchCapacity['remaining_seats'] ?? 0)) . ' seat tersedia yang bisa didorong oleh tim sales.';
-        }
-
-        $dashboardAiSummaryText = implode(' ', array_slice($fallbackSummary, 0, 4));
-    }
-
-    if (blank($dashboardAiSummaryText)) {
-        $dashboardAiSummaryText = 'Summary dashboard belum tersedia karena data utama masih kosong.';
-    }
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -333,7 +323,15 @@
         </div>
     </div>
 
-    {{-- Trial Stats --}}
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Trial Overview</div>
+        <h4 class="dashboard-section-title mb-1">Trial Performance This Month</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Monitoring performa trial bulan berjalan berdasarkan jadwal, peserta baru, progress follow-up, dan status kehadiran.
+        </p>
+    </div>
+
+    {{-- Trial Stats This Month --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
             <div class="stat-card">
@@ -342,11 +340,11 @@
                         <i class="bi bi-brush"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Trial Themes</div>
-                        <div class="stat-value">{{ number_format($trialStats['themes_total'] ?? 0) }}</div>
+                        <div class="stat-title">Active Trial Themes</div>
+                        <div class="stat-value">{{ number_format($trialStats['themes_active'] ?? $trialStats['themes_total'] ?? 0) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Theme trial yang terdaftar di sistem.</div>
+                <div class="stat-description">Theme trial aktif yang tersedia di sistem.</div>
             </div>
         </div>
 
@@ -357,11 +355,11 @@
                         <i class="bi bi-calendar-check"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Trial Schedules</div>
-                        <div class="stat-value">{{ number_format($trialStats['schedules_active'] ?? 0) }}</div>
+                        <div class="stat-title">Trial Schedules This Month</div>
+                        <div class="stat-value">{{ number_format($trialStats['schedules_active_this_month'] ?? $trialStats['schedules_active'] ?? 0) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Jadwal trial aktif yang siap dijalankan.</div>
+                <div class="stat-description">Jadwal trial aktif untuk bulan berjalan.</div>
             </div>
         </div>
 
@@ -372,11 +370,11 @@
                         <i class="bi bi-people-fill"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Trial Participants</div>
-                        <div class="stat-value">{{ number_format($trialStats['participants_total'] ?? 0) }}</div>
+                        <div class="stat-title">Trial Participants This Month</div>
+                        <div class="stat-value">{{ number_format($trialStats['participants_this_month'] ?? $trialStats['participants_total'] ?? 0) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Total peserta trial yang sudah masuk.</div>
+                <div class="stat-description">Peserta trial yang masuk pada bulan berjalan.</div>
             </div>
         </div>
 
@@ -387,43 +385,15 @@
                         <i class="bi bi-person-plus"></i>
                     </div>
                     <div>
-                        <div class="stat-title">New Trial This Month</div>
-                        <div class="stat-value">{{ number_format($trialStats['participants_new_this_month'] ?? 0) }}</div>
+                        <div class="stat-title">Trial Participants All Time</div>
+                        <div class="stat-value">{{ number_format($trialStats['participants_all_time'] ?? $trialStats['participants_total'] ?? 0) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Peserta trial baru di bulan ini.</div>
+                <div class="stat-description">Total peserta trial yang tercatat sejak awal.</div>
             </div>
         </div>
     </div>
 
-    <div class="dashboard-section-label mb-3 mt-1">
-        <div class="dashboard-section-eyebrow">Finance Overview</div>
-        <h4 class="dashboard-section-title mb-1">Revenue & Business Result</h4>
-        <p class="dashboard-section-subtitle mb-0">Analisis hasil finansial dari aktivitas operasional.</p>
-    </div>
-
-    {{-- Monthly Revenue Chart --}}
-    <div class="content-card mb-4">
-        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
-            <div>
-                <h5 class="content-card-title mb-1">Revenue Overview</h5>
-                <p class="content-card-subtitle mb-0">
-                    Total pendapatan pembayaran student selama tahun {{ $revenueChart['year'] ?? now()->year }}.
-                </p>
-            </div>
-
-            <div class="revenue-total-box">
-                <div class="revenue-total-label">Total Tahun Ini</div>
-                <div class="revenue-total-value">Rp {{ number_format($revenueChart['total'] ?? 0, 0, ',', '.') }}</div>
-            </div>
-        </div>
-
-        <div class="content-card-body">
-            <div class="chart-wrap">
-                <canvas id="monthlyRevenueChart" height="110"></canvas>
-            </div>
-        </div>
-    </div>
 
     {{-- Trial Progress + Upcoming Trial Schedule --}}
     <div class="row g-3 mb-4">
@@ -431,9 +401,9 @@
             <div class="content-card h-100">
                 <div class="content-card-header">
                     <div>
-                        <h5 class="content-card-title mb-1">Trial Follow Up Progress</h5>
+                        <h5 class="content-card-title mb-1">Trial Follow Up Progress This Month</h5>
                         <p class="content-card-subtitle mb-0">
-                            Persentase peserta trial yang sudah masuk tahap contacted, confirmed, atau attended.
+                            Persentase peserta trial bulan ini yang sudah masuk tahap contacted, confirmed, atau attended.
                         </p>
                     </div>
                 </div>
@@ -441,7 +411,7 @@
                 <div class="content-card-body">
                     <div class="trial-progress-card">
                         <div class="trial-progress-value">{{ $trialFollowUpProgress ?? 0 }}%</div>
-                        <div class="trial-progress-label">Follow Up Progress</div>
+                        <div class="trial-progress-label">Follow Up Progress Bulan Ini</div>
 
                         <div class="progress progress-modern mt-3 mb-4">
                             <div
@@ -543,6 +513,246 @@
         </div>
     </div>
 
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Workshop Overview</div>
+        <h4 class="dashboard-section-title mb-1">Workshop Performance This Month</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Monitoring performa workshop berdasarkan jadwal, peserta, status pembayaran, attendance, dan revenue bulan berjalan.
+        </p>
+    </div>
+
+    {{-- Workshop Stats --}}
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-easel2-fill"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Active Workshops</div>
+                        <div class="stat-value">{{ number_format($workshopStats['workshops_active'] ?? 0) }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Dari total {{ number_format($workshopStats['workshops_total'] ?? 0) }} workshop yang terdaftar.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-calendar2-week"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Schedules This Month</div>
+                        <div class="stat-value">{{ number_format($workshopStats['schedules_active_this_month'] ?? $workshopStats['schedules_this_month'] ?? 0) }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Jadwal workshop aktif pada bulan berjalan.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-person-workspace"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Participants This Month</div>
+                        <div class="stat-value">{{ number_format($workshopStats['participants_this_month'] ?? 0) }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    @if(!empty($workshopStats['top_source']))
+                        Top source: <strong>{{ $workshopStats['top_source'] }}</strong>
+                        ({{ number_format($workshopStats['top_source_total'] ?? 0) }} peserta).
+                    @else
+                        Peserta workshop yang masuk pada bulan berjalan.
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-card-top">
+                    <div class="stat-icon-wrap">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                    <div>
+                        <div class="stat-title">Workshop Revenue</div>
+                        <div class="stat-value stat-value-currency">Rp {{ number_format($workshopStats['revenue_this_month'] ?? 0, 0, ',', '.') }}</div>
+                    </div>
+                </div>
+                <div class="stat-description">
+                    Dari {{ number_format($workshopStats['paid_count_this_month'] ?? 0) }} pembayaran workshop bulan ini.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Workshop Progress + Upcoming Workshop Schedule --}}
+    <div class="row g-3 mb-4">
+        <div class="col-xl-5">
+            <div class="content-card h-100">
+                <div class="content-card-header">
+                    <div>
+                        <h5 class="content-card-title mb-1">Workshop Conversion Progress This Month</h5>
+                        <p class="content-card-subtitle mb-0">
+                            Persentase peserta workshop bulan ini yang sudah confirmed atau attended.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="content-card-body">
+                    <div class="trial-progress-card">
+                        <div class="trial-progress-value">{{ $workshopFollowUpProgress ?? 0 }}%</div>
+                        <div class="trial-progress-label">Conversion Progress Bulan Ini</div>
+
+                        <div class="progress progress-modern mt-3 mb-4">
+                            <div
+                                class="progress-bar"
+                                role="progressbar"
+                                style="width: {{ $workshopFollowUpProgress ?? 0 }}%;"
+                                aria-valuenow="{{ $workshopFollowUpProgress ?? 0 }}"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                            ></div>
+                        </div>
+
+                        <div class="trial-status-grid">
+                            <div class="trial-status-item">
+                                <span>Registered</span>
+                                <strong>{{ number_format($workshopParticipantStatusCounts['registered'] ?? 0) }}</strong>
+                            </div>
+                            <div class="trial-status-item">
+                                <span>Pending Payment</span>
+                                <strong>{{ number_format($workshopParticipantStatusCounts['pending_payment'] ?? 0) }}</strong>
+                            </div>
+                            <div class="trial-status-item">
+                                <span>Confirmed</span>
+                                <strong>{{ number_format($workshopParticipantStatusCounts['confirmed'] ?? 0) }}</strong>
+                            </div>
+                            <div class="trial-status-item">
+                                <span>Attended</span>
+                                <strong>{{ number_format($workshopParticipantStatusCounts['attended'] ?? 0) }}</strong>
+                            </div>
+                            <div class="trial-status-item">
+                                <span>Cancelled</span>
+                                <strong>{{ number_format($workshopParticipantStatusCounts['cancelled'] ?? 0) }}</strong>
+                            </div>
+                            <div class="trial-status-item">
+                                <span>Workshop Orders</span>
+                                <strong>{{ number_format($orderInsight['workshop_orders_this_month'] ?? 0) }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-7">
+            <div class="content-card h-100">
+                <div class="content-card-header">
+                    <div>
+                        <h5 class="content-card-title mb-1">Upcoming Workshop Schedules</h5>
+                        <p class="content-card-subtitle mb-0">
+                            Jadwal workshop terdekat yang aktif di sistem.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="content-card-body">
+                    @if(($upcomingWorkshopSchedules ?? collect())->count())
+                        <div class="table-responsive">
+                            <table class="table table-modern align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Schedule</th>
+                                        <th>Workshop</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th class="text-center">Seat</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($upcomingWorkshopSchedules as $schedule)
+                                        @php
+                                            $workshopScheduleQuota = (int) ($schedule->quota ?? 0);
+                                            $workshopScheduleRegistered = (int) ($schedule->registered_count ?? 0);
+                                        @endphp
+                                        <tr>
+                                            <td class="fw-semibold text-dark">{{ $schedule->title ?? 'Workshop Schedule' }}</td>
+                                            <td>{{ $schedule->workshop_title ?? '-' }}</td>
+                                            <td>{{ !empty($schedule->schedule_date) ? \Carbon\Carbon::parse($schedule->schedule_date)->format('d M Y') : '-' }}</td>
+                                            <td>
+                                                {{ !empty($schedule->start_time) ? \Carbon\Carbon::parse($schedule->start_time)->format('H:i') : '-' }}
+                                                @if(!empty($schedule->end_time))
+                                                    - {{ \Carbon\Carbon::parse($schedule->end_time)->format('H:i') }}
+                                                @endif
+                                            </td>
+                                            <td class="text-center">
+                                                {{ number_format($workshopScheduleRegistered) }}
+                                                @if($workshopScheduleQuota > 0)
+                                                    / {{ number_format($workshopScheduleQuota) }}
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="empty-state-box">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-calendar-x"></i>
+                            </div>
+                            <h5 class="empty-state-title">Belum ada workshop schedule mendatang</h5>
+                            <p class="empty-state-text mb-0">
+                                Data jadwal workshop aktif yang akan datang belum tersedia.
+                            </p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Finance Overview</div>
+        <h4 class="dashboard-section-title mb-1">Revenue & Business Result</h4>
+        <p class="dashboard-section-subtitle mb-0">Analisis hasil finansial dari aktivitas operasional.</p>
+    </div>
+
+    {{-- Monthly Revenue Chart --}}
+    <div class="content-card mb-4">
+        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <h5 class="content-card-title mb-1">Revenue Overview</h5>
+                <p class="content-card-subtitle mb-0">
+                    Total pendapatan pembayaran student selama tahun {{ $revenueChart['year'] ?? now()->year }}.
+                </p>
+            </div>
+
+            <div class="revenue-total-box">
+                <div class="revenue-total-label">Total Tahun Ini</div>
+                <div class="revenue-total-value">Rp {{ number_format($revenueChart['total'] ?? 0, 0, ',', '.') }}</div>
+            </div>
+        </div>
+
+        <div class="content-card-body">
+            <div class="chart-wrap">
+                <canvas id="monthlyRevenueChart" height="110"></canvas>
+            </div>
+        </div>
+    </div>
+
     {{-- Upcoming Batches --}}
     <div class="content-card">
         <div class="content-card-header">
@@ -619,7 +829,6 @@
     </div>
 </div>
 
-
 <div class="ai-dashboard-assistant" id="aiDashboardAssistant">
     <div class="ai-dashboard-bubble" id="aiDashboardBubble">
         <button type="button" class="ai-dashboard-close" id="aiDashboardClose" aria-label="Close summary">
@@ -646,14 +855,14 @@
                     @php
                         $itemType = (string) ($item['type'] ?? 'info');
                         $itemTitle = (string) ($item['title'] ?? 'Insight');
-                        $itemMessage = (string) ($item['message'] ?? '');
+                        $itemMessage = (string) ($item['message'] ?? $item['description'] ?? $item['text'] ?? '');
                     @endphp
                     <div class="ai-dashboard-focus-item ai-type-{{ $itemType }}">
                         <span class="ai-dashboard-focus-dot"></span>
                         <div class="ai-dashboard-focus-content">
                             <strong>{{ $itemTitle }}</strong>
                             @if(filled($itemMessage))
-                                <span>{{ \Illuminate\Support\Str::limit($itemMessage, 118) }}</span>
+                                <span>{{ \Illuminate\Support\Str::limit($itemMessage, 180) }}</span>
                             @endif
                         </div>
                     </div>
@@ -1009,7 +1218,9 @@
     }
 
     .ai-dashboard-focus-content span {
-        display: none;
+        display: block;
+        font-size: 11.5px;
+        line-height: 1.4;
     }
 }
 
@@ -1044,14 +1255,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     if (aiAssistant && aiRobot) {
         aiRobot.addEventListener('click', function () {
-            const isCollapsed = aiAssistant.classList.toggle('is-collapsed');
-            const bubble = document.getElementById('aiDashboardBubble');
-
-            if (!isCollapsed && bubble) {
-                bubble.classList.remove('is-reopening');
-                void bubble.offsetWidth;
-                bubble.classList.add('is-reopening');
-            }
+            aiAssistant.classList.toggle('is-collapsed');
         });
     }
 

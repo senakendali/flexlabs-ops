@@ -29,6 +29,10 @@ class DashboardController extends Controller
         $financeInsight = $this->getFinanceInsight();
         $orderInsight = $this->getOrderInsight();
         $workshopInsight = $this->getWorkshopInsight();
+        $workshopStats = $this->getWorkshopStats();
+        $workshopParticipantStatusCounts = $this->getWorkshopParticipantStatusCounts();
+        $workshopFollowUpProgress = $this->getWorkshopFollowUpProgress();
+        $upcomingWorkshopSchedules = $this->getUpcomingWorkshopSchedules();
 
         $managementSummary = $this->getManagementSummary([
             'academic_stats' => $academicStats,
@@ -42,6 +46,10 @@ class DashboardController extends Controller
             'finance_insight' => $financeInsight,
             'order_insight' => $orderInsight,
             'workshop_insight' => $workshopInsight,
+            'workshop_stats' => $workshopStats,
+            'workshop_status_counts' => $workshopParticipantStatusCounts,
+            'workshop_follow_up_progress' => $workshopFollowUpProgress,
+            'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
         ]);
 
         return view('dashboard', [
@@ -60,6 +68,10 @@ class DashboardController extends Controller
             'financeInsight' => $financeInsight,
             'orderInsight' => $orderInsight,
             'workshopInsight' => $workshopInsight,
+            'workshopStats' => $workshopStats,
+            'workshopParticipantStatusCounts' => $workshopParticipantStatusCounts,
+            'workshopFollowUpProgress' => $workshopFollowUpProgress,
+            'upcomingWorkshopSchedules' => $upcomingWorkshopSchedules,
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
         ]);
@@ -548,103 +560,26 @@ class DashboardController extends Controller
         ]);
     }
 
+
     protected function getWorkshopInsight(): array
     {
-        $table = $this->findExistingTable(['workshop_participants']);
-        $now = now();
-        $monthStart = $now->copy()->startOfMonth()->toDateString();
-        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+        /**
+         * Workshop insight dipakai untuk summary management.
+         * Angka status di sini sengaja fokus ke bulan berjalan supaya insight
+         * yang muncul lebih relevan untuk action bulan ini.
+         */
+        $stats = $this->getWorkshopStats();
+        $statusCounts = $this->getWorkshopParticipantStatusCounts();
 
-        $empty = [
-            'participants_total' => 0,
-            'participants_this_month' => 0,
-            'registered' => 0,
-            'pending_payment' => 0,
-            'confirmed' => 0,
-            'attended' => 0,
-            'cancelled' => 0,
-            'paid_this_month' => 0,
-            'top_source' => null,
-            'top_source_total' => 0,
-        ];
-
-        if (! $table) {
-            return $empty;
-        }
-
-        $createdColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
-        $paidAtColumn = $this->findExistingColumn($table, ['paid_at']);
-        $statusColumn = $this->findExistingColumn($table, ['status']);
-        $sourceColumn = $this->findExistingColumn($table, ['utm_source', 'input_source']);
-
-        $participantsThisMonth = 0;
-        if ($createdColumn) {
-            $participantsThisMonth = (int) DB::table($table)
-                ->whereDate($createdColumn, '>=', $monthStart)
-                ->whereDate($createdColumn, '<=', $monthEnd)
-                ->count();
-        }
-
-        $statusCounts = collect([
-            'registered' => 0,
-            'pending_payment' => 0,
-            'confirmed' => 0,
-            'attended' => 0,
-            'cancelled' => 0,
-        ]);
-
-        if ($statusColumn) {
-            $statusCounts = $statusCounts->merge(
-                DB::table($table)
-                    ->selectRaw($this->wrapColumn($statusColumn) . ' as status, COUNT(*) as total')
-                    ->groupBy($statusColumn)
-                    ->pluck('total', 'status')
-            );
-        }
-
-        $paidThisMonth = 0;
-        if ($paidAtColumn) {
-            $paidThisMonth = (int) DB::table($table)
-                ->whereNotNull($paidAtColumn)
-                ->whereDate($paidAtColumn, '>=', $monthStart)
-                ->whereDate($paidAtColumn, '<=', $monthEnd)
-                ->count();
-        }
-
-        $topSource = null;
-        $topSourceTotal = 0;
-        if ($sourceColumn) {
-            // MySQL dengan ONLY_FULL_GROUP_BY kadang menolak GROUP BY expression
-            // ketika kolom asli tetap dibaca di SELECT. Supaya aman, normalisasi source
-            // di subquery dulu, lalu GROUP BY alias `source_name`.
-            $sourceBaseQuery = DB::table($table)
-                ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name');
-
-            $source = DB::query()
-                ->fromSub($sourceBaseQuery, 'workshop_sources')
-                ->selectRaw('source_name, COUNT(*) as total')
-                ->groupBy('source_name')
-                ->orderByDesc('total')
-                ->first();
-
-            if ($source) {
-                $topSource = $source->source_name;
-                $topSourceTotal = (int) $source->total;
-            }
-        }
-
-        return [
-            'participants_total' => (int) DB::table($table)->count(),
-            'participants_this_month' => $participantsThisMonth,
+        return array_merge($stats, [
+            'participants_total' => (int) ($stats['participants_all_time'] ?? 0),
             'registered' => (int) ($statusCounts['registered'] ?? 0),
             'pending_payment' => (int) ($statusCounts['pending_payment'] ?? 0),
             'confirmed' => (int) ($statusCounts['confirmed'] ?? 0),
             'attended' => (int) ($statusCounts['attended'] ?? 0),
             'cancelled' => (int) ($statusCounts['cancelled'] ?? 0),
-            'paid_this_month' => $paidThisMonth,
-            'top_source' => $topSource,
-            'top_source_total' => $topSourceTotal,
-        ];
+            'paid_this_month' => (int) ($stats['paid_count_this_month'] ?? 0),
+        ]);
     }
 
     protected function getManagementSummary(array $context): array
@@ -797,19 +732,42 @@ class DashboardController extends Controller
             );
         }
 
-        $workshopPending = (int) ($workshop['pending_payment'] ?? 0);
+        $workshopPending = (int) ($workshop['pending_payment'] ?? $workshop['pending_payment_this_month'] ?? 0);
         $workshopParticipantsThisMonth = (int) ($workshop['participants_this_month'] ?? 0);
+        $workshopConfirmedThisMonth = (int) ($workshop['confirmed'] ?? $workshop['confirmed_this_month'] ?? 0);
+        $workshopAttendedThisMonth = (int) ($workshop['attended'] ?? $workshop['attended_this_month'] ?? 0);
+        $workshopRevenueThisMonth = (float) ($workshop['revenue_this_month'] ?? 0);
+        $workshopSchedulesThisMonth = (int) ($workshop['schedules_active_this_month'] ?? 0);
+
         if ($workshopPending > 0) {
             $items[] = $this->summaryItem(
                 'action',
                 'Workshop pending payment',
-                'Ada ' . number_format($workshopPending) . ' peserta workshop yang masih pending payment. Follow-up pembayaran bisa langsung diprioritaskan.'
+                'Ada ' . number_format($workshopPending) . ' peserta workshop bulan ini yang masih pending payment. Follow-up pembayaran bisa langsung diprioritaskan.'
+            );
+        } elseif ($workshopParticipantsThisMonth > 0 && ($workshopConfirmedThisMonth + $workshopAttendedThisMonth) <= 0) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Workshop belum terkonfirmasi',
+                'Bulan ini ada ' . number_format($workshopParticipantsThisMonth) . ' peserta workshop masuk, tapi belum ada yang confirmed/attended. Cek follow-up dan status payment.'
+            );
+        } elseif ($workshopRevenueThisMonth > 0) {
+            $items[] = $this->summaryItem(
+                'good',
+                'Workshop menghasilkan revenue',
+                'Revenue workshop bulan ini sudah mencapai Rp ' . $this->formatRupiah($workshopRevenueThisMonth) . ' dari ' . number_format((int) ($workshop['paid_count_this_month'] ?? 0)) . ' payment terkonfirmasi.'
             );
         } elseif ($workshopParticipantsThisMonth > 0) {
             $items[] = $this->summaryItem(
                 'good',
                 'Workshop mulai menghasilkan demand',
                 'Bulan ini ada ' . number_format($workshopParticipantsThisMonth) . ' peserta workshop yang masuk ke sistem.'
+            );
+        } elseif ($workshopSchedulesThisMonth > 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Workshop bulan ini belum ada pendaftar',
+                'Ada jadwal workshop aktif bulan ini, tapi belum ada peserta masuk. Campaign dan distribusi landing page perlu didorong.'
             );
         }
 
@@ -1159,36 +1117,96 @@ class DashboardController extends Controller
         });
     }
 
+
     protected function getTrialStats(): array
     {
+        /**
+         * Trial dashboard sekarang fokus ke bulan berjalan.
+         * Agar tetap aman untuk kebutuhan lain, angka all-time tetap dikirim
+         * lewat key *_all_time.
+         */
+        $now = now();
+        $monthStart = $now->copy()->startOfMonth()->toDateString();
+        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+
+        $themeTable = class_exists(TrialTheme::class) ? (new TrialTheme())->getTable() : null;
+        $scheduleTable = class_exists(TrialSchedule::class) ? (new TrialSchedule())->getTable() : null;
+        $participantTable = class_exists(TrialParticipant::class) ? (new TrialParticipant())->getTable() : null;
+
+        $themesTotal = ($themeTable && Schema::hasTable($themeTable))
+            ? (int) DB::table($themeTable)->count()
+            : 0;
+
+        $themesActive = 0;
+        if ($themeTable && Schema::hasTable($themeTable)) {
+            $themesActiveQuery = DB::table($themeTable);
+            if ($this->hasColumn($themeTable, 'is_active')) {
+                $themesActiveQuery->where('is_active', true);
+            }
+            $themesActive = (int) $themesActiveQuery->count();
+        }
+
+        $schedulesAllTime = 0;
+        $schedulesThisMonth = 0;
+        $schedulesActiveThisMonth = 0;
+        if ($scheduleTable && Schema::hasTable($scheduleTable)) {
+            $scheduleDateColumn = $this->findExistingColumn($scheduleTable, ['schedule_date', 'date', 'start_date', 'created_at']);
+            $scheduleActiveColumn = $this->findExistingColumn($scheduleTable, ['is_active', 'status']);
+
+            $schedulesAllTime = (int) DB::table($scheduleTable)->count();
+
+            $monthScheduleQuery = DB::table($scheduleTable);
+            if ($scheduleDateColumn) {
+                $monthScheduleQuery
+                    ->whereDate($scheduleDateColumn, '>=', $monthStart)
+                    ->whereDate($scheduleDateColumn, '<=', $monthEnd);
+            }
+            $schedulesThisMonth = (int) (clone $monthScheduleQuery)->count();
+
+            $activeMonthScheduleQuery = clone $monthScheduleQuery;
+            if ($scheduleActiveColumn === 'is_active') {
+                $activeMonthScheduleQuery->where('is_active', true);
+            } elseif ($scheduleActiveColumn === 'status') {
+                $activeMonthScheduleQuery->whereIn('status', ['active', 'open', 'scheduled', 'published']);
+            }
+            $schedulesActiveThisMonth = (int) $activeMonthScheduleQuery->count();
+        }
+
+        $participantsAllTime = 0;
+        $participantsThisMonth = 0;
+        if ($participantTable && Schema::hasTable($participantTable)) {
+            $participantDateColumn = $this->findExistingColumn($participantTable, ['registered_at', 'created_at']);
+            $participantsAllTime = (int) DB::table($participantTable)->count();
+
+            $participantQuery = DB::table($participantTable);
+            if ($participantDateColumn) {
+                $participantQuery
+                    ->whereDate($participantDateColumn, '>=', $monthStart)
+                    ->whereDate($participantDateColumn, '<=', $monthEnd);
+            }
+            $participantsThisMonth = (int) $participantQuery->count();
+        }
+
         return [
-            'themes_total' => class_exists(TrialTheme::class) ? TrialTheme::count() : 0,
-            'themes_active' => class_exists(TrialTheme::class)
-                ? TrialTheme::query()
-                    ->when(
-                        $this->hasColumn((new TrialTheme())->getTable(), 'is_active'),
-                        fn ($query) => $query->where('is_active', true)
-                    )
-                    ->count()
-                : 0,
+            'month_from' => $monthStart,
+            'month_to' => $monthEnd,
 
-            'schedules_total' => class_exists(TrialSchedule::class) ? TrialSchedule::count() : 0,
-            'schedules_active' => class_exists(TrialSchedule::class)
-                ? TrialSchedule::query()
-                    ->when(
-                        $this->hasColumn((new TrialSchedule())->getTable(), 'is_active'),
-                        fn ($query) => $query->where('is_active', true)
-                    )
-                    ->count()
-                : 0,
+            // Theme tidak time-based, jadi tetap total/active keseluruhan.
+            'themes_total' => $themesTotal,
+            'themes_active' => $themesActive,
 
-            'participants_total' => class_exists(TrialParticipant::class) ? TrialParticipant::count() : 0,
-            'participants_new_this_month' => class_exists(TrialParticipant::class)
-                ? TrialParticipant::query()
-                    ->whereMonth('created_at', now()->month)
-                    ->whereYear('created_at', now()->year)
-                    ->count()
-                : 0,
+            // Key lama dipertahankan, tapi sekarang diarahkan ke bulan berjalan.
+            'schedules_total' => $schedulesThisMonth,
+            'schedules_active' => $schedulesActiveThisMonth,
+            'participants_total' => $participantsThisMonth,
+            'participants_new_this_month' => $participantsThisMonth,
+
+            // Key baru untuk kebutuhan management/report jika butuh all-time.
+            'schedules_all_time' => $schedulesAllTime,
+            'schedules_this_month' => $schedulesThisMonth,
+            'schedules_active_this_month' => $schedulesActiveThisMonth,
+            'participants_all_time' => $participantsAllTime,
+            'participants_this_month' => $participantsThisMonth,
         ];
     }
 
@@ -1216,33 +1234,48 @@ class DashboardController extends Controller
             ->get();
     }
 
+
     protected function getTrialParticipantStatusCounts()
     {
-        if (! class_exists(TrialParticipant::class)) {
-            return collect([
-                'registered' => 0,
-                'contacted' => 0,
-                'confirmed' => 0,
-                'attended' => 0,
-                'cancelled' => 0,
-                'no_show' => 0,
-            ]);
-        }
-
-        return collect([
+        $defaults = collect([
             'registered' => 0,
             'contacted' => 0,
             'confirmed' => 0,
             'attended' => 0,
             'cancelled' => 0,
             'no_show' => 0,
-        ])->merge(
-            TrialParticipant::query()
-                ->selectRaw('status, COUNT(*) as total')
-                ->groupBy('status')
+        ]);
+
+        if (! class_exists(TrialParticipant::class)) {
+            return $defaults;
+        }
+
+        $table = (new TrialParticipant())->getTable();
+        if (! Schema::hasTable($table)) {
+            return $defaults;
+        }
+
+        $dateColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
+        $statusColumn = $this->findExistingColumn($table, ['status']);
+        if (! $statusColumn) {
+            return $defaults;
+        }
+
+        $query = DB::table($table);
+        if ($dateColumn) {
+            $query
+                ->whereDate($dateColumn, '>=', now()->startOfMonth()->toDateString())
+                ->whereDate($dateColumn, '<=', now()->endOfMonth()->toDateString());
+        }
+
+        return $defaults->merge(
+            $query
+                ->selectRaw($this->wrapColumn($statusColumn) . ' as status, COUNT(*) as total')
+                ->groupBy($statusColumn)
                 ->pluck('total', 'status')
         );
     }
+
 
     protected function getTrialFollowUpProgress(): int
     {
@@ -1250,14 +1283,372 @@ class DashboardController extends Controller
             return 0;
         }
 
+        $table = (new TrialParticipant())->getTable();
+        if (! Schema::hasTable($table)) {
+            return 0;
+        }
+
+        $dateColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
+        $statusColumn = $this->findExistingColumn($table, ['status']);
+        if (! $statusColumn) {
+            return 0;
+        }
+
+        $baseQuery = DB::table($table);
+        if ($dateColumn) {
+            $baseQuery
+                ->whereDate($dateColumn, '>=', now()->startOfMonth()->toDateString())
+                ->whereDate($dateColumn, '<=', now()->endOfMonth()->toDateString());
+        }
+
+        $totalParticipants = (int) (clone $baseQuery)->count();
+        if ($totalParticipants <= 0) {
+            return 0;
+        }
+
         $followUpStatuses = ['contacted', 'confirmed', 'attended'];
-        $followedUpCount = TrialParticipant::query()
-            ->whereIn('status', $followUpStatuses)
+        $followedUpCount = (int) (clone $baseQuery)
+            ->whereIn($statusColumn, $followUpStatuses)
             ->count();
 
-        $totalParticipants = max((int) TrialParticipant::count(), 1);
-
         return (int) round(($followedUpCount / $totalParticipants) * 100);
+    }
+
+
+    protected function getWorkshopStats(): array
+    {
+        $now = now();
+        $monthStart = $now->copy()->startOfMonth()->toDateString();
+        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+
+        $workshopsTable = $this->findExistingTable(['workshops']);
+        $schedulesTable = $this->findExistingTable(['workshop_schedules']);
+        $participantsTable = $this->findExistingTable(['workshop_participants']);
+
+        $paymentSummary = $this->getWorkshopPaidPaymentSummary($monthStart, $monthEnd);
+        $statusCounts = $this->getWorkshopParticipantStatusCounts();
+
+        $stats = [
+            'month_from' => $monthStart,
+            'month_to' => $monthEnd,
+            'workshops_total' => 0,
+            'workshops_active' => 0,
+            'schedules_all_time' => 0,
+            'schedules_this_month' => 0,
+            'schedules_active_this_month' => 0,
+            'upcoming_schedules' => 0,
+            'participants_all_time' => 0,
+            'participants_this_month' => 0,
+            'registered_this_month' => (int) ($statusCounts['registered'] ?? 0),
+            'pending_payment_this_month' => (int) ($statusCounts['pending_payment'] ?? 0),
+            'confirmed_this_month' => (int) ($statusCounts['confirmed'] ?? 0),
+            'attended_this_month' => (int) ($statusCounts['attended'] ?? 0),
+            'cancelled_this_month' => (int) ($statusCounts['cancelled'] ?? 0),
+            'paid_count_this_month' => (int) ($paymentSummary['count'] ?? 0),
+            'revenue_this_month' => (float) ($paymentSummary['total'] ?? 0),
+            'conversion_percent' => 0,
+            'attendance_percent' => 0,
+            'top_source' => null,
+            'top_source_total' => 0,
+        ];
+
+        if ($workshopsTable) {
+            $activeColumn = $this->findExistingColumn($workshopsTable, ['is_active', 'status']);
+
+            $stats['workshops_total'] = (int) DB::table($workshopsTable)->count();
+
+            $activeQuery = DB::table($workshopsTable);
+            if ($activeColumn === 'is_active') {
+                $activeQuery->where('is_active', true);
+            } elseif ($activeColumn === 'status') {
+                $activeQuery->whereIn('status', ['active', 'open', 'published']);
+            }
+            $stats['workshops_active'] = (int) $activeQuery->count();
+        }
+
+        if ($schedulesTable) {
+            $scheduleDateColumn = $this->findExistingColumn($schedulesTable, ['schedule_date', 'date', 'start_date', 'created_at']);
+            $scheduleActiveColumn = $this->findExistingColumn($schedulesTable, ['is_active', 'status']);
+
+            $stats['schedules_all_time'] = (int) DB::table($schedulesTable)->count();
+
+            $monthQuery = DB::table($schedulesTable);
+            if ($scheduleDateColumn) {
+                $monthQuery
+                    ->whereDate($scheduleDateColumn, '>=', $monthStart)
+                    ->whereDate($scheduleDateColumn, '<=', $monthEnd);
+            }
+            $stats['schedules_this_month'] = (int) (clone $monthQuery)->count();
+
+            $activeMonthQuery = clone $monthQuery;
+            if ($scheduleActiveColumn === 'is_active') {
+                $activeMonthQuery->where('is_active', true);
+            } elseif ($scheduleActiveColumn === 'status') {
+                $activeMonthQuery->whereIn('status', ['active', 'open', 'scheduled', 'published']);
+            }
+            $stats['schedules_active_this_month'] = (int) $activeMonthQuery->count();
+
+            if ($scheduleDateColumn) {
+                $upcomingQuery = DB::table($schedulesTable)
+                    ->whereDate($scheduleDateColumn, '>=', now()->toDateString());
+
+                if ($scheduleActiveColumn === 'is_active') {
+                    $upcomingQuery->where('is_active', true);
+                } elseif ($scheduleActiveColumn === 'status') {
+                    $upcomingQuery->whereIn('status', ['active', 'open', 'scheduled', 'published']);
+                }
+
+                $stats['upcoming_schedules'] = (int) $upcomingQuery->count();
+            }
+        }
+
+        if ($participantsTable) {
+            $createdColumn = $this->findExistingColumn($participantsTable, ['registered_at', 'created_at']);
+            $sourceColumn = $this->findExistingColumn($participantsTable, ['utm_source', 'input_source']);
+
+            $stats['participants_all_time'] = (int) DB::table($participantsTable)->count();
+
+            $participantsQuery = DB::table($participantsTable);
+            if ($createdColumn) {
+                $participantsQuery
+                    ->whereDate($createdColumn, '>=', $monthStart)
+                    ->whereDate($createdColumn, '<=', $monthEnd);
+            }
+            $stats['participants_this_month'] = (int) (clone $participantsQuery)->count();
+
+            if ($sourceColumn) {
+                $sourceBaseQuery = DB::table($participantsTable)
+                    ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name');
+
+                if ($createdColumn) {
+                    $sourceBaseQuery
+                        ->whereDate($createdColumn, '>=', $monthStart)
+                        ->whereDate($createdColumn, '<=', $monthEnd);
+                }
+
+                $source = DB::query()
+                    ->fromSub($sourceBaseQuery, 'workshop_sources')
+                    ->selectRaw('source_name, COUNT(*) as total')
+                    ->groupBy('source_name')
+                    ->orderByDesc('total')
+                    ->first();
+
+                if ($source) {
+                    $stats['top_source'] = $source->source_name;
+                    $stats['top_source_total'] = (int) $source->total;
+                }
+            }
+        }
+
+        $participantsThisMonth = max((int) $stats['participants_this_month'], 0);
+        $convertedThisMonth = (int) $stats['confirmed_this_month'] + (int) $stats['attended_this_month'];
+
+        if ($participantsThisMonth > 0) {
+            $stats['conversion_percent'] = (int) round(($convertedThisMonth / $participantsThisMonth) * 100);
+            $stats['attendance_percent'] = (int) round(((int) $stats['attended_this_month'] / $participantsThisMonth) * 100);
+        }
+
+        return $stats;
+    }
+
+    protected function getWorkshopParticipantStatusCounts()
+    {
+        $defaults = collect([
+            'registered' => 0,
+            'pending_payment' => 0,
+            'confirmed' => 0,
+            'attended' => 0,
+            'cancelled' => 0,
+        ]);
+
+        $table = $this->findExistingTable(['workshop_participants']);
+        if (! $table) {
+            return $defaults;
+        }
+
+        $statusColumn = $this->findExistingColumn($table, ['status']);
+        $createdColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
+        if (! $statusColumn) {
+            return $defaults;
+        }
+
+        $query = DB::table($table);
+        if ($createdColumn) {
+            $query
+                ->whereDate($createdColumn, '>=', now()->startOfMonth()->toDateString())
+                ->whereDate($createdColumn, '<=', now()->endOfMonth()->toDateString());
+        }
+
+        return $defaults->merge(
+            $query
+                ->selectRaw($this->wrapColumn($statusColumn) . ' as status, COUNT(*) as total')
+                ->groupBy($statusColumn)
+                ->pluck('total', 'status')
+        );
+    }
+
+    protected function getWorkshopFollowUpProgress(): int
+    {
+        $table = $this->findExistingTable(['workshop_participants']);
+        if (! $table) {
+            return 0;
+        }
+
+        $statusColumn = $this->findExistingColumn($table, ['status']);
+        $createdColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
+        if (! $statusColumn) {
+            return 0;
+        }
+
+        $baseQuery = DB::table($table);
+        if ($createdColumn) {
+            $baseQuery
+                ->whereDate($createdColumn, '>=', now()->startOfMonth()->toDateString())
+                ->whereDate($createdColumn, '<=', now()->endOfMonth()->toDateString());
+        }
+
+        $totalParticipants = (int) (clone $baseQuery)->count();
+        if ($totalParticipants <= 0) {
+            return 0;
+        }
+
+        $convertedCount = (int) (clone $baseQuery)
+            ->whereIn($statusColumn, ['confirmed', 'attended'])
+            ->count();
+
+        return (int) round(($convertedCount / $totalParticipants) * 100);
+    }
+
+    protected function getUpcomingWorkshopSchedules()
+    {
+        $schedulesTable = $this->findExistingTable(['workshop_schedules']);
+        if (! $schedulesTable) {
+            return collect();
+        }
+
+        $nameColumn = $this->findExistingColumn($schedulesTable, ['title', 'name']);
+        $dateColumn = $this->findExistingColumn($schedulesTable, ['schedule_date', 'date', 'start_date']);
+        $startTimeColumn = $this->findExistingColumn($schedulesTable, ['start_time']);
+        $endTimeColumn = $this->findExistingColumn($schedulesTable, ['end_time']);
+        $quotaColumn = $this->findExistingColumn($schedulesTable, ['quota', 'capacity']);
+        $registeredColumn = $this->findExistingColumn($schedulesTable, ['registered_count']);
+        $statusColumn = $this->findExistingColumn($schedulesTable, ['status']);
+        $activeColumn = $this->findExistingColumn($schedulesTable, ['is_active']);
+        $workshopIdColumn = $this->findExistingColumn($schedulesTable, ['workshop_id']);
+
+        if (! $dateColumn) {
+            return collect();
+        }
+
+        $query = DB::table($schedulesTable)
+            ->select([
+                $schedulesTable . '.id',
+                DB::raw(($nameColumn ? $schedulesTable . '.' . $nameColumn : '"Workshop Schedule"') . ' as title'),
+                DB::raw($schedulesTable . '.' . $dateColumn . ' as schedule_date'),
+                DB::raw(($startTimeColumn ? $schedulesTable . '.' . $startTimeColumn : 'NULL') . ' as start_time'),
+                DB::raw(($endTimeColumn ? $schedulesTable . '.' . $endTimeColumn : 'NULL') . ' as end_time'),
+                DB::raw(($quotaColumn ? $schedulesTable . '.' . $quotaColumn : '0') . ' as quota'),
+                DB::raw(($registeredColumn ? $schedulesTable . '.' . $registeredColumn : '0') . ' as registered_count'),
+            ])
+            ->whereDate($schedulesTable . '.' . $dateColumn, '>=', now()->toDateString());
+
+        if ($activeColumn) {
+            $query->where($schedulesTable . '.' . $activeColumn, true);
+        }
+
+        if ($statusColumn) {
+            $query->whereIn($schedulesTable . '.' . $statusColumn, ['open', 'scheduled', 'active']);
+        }
+
+        if ($workshopIdColumn && Schema::hasTable('workshops')) {
+            $query->leftJoin('workshops', 'workshops.id', '=', $schedulesTable . '.' . $workshopIdColumn);
+            $workshopTitleColumn = $this->findExistingColumn('workshops', ['title', 'name']);
+            if ($workshopTitleColumn) {
+                $query->addSelect(DB::raw('workshops.' . $workshopTitleColumn . ' as workshop_title'));
+            }
+        }
+
+        return $query
+            ->orderBy($schedulesTable . '.' . $dateColumn)
+            ->when($startTimeColumn, fn ($query) => $query->orderBy($schedulesTable . '.' . $startTimeColumn))
+            ->limit(5)
+            ->get();
+    }
+
+    protected function getWorkshopPaidPaymentSummary(string $dateFrom, string $dateTo): array
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        $ordersTable = $this->findExistingTable(['orders']);
+
+        if (! $paymentsTable) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
+        $orderIdColumn = $this->findExistingColumn($paymentsTable, ['order_id']);
+
+        if (! $amountColumn || ! $dateExpression) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $query = DB::table($paymentsTable)
+            ->whereRaw('DATE(' . $dateExpression . ') >= ?', [$dateFrom])
+            ->whereRaw('DATE(' . $dateExpression . ') <= ?', [$dateTo]);
+
+        if ($statusColumn) {
+            $query->whereIn($paymentsTable . '.' . $statusColumn, $this->getPaidPaymentStatuses());
+        }
+
+        if ($ordersTable && $orderIdColumn) {
+            $orderTypeColumn = $this->findExistingColumn($ordersTable, ['order_type']);
+            $workshopIdColumn = $this->findExistingColumn($ordersTable, ['workshop_id']);
+
+            $query->join($ordersTable, $ordersTable . '.id', '=', $paymentsTable . '.' . $orderIdColumn);
+
+            if ($orderTypeColumn && $workshopIdColumn) {
+                $query->where(function ($query) use ($ordersTable, $orderTypeColumn, $workshopIdColumn) {
+                    $query
+                        ->where($ordersTable . '.' . $orderTypeColumn, 'workshop')
+                        ->orWhereNotNull($ordersTable . '.' . $workshopIdColumn);
+                });
+            } elseif ($orderTypeColumn) {
+                $query->where($ordersTable . '.' . $orderTypeColumn, 'workshop');
+            } elseif ($workshopIdColumn) {
+                $query->whereNotNull($ordersTable . '.' . $workshopIdColumn);
+            }
+        } else {
+            /**
+             * Fallback jika payment belum punya order_id/order table tidak tersedia:
+             * gunakan relasi workshop_participants.order_id bila ada.
+             */
+            $participantsTable = $this->findExistingTable(['workshop_participants']);
+            if ($participantsTable && $orderIdColumn) {
+                $participantOrderIdColumn = $this->findExistingColumn($participantsTable, ['order_id']);
+                if ($participantOrderIdColumn) {
+                    $query->whereExists(function ($subQuery) use (
+                        $participantsTable,
+                        $participantOrderIdColumn,
+                        $paymentsTable,
+                        $orderIdColumn
+                    ) {
+                        $subQuery
+                            ->selectRaw('1')
+                            ->from($participantsTable)
+                            ->whereColumn(
+                                $participantsTable . '.' . $participantOrderIdColumn,
+                                $paymentsTable . '.' . $orderIdColumn
+                            );
+                    });
+                }
+            }
+        }
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'total' => (float) (clone $query)->sum($paymentsTable . '.' . $amountColumn),
+        ];
     }
 
     protected function getFilledSeatCount(bool $activeBatchOnly = false): int
@@ -1447,7 +1838,13 @@ class DashboardController extends Controller
 
         foreach ($dateColumns as $column) {
             if (Schema::hasColumn($paymentsTable, $column)) {
-                $existingColumns[] = $this->wrapColumn($column);
+                /**
+                 * Wajib qualify pakai nama table karena beberapa query payment
+                 * melakukan join ke orders/workshop_participants yang juga punya
+                 * kolom created_at/updated_at. Kalau tidak, MySQL akan error:
+                 * Column created_at in where clause is ambiguous.
+                 */
+                $existingColumns[] = $this->wrapColumn($paymentsTable . '.' . $column);
             }
         }
 
