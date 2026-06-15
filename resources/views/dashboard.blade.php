@@ -6,6 +6,24 @@
 
 @php
     $salesInsight = $salesInsight ?? [];
+    $academicStats = $academicStats ?? [];
+    $batchCapacity = $batchCapacity ?? [];
+    $trialStats = $trialStats ?? [];
+    $revenueChart = $revenueChart ?? [
+        'labels' => [],
+        'data' => [],
+        'year' => now()->year,
+        'total' => 0,
+    ];
+    $trialParticipantStatusCounts = $trialParticipantStatusCounts ?? [];
+    $upcomingTrialSchedules = $upcomingTrialSchedules ?? collect();
+    $upcomingBatches = $upcomingBatches ?? collect();
+
+    // Data baru dari DashboardController untuk management insight lokal.
+    $financeInsight = $financeInsight ?? [];
+    $orderInsight = $orderInsight ?? [];
+    $workshopInsight = $workshopInsight ?? [];
+    $managementSummary = $managementSummary ?? [];
 
     $salesLeads = (int) ($salesInsight['leads'] ?? 0);
     $salesInteracted = (int) ($salesInsight['interacted'] ?? $salesInsight['trial'] ?? 0);
@@ -22,6 +40,46 @@
         && method_exists($currentUser, 'canAccess')
         && $currentUser->canAccess('curriculum.view')
         && Route::has('curriculum.index');
+
+    // AI/local management summary dari controller.
+    $dashboardAiHeadline = $managementSummary['headline'] ?? 'Management Summary';
+    $dashboardAiSummaryText = $dashboardAiSummaryText
+        ?? ($managementSummary['summary_text'] ?? '');
+    $dashboardAiGeneratedAt = $managementSummary['generated_at'] ?? now()->format('d M Y H:i');
+    $dashboardAiFocusItems = collect($managementSummary['focus'] ?? ($managementSummary['items'] ?? []))
+        ->take(3)
+        ->values();
+
+    // Fallback kalau controller lama belum dipatch atau data summary masih kosong.
+    if (blank($dashboardAiSummaryText)) {
+        $fallbackSummary = [];
+
+        if ($salesLeads > 0) {
+            $fallbackSummary[] = 'Sales mencatat ' . number_format($salesLeads) . ' leads dengan interaction rate ' . number_format($salesInteractionRate, 1) . '%.';
+        } else {
+            $fallbackSummary[] = 'Data leads belum tersedia, jadi performa sales belum bisa dibaca secara penuh.';
+        }
+
+        if ($salesClosing <= 0) {
+            $fallbackSummary[] = 'Belum ada closing yang tercatat, sehingga follow-up leads perlu diprioritaskan.';
+        } elseif ($salesPaid <= 0) {
+            $fallbackSummary[] = 'Closing sudah ada, tapi pembayaran terkonfirmasi belum terlihat.';
+        }
+
+        if ((float) ($revenueChart['total'] ?? 0) > 0) {
+            $fallbackSummary[] = 'Revenue tahun ' . ($revenueChart['year'] ?? now()->year) . ' sudah mencapai Rp ' . number_format((float) ($revenueChart['total'] ?? 0), 0, ',', '.') . '.';
+        }
+
+        if ((int) ($batchCapacity['remaining_seats'] ?? 0) > 0) {
+            $fallbackSummary[] = 'Masih ada ' . number_format((int) ($batchCapacity['remaining_seats'] ?? 0)) . ' seat tersedia yang bisa didorong oleh tim sales.';
+        }
+
+        $dashboardAiSummaryText = implode(' ', array_slice($fallbackSummary, 0, 4));
+    }
+
+    if (blank($dashboardAiSummaryText)) {
+        $dashboardAiSummaryText = 'Summary dashboard belum tersedia karena data utama masih kosong.';
+    }
 @endphp
 
 <div class="container-fluid px-4 py-4">
@@ -560,13 +618,417 @@
         </div>
     </div>
 </div>
+
+
+<div class="ai-dashboard-assistant" id="aiDashboardAssistant">
+    <div class="ai-dashboard-bubble" id="aiDashboardBubble">
+        <button type="button" class="ai-dashboard-close" id="aiDashboardClose" aria-label="Close summary">
+            <i class="bi bi-x"></i>
+        </button>
+
+        <div class="ai-dashboard-bubble-header">
+            <div class="ai-dashboard-mini-icon">
+                <i class="bi bi-stars"></i>
+            </div>
+            <div>
+                <div class="ai-dashboard-label">Insight</div>
+                <div class="ai-dashboard-headline">{{ $dashboardAiHeadline }}</div>
+            </div>
+        </div>
+
+        <div class="ai-dashboard-text">
+            {{ $dashboardAiSummaryText }}
+        </div>
+
+        @if($dashboardAiFocusItems->count())
+            <div class="ai-dashboard-focus-list">
+                @foreach($dashboardAiFocusItems as $item)
+                    @php
+                        $itemType = (string) ($item['type'] ?? 'info');
+                        $itemTitle = (string) ($item['title'] ?? 'Insight');
+                        $itemMessage = (string) ($item['message'] ?? '');
+                    @endphp
+                    <div class="ai-dashboard-focus-item ai-type-{{ $itemType }}">
+                        <span class="ai-dashboard-focus-dot"></span>
+                        <div class="ai-dashboard-focus-content">
+                            <strong>{{ $itemTitle }}</strong>
+                            @if(filled($itemMessage))
+                                <span>{{ \Illuminate\Support\Str::limit($itemMessage, 118) }}</span>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <div class="ai-dashboard-footer">
+            <span>
+                <i class="bi bi-clock-history"></i>
+                Updated {{ $dashboardAiGeneratedAt }}
+            </span>
+            <span class="ai-dashboard-mode">Local Summary</span>
+        </div>
+    </div>
+
+    <button type="button" class="ai-dashboard-robot" id="aiDashboardRobot" aria-label="Toggle AI summary">
+        <span class="ai-dashboard-robot-glow"></span>
+        <img src="{{ asset('images/ai.png') }}" alt="AI Assistant">
+    </button>
+</div>
 @endsection
 
 @push('styles')
 <style>
+.ai-dashboard-assistant {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1050;
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    pointer-events: none;
+}
 
+.ai-dashboard-assistant > * {
+    pointer-events: auto;
+}
 
+.ai-dashboard-robot {
+    width: 86px;
+    height: 86px;
+    border: 0;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #5B3E8E 0%, #7C5AC7 100%);
+    box-shadow: 0 20px 44px rgba(91, 62, 142, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    cursor: pointer;
+    position: relative;
+    overflow: visible;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    animation: aiRiseUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: bottom center;
+}
 
+.ai-dashboard-robot:hover {
+    transform: translateY(-5px) scale(1.035);
+    box-shadow: 0 26px 54px rgba(91, 62, 142, 0.42);
+}
+
+.ai-dashboard-robot::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 34px;
+    border: 1px solid rgba(91, 62, 142, 0.16);
+    animation: aiPulseRing 2.4s ease-in-out infinite;
+}
+
+.ai-dashboard-robot-glow {
+    position: absolute;
+    inset: 10px;
+    border-radius: 24px;
+    background: radial-gradient(circle, rgba(255, 190, 4, 0.35) 0%, rgba(255, 190, 4, 0) 62%);
+    pointer-events: none;
+}
+
+.ai-dashboard-robot img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 8px 12px rgba(15, 23, 42, 0.18));
+}
+
+.ai-dashboard-bubble {
+    width: min(430px, calc(100vw - 150px));
+    max-height: min(72vh, 620px);
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(91, 62, 142, 0.14);
+    border-radius: 24px 24px 8px 24px;
+    padding: 17px 18px 15px;
+    box-shadow: 0 22px 58px rgba(15, 23, 42, 0.18);
+    position: relative;
+    animation: aiBubbleIn 0.65s ease 0.18s both;
+    backdrop-filter: blur(10px);
+}
+
+.ai-dashboard-bubble.is-reopening {
+    animation: aiBubbleIn 0.32s ease both;
+}
+
+.ai-dashboard-bubble::after {
+    content: '';
+    position: absolute;
+    right: -8px;
+    bottom: 22px;
+    width: 16px;
+    height: 16px;
+    background: #ffffff;
+    border-right: 1px solid rgba(91, 62, 142, 0.14);
+    border-bottom: 1px solid rgba(91, 62, 142, 0.14);
+    transform: rotate(-45deg);
+}
+
+.ai-dashboard-bubble-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding-right: 32px;
+    margin-bottom: 10px;
+}
+
+.ai-dashboard-mini-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 14px;
+    background: #ede9fe;
+    color: #5B3E8E;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.ai-dashboard-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #7C5AC7;
+    line-height: 1.2;
+    margin-bottom: 3px;
+}
+
+.ai-dashboard-headline {
+    font-size: 15px;
+    font-weight: 850;
+    color: #111827;
+    line-height: 1.35;
+}
+
+.ai-dashboard-text {
+    font-size: 14px;
+    line-height: 1.65;
+    color: #374151;
+    padding-right: 4px;
+}
+
+.ai-dashboard-focus-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 13px;
+}
+
+.ai-dashboard-focus-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px 11px;
+    border-radius: 16px;
+    background: #f9fafb;
+    border: 1px solid rgba(229, 231, 235, 0.9);
+}
+
+.ai-dashboard-focus-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #64748b;
+    flex: 0 0 auto;
+    margin-top: 5px;
+    box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.10);
+}
+
+.ai-dashboard-focus-content {
+    display: grid;
+    gap: 2px;
+}
+
+.ai-dashboard-focus-content strong {
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: #111827;
+}
+
+.ai-dashboard-focus-content span {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #6b7280;
+}
+
+.ai-dashboard-focus-item.ai-type-critical .ai-dashboard-focus-dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.11);
+}
+
+.ai-dashboard-focus-item.ai-type-warning .ai-dashboard-focus-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.13);
+}
+
+.ai-dashboard-focus-item.ai-type-action .ai-dashboard-focus-dot {
+    background: #5B3E8E;
+    box-shadow: 0 0 0 4px rgba(91, 62, 142, 0.12);
+}
+
+.ai-dashboard-focus-item.ai-type-good .ai-dashboard-focus-dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+}
+
+.ai-dashboard-focus-item.ai-type-info .ai-dashboard-focus-dot {
+    background: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+.ai-dashboard-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 13px;
+    padding-top: 11px;
+    border-top: 1px solid #f1f5f9;
+    color: #9ca3af;
+    font-size: 11.5px;
+}
+
+.ai-dashboard-footer span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ai-dashboard-mode {
+    background: #f5f3ff;
+    color: #5B3E8E;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.ai-dashboard-close {
+    position: absolute;
+    top: 11px;
+    right: 11px;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    z-index: 2;
+}
+
+.ai-dashboard-close:hover {
+    background: #ede9fe;
+    color: #5B3E8E;
+    transform: rotate(90deg);
+}
+
+.ai-dashboard-assistant.is-collapsed .ai-dashboard-bubble {
+    display: none;
+}
+
+@keyframes aiRiseUp {
+    0% {
+        opacity: 0;
+        transform: translateY(110px) scale(0.82);
+    }
+    58% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1.035);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes aiBubbleIn {
+    0% {
+        opacity: 0;
+        transform: translateY(18px) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes aiPulseRing {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scale(1.05);
+    }
+}
+
+@media (max-width: 768px) {
+    .ai-dashboard-assistant {
+        right: 16px;
+        bottom: 16px;
+        gap: 8px;
+    }
+
+    .ai-dashboard-robot {
+        width: 68px;
+        height: 68px;
+        border-radius: 22px;
+    }
+
+    .ai-dashboard-bubble {
+        width: calc(100vw - 108px);
+        padding: 14px 15px;
+        border-radius: 20px 20px 8px 20px;
+    }
+
+    .ai-dashboard-headline {
+        font-size: 14px;
+    }
+
+    .ai-dashboard-text {
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .ai-dashboard-focus-content span {
+        display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .ai-dashboard-assistant {
+        align-items: flex-end;
+    }
+
+    .ai-dashboard-bubble {
+        width: calc(100vw - 104px);
+        max-width: 300px;
+    }
+
+    .ai-dashboard-footer {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+}
 </style>
 @endpush
 
@@ -576,6 +1038,29 @@
 document.addEventListener('DOMContentLoaded', async function () {
     const monthlyRevenueCtx = document.getElementById('monthlyRevenueChart');
     const salesPerformanceCtx = document.getElementById('salesPerformanceChart');
+    const aiAssistant = document.getElementById('aiDashboardAssistant');
+    const aiRobot = document.getElementById('aiDashboardRobot');
+    const aiClose = document.getElementById('aiDashboardClose');
+
+    if (aiAssistant && aiRobot) {
+        aiRobot.addEventListener('click', function () {
+            const isCollapsed = aiAssistant.classList.toggle('is-collapsed');
+            const bubble = document.getElementById('aiDashboardBubble');
+
+            if (!isCollapsed && bubble) {
+                bubble.classList.remove('is-reopening');
+                void bubble.offsetWidth;
+                bubble.classList.add('is-reopening');
+            }
+        });
+    }
+
+    if (aiAssistant && aiClose) {
+        aiClose.addEventListener('click', function (event) {
+            event.stopPropagation();
+            aiAssistant.classList.add('is-collapsed');
+        });
+    }
 
     if (monthlyRevenueCtx) {
         const labels = @json($revenueChart['labels'] ?? []);

@@ -26,6 +26,24 @@ class DashboardController extends Controller
         $trialParticipantStatusCounts = $this->getTrialParticipantStatusCounts();
         $trialFollowUpProgress = $this->getTrialFollowUpProgress();
 
+        $financeInsight = $this->getFinanceInsight();
+        $orderInsight = $this->getOrderInsight();
+        $workshopInsight = $this->getWorkshopInsight();
+
+        $managementSummary = $this->getManagementSummary([
+            'academic_stats' => $academicStats,
+            'batch_capacity' => $batchCapacity,
+            'revenue_chart' => $revenueChart,
+            'upcoming_batches' => $upcomingBatches,
+            'sales_insight' => $salesInsight,
+            'trial_stats' => $trialStats,
+            'trial_status_counts' => $trialParticipantStatusCounts,
+            'trial_follow_up_progress' => $trialFollowUpProgress,
+            'finance_insight' => $financeInsight,
+            'order_insight' => $orderInsight,
+            'workshop_insight' => $workshopInsight,
+        ]);
+
         return view('dashboard', [
             'academicStats' => $academicStats,
             'batchCapacity' => $batchCapacity,
@@ -37,6 +55,13 @@ class DashboardController extends Controller
             'trialParticipantStatusCounts' => $trialParticipantStatusCounts,
             'trialFollowUpProgress' => $trialFollowUpProgress,
             'salesInsight' => $salesInsight,
+
+            // Data tambahan untuk bubble AI lokal / management insight.
+            'financeInsight' => $financeInsight,
+            'orderInsight' => $orderInsight,
+            'workshopInsight' => $workshopInsight,
+            'managementSummary' => $managementSummary,
+            'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
         ]);
     }
 
@@ -159,14 +184,6 @@ class DashboardController extends Controller
             'paid_amount',
             'total_amount',
         ]);
-
-        /**
-         * Pakai fallback tanggal supaya data lama dan data baru tetap ikut.
-         * Prioritas:
-         * 1. payment_date  -> standar terbaru
-         * 2. paid_at       -> data lama / legacy
-         * 3. created_at    -> fallback kalau dua tanggal di atas kosong/tidak ada
-         */
         $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
         $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
 
@@ -214,21 +231,32 @@ class DashboardController extends Controller
     {
         $dateFrom = now()->subDays(29)->toDateString();
         $dateTo = now()->toDateString();
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd = now()->endOfMonth()->toDateString();
+        $lastMonthStart = now()->subMonthNoOverflow()->startOfMonth()->toDateString();
+        $lastMonthEnd = now()->subMonthNoOverflow()->endOfMonth()->toDateString();
 
-        $reports = collect();
+        $last30Days = $this->getSalesReportSummary($dateFrom, $dateTo);
+        $thisMonth = $this->getSalesReportSummary($monthStart, $monthEnd);
+        $lastMonth = $this->getSalesReportSummary($lastMonthStart, $lastMonthEnd);
 
-        if (class_exists(SalesDailyReport::class) && Schema::hasTable((new SalesDailyReport())->getTable())) {
-            $reports = SalesDailyReport::query()
-                ->whereBetween('report_date', [$dateFrom, $dateTo])
-                ->get();
-        }
-
-        $totalLeads = (int) $reports->sum('total_leads');
-        $interacted = (int) $reports->sum('interacted');
-        $closedDeal = (int) $reports->sum('closed_deal');
-        $revenue = (float) $reports->sum('revenue');
-
+        /**
+         * Management definition:
+         * Closing = payment yang sudah terkonfirmasi paid.
+         *
+         * Jadi angka closing di dashboard tidak lagi bergantung pada input manual
+         * sales daily report, melainkan pada data transaksi real di table payments.
+         */
         $paid = $this->getPaidPaymentCount($dateFrom, $dateTo);
+        $paidThisMonth = $this->getPaidPaymentCount($monthStart, $monthEnd);
+        $paidLastMonth = $this->getPaidPaymentCount($lastMonthStart, $lastMonthEnd);
+
+        $closedDeal = $paid;
+        $closedDealThisMonth = $paidThisMonth;
+        $closedDealLastMonth = $paidLastMonth;
+
+        $totalLeads = (int) $last30Days['leads'];
+        $interacted = (int) $last30Days['interacted'];
 
         $interactionRate = $totalLeads > 0
             ? round(($interacted / $totalLeads) * 100, 1)
@@ -245,14 +273,46 @@ class DashboardController extends Controller
         return [
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
+            'month_from' => $monthStart,
+            'month_to' => $monthEnd,
+            'last_month_from' => $lastMonthStart,
+            'last_month_to' => $lastMonthEnd,
 
-            // Main dashboard stats.
+            // Main dashboard stats: rolling 30 days.
             'leads' => $totalLeads,
             'interacted' => $interacted,
+            'consultation' => (int) $last30Days['consultation'],
+            'hot_leads' => (int) $last30Days['hot_leads'],
             'closing' => $closedDeal,
             'closed_deal' => $closedDeal,
             'paid' => $paid,
-            'revenue' => $revenue,
+            'revenue' => (float) $last30Days['revenue'],
+
+            // Reference only: value from sales daily report, not used as closing KPI.
+            'reported_closing' => (int) $last30Days['closed_deal'],
+            'reported_closed_deal' => (int) $last30Days['closed_deal'],
+
+            // Current month.
+            'leads_this_month' => (int) $thisMonth['leads'],
+            'interacted_this_month' => (int) $thisMonth['interacted'],
+            'consultation_this_month' => (int) $thisMonth['consultation'],
+            'hot_leads_this_month' => (int) $thisMonth['hot_leads'],
+            'closing_this_month' => $closedDealThisMonth,
+            'closed_deal_this_month' => $closedDealThisMonth,
+            'paid_this_month' => $paidThisMonth,
+            'reported_closing_this_month' => (int) $thisMonth['closed_deal'],
+            'reported_closed_deal_this_month' => (int) $thisMonth['closed_deal'],
+            'reported_revenue_this_month' => (float) $thisMonth['revenue'],
+
+            // Previous month comparison.
+            'leads_last_month' => (int) $lastMonth['leads'],
+            'interacted_last_month' => (int) $lastMonth['interacted'],
+            'closing_last_month' => $closedDealLastMonth,
+            'closed_deal_last_month' => $closedDealLastMonth,
+            'paid_last_month' => $paidLastMonth,
+            'reported_closing_last_month' => (int) $lastMonth['closed_deal'],
+            'reported_closed_deal_last_month' => (int) $lastMonth['closed_deal'],
+            'reported_revenue_last_month' => (float) $lastMonth['revenue'],
 
             // KPI rates.
             'interaction_rate' => $interactionRate,
@@ -261,13 +321,552 @@ class DashboardController extends Controller
             'paid_rate' => $paidRate,
 
             // Temporary aliases for existing Blade compatibility.
-            // Nanti pas Blade kita patch, key ini bisa dibersihin.
             'trial' => $interacted,
             'join' => $closedDeal,
             'conversion_trial' => $interactionRate,
             'conversion_join' => $closingRate,
             'conversion_paid' => $paidRate,
         ];
+    }
+
+    protected function getSalesReportSummary(string $dateFrom, string $dateTo): array
+    {
+        $defaults = [
+            'leads' => 0,
+            'interacted' => 0,
+            'consultation' => 0,
+            'hot_leads' => 0,
+            'closed_deal' => 0,
+            'revenue' => 0,
+        ];
+
+        if (! class_exists(SalesDailyReport::class)) {
+            return $defaults;
+        }
+
+        $table = (new SalesDailyReport())->getTable();
+        if (! Schema::hasTable($table)) {
+            return $defaults;
+        }
+
+        $dateColumn = $this->findExistingColumn($table, ['report_date', 'date', 'created_at']);
+        if (! $dateColumn) {
+            return $defaults;
+        }
+
+        $query = DB::table($table)
+            ->whereDate($dateColumn, '>=', $dateFrom)
+            ->whereDate($dateColumn, '<=', $dateTo);
+
+        return [
+            'leads' => $this->sumExistingColumn($query, $table, ['total_leads', 'leads', 'lead_count']),
+            'interacted' => $this->sumExistingColumn($query, $table, ['interacted', 'interaction', 'contacted', 'trial']),
+            'consultation' => $this->sumExistingColumn($query, $table, ['consultation', 'consulted', 'consultation_count']),
+            'hot_leads' => $this->sumExistingColumn($query, $table, ['hot_leads', 'hot_lead', 'hot']),
+            'closed_deal' => $this->sumExistingColumn($query, $table, ['closed_deal', 'closing', 'join', 'deal']),
+            'revenue' => $this->sumExistingColumn($query, $table, ['revenue', 'total_revenue', 'sales_revenue']),
+        ];
+    }
+
+    protected function getFinanceInsight(): array
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        $now = now();
+        $today = $now->toDateString();
+        $monthStart = $now->copy()->startOfMonth()->toDateString();
+        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+        $lastMonthStart = $now->copy()->subMonthNoOverflow()->startOfMonth()->toDateString();
+        $lastMonthEnd = $now->copy()->subMonthNoOverflow()->endOfMonth()->toDateString();
+
+        $empty = [
+            'today' => $today,
+            'month_from' => $monthStart,
+            'month_to' => $monthEnd,
+            'last_month_from' => $lastMonthStart,
+            'last_month_to' => $lastMonthEnd,
+            'revenue_today' => 0,
+            'revenue_this_month' => 0,
+            'revenue_last_month' => 0,
+            'revenue_month_diff' => 0,
+            'revenue_month_growth_percent' => 0,
+            'paid_count_today' => 0,
+            'paid_count_this_month' => 0,
+            'paid_count_last_month' => 0,
+            'last_payment_date' => null,
+            'last_payment_amount' => 0,
+            'days_since_last_payment' => null,
+            'pending_payment_count' => 0,
+            'pending_payment_total' => 0,
+            'expired_payment_count' => 0,
+            'expired_payment_total' => 0,
+            'overdue_schedule_count' => 0,
+            'overdue_schedule_total' => 0,
+        ];
+
+        if (! $paymentsTable) {
+            return $empty;
+        }
+
+        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+
+        if (! $amountColumn || ! $dateExpression) {
+            return $empty;
+        }
+
+        $revenueToday = $this->getPaidPaymentAmountBetween($today, $today);
+        $revenueThisMonth = $this->getPaidPaymentAmountBetween($monthStart, $monthEnd);
+        $revenueLastMonth = $this->getPaidPaymentAmountBetween($lastMonthStart, $lastMonthEnd);
+        $revenueDiff = $revenueThisMonth - $revenueLastMonth;
+        $growthPercent = $revenueLastMonth > 0
+            ? round(($revenueDiff / $revenueLastMonth) * 100, 1)
+            : ($revenueThisMonth > 0 ? 100 : 0);
+
+        $lastPayment = $this->getLastPaidPayment();
+        $lastPaymentDate = $lastPayment['date'] ?? null;
+        $daysSinceLastPayment = $lastPaymentDate
+            ? Carbon::parse($lastPaymentDate)->startOfDay()->diffInDays(now()->startOfDay())
+            : null;
+
+        $pendingPayment = $this->getPaymentStatusSummary(['pending']);
+        $expiredPayment = $this->getPaymentStatusSummary(['expired']);
+        $overdueSchedule = $this->getOverduePaymentScheduleSummary();
+
+        return [
+            'today' => $today,
+            'month_from' => $monthStart,
+            'month_to' => $monthEnd,
+            'last_month_from' => $lastMonthStart,
+            'last_month_to' => $lastMonthEnd,
+            'revenue_today' => $revenueToday,
+            'revenue_this_month' => $revenueThisMonth,
+            'revenue_last_month' => $revenueLastMonth,
+            'revenue_month_diff' => $revenueDiff,
+            'revenue_month_growth_percent' => $growthPercent,
+            'paid_count_today' => $this->getPaidPaymentCount($today, $today),
+            'paid_count_this_month' => $this->getPaidPaymentCount($monthStart, $monthEnd),
+            'paid_count_last_month' => $this->getPaidPaymentCount($lastMonthStart, $lastMonthEnd),
+            'last_payment_date' => $lastPaymentDate,
+            'last_payment_amount' => (float) ($lastPayment['amount'] ?? 0),
+            'days_since_last_payment' => $daysSinceLastPayment,
+            'pending_payment_count' => $pendingPayment['count'],
+            'pending_payment_total' => $pendingPayment['total'],
+            'expired_payment_count' => $expiredPayment['count'],
+            'expired_payment_total' => $expiredPayment['total'],
+            'overdue_schedule_count' => $overdueSchedule['count'],
+            'overdue_schedule_total' => $overdueSchedule['total'],
+        ];
+    }
+
+    protected function getOrderInsight(): array
+    {
+        $ordersTable = $this->findExistingTable(['orders']);
+        $now = now();
+        $monthStart = $now->copy()->startOfMonth()->toDateString();
+        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+
+        $empty = [
+            'orders_this_month' => 0,
+            'orders_total' => 0,
+            'pending_orders' => 0,
+            'partial_orders' => 0,
+            'paid_orders' => 0,
+            'cancelled_orders' => 0,
+            'pending_order_value' => 0,
+            'partial_order_value' => 0,
+            'paid_order_value' => 0,
+            'potential_revenue' => 0,
+            'program_orders_this_month' => 0,
+            'workshop_orders_this_month' => 0,
+        ];
+
+        if (! $ordersTable) {
+            return $empty;
+        }
+
+        $statusColumn = $this->findExistingColumn($ordersTable, ['status']);
+        $amountColumn = $this->findExistingColumn($ordersTable, ['final_price', 'total_amount', 'amount']);
+        $createdColumn = $this->findExistingColumn($ordersTable, ['created_at']);
+        $typeColumn = $this->findExistingColumn($ordersTable, ['order_type']);
+
+        $ordersThisMonth = 0;
+        if ($createdColumn) {
+            $ordersThisMonth = (int) DB::table($ordersTable)
+                ->whereDate($createdColumn, '>=', $monthStart)
+                ->whereDate($createdColumn, '<=', $monthEnd)
+                ->count();
+        }
+
+        $summary = [
+            'pending_orders' => 0,
+            'partial_orders' => 0,
+            'paid_orders' => 0,
+            'cancelled_orders' => 0,
+            'pending_order_value' => 0,
+            'partial_order_value' => 0,
+            'paid_order_value' => 0,
+        ];
+
+        if ($statusColumn) {
+            foreach (['pending', 'partial', 'paid', 'cancelled'] as $status) {
+                $query = DB::table($ordersTable)->where($statusColumn, $status);
+                $summary[$status . '_orders'] = (int) $query->count();
+
+                if ($amountColumn && in_array($status, ['pending', 'partial', 'paid'], true)) {
+                    $summary[$status . '_order_value'] = (float) DB::table($ordersTable)
+                        ->where($statusColumn, $status)
+                        ->sum($amountColumn);
+                }
+            }
+        }
+
+        $programOrdersThisMonth = 0;
+        $workshopOrdersThisMonth = 0;
+        if ($typeColumn && $createdColumn) {
+            $programOrdersThisMonth = (int) DB::table($ordersTable)
+                ->whereDate($createdColumn, '>=', $monthStart)
+                ->whereDate($createdColumn, '<=', $monthEnd)
+                ->whereIn($typeColumn, ['program', 'batch', 'course'])
+                ->count();
+
+            $workshopOrdersThisMonth = (int) DB::table($ordersTable)
+                ->whereDate($createdColumn, '>=', $monthStart)
+                ->whereDate($createdColumn, '<=', $monthEnd)
+                ->where($typeColumn, 'workshop')
+                ->count();
+        }
+
+        $potentialRevenue = (float) ($summary['pending_order_value'] + $summary['partial_order_value']);
+
+        return array_merge($empty, $summary, [
+            'orders_this_month' => $ordersThisMonth,
+            'orders_total' => (int) DB::table($ordersTable)->count(),
+            'potential_revenue' => $potentialRevenue,
+            'program_orders_this_month' => $programOrdersThisMonth,
+            'workshop_orders_this_month' => $workshopOrdersThisMonth,
+        ]);
+    }
+
+    protected function getWorkshopInsight(): array
+    {
+        $table = $this->findExistingTable(['workshop_participants']);
+        $now = now();
+        $monthStart = $now->copy()->startOfMonth()->toDateString();
+        $monthEnd = $now->copy()->endOfMonth()->toDateString();
+
+        $empty = [
+            'participants_total' => 0,
+            'participants_this_month' => 0,
+            'registered' => 0,
+            'pending_payment' => 0,
+            'confirmed' => 0,
+            'attended' => 0,
+            'cancelled' => 0,
+            'paid_this_month' => 0,
+            'top_source' => null,
+            'top_source_total' => 0,
+        ];
+
+        if (! $table) {
+            return $empty;
+        }
+
+        $createdColumn = $this->findExistingColumn($table, ['registered_at', 'created_at']);
+        $paidAtColumn = $this->findExistingColumn($table, ['paid_at']);
+        $statusColumn = $this->findExistingColumn($table, ['status']);
+        $sourceColumn = $this->findExistingColumn($table, ['utm_source', 'input_source']);
+
+        $participantsThisMonth = 0;
+        if ($createdColumn) {
+            $participantsThisMonth = (int) DB::table($table)
+                ->whereDate($createdColumn, '>=', $monthStart)
+                ->whereDate($createdColumn, '<=', $monthEnd)
+                ->count();
+        }
+
+        $statusCounts = collect([
+            'registered' => 0,
+            'pending_payment' => 0,
+            'confirmed' => 0,
+            'attended' => 0,
+            'cancelled' => 0,
+        ]);
+
+        if ($statusColumn) {
+            $statusCounts = $statusCounts->merge(
+                DB::table($table)
+                    ->selectRaw($this->wrapColumn($statusColumn) . ' as status, COUNT(*) as total')
+                    ->groupBy($statusColumn)
+                    ->pluck('total', 'status')
+            );
+        }
+
+        $paidThisMonth = 0;
+        if ($paidAtColumn) {
+            $paidThisMonth = (int) DB::table($table)
+                ->whereNotNull($paidAtColumn)
+                ->whereDate($paidAtColumn, '>=', $monthStart)
+                ->whereDate($paidAtColumn, '<=', $monthEnd)
+                ->count();
+        }
+
+        $topSource = null;
+        $topSourceTotal = 0;
+        if ($sourceColumn) {
+            $source = DB::table($table)
+                ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name, COUNT(*) as total')
+                ->groupByRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown")')
+                ->orderByDesc('total')
+                ->first();
+
+            if ($source) {
+                $topSource = $source->source_name;
+                $topSourceTotal = (int) $source->total;
+            }
+        }
+
+        return [
+            'participants_total' => (int) DB::table($table)->count(),
+            'participants_this_month' => $participantsThisMonth,
+            'registered' => (int) ($statusCounts['registered'] ?? 0),
+            'pending_payment' => (int) ($statusCounts['pending_payment'] ?? 0),
+            'confirmed' => (int) ($statusCounts['confirmed'] ?? 0),
+            'attended' => (int) ($statusCounts['attended'] ?? 0),
+            'cancelled' => (int) ($statusCounts['cancelled'] ?? 0),
+            'paid_this_month' => $paidThisMonth,
+            'top_source' => $topSource,
+            'top_source_total' => $topSourceTotal,
+        ];
+    }
+
+    protected function getManagementSummary(array $context): array
+    {
+        $sales = $context['sales_insight'] ?? [];
+        $finance = $context['finance_insight'] ?? [];
+        $orders = $context['order_insight'] ?? [];
+        $batch = $context['batch_capacity'] ?? [];
+        $trialStats = $context['trial_stats'] ?? [];
+        $trialStatus = collect($context['trial_status_counts'] ?? []);
+        $trialProgress = (int) ($context['trial_follow_up_progress'] ?? 0);
+        $workshop = $context['workshop_insight'] ?? [];
+        $upcomingBatches = $context['upcoming_batches'] ?? collect();
+
+        $items = [];
+
+        $leadsThisMonth = (int) ($sales['leads_this_month'] ?? 0);
+        $interactedThisMonth = (int) ($sales['interacted_this_month'] ?? 0);
+        $closingThisMonth = (int) ($sales['closing_this_month'] ?? 0);
+        $paidThisMonth = (int) ($sales['paid_this_month'] ?? 0);
+        $hotLeadsThisMonth = (int) ($sales['hot_leads_this_month'] ?? 0);
+        $revenueThisMonth = (float) ($finance['revenue_this_month'] ?? 0);
+        $revenueLastMonth = (float) ($finance['revenue_last_month'] ?? 0);
+        $pendingPaymentTotal = (float) ($finance['pending_payment_total'] ?? 0);
+        $pendingPaymentCount = (int) ($finance['pending_payment_count'] ?? 0);
+        $overdueScheduleCount = (int) ($finance['overdue_schedule_count'] ?? 0);
+        $overdueScheduleTotal = (float) ($finance['overdue_schedule_total'] ?? 0);
+        $daysSinceLastPayment = $finance['days_since_last_payment'] ?? null;
+        $remainingSeats = (int) ($batch['remaining_seats'] ?? 0);
+        $utilizationPercent = (int) ($batch['utilization_percent'] ?? 0);
+        $upcomingBatchCount = is_countable($upcomingBatches) ? count($upcomingBatches) : 0;
+
+        if ($leadsThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Leads bulan ini belum masuk',
+                'Belum ada leads baru yang tercatat bulan ini. Fokus awal perlu diarahkan ke campaign, referral, dan follow-up database lama.'
+            );
+        } elseif ($interactedThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Leads belum berinteraksi',
+                'Leads bulan ini sudah masuk ' . number_format($leadsThisMonth) . ', tapi belum ada interaksi tercatat. Tim sales perlu mempercepat kontak awal.'
+            );
+        } elseif ($closingThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'critical',
+                'Belum ada closing bulan ini',
+                'Sudah ada ' . number_format($leadsThisMonth) . ' leads dan ' . number_format($interactedThisMonth) . ' interaksi, tapi belum ada closing. Prioritasnya dorong consultation, hot leads, dan follow-up intensif.'
+            );
+        } elseif ($paidThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Closing belum berubah jadi payment',
+                'Closing bulan ini sudah ada ' . number_format($closingThisMonth) . ', tapi pembayaran terkonfirmasi belum ada. Cek invoice, reminder pembayaran, dan payment URL.'
+            );
+        } else {
+            $items[] = $this->summaryItem(
+                'good',
+                'Sales funnel mulai berjalan',
+                'Bulan ini ada ' . number_format($leadsThisMonth) . ' leads, ' . number_format($closingThisMonth) . ' closing, dan ' . number_format($paidThisMonth) . ' payment terkonfirmasi.'
+            );
+        }
+
+        if ($revenueThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'critical',
+                'Belum ada pemasukan bulan ini',
+                'Revenue bulan ini masih Rp 0. Management perlu cek pipeline closing, pending invoice, dan jadwal pembayaran yang belum dikonfirmasi.'
+            );
+        } elseif ($revenueLastMonth > 0 && $revenueThisMonth < $revenueLastMonth) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Revenue bulan ini turun',
+                'Revenue bulan ini Rp ' . $this->formatRupiah($revenueThisMonth) . ', masih di bawah bulan lalu Rp ' . $this->formatRupiah($revenueLastMonth) . '.'
+            );
+        } else {
+            $items[] = $this->summaryItem(
+                'good',
+                'Revenue bulan ini tercatat',
+                'Pemasukan bulan ini sudah mencapai Rp ' . $this->formatRupiah($revenueThisMonth) . '.'
+            );
+        }
+
+        if ($daysSinceLastPayment !== null && $daysSinceLastPayment >= 7) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Payment terakhir sudah cukup lama',
+                'Payment terakhir tercatat sekitar ' . number_format((int) $daysSinceLastPayment) . ' hari lalu. Perlu follow-up invoice dan prospek yang sudah dekat pembayaran.'
+            );
+        }
+
+        if ($overdueScheduleCount > 0) {
+            $items[] = $this->summaryItem(
+                'critical',
+                'Ada jadwal pembayaran overdue',
+                number_format($overdueScheduleCount) . ' jadwal pembayaran sudah lewat jatuh tempo dengan nilai sekitar Rp ' . $this->formatRupiah($overdueScheduleTotal) . '.'
+            );
+        } elseif ($pendingPaymentCount > 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Ada payment pending',
+                number_format($pendingPaymentCount) . ' pembayaran masih pending dengan estimasi nilai Rp ' . $this->formatRupiah($pendingPaymentTotal) . '. Ini bisa jadi prioritas follow-up cepat.'
+            );
+        }
+
+        if ($remainingSeats > 0 && $closingThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Seat tersedia belum terisi closing baru',
+                'Masih ada ' . number_format($remainingSeats) . ' seat aktif, sementara closing bulan ini belum terjadi. Sales perlu diarahkan untuk mengisi kapasitas batch.'
+            );
+        } elseif ($utilizationPercent > 0 && $utilizationPercent < 50) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Utilisasi batch masih rendah',
+                'Utilisasi batch aktif baru ' . number_format($utilizationPercent) . '%. Masih ada ruang besar untuk dorongan akuisisi student.'
+            );
+        } elseif ($utilizationPercent >= 80) {
+            $items[] = $this->summaryItem(
+                'good',
+                'Utilisasi batch sehat',
+                'Utilisasi batch aktif sudah ' . number_format($utilizationPercent) . '%, sisa seat sekitar ' . number_format($remainingSeats) . '.'
+            );
+        }
+
+        $registeredTrial = (int) ($trialStatus['registered'] ?? 0);
+        $contactedTrial = (int) ($trialStatus['contacted'] ?? 0);
+        $confirmedTrial = (int) ($trialStatus['confirmed'] ?? 0);
+        $attendedTrial = (int) ($trialStatus['attended'] ?? 0);
+        $newTrialThisMonth = (int) ($trialStats['participants_new_this_month'] ?? 0);
+
+        if ($newTrialThisMonth > 0 && $trialProgress < 50) {
+            $items[] = $this->summaryItem(
+                'warning',
+                'Follow-up trial masih rendah',
+                'Ada ' . number_format($newTrialThisMonth) . ' peserta trial baru bulan ini, tapi progress follow-up baru ' . number_format($trialProgress) . '%. Prioritaskan registered ke contacted dan confirmed.'
+            );
+        } elseif ($registeredTrial > $contactedTrial && $registeredTrial > 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Banyak trial belum dihubungi',
+                'Status registered masih lebih tinggi dari contacted. Tim perlu mempercepat follow-up peserta trial agar tidak dingin.'
+            );
+        } elseif ($confirmedTrial > 0 && $attendedTrial <= 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Trial perlu reminder attendance',
+                'Peserta confirmed sudah ada, tapi attended belum terlihat. Reminder H-1 dan hari-H perlu diperkuat.'
+            );
+        }
+
+        $workshopPending = (int) ($workshop['pending_payment'] ?? 0);
+        $workshopParticipantsThisMonth = (int) ($workshop['participants_this_month'] ?? 0);
+        if ($workshopPending > 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Workshop pending payment',
+                'Ada ' . number_format($workshopPending) . ' peserta workshop yang masih pending payment. Follow-up pembayaran bisa langsung diprioritaskan.'
+            );
+        } elseif ($workshopParticipantsThisMonth > 0) {
+            $items[] = $this->summaryItem(
+                'good',
+                'Workshop mulai menghasilkan demand',
+                'Bulan ini ada ' . number_format($workshopParticipantsThisMonth) . ' peserta workshop yang masuk ke sistem.'
+            );
+        }
+
+        if ($hotLeadsThisMonth > 0 && $closingThisMonth <= 0) {
+            $items[] = $this->summaryItem(
+                'action',
+                'Hot leads perlu dikonversi',
+                'Ada ' . number_format($hotLeadsThisMonth) . ' hot leads bulan ini. Karena closing belum ada, follow-up personal perlu diprioritaskan.'
+            );
+        }
+
+        if ($upcomingBatchCount > 0 && $remainingSeats > 0) {
+            $items[] = $this->summaryItem(
+                'info',
+                'Batch mendatang perlu dipantau',
+                'Ada ' . number_format($upcomingBatchCount) . ' batch mendatang dan seat masih tersedia. Pastikan sales push dan readiness akademik berjalan paralel.'
+            );
+        }
+
+        if (empty($items)) {
+            $items[] = $this->summaryItem(
+                'info',
+                'Dashboard stabil',
+                'Data utama dashboard terlihat stabil. Tetap pantau sales funnel, revenue, seat utilization, dan follow-up trial secara berkala.'
+            );
+        }
+
+        $priority = collect($items)
+            ->sortBy(fn ($item) => $this->summarySeverityRank($item['type']))
+            ->values();
+
+        $summaryText = $priority
+            ->take(4)
+            ->pluck('message')
+            ->implode(' ');
+
+        return [
+            'generated_at' => now()->format('d M Y H:i'),
+            'headline' => $priority->first()['title'] ?? 'Management Summary',
+            'summary_text' => $summaryText,
+            'items' => $priority->all(),
+            'focus' => $priority->take(3)->values()->all(),
+        ];
+    }
+
+    protected function summaryItem(string $type, string $title, string $message): array
+    {
+        return [
+            'type' => $type,
+            'title' => $title,
+            'message' => $message,
+        ];
+    }
+
+    protected function summarySeverityRank(string $type): int
+    {
+        return match ($type) {
+            'critical' => 1,
+            'warning' => 2,
+            'action' => 3,
+            'good' => 4,
+            'info' => 5,
+            default => 6,
+        };
     }
 
     protected function getPaidPaymentCount(?string $dateFrom = null, ?string $dateTo = null): int
@@ -292,6 +891,202 @@ class DashboardController extends Controller
         }
 
         return (int) $query->count();
+    }
+
+    protected function getPaidPaymentAmountBetween(string $dateFrom, string $dateTo): float
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        if (! $paymentsTable) {
+            return 0;
+        }
+
+        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
+
+        if (! $amountColumn || ! $dateExpression) {
+            return 0;
+        }
+
+        $query = DB::table($paymentsTable)
+            ->whereRaw('DATE(' . $dateExpression . ') >= ?', [$dateFrom])
+            ->whereRaw('DATE(' . $dateExpression . ') <= ?', [$dateTo]);
+
+        if ($statusColumn) {
+            $query->whereIn($statusColumn, $this->getPaidPaymentStatuses());
+        }
+
+        return (float) $query->sum($amountColumn);
+    }
+
+    protected function getLastPaidPayment(): ?array
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        if (! $paymentsTable) {
+            return null;
+        }
+
+        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+        $dateExpression = $this->buildPaymentDateExpression($paymentsTable);
+
+        if (! $amountColumn || ! $dateExpression) {
+            return null;
+        }
+
+        $query = DB::table($paymentsTable)
+            ->selectRaw($dateExpression . ' as payment_effective_date, ' . $this->wrapColumn($amountColumn) . ' as amount')
+            ->whereNotNull($amountColumn)
+            ->orderByRaw($dateExpression . ' desc');
+
+        if ($statusColumn) {
+            $query->whereIn($statusColumn, $this->getPaidPaymentStatuses());
+        }
+
+        $payment = $query->first();
+
+        if (! $payment) {
+            return null;
+        }
+
+        return [
+            'date' => $payment->payment_effective_date,
+            'amount' => (float) $payment->amount,
+        ];
+    }
+
+    protected function getPaymentStatusSummary(array $statuses): array
+    {
+        $paymentsTable = $this->findExistingTable(['payments']);
+        if (! $paymentsTable) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $statusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+        $amountColumn = $this->findExistingColumn($paymentsTable, ['amount', 'paid_amount', 'total_amount']);
+
+        if (! $statusColumn) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $query = DB::table($paymentsTable)
+            ->whereIn($statusColumn, $statuses);
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'total' => $amountColumn ? (float) (clone $query)->sum($amountColumn) : 0,
+        ];
+    }
+
+    protected function getOverduePaymentScheduleSummary(): array
+    {
+        $schedulesTable = $this->findExistingTable(['payment_schedules']);
+        if (! $schedulesTable) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $scheduleIdColumn = $this->findExistingColumn($schedulesTable, ['id']);
+        $dueDateColumn = $this->findExistingColumn($schedulesTable, ['due_date', 'payment_due_date', 'schedule_date']);
+        $amountColumn = $this->findExistingColumn($schedulesTable, ['amount', 'total_amount', 'installment_amount']);
+        $paidAmountColumn = $this->findExistingColumn($schedulesTable, ['paid_amount', 'amount_paid']);
+        $statusColumn = $this->findExistingColumn($schedulesTable, ['status']);
+        $paidAtColumn = $this->findExistingColumn($schedulesTable, ['paid_at', 'completed_at']);
+        $orderIdColumn = $this->findExistingColumn($schedulesTable, ['order_id']);
+
+        if (! $dueDateColumn) {
+            return ['count' => 0, 'total' => 0];
+        }
+
+        $query = DB::table($schedulesTable)
+            ->whereDate($schedulesTable . '.' . $dueDateColumn, '<', now()->toDateString());
+
+        /**
+         * Overdue harus benar-benar berarti: jadwal sudah jatuh tempo dan belum lunas.
+         *
+         * Di database kita, pembayaran real ada di table payments. Kadang status
+         * payment_schedules belum ikut berubah menjadi paid walaupun payments sudah paid.
+         * Karena itu overdue schedule wajib mengecualikan:
+         * - schedule yang statusnya sudah paid/completed/etc
+         * - schedule yang punya paid_at/completed_at
+         * - schedule yang paid_amount sudah memenuhi amount
+         * - schedule yang punya payment paid lewat payment_schedule_id
+         * - schedule yang order-nya sudah paid
+         */
+        if ($statusColumn) {
+            $query->whereNotIn(
+                $schedulesTable . '.' . $statusColumn,
+                $this->getPaidPaymentStatuses()
+            );
+        }
+
+        if ($paidAtColumn) {
+            $query->whereNull($schedulesTable . '.' . $paidAtColumn);
+        }
+
+        if ($amountColumn && $paidAmountColumn) {
+            $query->whereRaw(
+                'COALESCE(' . $schedulesTable . '.' . $this->wrapColumn($paidAmountColumn) . ', 0) < COALESCE(' . $schedulesTable . '.' . $this->wrapColumn($amountColumn) . ', 0)'
+            );
+        }
+
+        $paymentsTable = $this->findExistingTable(['payments']);
+        if ($paymentsTable && $scheduleIdColumn) {
+            $paymentScheduleIdColumn = $this->findExistingColumn($paymentsTable, ['payment_schedule_id']);
+            $paymentStatusColumn = $this->findExistingColumn($paymentsTable, ['status', 'payment_status']);
+
+            if ($paymentScheduleIdColumn) {
+                $query->whereNotExists(function ($subQuery) use (
+                    $paymentsTable,
+                    $paymentScheduleIdColumn,
+                    $paymentStatusColumn,
+                    $schedulesTable,
+                    $scheduleIdColumn
+                ) {
+                    $subQuery
+                        ->selectRaw('1')
+                        ->from($paymentsTable)
+                        ->whereColumn(
+                            $paymentsTable . '.' . $paymentScheduleIdColumn,
+                            $schedulesTable . '.' . $scheduleIdColumn
+                        );
+
+                    if ($paymentStatusColumn) {
+                        $subQuery->whereIn(
+                            $paymentsTable . '.' . $paymentStatusColumn,
+                            $this->getPaidPaymentStatuses()
+                        );
+                    }
+                });
+            }
+        }
+
+        $ordersTable = $this->findExistingTable(['orders']);
+        if ($ordersTable && $orderIdColumn) {
+            $orderStatusColumn = $this->findExistingColumn($ordersTable, ['status']);
+
+            if ($orderStatusColumn) {
+                $query->whereNotExists(function ($subQuery) use (
+                    $ordersTable,
+                    $orderStatusColumn,
+                    $schedulesTable,
+                    $orderIdColumn
+                ) {
+                    $subQuery
+                        ->selectRaw('1')
+                        ->from($ordersTable)
+                        ->whereColumn(
+                            $ordersTable . '.id',
+                            $schedulesTable . '.' . $orderIdColumn
+                        )
+                        ->whereIn($ordersTable . '.' . $orderStatusColumn, ['paid']);
+                });
+            }
+        }
+
+        return [
+            'count' => (int) (clone $query)->count(),
+            'total' => $amountColumn ? (float) (clone $query)->sum($amountColumn) : 0,
+        ];
     }
 
     protected function getUpcomingBatches()
@@ -622,11 +1417,22 @@ class DashboardController extends Controller
             ->all();
     }
 
+    protected function sumExistingColumn($baseQuery, string $table, array $columns): float
+    {
+        $column = $this->findExistingColumn($table, $columns);
+
+        if (! $column) {
+            return 0;
+        }
+
+        return (float) (clone $baseQuery)->sum($column);
+    }
+
     protected function buildPaymentDateExpression(string $paymentsTable): ?string
     {
         $dateColumns = [
-            'payment_date',
             'paid_at',
+            'payment_date',
             'created_at',
         ];
 
@@ -688,6 +1494,11 @@ class DashboardController extends Controller
             'paid',
             'completed',
         ];
+    }
+
+    protected function formatRupiah(float $amount): string
+    {
+        return number_format($amount, 0, ',', '.');
     }
 
     protected function safeCount(string $table): int
