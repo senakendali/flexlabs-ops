@@ -193,6 +193,91 @@
 
 <section class="bg-[#F2F4FA] py-16 lg:py-20" id="workshop-list">
     <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
+        @php
+            $workshopCollection = collect($workshops ?? []);
+
+            $workshopTypeOptions = collect([
+                [
+                    'key' => 'skill-sprint',
+                    'label' => 'Skill Sprint',
+                    'icon' => 'bi-lightning-charge',
+                ],
+                [
+                    'key' => 'deep-dive',
+                    'label' => 'Deep Dive',
+                    'icon' => 'bi-layers',
+                ],
+                [
+                    'key' => 'mastery-weekend',
+                    'label' => 'Mastery Weekend',
+                    'icon' => 'bi-trophy',
+                ],
+            ]);
+
+            $normalizeWorkshopText = function ($value) {
+                return strtolower(trim(preg_replace('/\s+/', ' ', str_replace(['-', '_'], ' ', (string) $value))));
+            };
+
+            $getWorkshopTypeKeys = function ($workshop) use ($normalizeWorkshopText) {
+                return collect($workshop['schedules'] ?? [])
+                    ->flatMap(function ($schedule) use ($normalizeWorkshopText) {
+                        $scheduleTitle = $normalizeWorkshopText($schedule['title'] ?? $schedule['display_title'] ?? '');
+                        $types = [];
+
+                        if (str_contains($scheduleTitle, 'skill sprint') || str_contains($scheduleTitle, 'skillsprint')) {
+                            $types[] = 'skill-sprint';
+                        }
+
+                        if (str_contains($scheduleTitle, 'deep dive') || str_contains($scheduleTitle, 'deepdive')) {
+                            $types[] = 'deep-dive';
+                        }
+
+                        if (str_contains($scheduleTitle, 'mastery weekend') || str_contains($scheduleTitle, 'masteryweekend')) {
+                            $types[] = 'mastery-weekend';
+                        }
+
+                        return $types;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+            };
+
+            $getWorkshopModeKeys = function ($workshop) {
+                return collect($workshop['schedules'] ?? [])
+                    ->flatMap(function ($schedule) {
+                        $locationType = strtolower((string) (
+                            $schedule['location_type']
+                            ?? $schedule['location_type_label']
+                            ?? ''
+                        ));
+
+                        $modes = [];
+
+                        if (str_contains($locationType, 'online')) {
+                            $modes[] = 'online';
+                        }
+
+                        if (str_contains($locationType, 'offline')) {
+                            $modes[] = 'offline';
+                        }
+
+                        return $modes;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+            };
+
+            $onlineWorkshopCount = $workshopCollection
+                ->filter(fn ($workshop) => $getWorkshopModeKeys($workshop)->contains('online'))
+                ->count();
+
+            $offlineWorkshopCount = $workshopCollection
+                ->filter(fn ($workshop) => $getWorkshopModeKeys($workshop)->contains('offline'))
+                ->count();
+        @endphp
+
         <div class="mx-auto max-w-3xl text-center">
             <span class="inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-flex-primary shadow-[0_10px_28px_rgba(91,62,142,0.10)]">
                 Workshop List
@@ -207,7 +292,94 @@
             </p>
         </div>
 
-        <div class="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div class="mt-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div class="workshop-filter-panel">
+                <div class="mb-2 px-1 text-xs font-black uppercase tracking-[0.14em] text-flex-primary">
+                    FORMAT WORKSHOP
+                </div>
+
+                <div class="workshop-filter-wrap workshop-filter-wrap-left">
+                    <button
+                        type="button"
+                        class="workshop-filter-btn is-active"
+                        data-workshop-type-filter="all"
+                        aria-pressed="true"
+                    >
+                        <span class="workshop-filter-icon">
+                            <i class="bi bi-grid"></i>
+                        </span>
+                        <span>All</span>
+                        <span class="workshop-filter-count">{{ $workshopCollection->count() }}</span>
+                    </button>
+
+                    @foreach ($workshopTypeOptions as $typeOption)
+                        <button
+                            type="button"
+                            class="workshop-filter-btn"
+                            data-workshop-type-filter="{{ $typeOption['key'] }}"
+                            aria-pressed="false"
+                        >
+                            <span class="workshop-filter-icon">
+                                <i class="bi {{ $typeOption['icon'] }}"></i>
+                            </span>
+                            <span>{{ $typeOption['label'] }}</span>
+                            <span class="workshop-filter-count">
+                                {{ $workshopCollection->filter(fn ($workshop) => $getWorkshopTypeKeys($workshop)->contains($typeOption['key']))->count() }}
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="workshop-filter-panel lg:text-right">
+                <div class="mb-2 px-1 text-xs font-black uppercase tracking-[0.14em] text-flex-primary">
+                    Mode Belajar
+                </div>
+
+                <div class="workshop-filter-wrap workshop-filter-wrap-right">
+                    <button
+                        type="button"
+                        class="workshop-filter-btn is-active"
+                        data-workshop-mode-filter="all"
+                        aria-pressed="true"
+                    >
+                        <span class="workshop-filter-icon">
+                            <i class="bi bi-grid"></i>
+                        </span>
+                        <span>All</span>
+                        <span class="workshop-filter-count">{{ $workshopCollection->count() }}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="workshop-filter-btn"
+                        data-workshop-mode-filter="online"
+                        aria-pressed="false"
+                    >
+                        <span class="workshop-filter-icon">
+                            <i class="bi bi-camera-video"></i>
+                        </span>
+                        <span>Online</span>
+                        <span class="workshop-filter-count">{{ $onlineWorkshopCount }}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="workshop-filter-btn"
+                        data-workshop-mode-filter="offline"
+                        aria-pressed="false"
+                    >
+                        <span class="workshop-filter-icon">
+                            <i class="bi bi-geo-alt"></i>
+                        </span>
+                        <span>Offline</span>
+                        <span class="workshop-filter-count">{{ $offlineWorkshopCount }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3" id="workshop-grid">
             @forelse ($workshops as $workshop)
                 @php
                     $priceText = 'Rp ' . number_format($workshop['price'] ?? 0, 0, ',', '.');
@@ -221,12 +393,28 @@
                     $image = $workshop['image'] ?? 'images/workshop.png';
 
                     $workshopSchedules = collect($workshop['schedules'] ?? [])->take(2);
+                    $allWorkshopSchedules = collect($workshop['schedules'] ?? []);
                     $availableScheduleCount = (int) ($workshop['available_schedule_count'] ?? $workshopSchedules->count());
+
+                    $workshopTypeKeys = $getWorkshopTypeKeys($workshop);
+                    $workshopTypeData = $workshopTypeKeys->implode(' ');
+
+                    $workshopModeKeys = $getWorkshopModeKeys($workshop);
+                    $workshopModeData = $workshopModeKeys->implode(' ');
+
+                    $workshopTypeLabel = $workshop['badge']
+                        ?? ($allWorkshopSchedules->first()['title'] ?? null);
+
+                    $hasOnline = $workshopModeKeys->contains('online');
+                    $hasOffline = $workshopModeKeys->contains('offline');
                 @endphp
 
                 <a
                     href="{{ route('workshop.show', $workshop['slug']) }}"
                     class="group block h-full no-underline"
+                    data-workshop-card
+                    data-workshop-types="{{ $workshopTypeData }}"
+                    data-workshop-modes="{{ $workshopModeData }}"
                 >
                     <article class="flex h-full flex-col overflow-hidden rounded-[2rem] border border-flex-primary/10 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:border-flex-primary/20 hover:shadow-[0_28px_70px_rgba(91,62,142,0.18)]">
                         <div class="relative overflow-hidden bg-flex-primary/5 p-3">
@@ -237,9 +425,9 @@
                                 onerror="this.src='{{ asset('images/workshop.png') }}'"
                             >
 
-                            @if (!empty($workshop['badge']))
+                            @if (!empty($workshopTypeLabel))
                                 <span class="absolute left-6 top-6 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-flex-primary shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
-                                    {{ $workshop['badge'] }}
+                                    {{ $workshopTypeLabel }}
                                 </span>
                             @endif
                         </div>
@@ -275,6 +463,24 @@
                                 {{ $workshop['short_description'] }}
                             </p>
 
+                            @if ($hasOnline || $hasOffline)
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    @if ($hasOnline)
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
+                                            <i class="bi bi-camera-video-fill text-xs"></i>
+                                            Online
+                                        </span>
+                                    @endif
+
+                                    @if ($hasOffline)
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
+                                            <i class="bi bi-geo-alt-fill text-xs"></i>
+                                            Offline
+                                        </span>
+                                    @endif
+                                </div>
+                            @endif
+
                             @if ($workshopSchedules->count())
                                 <div class="mt-5 rounded-2xl border border-flex-primary/10 bg-flex-soft p-4">
                                     <div class="mb-3 text-xs font-black uppercase tracking-[0.12em] text-flex-primary">
@@ -299,8 +505,16 @@
                                                         $schedule['end_time'] ?? null,
                                                     ])));
 
-                                                $scheduleLocationLabel = $schedule['location_type_label']
-                                                    ?? null;
+                                                $scheduleLocationLabel = $schedule['location_type_label'] ?? null;
+
+                                                $locationType = strtolower((string) (
+                                                    $schedule['location_type']
+                                                    ?? $schedule['location_type_label']
+                                                    ?? ''
+                                                ));
+
+                                                $isOnline = str_contains($locationType, 'online');
+                                                $isOffline = str_contains($locationType, 'offline');
                                             @endphp
 
                                             <div class="flex items-start gap-3 rounded-2xl bg-white/80 p-3">
@@ -322,8 +536,23 @@
                                                     </div>
 
                                                     @if($scheduleLocationLabel)
-                                                        <div class="mt-1 text-xs font-bold leading-5 text-slate-500">
-                                                            {{ $scheduleLocationLabel }}
+                                                        <div class="mt-2">
+                                                            @if($isOnline)
+                                                                <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
+                                                                    <i class="bi bi-camera-video-fill text-xs"></i>
+                                                                    {{ $scheduleLocationLabel }}
+                                                                </span>
+                                                            @elseif($isOffline)
+                                                                <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
+                                                                    <i class="bi bi-geo-alt-fill text-xs"></i>
+                                                                    {{ $scheduleLocationLabel }}
+                                                                </span>
+                                                            @else
+                                                                <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
+                                                                    <i class="bi bi-info-circle-fill text-xs"></i>
+                                                                    {{ $scheduleLocationLabel }}
+                                                                </span>
+                                                            @endif
                                                         </div>
                                                     @endif
                                                 </div>
@@ -390,6 +619,22 @@
                 </div>
             @endforelse
         </div>
+
+        <div id="workshop-filter-empty" class="mt-8 hidden">
+            <div class="rounded-[2rem] border border-dashed border-flex-primary/20 bg-white p-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+                <div class="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-flex-primary/10 text-3xl text-flex-primary">
+                    <i class="bi bi-funnel"></i>
+                </div>
+
+                <h3 class="mt-5 text-2xl font-black tracking-[-0.04em] text-slate-950">
+                    Belum ada workshop untuk filter ini
+                </h3>
+
+                <p class="mx-auto mt-3 max-w-xl text-base font-medium leading-7 text-slate-600">
+                    Coba pilih filter lainnya untuk melihat workshop yang tersedia.
+                </p>
+            </div>
+        </div>
     </div>
 </section>
 @endsection
@@ -427,6 +672,100 @@
         animation: heroCameraFlash 700ms ease-out;
     }
 
+    .workshop-filter-panel {
+        width: auto;
+        max-width: 100%;
+    }
+
+    .workshop-filter-panel:first-child {
+        flex: 1 1 auto;
+    }
+
+    .workshop-filter-panel:last-child {
+        flex: 0 0 auto;
+    }
+
+    .workshop-filter-wrap {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 9999px;
+        background: #ffffff;
+        padding: 0.45rem;
+        border: 1px solid rgba(91, 62, 142, 0.10);
+        box-shadow: 0 16px 36px rgba(91, 62, 142, 0.08);
+    }
+
+    .workshop-filter-wrap-left {
+        justify-content: flex-start;
+    }
+
+    .workshop-filter-wrap-right {
+        justify-content: flex-end;
+    }
+
+    .workshop-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.48rem;
+        border: 0;
+        border-radius: 9999px;
+        background: transparent;
+        padding: 0.68rem 0.78rem;
+        font-size: 0.82rem;
+        font-weight: 900;
+        color: #5B3E8E;
+        transition: all 200ms ease;
+        white-space: nowrap;
+    }
+
+    .workshop-filter-btn:hover {
+        background: rgba(91, 62, 142, 0.08);
+    }
+
+    .workshop-filter-icon {
+        display: inline-flex;
+        height: 1.75rem;
+        width: 1.75rem;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: rgba(91, 62, 142, 0.10);
+        color: #5B3E8E;
+        transition: all 200ms ease;
+    }
+
+    .workshop-filter-count {
+        display: inline-flex;
+        min-width: 1.45rem;
+        height: 1.45rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: rgba(91, 62, 142, 0.10);
+        padding-inline: 0.38rem;
+        font-size: 0.68rem;
+        font-weight: 950;
+        line-height: 1;
+        color: #5B3E8E;
+        transition: all 200ms ease;
+    }
+
+    .workshop-filter-btn.is-active {
+        background: #5B3E8E;
+        color: #ffffff;
+        box-shadow: 0 14px 30px rgba(91, 62, 142, 0.24);
+    }
+
+    .workshop-filter-btn.is-active .workshop-filter-icon,
+    .workshop-filter-btn.is-active .workshop-filter-count {
+        background: rgba(255, 255, 255, 0.18);
+        color: #ffffff;
+    }
+
     @keyframes heroCameraFlash {
         0% {
             opacity: 0;
@@ -455,6 +794,31 @@
 
         .hero-tilt-card.is-tilted:hover {
             transform: rotate(-1deg) scale(1.01);
+        }
+
+        .workshop-filter-panel {
+            width: 100%;
+        }
+
+        .workshop-filter-wrap,
+        .workshop-filter-wrap-left,
+        .workshop-filter-wrap-right {
+            width: 100%;
+            justify-content: flex-start;
+            border-radius: 1.5rem;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .workshop-filter-btn {
+            width: 100%;
+            justify-content: space-between;
+            padding-inline: 1rem;
+        }
+
+        .workshop-filter-btn span:nth-child(2) {
+            flex: 1;
+            text-align: left;
         }
     }
 
@@ -487,6 +851,70 @@
                 }, 750);
             });
         }, 2000);
+
+        const typeButtons = document.querySelectorAll('[data-workshop-type-filter]');
+        const modeButtons = document.querySelectorAll('[data-workshop-mode-filter]');
+        const workshopCards = document.querySelectorAll('[data-workshop-card]');
+        const filterEmptyState = document.getElementById('workshop-filter-empty');
+
+        let activeTypeFilter = 'all';
+        let activeModeFilter = 'all';
+
+        const syncActiveButtons = (buttons, dataKey, activeValue) => {
+            buttons.forEach((button) => {
+                const isActive = button.dataset[dataKey] === activeValue;
+
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        };
+
+        const applyWorkshopFilters = () => {
+            let visibleCount = 0;
+
+            workshopCards.forEach((card) => {
+                const cardTypes = (card.dataset.workshopTypes || '')
+                    .split(/\s+/)
+                    .filter(Boolean);
+
+                const cardModes = (card.dataset.workshopModes || '')
+                    .split(/\s+/)
+                    .filter(Boolean);
+
+                const matchType = activeTypeFilter === 'all' || cardTypes.includes(activeTypeFilter);
+                const matchMode = activeModeFilter === 'all' || cardModes.includes(activeModeFilter);
+                const shouldShow = matchType && matchMode;
+
+                card.classList.toggle('hidden', !shouldShow);
+
+                if (shouldShow) {
+                    visibleCount++;
+                }
+            });
+
+            if (filterEmptyState) {
+                filterEmptyState.classList.toggle('hidden', visibleCount > 0);
+            }
+
+            syncActiveButtons(typeButtons, 'workshopTypeFilter', activeTypeFilter);
+            syncActiveButtons(modeButtons, 'workshopModeFilter', activeModeFilter);
+        };
+
+        typeButtons.forEach((button) => {
+            button.addEventListener('click', function () {
+                activeTypeFilter = this.dataset.workshopTypeFilter || 'all';
+                applyWorkshopFilters();
+            });
+        });
+
+        modeButtons.forEach((button) => {
+            button.addEventListener('click', function () {
+                activeModeFilter = this.dataset.workshopModeFilter || 'all';
+                applyWorkshopFilters();
+            });
+        });
+
+        applyWorkshopFilters();
     });
 
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
