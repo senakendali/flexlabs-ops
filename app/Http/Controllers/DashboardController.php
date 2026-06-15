@@ -614,9 +614,16 @@ class DashboardController extends Controller
         $topSource = null;
         $topSourceTotal = 0;
         if ($sourceColumn) {
-            $source = DB::table($table)
-                ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name, COUNT(*) as total')
-                ->groupByRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown")')
+            // MySQL dengan ONLY_FULL_GROUP_BY kadang menolak GROUP BY expression
+            // ketika kolom asli tetap dibaca di SELECT. Supaya aman, normalisasi source
+            // di subquery dulu, lalu GROUP BY alias `source_name`.
+            $sourceBaseQuery = DB::table($table)
+                ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name');
+
+            $source = DB::query()
+                ->fromSub($sourceBaseQuery, 'workshop_sources')
+                ->selectRaw('source_name, COUNT(*) as total')
+                ->groupBy('source_name')
                 ->orderByDesc('total')
                 ->first();
 
