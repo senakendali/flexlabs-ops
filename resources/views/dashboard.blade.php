@@ -56,6 +56,14 @@
     $dashboardAiHeadline = (string) ($managementSummary['headline'] ?? 'Management Summary');
     $dashboardAiSummaryText = (string) ($dashboardAiSummaryText ?? ($managementSummary['summary_text'] ?? ''));
     $dashboardAiGeneratedAt = (string) ($managementSummary['generated_at'] ?? now()->format('d M Y H:i'));
+    $dashboardAiSource = (string) ($managementSummary['source'] ?? 'local');
+    $dashboardAiModeLabel = match ($dashboardAiSource) {
+        'gemini' => 'Gemini Summary',
+        'local_fallback' => 'Local Fallback',
+        default => 'Local Summary',
+    };
+    $dashboardGeminiDebug = collect($managementSummary['debug'] ?? []);
+    $showGeminiDebug = (bool) config('services.gemini.debug', false) && $dashboardGeminiDebug->isNotEmpty();
     $dashboardAiFocusItems = collect($managementSummary['focus'] ?? ($managementSummary['items'] ?? []))
         ->take(3)
         ->values();
@@ -875,8 +883,52 @@
                 <i class="bi bi-clock-history"></i>
                 Updated {{ $dashboardAiGeneratedAt }}
             </span>
-            <span class="ai-dashboard-mode">Local Summary</span>
+            <span class="ai-dashboard-mode ai-source-{{ str_replace('_', '-', $dashboardAiSource) }}">{{ $dashboardAiModeLabel }}</span>
         </div>
+
+        @if($showGeminiDebug)
+            <details class="ai-dashboard-debug">
+                <summary>
+                    <i class="bi bi-bug"></i>
+                    Gemini Debug Response
+                </summary>
+
+                <div class="ai-dashboard-debug-grid">
+                    <div>
+                        <span>Source</span>
+                        <strong>{{ $dashboardAiSource }}</strong>
+                    </div>
+                    <div>
+                        <span>Status</span>
+                        <strong>{{ $dashboardGeminiDebug->get('http_status', '-') }}</strong>
+                    </div>
+                    <div>
+                        <span>Model</span>
+                        <strong>{{ $dashboardGeminiDebug->get('model', config('services.gemini.model', '-')) }}</strong>
+                    </div>
+                </div>
+
+                @if(filled($dashboardGeminiDebug->get('reason')))
+                    <div class="ai-dashboard-debug-alert">
+                        {{ $dashboardGeminiDebug->get('reason') }}
+                    </div>
+                @endif
+
+                @if(filled($dashboardGeminiDebug->get('error')))
+                    <div class="ai-dashboard-debug-error">
+                        {{ $dashboardGeminiDebug->get('error') }}
+                    </div>
+                @endif
+
+                @if(filled($dashboardGeminiDebug->get('response_text')))
+                    <div class="ai-dashboard-debug-title">Parsed Gemini Text</div>
+                    <pre>{{ $dashboardGeminiDebug->get('response_text') }}</pre>
+                @elseif(filled($dashboardGeminiDebug->get('response_body')))
+                    <div class="ai-dashboard-debug-title">Raw Gemini Body</div>
+                    <pre>{{ $dashboardGeminiDebug->get('response_body') }}</pre>
+                @endif
+            </details>
+        @endif
     </div>
 
     <button type="button" class="ai-dashboard-robot" id="aiDashboardRobot" aria-label="Toggle AI summary">
@@ -1124,6 +1176,111 @@
     white-space: nowrap;
 }
 
+.ai-dashboard-mode.ai-source-gemini {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.ai-dashboard-mode.ai-source-local-fallback {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.ai-dashboard-debug {
+    margin-top: 10px;
+    border: 1px dashed rgba(91, 62, 142, 0.22);
+    border-radius: 14px;
+    background: #faf7ff;
+    padding: 9px 10px;
+}
+
+.ai-dashboard-debug summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #5B3E8E;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ai-dashboard-debug summary::-webkit-details-marker {
+    display: none;
+}
+
+.ai-dashboard-debug-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.ai-dashboard-debug-grid div {
+    background: #ffffff;
+    border: 1px solid rgba(91, 62, 142, 0.12);
+    border-radius: 10px;
+    padding: 7px 8px;
+    min-width: 0;
+}
+
+.ai-dashboard-debug-grid span {
+    display: block;
+    font-size: 10px;
+    color: #9ca3af;
+    margin-bottom: 2px;
+}
+
+.ai-dashboard-debug-grid strong {
+    display: block;
+    font-size: 11.5px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-dashboard-debug-alert,
+.ai-dashboard-debug-error {
+    margin-top: 8px;
+    border-radius: 10px;
+    padding: 8px 9px;
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.ai-dashboard-debug-alert {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.ai-dashboard-debug-error {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.ai-dashboard-debug-title {
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #5B3E8E;
+}
+
+.ai-dashboard-debug pre {
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #111827;
+    color: #d1d5db;
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+}
+
 .ai-dashboard-close {
     position: absolute;
     top: 11px;
@@ -1238,6 +1395,10 @@
         align-items: flex-start;
         flex-direction: column;
         gap: 7px;
+    }
+
+    .ai-dashboard-debug-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>

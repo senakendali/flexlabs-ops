@@ -10,10 +10,11 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use App\Services\GeminiDashboardSummaryService;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(GeminiDashboardSummaryService $geminiDashboardSummaryService): View
     {
         $academicStats = $this->getAcademicStats();
         $batchCapacity = $this->getBatchCapacitySummary();
@@ -34,7 +35,7 @@ class DashboardController extends Controller
         $workshopFollowUpProgress = $this->getWorkshopFollowUpProgress();
         $upcomingWorkshopSchedules = $this->getUpcomingWorkshopSchedules();
 
-        $managementSummary = $this->getManagementSummary([
+        $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
             'revenue_chart' => $revenueChart,
@@ -50,7 +51,10 @@ class DashboardController extends Controller
             'workshop_status_counts' => $workshopParticipantStatusCounts,
             'workshop_follow_up_progress' => $workshopFollowUpProgress,
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
-        ]);
+        ];
+
+        $localManagementSummary = $this->getManagementSummary($summaryContext);
+        $managementSummary = $geminiDashboardSummaryService->summarize($summaryContext, $localManagementSummary);
 
         return view('dashboard', [
             'academicStats' => $academicStats,
