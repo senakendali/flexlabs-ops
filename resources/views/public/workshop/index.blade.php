@@ -519,15 +519,15 @@
                             @if ($hasOnline || $hasOffline)
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     @if ($hasOnline)
-                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
-                                            <i class="bi bi-camera-video-fill text-xs"></i>
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white shadow-[0_10px_24px_rgba(37,99,235,0.24)]">
+                                            <i class="bi bi-camera-video-fill text-xs text-white"></i>
                                             Online
                                         </span>
                                     @endif
 
                                     @if ($hasOffline)
-                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-flex-primary/15 bg-flex-primary/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-flex-primary">
-                                            <i class="bi bi-geo-alt-fill text-xs"></i>
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500 bg-amber-400 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-slate-950 shadow-[0_10px_24px_rgba(245,158,11,0.26)]">
+                                            <i class="bi bi-geo-alt-fill text-xs text-slate-950"></i>
                                             Offline
                                         </span>
                                     @endif
