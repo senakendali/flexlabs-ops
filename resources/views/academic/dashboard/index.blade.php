@@ -1013,7 +1013,7 @@
                 </p>
             </div>
 
-            <a href="{{ $routeHref('academic/student-progress') }}" class="btn btn-sm btn-light btn-modern border">
+            <a href="{{ url('academic/student-progress') }}" class="btn btn-sm btn-light btn-modern border">
                 View Progress
             </a>
         </div>
