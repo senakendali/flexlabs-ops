@@ -321,6 +321,80 @@
         </div>
     </div>
 </section>
+
+<section class="relative overflow-hidden bg-white py-16 lg:py-20" id="workshop-cta">
+    <div class="mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10">
+        <div class="relative overflow-hidden rounded-[2.25rem] border border-[#6f4aa9] bg-[#5B3E8E] px-6 py-8 shadow-[0_28px_80px_rgba(91,62,142,0.26)] sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+            <div class="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.55)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.55)_1px,transparent_1px)] [background-size:40px_40px]"></div>
+            <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,190,4,0.18),transparent_24%)]"></div>
+
+            <div class="relative grid items-center gap-10 lg:grid-cols-12">
+                <div class="lg:col-span-7">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur">
+                        <i class="bi bi-lightning-charge-fill text-[#FFBE04]"></i>
+                        Next Step
+                    </span>
+
+                    <h2 class="mt-5 max-w-3xl text-3xl font-black leading-[1.05] tracking-[-0.05em] text-white sm:text-4xl lg:text-5xl">
+                        Sudah dapat gambaran dari webinar?
+                        Lanjut praktik lewat workshop.
+                    </h2>
+
+                    <p class="mt-5 max-w-2xl text-base font-medium leading-8 text-white/90 sm:text-lg">
+                        Setelah mengenal topiknya di webinar, kamu bisa lanjut ke workshop FlexLabs untuk belajar lebih praktis, mencoba alur kerja nyata, dan membangun output yang bisa langsung dipahami.
+                    </p>
+
+                    <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-2xl border border-white/12 bg-white/10 p-4 backdrop-blur">
+                            <div class="text-sm font-black text-white">Lebih praktis</div>
+                            <div class="mt-1 text-sm font-medium leading-6 text-white/80">Belajar lewat studi kasus dan alur kerja yang lebih nyata.</div>
+                        </div>
+                        <div class="rounded-2xl border border-white/12 bg-white/10 p-4 backdrop-blur">
+                            <div class="text-sm font-black text-white">Output jelas</div>
+                            <div class="mt-1 text-sm font-medium leading-6 text-white/80">Peserta diarahkan untuk memahami hasil yang bisa dibuat.</div>
+                        </div>
+                        <div class="rounded-2xl border border-white/12 bg-white/10 p-4 backdrop-blur">
+                            <div class="text-sm font-black text-white">Step berikutnya</div>
+                            <div class="mt-1 text-sm font-medium leading-6 text-white/80">Cocok setelah webinar untuk mulai belajar lebih serius.</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <a href="https://workshop.flexlabs.co.id" class="inline-flex items-center justify-center gap-2 rounded-full bg-[#FFBE04] px-7 py-4 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(255,190,4,0.24)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#ffd15a]">
+                            <span>Lihat Workshop FlexLabs</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+
+                        <a href="#webinar-list" class="inline-flex items-center justify-center gap-2 rounded-full border border-white/16 bg-white/10 px-7 py-4 text-sm font-black text-white backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:bg-white/15">
+                            <span>Tetap lihat webinar</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-5">
+                    <div class="relative mx-auto max-w-md">
+                        <div class="absolute -inset-4 rounded-[2.25rem] bg-white/10 blur-2xl"></div>
+                        <div class="relative overflow-hidden rounded-[2rem] border border-white/14 bg-white/8 p-3 shadow-[0_24px_65px_rgba(31,18,57,0.35)] backdrop-blur">
+                            <img
+                                src="{{ asset('images/hero-workshop.png') }}"
+                                alt="Workshop FlexLabs"
+                                class="h-auto w-full rounded-[1.5rem] object-cover"
+                                onerror="this.onerror=null;this.src='{{ asset('images/triall-hero.png') }}';"
+                            >
+
+                            
+                        </div>
+
+                        <div class="absolute -right-4 -top-4 hidden rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#5B3E8E] shadow-[0_16px_40px_rgba(15,23,42,0.16)] sm:block">
+                            <i class="bi bi-stars text-[#FFBE04]"></i>
+                            Ready to Build
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 @endsection
 
 @push('styles')
