@@ -10,11 +10,11 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
-use App\Services\GeminiDashboardSummaryService;
+use App\Services\LocalDashboardInsightService;
 
 class DashboardController extends Controller
 {
-    public function index(GeminiDashboardSummaryService $geminiDashboardSummaryService): View
+    public function index(LocalDashboardInsightService $localDashboardInsightService): View
     {
         $academicStats = $this->getAcademicStats();
         $batchCapacity = $this->getBatchCapacitySummary();
@@ -53,8 +53,7 @@ class DashboardController extends Controller
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
         ];
 
-        $localManagementSummary = $this->getManagementSummary($summaryContext);
-        $managementSummary = $geminiDashboardSummaryService->summarize($summaryContext, $localManagementSummary);
+        $managementSummary = $localDashboardInsightService->generate($summaryContext);
 
         return view('dashboard', [
             'academicStats' => $academicStats,
@@ -68,7 +67,7 @@ class DashboardController extends Controller
             'trialFollowUpProgress' => $trialFollowUpProgress,
             'salesInsight' => $salesInsight,
 
-            // Data tambahan untuk bubble AI lokal / management insight.
+            // Data tambahan untuk reusable insight widget / management insight lokal.
             'financeInsight' => $financeInsight,
             'orderInsight' => $orderInsight,
             'workshopInsight' => $workshopInsight,
