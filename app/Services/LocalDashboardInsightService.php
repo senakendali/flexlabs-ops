@@ -104,7 +104,7 @@ class LocalDashboardInsightService
                 'good',
                 'Kabar bagus, payment baru masuk hari ini',
                 $this->pick('finance_payment_today', [
-                    'Mantap, ada payment baru yang terkonfirmasi hari ini. Ini sinyal positif karena revenue sedang bergerak, dan momentum follow-up perlu dijaga supaya pipeline berikutnya ikut terbentuk.',
+                    'Mantap, ada payment baru yang terkonfirmasi hari ini. Ini sinyal positif karena revenue sedang bergerak, dan momentum follow-up perlu dijaga supaya peluang berikutnya ikut terbentuk.',
                     'Good news, hari ini sudah ada pembayaran masuk. Tim bisa menjaga momentum ini dengan mengecek leads hangat, order yang masih berjalan, dan follow-up calon peserta.',
                     'Kabar baik, payment hari ini sudah terkonfirmasi. Ini menunjukkan funnel dari minat ke pembayaran berjalan, tinggal dorong peluang terdekat agar cashflow makin stabil.',
                     'Nice, pemasukan baru sudah masuk hari ini. Momentum ini bisa dipakai untuk memperkuat follow-up calon peserta yang sudah dekat ke tahap pembayaran.',
@@ -120,7 +120,7 @@ class LocalDashboardInsightService
                     'Bulan ini sudah ada pembayaran terkonfirmasi, namun belum ada payment baru dalam beberapa hari terakhir. Fokusnya adalah mendorong peluang berikutnya agar revenue bulan ini terus bertambah.',
                     'Revenue bulan ini sudah tercatat, namun beberapa hari terakhir belum ada payment baru. Tim perlu kembali mendorong leads hangat, order pending, dan reminder pembayaran.',
                     'Pemasukan bulan ini sudah ada, tapi momentumnya mulai perlu dijaga karena belum ada payment baru dalam beberapa hari terakhir.',
-                    'Payment bulan ini sudah pernah masuk, namun pipeline berikutnya tetap perlu dikawal agar performa bulan berjalan tidak berhenti di satu transaksi.',
+                    'Payment bulan ini sudah pernah masuk, namun follow-up peluang berikutnya tetap perlu dikawal agar performa bulan berjalan tidak berhenti di satu transaksi.',
                 ]),
                 870,
                 ['metric' => $this->money($revenueThisMonth), 'amount' => $revenueThisMonth, 'days_since_last_payment' => $daysSinceLastPayment]
@@ -132,7 +132,7 @@ class LocalDashboardInsightService
                 $this->pick('finance_payment_month_needs_momentum', [
                     'Pembayaran bulan ini sudah tercatat, tapi belum ada payment baru dalam beberapa hari terakhir. Momentum follow-up tetap perlu dijaga.',
                     'Revenue bulan berjalan sudah ada, namun tim tetap perlu mendorong peluang berikutnya agar pemasukan tidak berhenti terlalu lama.',
-                    'Payment bulan ini sudah masuk, tapi pipeline berikutnya tetap perlu dikawal supaya revenue bisa bertambah lebih konsisten.',
+                    'Payment bulan ini sudah masuk, tapi follow-up peluang berikutnya tetap perlu dikawal supaya revenue bisa bertambah lebih konsisten.',
                 ]),
                 720,
                 ['metric' => $this->money($revenueThisMonth), 'amount' => $revenueThisMonth, 'days_since_last_payment' => $daysSinceLastPayment]
@@ -312,7 +312,7 @@ class LocalDashboardInsightService
                 $this->pick('sales_interaction_no_payment', [
                     'Leads dan interaksi sudah berjalan, tapi belum ada payment terkonfirmasi. Fokus perlu diarahkan ke consultation, handling objection, dan follow-up closing.',
                     'Sales funnel mulai bergerak dari sisi interaksi, namun belum berubah menjadi pembayaran. Tim perlu mendorong leads paling hangat sampai tahap payment.',
-                    'Interaksi sudah ada, tapi revenue belum terbentuk. Prioritasnya adalah memperjelas offer, deadline, dan next action untuk calon peserta.',
+                    'Interaksi sudah ada, tapi revenue belum terbentuk. Prioritasnya adalah memperjelas offer, deadline, dan langkah lanjutan untuk calon peserta.',
                 ]),
                 920,
                 ['metric' => number_format($interactedThisMonth) . ' interaksi']
@@ -337,7 +337,7 @@ class LocalDashboardInsightService
                 'Hot leads perlu segera dikonversi',
                 $this->pick('sales_hot_leads', [
                     'Hot leads sudah ada, tapi payment belum masuk. Follow-up personal dan penawaran yang lebih jelas perlu diprioritaskan.',
-                    'Ada hot leads yang bisa diprioritaskan. Karena belum ada payment, tim sales perlu memperjelas next step dan urgensi keputusan.',
+                    'Ada hot leads yang bisa diprioritaskan. Karena belum ada payment, tim sales perlu memperjelas langkah berikutnya dan urgensi keputusan.',
                     'Hot leads bulan ini menjadi peluang paling dekat untuk revenue. Prioritaskan komunikasi yang membantu mereka mengambil keputusan.',
                 ]),
                 780,
@@ -766,8 +766,8 @@ class LocalDashboardInsightService
 
         if ($revenueThisMonth > 0 && $revenueToday <= 0 && $daysSinceLastPayment !== null && $daysSinceLastPayment >= 7) {
             return $this->pick('headline_payment_stale', [
-                'Revenue bulan ini tercatat, pipeline perlu dijaga',
-                'Revenue sudah ada, pipeline berikutnya perlu dijaga',
+                'Revenue bulan ini sudah tercatat',
+                'Revenue bulan ini sudah tercatat',
                 'Pemasukan bulan ini ada, follow-up berikutnya perlu dipercepat',
             ]);
         }
@@ -799,7 +799,7 @@ class LocalDashboardInsightService
         if ($pendingPaymentCount > 0 || $workshopPending > 0) {
             return $this->pick('headline_pending_without_revenue', [
                 'Ada payment pending yang perlu ditindaklanjuti',
-                'Revenue belum masuk, payment pending perlu difollow-up',
+                'Revenue belum masuk, payment pending perlu mendapat follow-up',
                 'Peluang revenue masih tertahan di payment pending',
             ]);
         }
@@ -874,14 +874,14 @@ class LocalDashboardInsightService
             $sentences[] = $this->pick('summary_open_payment_month_stale', [
                 'Revenue bulan ini sudah tercatat, namun belum ada payment baru dalam sekitar ' . number_format($daysSinceLastPayment) . ' hari terakhir.',
                 'Pemasukan bulan ini memang sudah ada, namun belum ada payment baru dalam sekitar ' . number_format($daysSinceLastPayment) . ' hari terakhir.',
-                'Revenue bulan ini sudah tercatat, namun belum ada pemasukan baru dalam beberapa hari terakhir sehingga pipeline perlu dikawal lagi.',
-                'Bulan ini sudah ada revenue, namun ritme pipeline tetap perlu dijaga agar pemasukan tidak melambat.',
+                'Revenue bulan ini sudah tercatat, namun belum ada pemasukan baru dalam beberapa hari terakhir. Agar momentum tetap terjaga, tim perlu melanjutkan follow-up leads, trial, dan workshop yang masih berpotensi menjadi pembayaran.',
+                'Bulan ini sudah ada revenue, namun ritme follow-up peluang berikutnya tetap perlu dijaga agar pemasukan tidak melambat.',
             ]);
         } elseif (($revenueThisMonth > 0 || $paidThisMonth > 0) && $daysSinceLastPayment !== null && $daysSinceLastPayment >= 4) {
             $sentences[] = $this->pick('summary_open_payment_month_needs_momentum', [
                 'Pembayaran bulan ini sudah tercatat, tapi belum ada payment baru dalam beberapa hari terakhir.',
-                'Revenue bulan ini sudah mulai terbentuk, namun pipeline berikutnya tetap perlu dikawal.',
-                'Pemasukan bulan berjalan sudah ada, tapi pipeline berikutnya masih perlu dikawal supaya revenue terus bertambah.',
+                'Revenue bulan ini sudah tercatat. Agar momentum tetap terjaga, tim perlu melanjutkan follow-up leads, trial, dan workshop yang masih berpotensi menjadi pembayaran.',
+                'Pemasukan bulan berjalan sudah ada, tapi follow-up peluang berikutnya masih perlu dikawal supaya revenue terus bertambah.',
             ]);
         } elseif ($revenueThisMonth > 0 || $paidThisMonth > 0) {
             $sentences[] = $this->pick('summary_open_payment_month', [
@@ -926,8 +926,8 @@ class LocalDashboardInsightService
             ]);
         } elseif ($revenueThisMonth > 0) {
             $sentences[] = $this->pick('summary_payment_clean', [
-                'Sejauh ini tidak ada sinyal besar dari sisi overdue atau pending payment, jadi tim bisa fokus menjaga pipeline dan peluang baru.',
-                'Dari sisi payment, kondisi terlihat lebih rapi; fokus berikutnya adalah menjaga pipeline agar pemasukan tetap berlanjut.',
+                'Sejauh ini tidak ada sinyal besar dari sisi overdue atau pending payment. Tim bisa fokus melanjutkan follow-up leads, trial, dan workshop yang masih berpotensi menjadi pembayaran.',
+                'Dari sisi payment, kondisi terlihat lebih rapi. Fokus berikutnya adalah menjaga follow-up peluang aktif agar pemasukan tetap berlanjut.',
                 'Karena revenue sudah mulai masuk, langkah berikutnya adalah menjaga ritme follow-up agar peluang baru tetap bergerak.',
             ]);
         }
@@ -980,17 +980,17 @@ class LocalDashboardInsightService
             $sentences[] = $this->pick('summary_action_payment_stale', [
                 'Fokus berikutnya adalah mengaktifkan lagi pipeline dari leads hangat, order yang masih berjalan, dan peserta workshop yang butuh follow-up.',
                 'Prioritas tim adalah menggerakkan lagi momentum revenue dengan follow-up yang lebih spesifik ke peluang paling dekat bayar.',
-                'Action terdekatnya: cek pipeline yang sudah hangat, perjelas next step untuk calon peserta, dan pastikan peluang baru tidak berhenti di tengah jalan.',
+                'Action terdekatnya: cek pipeline yang sudah hangat, perjelas langkah berikutnya untuk calon peserta, dan pastikan peluang baru tidak berhenti di tengah jalan.',
             ]);
         } elseif ($revenueThisMonth > 0) {
             $sentences[] = $this->pick('summary_action_positive', [
-                'Fokus berikutnya adalah menjaga momentum ini dengan follow-up leads aktif, trial yang sudah hangat, dan peserta workshop yang berpotensi lanjut bayar.',
-                'Tim tinggal menjaga ritme follow-up agar pipeline tetap bergerak dan kapasitas program bisa terisi lebih optimal.',
-                'Langkah berikutnya adalah memperkuat pipeline yang sudah hangat agar pemasukan bulan ini terus bertambah.',
-            ]);
+                    'Revenue bulan ini sudah tercatat. Agar momentum tetap terjaga, tim perlu melanjutkan follow-up leads, trial, dan workshop yang masih berpotensi menjadi pembayaran.',
+                    'Pemasukan bulan ini sudah mulai terbentuk. Fokus berikutnya adalah menjaga follow-up calon peserta yang masih punya peluang lanjut ke pembayaran.',
+                    'Tim bisa menjaga momentum dengan melanjutkan follow-up leads aktif, peserta trial, dan peserta workshop yang masih relevan untuk dikonversi.',
+                ]);
         } else {
             $sentences[] = $this->pick('summary_action_no_revenue', [
-                'Fokus berikutnya adalah dorong leads aktif, cek order pending, dan pastikan calon peserta punya next action yang jelas menuju pembayaran.',
+                'Fokus berikutnya adalah dorong leads aktif, cek order pending, dan pastikan calon peserta punya langkah lanjutan yang jelas menuju pembayaran.',
                 'Prioritas terdekat adalah menghidupkan pipeline, mempercepat follow-up, dan memastikan payment reminder berjalan konsisten.',
                 'Action utama saat ini adalah membuka peluang baru sekaligus mengubah prospek hangat menjadi payment paid.',
             ]);
@@ -1009,15 +1009,15 @@ class LocalDashboardInsightService
             $message = (string) ($item['message'] ?? '');
 
             if (str_contains($title, 'payment baru') || str_contains($title, 'payment bulan ini')) {
-                $focus[] = $this->focusItem($type, 'Jaga momentum payment', 'Follow-up leads hangat dan peluang aktif supaya pemasukan berikutnya bisa terbentuk.');
+                $focus[] = $this->focusItem($type, 'Jaga momentum revenue', 'Follow-up leads hangat dan peluang aktif supaya pemasukan berikutnya bisa terbentuk.');
             } elseif (str_contains($title, 'pemasukan') || str_contains($title, 'revenue')) {
                 $focus[] = $this->focusItem($type, 'Prioritaskan peluang revenue', 'Cek leads aktif, order pending, dan invoice yang paling dekat menjadi paid.');
             } elseif (str_contains($title, 'pending')) {
-                $focus[] = $this->focusItem($type, 'Kejar payment pending', 'Pastikan payment link, reminder, dan bantuan pembayaran sudah diterima calon peserta.');
+                $focus[] = $this->focusItem($type, 'Tindaklanjuti payment pending', 'Pastikan payment link, reminder, dan bantuan pembayaran sudah diterima calon peserta.');
             } elseif (str_contains($title, 'overdue')) {
                 $focus[] = $this->focusItem($type, 'Validasi overdue payment', 'Cek apakah payment benar belum dibayar atau status pembayaran belum tersinkron.');
             } elseif (str_contains($title, 'leads') || str_contains($title, 'interaksi') || str_contains($title, 'hot leads') || str_contains($title, 'consultation')) {
-                $focus[] = $this->focusItem($type, 'Perkuat follow-up sales', 'Prioritaskan leads yang sudah hangat dan pastikan next action menuju payment jelas.');
+                $focus[] = $this->focusItem($type, 'Perkuat follow-up sales', 'Prioritaskan leads yang sudah hangat dan pastikan langkah lanjutan menuju payment jelas.');
             } elseif (str_contains($title, 'trial')) {
                 $focus[] = $this->focusItem($type, 'Percepat follow-up trial', 'Dorong peserta trial dari registered ke contacted, confirmed, attended, lalu program.');
             } elseif (str_contains($title, 'workshop')) {
