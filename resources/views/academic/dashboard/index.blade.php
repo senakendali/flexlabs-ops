@@ -1142,36 +1142,7 @@
         </div>
     </div>
 
-    <div class="content-card mb-4">
-        <div class="content-card-header">
-            <div>
-                <h5 class="content-card-title mb-1">Suggested Academic Focus</h5>
-                <p class="content-card-subtitle mb-0">
-                    Prioritas follow-up akademik berdasarkan kondisi dashboard.
-                </p>
-            </div>
-
-            <a href="{{ $routeHref('assignments.index') }}" class="btn btn-sm btn-light btn-modern border">
-                View Workload
-            </a>
-        </div>
-
-        <div class="content-card-body">
-            <div class="trial-progress-card">
-                <div class="d-flex align-items-start gap-3">
-                    <div class="stat-icon-wrap flex-shrink-0">
-                        <i class="bi bi-bullseye"></i>
-                    </div>
-                    <div>
-                        <div class="fw-bold text-dark mb-1">Suggested Focus</div>
-                        <div class="text-muted">
-                            {{ $suggestedFocus }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+   
 
 
 
