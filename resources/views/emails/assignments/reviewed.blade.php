@@ -71,7 +71,7 @@
     </table>
 
     <p style="margin:28px 0; text-align:center;">
-        <a href="{{ $actionUrl }}"
+        <a href="{{ $actionUrl ?? 'https://mycourse.flexlabs.co.id/' }}"
            style="display:inline-block; background:#5B3E8E; color:#ffffff; text-decoration:none; padding:14px 24px; border-radius:999px; font-weight:bold; font-size:15px;">
             Buka LMS FlexLabs
         </a>

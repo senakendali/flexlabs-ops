@@ -7,9 +7,11 @@ use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
 use App\Models\Batch;
 use App\Models\BatchAssignment;
+use App\Notifications\AssignmentSubmissionReviewedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -27,7 +29,7 @@ class AssignmentSubmissionController extends Controller
 
         $submissions = AssignmentSubmission::query()
             ->with([
-                'student:id,full_name,email,phone',
+                'student:id,full_name,email,phone,status',
                 'assignment:id,title,assignment_type,max_score',
                 'batch:id,program_id,name,start_date,end_date,status',
                 'batch.program:id,name',
@@ -138,12 +140,15 @@ class AssignmentSubmissionController extends Controller
                     'required',
                     'numeric',
                     'min:0',
-                    'max:100',
                 ],
                 'feedback' => [
-                    'nullable',
+                    'required',
                     'string',
+                    'max:5000',
                 ],
+            ], [
+                'feedback.required' => 'Notes dari instructor wajib diisi saat submission direview.',
+                'feedback.max' => 'Notes dari instructor maksimal 5000 karakter.',
             ]);
 
             $maxScore = $this->resolveMaxScore($assignmentSubmission);
@@ -157,19 +162,26 @@ class AssignmentSubmissionController extends Controller
             DB::transaction(function () use ($assignmentSubmission, $validated) {
                 $assignmentSubmission->update([
                     'score' => $validated['score'],
-                    'feedback' => $validated['feedback'] ?? null,
+                    'feedback' => $validated['feedback'],
                     'status' => 'reviewed',
                     'reviewed_at' => now(),
                     'reviewed_by' => auth()->id(),
                 ]);
             });
 
+            $assignmentSubmission->refresh();
+
+            $notificationSent = $this->sendSubmissionReviewedNotification($assignmentSubmission);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Submission berhasil direview.',
+                'message' => $notificationSent
+                    ? 'Submission berhasil direview dan email notifikasi sudah dikirim ke student.'
+                    : 'Submission berhasil direview, tetapi email notifikasi belum terkirim. Cek log Laravel untuk detailnya.',
                 'data' => [
                     'id' => $assignmentSubmission->id,
                     'status' => 'reviewed',
+                    'notification_sent' => $notificationSent,
                 ],
             ]);
         } catch (ValidationException $e) {
@@ -186,9 +198,11 @@ class AssignmentSubmissionController extends Controller
                 'feedback' => [
                     'required',
                     'string',
+                    'max:5000',
                 ],
             ], [
                 'feedback.required' => 'Feedback wajib diisi saat mengembalikan submission.',
+                'feedback.max' => 'Feedback maksimal 5000 karakter.',
             ]);
 
             DB::transaction(function () use ($assignmentSubmission, $validated) {
@@ -229,6 +243,8 @@ class AssignmentSubmissionController extends Controller
                 $assignmentSubmission->update([
                     'status' => $validated['status'],
                     'submitted_at' => $assignmentSubmission->submitted_at ?? now(),
+                    'score' => null,
+                    'feedback' => null,
                     'reviewed_at' => null,
                     'reviewed_by' => null,
                 ]);
@@ -265,6 +281,70 @@ class AssignmentSubmissionController extends Controller
         }
     }
 
+    private function sendSubmissionReviewedNotification(AssignmentSubmission $assignmentSubmission): bool
+    {
+        $assignmentSubmission->loadMissing([
+            'student:id,full_name,email',
+            'assignment:id,title,assignment_type,max_score',
+            'batch:id,program_id,name',
+            'batch.program:id,name',
+            'batchAssignment:id,assignment_id,batch_id,max_score,due_at,status,is_active',
+            'batchAssignment.assignment:id,title,assignment_type,max_score',
+            'reviewedBy:id,name',
+        ]);
+
+        if ($assignmentSubmission->status !== 'reviewed') {
+            Log::info('Assignment review notification skipped because submission is not reviewed.', [
+                'assignment_submission_id' => $assignmentSubmission->id,
+                'status' => $assignmentSubmission->status,
+            ]);
+
+            return false;
+        }
+
+        if (blank($assignmentSubmission->feedback)) {
+            Log::info('Assignment review notification skipped because instructor notes are empty.', [
+                'assignment_submission_id' => $assignmentSubmission->id,
+            ]);
+
+            return false;
+        }
+
+        $student = $assignmentSubmission->student;
+
+        if (! $student || blank($student->email)) {
+            Log::warning('Assignment review notification skipped because student email is missing.', [
+                'assignment_submission_id' => $assignmentSubmission->id,
+                'student_id' => $student->id ?? null,
+            ]);
+
+            return false;
+        }
+
+        try {
+            $student->notify(new AssignmentSubmissionReviewedNotification($assignmentSubmission));
+
+            Log::info('Assignment review notification sent.', [
+                'assignment_submission_id' => $assignmentSubmission->id,
+                'student_id' => $student->id,
+                'student_email' => $student->email,
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Failed to send assignment submission reviewed notification.', [
+                'assignment_submission_id' => $assignmentSubmission->id,
+                'assignment_id' => $assignmentSubmission->assignment_id,
+                'batch_assignment_id' => $assignmentSubmission->batch_assignment_id,
+                'student_id' => $student->id ?? null,
+                'student_email' => $student->email ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
     private function resolveMaxScore(AssignmentSubmission $assignmentSubmission): int|float
     {
         $assignmentSubmission->loadMissing([
@@ -292,6 +372,11 @@ class AssignmentSubmissionController extends Controller
 
     private function errorResponse(string $message, Throwable $e): JsonResponse
     {
+        Log::error($message, [
+            'error' => $e->getMessage(),
+            'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+        ]);
+
         return response()->json([
             'success' => false,
             'message' => $message,
