@@ -30,6 +30,10 @@
     $widgetTitle = (string) ($title ?: 'AI Insight');
     $widgetHeadline = (string) ($headline ?? ($insightData['headline'] ?? 'Insight Summary'));
     $widgetSummary = trim((string) ($summary ?? ($insightData['summary_text'] ?? 'Insight belum tersedia untuk halaman ini.')));
+    $widgetSummaryParagraphs = collect(preg_split('/\R{2,}/', $widgetSummary) ?: [])
+        ->map(fn ($paragraph) => trim((string) $paragraph))
+        ->filter()
+        ->values();
     $sourceLabel = trim((string) ($source ?? ($insightData['source_label'] ?? 'Smart Local Insight')));
     $generatedAt = trim((string) ($insightData['generated_at'] ?? ''));
 
@@ -77,9 +81,13 @@
             </div>
         @endif
 
-        <div class="ai-insight-text">
-            {{ $widgetSummary }}
-        </div>
+        @if($widgetSummaryParagraphs->isNotEmpty())
+            <div class="ai-insight-text">
+                @foreach($widgetSummaryParagraphs as $paragraph)
+                    <p>{{ $paragraph }}</p>
+                @endforeach
+            </div>
+        @endif
 
         @if($displayItems->isNotEmpty())
             <div class="ai-insight-focus-list">
@@ -226,6 +234,17 @@
                 font-size: 14px;
                 line-height: 1.62;
                 color: #374151;
+            }
+
+            .ai-insight-text p {
+                margin: 0;
+                white-space: pre-line;
+            }
+
+            .ai-insight-text p + p {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px dashed rgba(91, 62, 142, 0.14);
             }
 
             .ai-insight-focus-list {
