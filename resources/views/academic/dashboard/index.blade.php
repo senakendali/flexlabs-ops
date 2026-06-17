@@ -730,7 +730,7 @@
                 </p>
             </div>
 
-            <a href="{{ $routeHref('student-mentoring-sessions.index') }}" class="btn btn-sm btn-light btn-modern border">
+            <a href="{{ url('academic/mentoring-sessions') }}" class="btn btn-sm btn-light btn-modern border">
                 View Mentoring
             </a>
         </div>
@@ -1013,7 +1013,7 @@
                 </p>
             </div>
 
-            <a href="{{ $routeHref('student-progress.index') }}" class="btn btn-sm btn-light btn-modern border">
+            <a href="{{ $routeHref('academic/student-progress') }}" class="btn btn-sm btn-light btn-modern border">
                 View Progress
             </a>
         </div>
