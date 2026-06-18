@@ -104,7 +104,9 @@ use App\Http\Controllers\PublicEventLeadController;
 
 if (app()->environment('production')) {
 
-    Route::get('/konsultasi-program', function (Request $request) {
+    Route::get('/konsultasi-program', function () {
+        $request = request();
+
         $message = 'Halo FlexLabs! saya mau tahu lebih lanjut tentang program kalian ya';
 
         $utmParams = collect([
