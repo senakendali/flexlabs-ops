@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Academic;
 use App\Http\Controllers\Controller;
 use App\Models\InstructorAvailabilitySlot;
 use App\Models\StudentMentoringSession;
+use App\Notifications\MentoringSessionApprovedNotification;
+use App\Notifications\MentoringSessionRejectedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 class StudentMentoringSessionController extends Controller
 {
@@ -106,16 +110,17 @@ class StudentMentoringSessionController extends Controller
             ], 422);
         }
 
-        return DB::transaction(function () use ($studentMentoringSession, $validated) {
+        $result = DB::transaction(function () use ($studentMentoringSession, $validated) {
             $studentMentoringSession->load('availabilitySlot');
 
             $slot = $studentMentoringSession->availabilitySlot;
 
             if (!$slot) {
-                return response()->json([
+                return [
                     'success' => false,
                     'message' => 'Availability slot tidak ditemukan.',
-                ], 422);
+                    'status_code' => 422,
+                ];
             }
 
             /**
@@ -132,18 +137,37 @@ class StudentMentoringSessionController extends Controller
                 'cancelled_at' => null,
             ]);
 
-            return response()->json([
+            return [
                 'success' => true,
                 'message' => 'Mentoring session berhasil di-approve.',
-                'data' => $this->formatSessionResponse(
-                    $studentMentoringSession->fresh()->load([
-                        'student',
-                        'instructor',
-                        'availabilitySlot',
-                    ])
-                ),
-            ]);
+                'status_code' => 200,
+            ];
         });
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+            ], $result['status_code']);
+        }
+
+        $session = $studentMentoringSession->fresh()->load([
+            'student',
+            'instructor',
+            'availabilitySlot',
+        ]);
+
+        $notificationSent = $this->sendMentoringSessionStatusNotification($session, 'approved');
+
+        return response()->json([
+            'success' => true,
+            'message' => $notificationSent
+                ? 'Mentoring session berhasil di-approve. Email notifikasi dikirim ke student.'
+                : 'Mentoring session berhasil di-approve, tetapi email notifikasi belum terkirim.',
+            'data' => array_merge($this->formatSessionResponse($session), [
+                'notification_sent' => $notificationSent,
+            ]),
+        ]);
     }
 
     public function reject(Request $request, StudentMentoringSession $studentMentoringSession): JsonResponse
@@ -159,7 +183,7 @@ class StudentMentoringSessionController extends Controller
             ], 422);
         }
 
-        return DB::transaction(function () use ($studentMentoringSession, $validated) {
+        DB::transaction(function () use ($studentMentoringSession, $validated) {
             $studentMentoringSession->load('availabilitySlot');
 
             /**
@@ -180,19 +204,25 @@ class StudentMentoringSessionController extends Controller
                 'notes' => $notes,
                 'cancelled_at' => now(),
             ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Mentoring session berhasil direject.',
-                'data' => $this->formatSessionResponse(
-                    $studentMentoringSession->fresh()->load([
-                        'student',
-                        'instructor',
-                        'availabilitySlot',
-                    ])
-                ),
-            ]);
         });
+
+        $session = $studentMentoringSession->fresh()->load([
+            'student',
+            'instructor',
+            'availabilitySlot',
+        ]);
+
+        $notificationSent = $this->sendMentoringSessionStatusNotification($session, 'rejected');
+
+        return response()->json([
+            'success' => true,
+            'message' => $notificationSent
+                ? 'Mentoring session berhasil direject. Email notifikasi dikirim ke student.'
+                : 'Mentoring session berhasil direject, tetapi email notifikasi belum terkirim.',
+            'data' => array_merge($this->formatSessionResponse($session), [
+                'notification_sent' => $notificationSent,
+            ]),
+        ]);
     }
 
     public function complete(StudentMentoringSession $studentMentoringSession): JsonResponse
@@ -355,6 +385,65 @@ class StudentMentoringSessionController extends Controller
                 ])
             ),
         ]);
+    }
+
+    private function sendMentoringSessionStatusNotification(StudentMentoringSession $session, string $status): bool
+    {
+        $session->loadMissing([
+            'student',
+            'instructor',
+            'availabilitySlot',
+        ]);
+
+        $student = $session->student;
+
+        if (!$student || blank($student->email)) {
+            Log::warning('Mentoring session notification skipped because student email is missing.', [
+                'mentoring_session_id' => $session->id,
+                'student_id' => $student->id ?? null,
+                'status' => $status,
+            ]);
+
+            return false;
+        }
+
+        $notification = match ($status) {
+            'approved' => new MentoringSessionApprovedNotification($session),
+            'rejected' => new MentoringSessionRejectedNotification($session),
+            default => null,
+        };
+
+        if (!$notification) {
+            Log::warning('Mentoring session notification skipped because status is unsupported.', [
+                'mentoring_session_id' => $session->id,
+                'status' => $status,
+            ]);
+
+            return false;
+        }
+
+        try {
+            $student->notify($notification);
+
+            Log::info('Mentoring session notification sent.', [
+                'mentoring_session_id' => $session->id,
+                'student_id' => $student->id,
+                'student_email' => $student->email,
+                'status' => $status,
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Failed to send mentoring session notification.', [
+                'mentoring_session_id' => $session->id,
+                'student_id' => $student->id ?? null,
+                'student_email' => $student->email ?? null,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     private function formatSessionResponse(StudentMentoringSession $session): array
