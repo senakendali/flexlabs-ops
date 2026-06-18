@@ -103,6 +103,36 @@ use App\Http\Controllers\PublicEventLeadController;
 */
 
 if (app()->environment('production')) {
+
+    Route::get('/konsultasi-program', function (Request $request) {
+        $message = 'Halo FlexLabs! saya mau tahu lebih lanjut tentang program kalian ya';
+
+        $utmParams = collect([
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_content',
+            'utm_term',
+        ])
+            ->map(function (string $key) use ($request) {
+                return $request->filled($key)
+                    ? $key . '=' . $request->query($key)
+                    : null;
+            })
+            ->filter()
+            ->values();
+
+        if ($utmParams->isNotEmpty()) {
+            $message .= "\n\nSumber: " . $utmParams->implode(', ');
+        }
+
+        $whatsappUrl = 'https://wa.me/62811134759?' . http_build_query([
+            'text' => $message,
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return redirect()->away($whatsappUrl, 302);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | Public Workshop - Production Subdomain
