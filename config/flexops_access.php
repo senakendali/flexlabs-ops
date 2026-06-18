@@ -46,6 +46,14 @@ return [
         'academic' => [
             'dashboard.view',
 
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
+
             'academic.view',
             'academic.dashboard.view',
 
@@ -199,6 +207,14 @@ return [
         'marketing' => [
             'dashboard.view',
 
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
+
             'academic.view',
 
             'trial_themes.view',
@@ -270,6 +286,14 @@ return [
 
         'sales' => [
             'dashboard.view',
+
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
 
             'academic.view',
 
@@ -362,6 +386,14 @@ return [
         'finance' => [
             'dashboard.view',
 
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
+
             'academic.view',
 
             'workshops.view',
@@ -407,6 +439,14 @@ return [
         'hr' => [
             'dashboard.view',
 
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
+
             'hr.view',
 
             'instructors.view',
@@ -439,6 +479,14 @@ return [
 
         'instructor' => [
             'dashboard.view',
+
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
             'instructor_tracking.view',
             'instructor_tracking.create',
             'mentoring_sessions.view',
@@ -453,6 +501,14 @@ return [
 
         'student' => [
             'student_portal.view',
+
+            'internal_memos.view',
+            'internal_memos.create',
+            'internal_memos.update',
+            'internal_memos.submit',
+            'internal_memos.approve',
+            'internal_memos.reject',
+            'internal_memos.export',
 
             'equipment.view',
             'equipment_borrowings.view',
@@ -988,6 +1044,14 @@ return [
                 [
                     'title' => 'Meeting & Documents',
                     'items' => [
+                        [
+                            'label' => 'Internal Memo',
+                            'route' => 'internal-memos.index',
+                            'active' => ['internal-memos.*'],
+                            'icon' => 'bi bi-file-earmark-text-fill',
+                            'permission' => 'internal_memos.view',
+                            'missing_label' => 'Internal Memo belum tersedia',
+                        ],
                         [
                             'label' => 'Meeting Minutes / MOM',
                             'route' => 'operation.meeting-minutes.index',
