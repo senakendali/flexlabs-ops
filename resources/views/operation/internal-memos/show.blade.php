@@ -5,6 +5,20 @@
 @section('content')
 @php
     $statuses = $statuses ?? [];
+    $paymentSources = $paymentSources ?? [
+        'bank' => 'Bank',
+        'cash' => 'Cash',
+    ];
+
+    $taxTreatments = $taxTreatments ?? [
+        'not_include' => 'Tax Not Include',
+        'include' => 'Tax Include',
+    ];
+
+    $taxEntityTypes = $taxEntityTypes ?? [
+        'pkp' => 'PKP',
+        'non_pkp' => 'Non PKP',
+    ];
 
     $formatDate = function ($value, string $format = 'd M Y') {
         if (blank($value)) {
@@ -48,6 +62,21 @@
         };
     };
 
+    $paymentSourceLabel = $paymentSources[$memo->payment_source] ?? (
+        $memo->payment_source ? \Illuminate\Support\Str::headline($memo->payment_source) : '-'
+    );
+
+    $taxTreatmentLabel = $taxTreatments[$memo->tax_treatment] ?? (
+        $memo->tax_treatment ? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->tax_treatment)) : '-'
+    );
+
+    $taxEntityTypeLabel = $taxEntityTypes[$memo->tax_entity_type] ?? (
+        $memo->tax_entity_type ? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->tax_entity_type)) : '-'
+    );
+
+    $allowedPurposeTags = '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>';
+    $purposeHtml = trim(strip_tags((string) $memo->purpose, $allowedPurposeTags));
+
     $approvalRows = $memo->relationLoaded('approvals') ? $memo->approvals : collect();
     $acknowledgementRows = $approvalRows->where('role_label', 'Acknowledged by')->values();
 
@@ -74,6 +103,40 @@
         $acknowledgementRows = $acknowledgementRows->concat($fallbackAcknowledgements)->take(2)->values();
     }
 @endphp
+
+@push('styles')
+<style>
+    .memo-rich-content {
+        min-height: 72px;
+        line-height: 1.65;
+    }
+
+    .memo-rich-content p {
+        margin-bottom: .75rem;
+    }
+
+    .memo-rich-content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .memo-rich-content ul,
+    .memo-rich-content ol {
+        margin-bottom: .75rem;
+        padding-left: 1.35rem;
+    }
+
+    .memo-rich-content li {
+        margin-bottom: .35rem;
+    }
+
+    .memo-rich-content blockquote {
+        margin: 0 0 .75rem;
+        padding-left: 1rem;
+        border-left: 4px solid rgba(91, 62, 142, .24);
+        color: #64748b;
+    }
+</style>
+@endpush
 
 <div class="container-fluid px-4 py-4">
 
@@ -127,6 +190,7 @@
                             Detail informasi memo internal.
                         </p>
                     </div>
+
                     <span class="badge {{ $statusBadgeClass($memo->status) }}">
                         {{ $statuses[$memo->status] ?? \Illuminate\Support\Str::headline($memo->status) }}
                     </span>
@@ -138,6 +202,20 @@
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Memo Date</div>
                                 <div class="fw-semibold">{{ $formatDate($memo->memo_date) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                <div class="text-muted small mb-1">Due Date</div>
+                                <div class="fw-semibold">{{ $formatDate($memo->due_date) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                <div class="text-muted small mb-1">Payment Source</div>
+                                <div class="fw-semibold">{{ $paymentSourceLabel }}</div>
                             </div>
                         </div>
 
@@ -155,14 +233,14 @@
                             </div>
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Submitted At</div>
                                 <div class="fw-semibold">{{ $formatDateTime($memo->submitted_at) }}</div>
                             </div>
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Final Approved At</div>
                                 <div class="fw-semibold">{{ $formatDateTime($memo->approved_at) }}</div>
@@ -185,12 +263,18 @@
                             </div>
                         </div>
 
-                        <div class="col-md-12">
+                        <div class="col-12">
                             <div class="text-muted small mb-1">Purpose</div>
-                            <div class="border rounded-4 p-3 bg-light" style="white-space: pre-line;">{{ $memo->purpose ?: '-' }}</div>
+                            <div class="border rounded-4 p-3 bg-light memo-rich-content">
+                                @if (! blank($purposeHtml))
+                                    {!! $purposeHtml !!}
+                                @else
+                                    -
+                                @endif
+                            </div>
                         </div>
 
-                        <div class="col-md-12">
+                        <div class="col-12">
                             <div class="text-muted small mb-1">Notes</div>
                             <div class="border rounded-4 p-3 bg-light" style="white-space: pre-line;">{{ $memo->notes ?: '-' }}</div>
                         </div>
@@ -332,46 +416,70 @@
                     <div>
                         <h5 class="content-card-title mb-1">Amount Summary</h5>
                         <p class="content-card-subtitle mb-0">
-                            Ringkasan nominal memo.
+                            Ringkasan nominal memo berdasarkan budget item, tax treatment, dan status PKP / Non PKP.
                         </p>
                     </div>
                 </div>
 
                 <div class="content-card-body">
                     <div class="row g-3">
-                        <div class="col-xl-3 col-md-6">
+                        <div class="col-xl-2 col-md-4">
+                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                <div class="text-muted small mb-1">Tax Treatment</div>
+                                <div class="fs-6 fw-bold">{{ $taxTreatmentLabel }}</div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-2 col-md-4">
+                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                <div class="text-muted small mb-1">Tax Entity</div>
+                                <div class="fs-6 fw-bold">{{ $taxEntityTypeLabel }}</div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-2 col-md-4">
+                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                <div class="text-muted small mb-1">Tax Rate</div>
+                                <div class="fs-6 fw-bold">{{ number_format((float) $memo->tax_rate, 2) }}%</div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-2 col-md-4">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Subtotal</div>
                                 <div class="fs-5 fw-bold">{{ $formatCurrency($memo->subtotal_amount) }}</div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6">
-                            <div class="border rounded-4 p-3 h-100 bg-light-subtle">
-                                <div class="text-muted small mb-1">Tax Rate</div>
-                                <div class="fs-5 fw-bold">{{ number_format((float) $memo->tax_rate, 2) }}%</div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6">
+                        <div class="col-xl-2 col-md-4">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Tax Amount</div>
                                 <div class="fs-5 fw-bold">{{ $formatCurrency($memo->tax_amount) }}</div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6">
+                        <div class="col-xl-2 col-md-4">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Grand Total</div>
                                 <div class="fs-4 fw-bold">{{ $formatCurrency($memo->grand_total_amount) }}</div>
                             </div>
                         </div>
                     </div>
+
+                    <div class="alert alert-success border-0 mt-3 mb-0 py-2 px-3 small">
+                        @if ($memo->tax_entity_type === 'non_pkp')
+                            Non PKP dipilih, tax rate otomatis 0 dan grand total sama dengan subtotal.
+                        @elseif ($memo->tax_treatment === 'include')
+                            Tax Include dipilih, grand total mengikuti subtotal dan tax dihitung sebagai bagian dari nominal.
+                        @else
+                            Tax Not Include dipilih, tax ditambahkan ke subtotal.
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12">
+        <div class="col-12 d-none">
             <div class="content-card mb-4">
                 <div class="content-card-header">
                     <div>

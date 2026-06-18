@@ -6,7 +6,7 @@
 
     <style>
         @page {
-            margin: 172px 32px 92px;
+            margin: 178px 32px 96px;
         }
 
         * {
@@ -27,27 +27,27 @@
 
         .pdf-header {
             position: fixed;
-            top: -150px;
+            top: -156px;
             left: 0;
             right: 0;
-            height: 136px;
+            height: 142px;
             padding: 0 0 12px;
             border-bottom: 3px solid #019641;
         }
 
         .header-logo-row {
             width: 100%;
-            height: 68px;
+            height: 72px;
             text-align: left;
         }
 
         .logo-wrap {
-            width: 245px;
+            width: 250px;
             text-align: left;
         }
 
         .logo {
-            width: 200px;
+            width: 205px;
             height: auto;
         }
 
@@ -62,7 +62,7 @@
         .header-title-row {
             width: 100%;
             text-align: center;
-            padding: 9px 28px 0;
+            padding: 8px 28px 0;
         }
 
         .document-label {
@@ -107,7 +107,7 @@
             font-size: 11px;
             color: #1f2933;
             page-break-after: avoid;
-            font-weight:bold;
+            font-weight: bold;
         }
 
         .info-table {
@@ -164,6 +164,26 @@
             line-height: 1.35;
         }
 
+        .summary-table {
+            width: 54%;
+            margin-left: auto;
+            margin-top: 10px;
+            page-break-inside: avoid;
+        }
+
+        .summary-table td {
+            padding: 7px 8px;
+            border: 1px solid #dcebdd;
+            font-size: 10px;
+            vertical-align: top;
+        }
+
+        .summary-label {
+            background: #F1F9F1;
+            font-weight: bold;
+            width: 46%;
+        }
+
         .text-right {
             text-align: right;
         }
@@ -185,32 +205,47 @@
             page-break-inside: avoid;
         }
 
-        .summary-table {
-            width: 43%;
-            margin-left: auto;
-            margin-top: 10px;
+        .rich-content {
+            white-space: normal;
+            line-height: 1.55;
+        }
+
+        .rich-content p {
+            margin: 0 0 7px;
+        }
+
+        .rich-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .rich-content ul,
+        .rich-content ol {
+            margin: 0 0 7px 18px;
+            padding-left: 12px;
+        }
+
+        .rich-content li {
+            margin-bottom: 4px;
+        }
+
+        .rich-content blockquote {
+            margin: 0 0 7px;
+            padding-left: 10px;
+            border-left: 3px solid #019641;
+            color: #475569;
+        }
+
+        .tax-note {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #F1F9F1;
+            border: 1px solid #dcebdd;
+            color: #334155;
+            font-size: 9px;
+            line-height: 1.35;
             page-break-inside: avoid;
         }
 
-        .summary-table td {
-            padding: 7px 8px;
-            border: 1px solid #dcebdd;
-        }
-
-        .summary-label {
-            background: #F1F9F1;
-            font-weight: bold;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Closing Section
-        |--------------------------------------------------------------------------
-        | Notes + signature dibuat satu block.
-        | Kalau signature pindah halaman, notes ikut pindah supaya halaman terakhir
-        | tidak kosong cuma berisi tanda tangan.
-        |--------------------------------------------------------------------------
-        */
         .closing-section {
             margin-top: 20px;
             page-break-inside: avoid;
@@ -278,7 +313,7 @@
         .company-footer {
             position: fixed;
             right: 0;
-            bottom: -64px;
+            bottom: -66px;
             width: 58%;
             text-align: right;
             color: #1f2933;
@@ -311,6 +346,33 @@
             return 'Rp ' . number_format((float) $value, 0, ',', '.');
         };
 
+        $paymentSources = $paymentSources ?? [
+            'bank' => 'Bank',
+            'cash' => 'Cash',
+        ];
+
+        $taxTreatments = $taxTreatments ?? [
+            'not_include' => 'Tax Not Include',
+            'include' => 'Tax Include',
+        ];
+
+        $taxEntityTypes = $taxEntityTypes ?? [
+            'pkp' => 'PKP',
+            'non_pkp' => 'Non PKP',
+        ];
+
+        $paymentSourceLabel = $paymentSources[$memo->payment_source] ?? (
+            $memo->payment_source ? \Illuminate\Support\Str::headline($memo->payment_source) : '-'
+        );
+
+        $taxTreatmentLabel = $taxTreatments[$memo->tax_treatment] ?? (
+            $memo->tax_treatment ? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->tax_treatment)) : '-'
+        );
+
+        $taxEntityTypeLabel = $taxEntityTypes[$memo->tax_entity_type] ?? (
+            $memo->tax_entity_type ? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->tax_entity_type)) : '-'
+        );
+
         $approvalRows = $memo->relationLoaded('approvals') ? $memo->approvals : collect();
         $acknowledgements = $approvalRows->where('role_label', 'Acknowledged by')->values();
 
@@ -332,7 +394,20 @@
         $acknowledgerOne = $acknowledgements->get(0) ?: $acknowledgementDefaults->get(0);
         $acknowledgerTwo = $acknowledgements->get(1) ?: $acknowledgementDefaults->get(1);
 
+        $getSignerName = function ($approval) {
+            return data_get($approval, 'approver_name')
+                ?: data_get($approval, 'approver.name')
+                ?: '-';
+        };
+
+        $getSignerPosition = function ($approval) {
+            return data_get($approval, 'approver_position') ?: '-';
+        };
+
         $logoPath = public_path('images/sei.png');
+
+        $allowedPurposeTags = '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>';
+        $purposeHtml = trim(strip_tags((string) $memo->purpose, $allowedPurposeTags));
     @endphp
 
     <div class="pdf-header">
@@ -371,6 +446,10 @@
                 <td>{{ $formatDate($memo->memo_date) }}</td>
             </tr>
             <tr>
+                <td class="info-label">Due Date</td>
+                <td>{{ $formatDate($memo->due_date) }}</td>
+            </tr>
+            <tr>
                 <td class="info-label">To</td>
                 <td>
                     {{ $memo->to_name }}
@@ -389,6 +468,10 @@
                 </td>
             </tr>
             <tr>
+                <td class="info-label">Payment Source</td>
+                <td>{{ $paymentSourceLabel }}</td>
+            </tr>
+            <tr>
                 <td class="info-label">Attachment</td>
                 <td>{{ $memo->attachment_label ?: '-' }}</td>
             </tr>
@@ -401,7 +484,14 @@
 
     <div class="section">
         <div class="section-title">Purpose</div>
-        <div class="text-box">{{ $memo->purpose ?: '-' }}</div>
+
+        <div class="text-box rich-content">
+            @if (! blank($purposeHtml))
+                {!! $purposeHtml !!}
+            @else
+                -
+            @endif
+        </div>
     </div>
 
     <div class="section">
@@ -438,6 +528,14 @@
 
         <table class="summary-table">
             <tr>
+                <td class="summary-label">Tax Treatment</td>
+                <td class="text-right">{{ $taxTreatmentLabel }}</td>
+            </tr>
+            <tr>
+                <td class="summary-label">Tax Entity</td>
+                <td class="text-right">{{ $taxEntityTypeLabel }}</td>
+            </tr>
+            <tr>
                 <td class="summary-label">Subtotal</td>
                 <td class="text-right">{{ $formatCurrency($memo->subtotal_amount) }}</td>
             </tr>
@@ -450,6 +548,16 @@
                 <td class="text-right"><strong>{{ $formatCurrency($memo->grand_total_amount) }}</strong></td>
             </tr>
         </table>
+
+        <!--div class="tax-note">
+            @if ($memo->tax_entity_type === 'non_pkp')
+                Non PKP selected. Tax rate is set to 0 and grand total follows the subtotal.
+            @elseif ($memo->tax_treatment === 'include')
+                Tax Include selected. Grand total follows the submitted subtotal and tax is calculated as part of the submitted amount.
+            @else
+                Tax Not Include selected. Tax is added on top of the subtotal.
+            @endif
+        </!--div-->
     </div>
 
     <div class="closing-section">
@@ -471,19 +579,15 @@
                     <td>
                         <div class="signature-title">Acknowledged by</div>
                         <div class="signature-space"></div>
-                        <div class="signature-name">
-                            {{ $acknowledgerOne?->approver_name ?: optional($acknowledgerOne?->approver)->name ?: '-' }}
-                        </div>
-                        <div class="signature-position">{{ $acknowledgerOne?->approver_position ?: '-' }}</div>
+                        <div class="signature-name">{{ $getSignerName($acknowledgerOne) }}</div>
+                        <div class="signature-position">{{ $getSignerPosition($acknowledgerOne) }}</div>
                     </td>
 
                     <td>
                         <div class="signature-title">Acknowledged by</div>
                         <div class="signature-space"></div>
-                        <div class="signature-name">
-                            {{ $acknowledgerTwo?->approver_name ?: optional($acknowledgerTwo?->approver)->name ?: '-' }}
-                        </div>
-                        <div class="signature-position">{{ $acknowledgerTwo?->approver_position ?: '-' }}</div>
+                        <div class="signature-name">{{ $getSignerName($acknowledgerTwo) }}</div>
+                        <div class="signature-position">{{ $getSignerPosition($acknowledgerTwo) }}</div>
                     </td>
 
                     <td>

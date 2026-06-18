@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class InternalMemoController extends Controller
 {
@@ -27,6 +29,15 @@ class InternalMemoController extends Controller
     private const APPROVAL_PENDING = 'pending';
     private const APPROVAL_APPROVED = 'approved';
     private const APPROVAL_REJECTED = 'rejected';
+
+    private const PAYMENT_SOURCE_BANK = 'bank';
+    private const PAYMENT_SOURCE_CASH = 'cash';
+
+    private const TAX_TREATMENT_INCLUDE = 'include';
+    private const TAX_TREATMENT_NOT_INCLUDE = 'not_include';
+
+    private const TAX_ENTITY_PKP = 'pkp';
+    private const TAX_ENTITY_NON_PKP = 'non_pkp';
 
     /**
      * Temporary mode:
@@ -65,7 +76,8 @@ class InternalMemoController extends Controller
                     $subQuery->where('memo_number', 'like', "%{$search}%")
                         ->orWhere('subject', 'like', "%{$search}%")
                         ->orWhere('to_name', 'like', "%{$search}%")
-                        ->orWhere('from_name', 'like', "%{$search}%");
+                        ->orWhere('from_name', 'like', "%{$search}%")
+                        ->orWhere('payment_source', 'like', "%{$search}%");
                 });
             })
             ->when($status, fn ($query) => $query->where('status', $status))
@@ -104,7 +116,8 @@ class InternalMemoController extends Controller
                 $query->where(function ($subQuery) use ($search) {
                     $subQuery->where('memo_number', 'like', "%{$search}%")
                         ->orWhere('subject', 'like', "%{$search}%")
-                        ->orWhere('to_name', 'like', "%{$search}%");
+                        ->orWhere('to_name', 'like', "%{$search}%")
+                        ->orWhere('payment_source', 'like', "%{$search}%");
                 });
             })
             ->when($status, fn ($query) => $query->where('status', $status))
@@ -186,39 +199,63 @@ class InternalMemoController extends Controller
         return view('operation.internal-memos.create', [
             'memo' => new InternalMemo([
                 'memo_date' => now()->toDateString(),
+                'due_date' => null,
                 'from_name' => Auth::user()?->name,
                 'from_position' => $this->resolveUserPosition(Auth::user()),
+                'payment_source' => self::PAYMENT_SOURCE_BANK,
                 'tax_rate' => 11,
+                'tax_treatment' => self::TAX_TREATMENT_NOT_INCLUDE,
+                'tax_entity_type' => self::TAX_ENTITY_PKP,
                 'notes' => "Payment prices may change depending on the promo period.\nPayments can be made through Bank Mandiri.",
             ]),
             'users' => $this->userOptions(),
             'acknowledgementDefaults' => self::DEFAULT_ACKNOWLEDGEMENTS,
             'statuses' => $this->memoStatuses(),
+            'paymentSources' => $this->paymentSources(),
+            'taxTreatments' => $this->taxTreatments(),
+            'taxEntityTypes' => $this->taxEntityTypes(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateMemo($request);
-        $amounts = $this->calculateAmounts($validated['items'], (float) ($validated['tax_rate'] ?? 0));
+        $amounts = $this->calculateAmounts(
+            $validated['items'],
+            (float) ($validated['tax_rate'] ?? 0),
+            $validated['tax_treatment'],
+            $validated['tax_entity_type']
+        );
 
         $memo = DB::transaction(function () use ($validated, $amounts) {
             $memo = InternalMemo::create([
                 'memo_number' => $this->generateMemoNumber(),
                 'memo_date' => $validated['memo_date'],
+                'due_date' => $validated['due_date'] ?? null,
+
                 'subject' => $validated['subject'],
                 'attachment_label' => $validated['attachment_label'] ?? null,
+
                 'to_name' => $validated['to_name'],
                 'to_position' => $validated['to_position'] ?? null,
+
                 'from_name' => $validated['from_name'],
                 'from_position' => $validated['from_position'] ?? null,
-                'purpose' => $validated['purpose'] ?? null,
+
+                'purpose' => $validated['purpose'],
                 'notes' => $validated['notes'] ?? null,
+
+                'payment_source' => $validated['payment_source'],
+
                 'subtotal_amount' => $amounts['subtotal_amount'],
                 'tax_rate' => $amounts['tax_rate'],
+                'tax_treatment' => $validated['tax_treatment'],
+                'tax_entity_type' => $validated['tax_entity_type'],
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
+
                 'status' => self::AUTO_APPROVE_MEMO ? self::STATUS_APPROVED : self::STATUS_DRAFT,
+
                 'created_by' => Auth::id(),
                 'submitted_by' => self::AUTO_APPROVE_MEMO ? Auth::id() : null,
                 'submitted_at' => self::AUTO_APPROVE_MEMO ? now() : null,
@@ -256,12 +293,15 @@ class InternalMemoController extends Controller
             'canSubmit' => $this->canSubmitMemo($internalMemo),
             'canApprove' => $this->canActOnMemo($internalMemo),
             'statuses' => $this->memoStatuses(),
+            'paymentSources' => $this->paymentSources(),
+            'taxTreatments' => $this->taxTreatments(),
+            'taxEntityTypes' => $this->taxEntityTypes(),
         ]);
     }
 
     public function edit(InternalMemo $internalMemo): View
     {
-        abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit karena sudah masuk approval atau sudah final.');
+        abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
         $internalMemo->load([
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
@@ -273,35 +313,56 @@ class InternalMemoController extends Controller
             'users' => $this->userOptions(),
             'acknowledgementDefaults' => self::DEFAULT_ACKNOWLEDGEMENTS,
             'statuses' => $this->memoStatuses(),
+            'paymentSources' => $this->paymentSources(),
+            'taxTreatments' => $this->taxTreatments(),
+            'taxEntityTypes' => $this->taxEntityTypes(),
         ]);
     }
 
     public function update(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
-        abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit karena sudah masuk approval atau sudah final.');
+        abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
         $validated = $this->validateMemo($request, $internalMemo);
-        $amounts = $this->calculateAmounts($validated['items'], (float) ($validated['tax_rate'] ?? 0));
+        $amounts = $this->calculateAmounts(
+            $validated['items'],
+            (float) ($validated['tax_rate'] ?? 0),
+            $validated['tax_treatment'],
+            $validated['tax_entity_type']
+        );
 
         DB::transaction(function () use ($internalMemo, $validated, $amounts) {
             $internalMemo->update([
                 'memo_date' => $validated['memo_date'],
+                'due_date' => $validated['due_date'] ?? null,
+
                 'subject' => $validated['subject'],
                 'attachment_label' => $validated['attachment_label'] ?? null,
+
                 'to_name' => $validated['to_name'],
                 'to_position' => $validated['to_position'] ?? null,
+
                 'from_name' => $validated['from_name'],
                 'from_position' => $validated['from_position'] ?? null,
-                'purpose' => $validated['purpose'] ?? null,
+
+                'purpose' => $validated['purpose'],
                 'notes' => $validated['notes'] ?? null,
+
+                'payment_source' => $validated['payment_source'],
+
                 'subtotal_amount' => $amounts['subtotal_amount'],
                 'tax_rate' => $amounts['tax_rate'],
+                'tax_treatment' => $validated['tax_treatment'],
+                'tax_entity_type' => $validated['tax_entity_type'],
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
+
                 'status' => self::AUTO_APPROVE_MEMO ? self::STATUS_APPROVED : $internalMemo->status,
+                'submitted_by' => self::AUTO_APPROVE_MEMO ? ($internalMemo->submitted_by ?: Auth::id()) : $internalMemo->submitted_by,
+                'submitted_at' => self::AUTO_APPROVE_MEMO ? ($internalMemo->submitted_at ?: now()) : $internalMemo->submitted_at,
                 'approved_at' => self::AUTO_APPROVE_MEMO ? ($internalMemo->approved_at ?: now()) : $internalMemo->approved_at,
                 'rejected_at' => self::AUTO_APPROVE_MEMO ? null : $internalMemo->rejected_at,
-                'cancelled_at' => self::AUTO_APPROVE_MEMO ? null : $internalMemo->cancelled_at,
+                'cancelled_at' => null,
             ]);
 
             $this->syncItems($internalMemo, $validated['items']);
@@ -315,7 +376,7 @@ class InternalMemoController extends Controller
 
     public function destroy(InternalMemo $internalMemo): RedirectResponse
     {
-        abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa dihapus karena sudah masuk approval atau sudah final.');
+        abort_unless($this->canDeleteMemo($internalMemo), 403, 'Memo ini tidak bisa dihapus.');
 
         $internalMemo->delete();
 
@@ -326,36 +387,16 @@ class InternalMemoController extends Controller
 
     public function submit(InternalMemo $internalMemo): RedirectResponse
     {
+        if (self::AUTO_APPROVE_MEMO) {
+            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
+        }
+
         abort_unless($this->canSubmitMemo($internalMemo), 403, 'Memo ini tidak bisa disubmit.');
 
         $internalMemo->load(['items', 'approvals']);
 
         if ($internalMemo->items->isEmpty()) {
             return back()->with('error', 'Memo belum bisa disubmit karena budget item masih kosong.');
-        }
-
-        if (self::AUTO_APPROVE_MEMO) {
-            DB::transaction(function () use ($internalMemo) {
-                $internalMemo->approvals()->update([
-                    'status' => self::APPROVAL_APPROVED,
-                    'notes' => null,
-                    'approved_at' => now(),
-                    'rejected_at' => null,
-                ]);
-
-                $internalMemo->update([
-                    'status' => self::STATUS_APPROVED,
-                    'submitted_by' => Auth::id(),
-                    'submitted_at' => $internalMemo->submitted_at ?: now(),
-                    'approved_at' => now(),
-                    'rejected_at' => null,
-                    'cancelled_at' => null,
-                ]);
-            });
-
-            return redirect()
-                ->route('internal-memos.show', $internalMemo)
-                ->with('success', 'Internal memo berhasil disubmit dan otomatis approved.');
         }
 
         if ($internalMemo->approvals->count() < 2) {
@@ -387,6 +428,10 @@ class InternalMemoController extends Controller
 
     public function approve(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
+        if (self::AUTO_APPROVE_MEMO) {
+            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
+        }
+
         $validated = $request->validate([
             'notes' => ['nullable', 'string'],
         ]);
@@ -438,6 +483,10 @@ class InternalMemoController extends Controller
 
     public function reject(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
+        if (self::AUTO_APPROVE_MEMO) {
+            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
+        }
+
         $validated = $request->validate([
             'notes' => ['required', 'string', 'max:5000'],
         ], [
@@ -477,7 +526,13 @@ class InternalMemoController extends Controller
     public function cancel(InternalMemo $internalMemo): RedirectResponse
     {
         abort_unless(
-            in_array($internalMemo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED, self::STATUS_WAITING_ACKNOWLEDGEMENT, self::STATUS_WAITING_APPROVAL], true),
+            in_array($internalMemo->status, [
+                self::STATUS_DRAFT,
+                self::STATUS_REJECTED,
+                self::STATUS_WAITING_ACKNOWLEDGEMENT,
+                self::STATUS_WAITING_APPROVAL,
+                self::STATUS_APPROVED,
+            ], true),
             403,
             'Memo ini tidak bisa dibatalkan.'
         );
@@ -515,21 +570,38 @@ class InternalMemoController extends Controller
 
     private function validateMemo(Request $request, ?InternalMemo $memo = null): array
     {
-        return $request->validate([
+        $request->merge([
+            'payment_source' => $request->input('payment_source', self::PAYMENT_SOURCE_BANK),
+            'tax_treatment' => $request->input('tax_treatment', self::TAX_TREATMENT_NOT_INCLUDE),
+            'tax_entity_type' => $request->input('tax_entity_type', self::TAX_ENTITY_PKP),
+            'tax_rate' => $request->input('tax_rate', 11),
+        ]);
+
+        $validated = $request->validate([
             'memo_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:memo_date'],
+
             'subject' => ['required', 'string', 'max:255'],
             'attachment_label' => ['nullable', 'string', 'max:255'],
+
             'to_name' => ['required', 'string', 'max:255'],
             'to_position' => ['nullable', 'string', 'max:255'],
+
             'from_name' => ['required', 'string', 'max:255'],
             'from_position' => ['nullable', 'string', 'max:255'],
-            'purpose' => ['nullable', 'string'],
-            'notes' => ['nullable', 'string'],
-            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
 
-            'acknowledgements' => ['nullable', 'array'],
-            'acknowledgements.*.name' => ['nullable', 'string', 'max:255'],
-            'acknowledgements.*.position' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['required', 'string'],
+            'notes' => ['nullable', 'string'],
+
+            'payment_source' => ['required', Rule::in(array_keys($this->paymentSources()))],
+
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_treatment' => ['required', Rule::in(array_keys($this->taxTreatments()))],
+            'tax_entity_type' => ['required', Rule::in(array_keys($this->taxEntityTypes()))],
+
+            'acknowledgements' => ['required', 'array', 'size:2'],
+            'acknowledgements.*.name' => ['required', 'string', 'max:255'],
+            'acknowledgements.*.position' => ['required', 'string', 'max:255'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.details' => ['required', 'string', 'max:5000'],
@@ -537,9 +609,38 @@ class InternalMemoController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.remarks' => ['nullable', 'string', 'max:5000'],
         ], [
+            'due_date.after_or_equal' => 'Due date tidak boleh lebih awal dari memo date.',
+            'purpose.required' => 'Purpose wajib diisi minimal 2 poin.',
+            'acknowledgements.required' => 'Acknowledgement signer wajib diisi.',
+            'acknowledgements.size' => 'Acknowledgement signer harus berisi 2 orang.',
+            'acknowledgements.*.name.required' => 'Nama acknowledgement signer wajib diisi.',
+            'acknowledgements.*.position.required' => 'Jabatan acknowledgement signer wajib diisi.',
             'items.required' => 'Minimal harus ada 1 budget item.',
             'items.*.details.required' => 'Detail budget item wajib diisi.',
         ]);
+
+        $validated['purpose'] = $this->sanitizeQuillHtml($validated['purpose']);
+
+        if ($this->countPurposePoints($validated['purpose']) < 2) {
+            throw ValidationException::withMessages([
+                'purpose' => 'Purpose minimal harus berisi 2 poin.',
+            ]);
+        }
+
+        $validated['tax_rate'] = (float) ($validated['tax_rate'] ?? 0);
+
+        if ($validated['tax_entity_type'] === self::TAX_ENTITY_NON_PKP) {
+            $validated['tax_rate'] = 0;
+        }
+
+        $validated['notes'] = $this->applyAutomaticTaxNote(
+            $validated['notes'] ?? null,
+            $validated['tax_treatment']
+        );
+
+        $validated['acknowledgements'] = array_values(array_slice($validated['acknowledgements'], 0, 2));
+
+        return $validated;
     }
 
     private function syncItems(InternalMemo $memo, array $items): void
@@ -563,17 +664,15 @@ class InternalMemoController extends Controller
 
     private function syncApprovals(InternalMemo $memo, array $validated): void
     {
-        $acknowledgements = $this->normalizeAcknowledgements($validated['acknowledgements'] ?? []);
-
         $memo->approvals()->delete();
 
-        foreach ($acknowledgements as $index => $acknowledgement) {
+        foreach (array_values($validated['acknowledgements'] ?? self::DEFAULT_ACKNOWLEDGEMENTS) as $index => $acknowledgement) {
             $memo->approvals()->create([
                 'step_order' => $index + 1,
                 'role_label' => 'Acknowledged by',
                 'approver_id' => null,
-                'approver_name' => $acknowledgement['name'],
-                'approver_position' => $acknowledgement['position'],
+                'approver_name' => $acknowledgement['name'] ?? self::DEFAULT_ACKNOWLEDGEMENTS[$index]['name'],
+                'approver_position' => $acknowledgement['position'] ?? self::DEFAULT_ACKNOWLEDGEMENTS[$index]['position'],
                 'status' => self::AUTO_APPROVE_MEMO ? self::APPROVAL_APPROVED : self::APPROVAL_PENDING,
                 'approved_at' => self::AUTO_APPROVE_MEMO ? now() : null,
                 'rejected_at' => null,
@@ -581,27 +680,31 @@ class InternalMemoController extends Controller
         }
     }
 
-    private function normalizeAcknowledgements(array $acknowledgements): array
-    {
-        $normalized = [];
-
-        foreach (self::DEFAULT_ACKNOWLEDGEMENTS as $index => $default) {
-            $row = $acknowledgements[$index] ?? [];
-
-            $normalized[] = [
-                'name' => trim((string) ($row['name'] ?? '')) ?: $default['name'],
-                'position' => trim((string) ($row['position'] ?? '')) ?: $default['position'],
-            ];
-        }
-
-        return $normalized;
-    }
-
-    private function calculateAmounts(array $items, float $taxRate): array
+    private function calculateAmounts(array $items, float $taxRate, string $taxTreatment, string $taxEntityType): array
     {
         $subtotal = collect($items)->sum(function ($item) {
             return (float) ($item['price'] ?? 0) * (int) ($item['quantity'] ?? 1);
         });
+
+        if ($taxEntityType === self::TAX_ENTITY_NON_PKP || $taxRate <= 0) {
+            return [
+                'subtotal_amount' => round($subtotal, 2),
+                'tax_rate' => 0,
+                'tax_amount' => 0,
+                'grand_total_amount' => round($subtotal, 2),
+            ];
+        }
+
+        if ($taxTreatment === self::TAX_TREATMENT_INCLUDE) {
+            $taxAmount = $subtotal - ($subtotal / (1 + ($taxRate / 100)));
+
+            return [
+                'subtotal_amount' => round($subtotal, 2),
+                'tax_rate' => round($taxRate, 2),
+                'tax_amount' => round($taxAmount, 2),
+                'grand_total_amount' => round($subtotal, 2),
+            ];
+        }
 
         $taxAmount = $subtotal * ($taxRate / 100);
 
@@ -611,6 +714,80 @@ class InternalMemoController extends Controller
             'tax_amount' => round($taxAmount, 2),
             'grand_total_amount' => round($subtotal + $taxAmount, 2),
         ];
+    }
+
+    private function sanitizeQuillHtml(?string $html): string
+    {
+        $html = (string) $html;
+
+        $html = preg_replace('/<(script|style)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
+
+        $html = strip_tags($html, '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>');
+
+        $html = preg_replace('/\s(on\w+|style)\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/i', '', $html) ?? $html;
+        $html = preg_replace('/\s(href)\s*=\s*("|\')\s*javascript:.*?\2/i', '', $html) ?? $html;
+
+        return trim($html);
+    }
+
+    private function countPurposePoints(?string $html): int
+    {
+        $html = trim((string) $html);
+
+        if ($html === '') {
+            return 0;
+        }
+
+        preg_match_all('/<li\b[^>]*>(.*?)<\/li>/is', $html, $listMatches);
+
+        $listCount = collect($listMatches[1] ?? [])
+            ->map(fn ($item) => trim(html_entity_decode(strip_tags($item))))
+            ->filter()
+            ->count();
+
+        if ($listCount > 0) {
+            return $listCount;
+        }
+
+        preg_match_all('/<p\b[^>]*>(.*?)<\/p>/is', $html, $paragraphMatches);
+
+        $paragraphCount = collect($paragraphMatches[1] ?? [])
+            ->map(fn ($item) => trim(html_entity_decode(strip_tags($item))))
+            ->filter()
+            ->count();
+
+        if ($paragraphCount > 0) {
+            return $paragraphCount;
+        }
+
+        $text = str_replace(['</p>', '<br>', '<br/>', '<br />', '</li>'], "\n", $html);
+        $text = trim(html_entity_decode(strip_tags($text)));
+
+        return collect(preg_split('/\r\n|\r|\n/', $text) ?: [])
+            ->map(fn ($line) => trim($line))
+            ->filter()
+            ->count();
+    }
+
+    private function applyAutomaticTaxNote(?string $notes, string $taxTreatment): ?string
+    {
+        $taxIncludedLine = 'Tax is included in the submitted amount.';
+
+        $notes = trim((string) $notes);
+
+        $notes = preg_replace(
+            '/(^|\R)\s*' . preg_quote($taxIncludedLine, '/') . '\s*(?=\R|$)/u',
+            "\n",
+            $notes
+        ) ?? $notes;
+
+        $notes = trim($notes);
+
+        if ($taxTreatment === self::TAX_TREATMENT_INCLUDE) {
+            return trim($notes . ($notes !== '' ? "\n" : '') . $taxIncludedLine);
+        }
+
+        return $notes !== '' ? $notes : null;
     }
 
     private function generateMemoNumber(): string
@@ -636,6 +813,10 @@ class InternalMemoController extends Controller
 
     private function activeApproval(InternalMemo $memo): ?InternalMemoApproval
     {
+        if (self::AUTO_APPROVE_MEMO) {
+            return null;
+        }
+
         if (in_array($memo->status, [self::STATUS_APPROVED, self::STATUS_REJECTED, self::STATUS_CANCELLED], true)) {
             return null;
         }
@@ -653,7 +834,16 @@ class InternalMemoController extends Controller
     private function canEditMemo(InternalMemo $memo): bool
     {
         if (self::AUTO_APPROVE_MEMO) {
-            return $memo->status !== self::STATUS_CANCELLED;
+            return ! in_array($memo->status, [self::STATUS_CANCELLED], true);
+        }
+
+        return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+    }
+
+    private function canDeleteMemo(InternalMemo $memo): bool
+    {
+        if (self::AUTO_APPROVE_MEMO) {
+            return ! in_array($memo->status, [self::STATUS_CANCELLED], true);
         }
 
         return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
@@ -670,6 +860,10 @@ class InternalMemoController extends Controller
 
     private function canActOnMemo(InternalMemo $memo): bool
     {
+        if (self::AUTO_APPROVE_MEMO) {
+            return false;
+        }
+
         $approval = $this->activeApproval($memo);
 
         return $approval && $this->canActOnApproval($approval);
@@ -746,6 +940,30 @@ class InternalMemoController extends Controller
             self::STATUS_APPROVED => 'Approved',
             self::STATUS_REJECTED => 'Rejected',
             self::STATUS_CANCELLED => 'Cancelled',
+        ];
+    }
+
+    private function paymentSources(): array
+    {
+        return [
+            self::PAYMENT_SOURCE_BANK => 'Bank',
+            self::PAYMENT_SOURCE_CASH => 'Cash',
+        ];
+    }
+
+    private function taxTreatments(): array
+    {
+        return [
+            self::TAX_TREATMENT_NOT_INCLUDE => 'Tax Not Include',
+            self::TAX_TREATMENT_INCLUDE => 'Tax Include',
+        ];
+    }
+
+    private function taxEntityTypes(): array
+    {
+        return [
+            self::TAX_ENTITY_PKP => 'PKP',
+            self::TAX_ENTITY_NON_PKP => 'Non PKP',
         ];
     }
 }

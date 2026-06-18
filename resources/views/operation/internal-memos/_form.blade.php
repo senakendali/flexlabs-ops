@@ -53,7 +53,79 @@
                 ],
             ]
     );
+
+    $paymentSources = $paymentSources ?? [
+        'bank' => 'Bank',
+        'cash' => 'Cash',
+    ];
+
+    $taxTreatments = $taxTreatments ?? [
+        'not_include' => 'Tax Not Include',
+        'include' => 'Tax Include',
+    ];
+
+    $taxEntityTypes = $taxEntityTypes ?? [
+        'pkp' => 'PKP',
+        'non_pkp' => 'Non PKP',
+    ];
+
+    $memoDateValue = old(
+        'memo_date',
+        optional($memo->memo_date)->format('Y-m-d') ?: $memo->memo_date
+    );
+
+    $dueDateValue = old(
+        'due_date',
+        optional($memo->due_date)->format('Y-m-d') ?: $memo->due_date
+    );
+
+    $paymentSourceValue = old('payment_source', $memo->payment_source ?? 'bank');
+    $taxTreatmentValue = old('tax_treatment', $memo->tax_treatment ?? 'not_include');
+    $taxEntityTypeValue = old('tax_entity_type', $memo->tax_entity_type ?? 'pkp');
+
+    $purposeValue = old('purpose', $memo->purpose);
+    $safePurposeValue = strip_tags(
+        (string) $purposeValue,
+        '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>'
+    );
 @endphp
+
+@push('styles')
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+
+    <style>
+        .memo-quill-wrap .ql-toolbar {
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            border-color: #dee2e6;
+            background: #fff;
+        }
+
+        .memo-quill-wrap .ql-container {
+            min-height: 180px;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+            border-color: #dee2e6;
+            font-size: 0.95rem;
+            background: #fff;
+        }
+
+        .memo-quill-wrap .ql-editor {
+            min-height: 180px;
+        }
+
+        .memo-quill-wrap.is-invalid .ql-toolbar,
+        .memo-quill-wrap.is-invalid .ql-container {
+            border-color: #dc3545;
+        }
+
+        .amount-summary-value {
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+        }
+    </style>
+@endpush
 
 <div class="container-fluid px-4 py-4">
 
@@ -109,7 +181,7 @@
                         <div>
                             <h5 class="content-card-title mb-1">Memo Information</h5>
                             <p class="content-card-subtitle mb-0">
-                                Isi informasi dasar memo seperti subject, penerima, pengirim, dan purpose.
+                                Isi informasi dasar memo seperti subject, penerima, pengirim, due date, payment source, dan purpose.
                             </p>
                         </div>
                     </div>
@@ -122,10 +194,41 @@
                                     type="date"
                                     name="memo_date"
                                     class="form-control @error('memo_date') is-invalid @enderror"
-                                    value="{{ old('memo_date', optional($memo->memo_date)->format('Y-m-d') ?: $memo->memo_date) }}"
+                                    value="{{ $memoDateValue }}"
                                     required
                                 >
                                 @error('memo_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Due Date</label>
+                                <input
+                                    type="date"
+                                    name="due_date"
+                                    class="form-control @error('due_date') is-invalid @enderror"
+                                    value="{{ $dueDateValue }}"
+                                >
+                                @error('due_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Payment Source <span class="text-danger">*</span></label>
+                                <select
+                                    name="payment_source"
+                                    class="form-select @error('payment_source') is-invalid @enderror"
+                                    required
+                                >
+                                    @foreach ($paymentSources as $value => $label)
+                                        <option value="{{ $value }}" @selected($paymentSourceValue === $value)>
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('payment_source')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -145,7 +248,7 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-12">
+                            <div class="col-md-4">
                                 <label class="form-label">Attachment</label>
                                 <input
                                     type="text"
@@ -217,27 +320,42 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-12">
-                                <label class="form-label">Purpose</label>
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Purpose <span class="text-danger">*</span>
+                                </label>
+
+                                <div class="memo-quill-wrap @error('purpose') is-invalid @enderror">
+                                    <div id="purposeEditor">{!! $safePurposeValue !!}</div>
+                                </div>
+
                                 <textarea
                                     name="purpose"
-                                    rows="5"
-                                    class="form-control @error('purpose') is-invalid @enderror"
-                                    placeholder="Tuliskan tujuan memo..."
-                                >{{ old('purpose', $memo->purpose) }}</textarea>
+                                    id="purposeInput"
+                                    class="d-none @error('purpose') is-invalid @enderror"
+                                >{{ $purposeValue }}</textarea>
+
+                                <div class="form-text">
+                                    Purpose wajib minimal 2 poin. Gunakan bullet list atau buat minimal 2 paragraf.
+                                </div>
+
                                 @error('purpose')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-md-12">
+                            <div class="col-12">
                                 <label class="form-label">Notes</label>
                                 <textarea
                                     name="notes"
+                                    id="notesInput"
                                     rows="4"
                                     class="form-control @error('notes') is-invalid @enderror"
                                     placeholder="Catatan tambahan..."
                                 >{{ old('notes', $memo->notes) }}</textarea>
+                                <div class="form-text">
+                                    Jika Tax Include dipilih, catatan pajak akan otomatis ditambahkan.
+                                </div>
                                 @error('notes')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -253,7 +371,7 @@
                         <div>
                             <h5 class="content-card-title mb-1">Acknowledgement Signers</h5>
                             <p class="content-card-subtitle mb-0">
-                                Nama penandatangan sudah terisi otomatis dan dapat disesuaikan untuk memo ini.
+                                Penandatangan dapat disesuaikan untuk memo ini.
                             </p>
                         </div>
                     </div>
@@ -298,8 +416,6 @@
                                 </div>
                             @endforeach
                         </div>
-
-                        
                     </div>
                 </div>
             </div>
@@ -422,14 +538,56 @@
                         <div>
                             <h5 class="content-card-title mb-1">Amount Summary</h5>
                             <p class="content-card-subtitle mb-0">
-                                Summary dihitung otomatis dari budget items.
+                                Summary dihitung otomatis dari budget items, tax treatment, dan status PKP / Non PKP.
                             </p>
                         </div>
                     </div>
 
                     <div class="content-card-body">
                         <div class="row g-3 align-items-stretch">
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-2 col-md-4">
+                                <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                    <label class="form-label">Tax Treatment <span class="text-danger">*</span></label>
+                                    <select
+                                        name="tax_treatment"
+                                        id="taxTreatmentInput"
+                                        class="form-select @error('tax_treatment') is-invalid @enderror"
+                                        required
+                                    >
+                                        @foreach ($taxTreatments as $value => $label)
+                                            <option value="{{ $value }}" @selected($taxTreatmentValue === $value)>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('tax_treatment')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="col-xl-2 col-md-4">
+                                <div class="border rounded-4 p-3 h-100 bg-light-subtle">
+                                    <label class="form-label">Tax Entity <span class="text-danger">*</span></label>
+                                    <select
+                                        name="tax_entity_type"
+                                        id="taxEntityTypeInput"
+                                        class="form-select @error('tax_entity_type') is-invalid @enderror"
+                                        required
+                                    >
+                                        @foreach ($taxEntityTypes as $value => $label)
+                                            <option value="{{ $value }}" @selected($taxEntityTypeValue === $value)>
+                                                {{ $label }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('tax_entity_type')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="col-xl-2 col-md-4">
                                 <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                     <label class="form-label">Tax Rate (%)</label>
                                     <input
@@ -448,26 +606,30 @@
                                 </div>
                             </div>
 
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-2 col-md-4">
                                 <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                     <div class="text-muted small mb-1">Subtotal</div>
-                                    <div class="fs-5 fw-bold" id="subtotalLabel">Rp 0</div>
+                                    <div class="fs-5 fw-bold amount-summary-value" id="subtotalLabel">Rp 0</div>
                                 </div>
                             </div>
 
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-2 col-md-4">
                                 <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                     <div class="text-muted small mb-1">Tax</div>
-                                    <div class="fs-5 fw-bold" id="taxAmountLabel">Rp 0</div>
+                                    <div class="fs-5 fw-bold amount-summary-value" id="taxAmountLabel">Rp 0</div>
                                 </div>
                             </div>
 
-                            <div class="col-xl-3 col-md-6">
+                            <div class="col-xl-2 col-md-4">
                                 <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                     <div class="text-muted small mb-1">Grand Total</div>
-                                    <div class="fs-4 fw-bold" id="grandTotalLabel">Rp 0</div>
+                                    <div class="fs-4 fw-bold amount-summary-value" id="grandTotalLabel">Rp 0</div>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="alert alert-success border-0 mt-3 mb-0 py-2 px-3 small" id="taxHelperText">
+                            Tax summary akan mengikuti pilihan Tax Treatment dan Tax Entity.
                         </div>
                     </div>
                 </div>
@@ -483,19 +645,33 @@
                         <i class="bi bi-save me-2"></i>{{ $isEdit ? 'Update Memo' : 'Create Memo' }}
                     </button>
                 </div>
-
-               
             </div>
         </div>
     </form>
 </div>
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('internalMemoForm');
         const itemsContainer = document.getElementById('memoItemsContainer');
         const addButtons = document.querySelectorAll('.add-memo-item-btn');
+
         const taxInput = document.getElementById('taxRateInput');
+        const taxTreatmentInput = document.getElementById('taxTreatmentInput');
+        const taxEntityTypeInput = document.getElementById('taxEntityTypeInput');
+        const taxHelperText = document.getElementById('taxHelperText');
+
+        const notesInput = document.getElementById('notesInput');
+        const purposeInput = document.getElementById('purposeInput');
+        const purposeEditorElement = document.getElementById('purposeEditor');
+
+        const taxIncludedLine = 'Tax is included in the submitted amount.';
+
+        let purposeQuill = null;
+        let lastPkpTaxRate = parseFloat(taxInput?.value || 11) || 11;
 
         const rupiahFormatter = new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -505,6 +681,67 @@
 
         function formatRupiah(value) {
             return rupiahFormatter.format(Number(value || 0));
+        }
+
+        function initQuill() {
+            if (! purposeEditorElement || ! purposeInput) {
+                return;
+            }
+
+            if (typeof Quill === 'undefined') {
+                purposeInput.classList.remove('d-none');
+                purposeEditorElement.closest('.memo-quill-wrap')?.classList.add('d-none');
+                return;
+            }
+
+            purposeQuill = new Quill('#purposeEditor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['blockquote'],
+                        ['clean']
+                    ]
+                },
+                placeholder: 'Tuliskan minimal 2 poin purpose memo...'
+            });
+        }
+
+        function syncPurposeInput() {
+            if (! purposeInput) {
+                return;
+            }
+
+            if (purposeQuill) {
+                purposeInput.value = purposeQuill.root.innerHTML.trim();
+            }
+        }
+
+        function removeAutomaticTaxNote(value) {
+            return String(value || '')
+                .split(/\r?\n/)
+                .filter(function (line) {
+                    return line.trim() !== taxIncludedLine;
+                })
+                .join('\n')
+                .trim();
+        }
+
+        function syncTaxNote() {
+            if (! notesInput || ! taxTreatmentInput) {
+                return;
+            }
+
+            const treatment = taxTreatmentInput.value;
+            const cleanedNotes = removeAutomaticTaxNote(notesInput.value);
+
+            if (treatment === 'include') {
+                notesInput.value = (cleanedNotes ? cleanedNotes + '\n' : '') + taxIncludedLine;
+                return;
+            }
+
+            notesInput.value = cleanedNotes;
         }
 
         function refreshItemTitles() {
@@ -527,6 +764,28 @@
             refreshItemTitles();
         }
 
+        function applyTaxEntityState() {
+            if (! taxInput || ! taxEntityTypeInput) {
+                return;
+            }
+
+            const entityType = taxEntityTypeInput.value;
+
+            if (entityType === 'non_pkp') {
+                taxInput.value = 0;
+                taxInput.setAttribute('readonly', 'readonly');
+                taxInput.classList.add('bg-light');
+                return;
+            }
+
+            taxInput.removeAttribute('readonly');
+            taxInput.classList.remove('bg-light');
+
+            if (parseFloat(taxInput.value || 0) <= 0) {
+                taxInput.value = lastPkpTaxRate || 11;
+            }
+        }
+
         function calculateSummary() {
             let subtotal = 0;
 
@@ -544,12 +803,41 @@
             });
 
             const taxRate = parseFloat(taxInput?.value || 0);
-            const taxAmount = subtotal * (taxRate / 100);
-            const grandTotal = subtotal + taxAmount;
+            const treatment = taxTreatmentInput?.value || 'not_include';
+            const entityType = taxEntityTypeInput?.value || 'pkp';
+
+            let taxAmount = 0;
+            let grandTotal = subtotal;
+
+            if (entityType === 'pkp' && taxRate > 0) {
+                if (treatment === 'include') {
+                    taxAmount = subtotal - (subtotal / (1 + (taxRate / 100)));
+                    grandTotal = subtotal;
+                } else {
+                    taxAmount = subtotal * (taxRate / 100);
+                    grandTotal = subtotal + taxAmount;
+                }
+            }
 
             document.getElementById('subtotalLabel').textContent = formatRupiah(subtotal);
             document.getElementById('taxAmountLabel').textContent = formatRupiah(taxAmount);
             document.getElementById('grandTotalLabel').textContent = formatRupiah(grandTotal);
+
+            if (taxHelperText) {
+                if (entityType === 'non_pkp') {
+                    taxHelperText.textContent = 'Non PKP dipilih, tax rate otomatis 0 dan grand total sama dengan subtotal.';
+                } else if (treatment === 'include') {
+                    taxHelperText.textContent = 'Tax Include dipilih, grand total mengikuti subtotal dan tax dihitung sebagai bagian dari nominal.';
+                } else {
+                    taxHelperText.textContent = 'Tax Not Include dipilih, tax ditambahkan ke subtotal.';
+                }
+            }
+        }
+
+        function refreshTaxState() {
+            applyTaxEntityState();
+            syncTaxNote();
+            calculateSummary();
         }
 
         function createRow(index) {
@@ -648,10 +936,25 @@
             calculateSummary();
         });
 
-        taxInput?.addEventListener('input', calculateSummary);
+        taxInput?.addEventListener('input', function () {
+            if ((taxEntityTypeInput?.value || 'pkp') === 'pkp') {
+                lastPkpTaxRate = parseFloat(taxInput.value || 11) || 11;
+            }
 
+            calculateSummary();
+        });
+
+        taxTreatmentInput?.addEventListener('change', refreshTaxState);
+        taxEntityTypeInput?.addEventListener('change', refreshTaxState);
+
+        form?.addEventListener('submit', function () {
+            syncPurposeInput();
+            syncTaxNote();
+        });
+
+        initQuill();
         refreshItemTitles();
-        calculateSummary();
+        refreshTaxState();
     });
 </script>
 @endpush
