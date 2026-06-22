@@ -37,6 +37,7 @@ class InternalMemo extends Model
 
         'subject',
         'attachment_label',
+        'attachment_url',
 
         'to_name',
         'to_position',
@@ -106,6 +107,20 @@ class InternalMemo extends Model
         return $this->belongsTo(User::class, 'submitted_by');
     }
 
+    public function getStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            self::STATUS_DRAFT => 'Draft',
+            self::STATUS_SUBMITTED => 'Submitted',
+            self::STATUS_WAITING_ACKNOWLEDGEMENT => 'Waiting Acknowledgement',
+            self::STATUS_WAITING_APPROVAL => 'Waiting Approval',
+            self::STATUS_APPROVED => 'Approved',
+            self::STATUS_REJECTED => 'Rejected',
+            self::STATUS_CANCELLED => 'Cancelled',
+            default => '-',
+        };
+    }
+
     public function getPaymentSourceLabelAttribute(): string
     {
         return match ($this->payment_source) {
@@ -131,6 +146,46 @@ class InternalMemo extends Model
             self::TAX_ENTITY_NON_PKP => 'Non PKP',
             default => '-',
         };
+    }
+
+    public function hasAttachmentUrl(): bool
+    {
+        return filled($this->attachment_url);
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isSubmitted(): bool
+    {
+        return $this->status === self::STATUS_SUBMITTED;
+    }
+
+    public function isWaitingAcknowledgement(): bool
+    {
+        return $this->status === self::STATUS_WAITING_ACKNOWLEDGEMENT;
+    }
+
+    public function isWaitingApproval(): bool
+    {
+        return $this->status === self::STATUS_WAITING_APPROVAL;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === self::STATUS_APPROVED;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === self::STATUS_REJECTED;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
     }
 
     public function isTaxIncluded(): bool

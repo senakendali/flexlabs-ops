@@ -5,6 +5,7 @@
 @section('content')
 @php
     $statuses = $statuses ?? [];
+
     $paymentSources = $paymentSources ?? [
         'bank' => 'Bank',
         'cash' => 'Cash',
@@ -62,6 +63,19 @@
         };
     };
 
+    $approvalCardClass = function (?string $status, bool $isActive = false) {
+        if ($isActive) {
+            return 'border-primary bg-primary bg-opacity-10';
+        }
+
+        return match ($status) {
+            'approved' => 'border-success bg-success bg-opacity-10',
+            'rejected' => 'border-danger bg-danger bg-opacity-10',
+            'pending' => 'border-warning bg-warning bg-opacity-10',
+            default => 'border bg-light-subtle',
+        };
+    };
+
     $paymentSourceLabel = $paymentSources[$memo->payment_source] ?? (
         $memo->payment_source ? \Illuminate\Support\Str::headline($memo->payment_source) : '-'
     );
@@ -77,31 +91,32 @@
     $allowedPurposeTags = '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>';
     $purposeHtml = trim(strip_tags((string) $memo->purpose, $allowedPurposeTags));
 
-    $approvalRows = $memo->relationLoaded('approvals') ? $memo->approvals : collect();
-    $acknowledgementRows = $approvalRows->where('role_label', 'Acknowledged by')->values();
+    $approvalRows = $memo->relationLoaded('approvals')
+        ? $memo->approvals->sortBy('step_order')->values()
+        : collect();
 
-    if ($acknowledgementRows->count() < 2) {
-        $fallbackAcknowledgements = collect([
-            (object) [
-                'step_order' => 1,
-                'role_label' => 'Acknowledged by',
-                'approver_name' => 'Andres Dony Wijaya',
-                'approver_position' => 'Business Admin Manager',
-                'status' => $memo->status === 'approved' ? 'approved' : 'pending',
-                'notes' => null,
-            ],
-            (object) [
-                'step_order' => 2,
-                'role_label' => 'Acknowledged by',
-                'approver_name' => 'Awalokita Garnierit',
-                'approver_position' => 'Academic Business Unit Head',
-                'status' => $memo->status === 'approved' ? 'approved' : 'pending',
-                'notes' => null,
-            ],
-        ]);
+    $activeApproval = $activeApproval ?? $approvalRows
+        ->where('status', 'pending')
+        ->sortBy('step_order')
+        ->first();
 
-        $acknowledgementRows = $acknowledgementRows->concat($fallbackAcknowledgements)->take(2)->values();
-    }
+    $activeApprovalId = $activeApproval?->id;
+
+    $approvalStageLabel = function ($approval) {
+        return match ((int) ($approval?->step_order ?? 0)) {
+            1 => 'First Acknowledgement',
+            2 => 'Second Acknowledgement',
+            3 => 'Final Approval',
+            default => $approval?->role_label ?: '-',
+        };
+    };
+
+    $attachmentUrl = trim((string) ($memo->attachment_url ?? ''));
+    $attachmentLabel = $memo->attachment_label ?: 'Google Drive Attachment';
+
+    $canSubmit = $canSubmit ?? false;
+    $canApprove = $canApprove ?? false;
+    $canEdit = $canEdit ?? false;
 @endphp
 
 @push('styles')
@@ -134,6 +149,47 @@
         padding-left: 1rem;
         border-left: 4px solid rgba(91, 62, 142, .24);
         color: #64748b;
+    }
+
+    .memo-approval-card {
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 1rem;
+        transition: .2s ease;
+    }
+
+    .memo-approval-step {
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        background: rgba(91, 62, 142, .12);
+        color: #5B3E8E;
+        flex: 0 0 auto;
+    }
+
+    .memo-attachment-link {
+        word-break: break-word;
+    }
+
+    .memo-confirm-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        background: rgba(91, 62, 142, .12);
+        color: #5B3E8E;
+        flex: 0 0 auto;
+    }
+
+    .memo-confirm-message {
+        line-height: 1.65;
     }
 </style>
 @endpush
@@ -180,6 +236,19 @@
         </div>
     @endif
 
+    @if ($errors->any())
+        <div class="alert alert-danger border-0 shadow-sm">
+            <div class="fw-semibold mb-2">
+                <i class="bi bi-exclamation-triangle me-2"></i>Action belum bisa diproses.
+            </div>
+            <ul class="mb-0 ps-3">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="row g-4">
         <div class="col-12">
             <div class="content-card mb-4">
@@ -192,7 +261,7 @@
                     </div>
 
                     <span class="badge {{ $statusBadgeClass($memo->status) }}">
-                        {{ $statuses[$memo->status] ?? \Illuminate\Support\Str::headline($memo->status) }}
+                        {{ $statuses[$memo->status] ?? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->status)) }}
                     </span>
                 </div>
 
@@ -229,9 +298,25 @@
                         <div class="col-md-4">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
                                 <div class="text-muted small mb-1">Attachment</div>
-                                <div class="fw-semibold">{{ $memo->attachment_label ?: '-' }}</div>
+
+                                @if ($attachmentUrl !== '')
+                                    <div class="fw-semibold mb-2">{{ $attachmentLabel }}</div>
+
+                                    <a
+                                        href="{{ $attachmentUrl }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="btn btn-sm btn-outline-primary"
+                                    >
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>Open Attachment
+                                    </a>
+                                @else
+                                    <div class="fw-semibold">{{ $memo->attachment_label ?: '-' }}</div>
+                                @endif
                             </div>
                         </div>
+
+                        
 
                         <div class="col-md-6">
                             <div class="border rounded-4 p-3 h-100 bg-light-subtle">
@@ -283,59 +368,7 @@
             </div>
         </div>
 
-        <div class="col-12">
-            <div class="content-card mb-4">
-                <div class="content-card-header">
-                    <div>
-                        <h5 class="content-card-title mb-1">Acknowledgement Signers</h5>
-                        <p class="content-card-subtitle mb-0">
-                            Signer acknowledgement yang akan muncul di dokumen memo.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="content-card-body">
-                    <div class="row g-3">
-                        @foreach ($acknowledgementRows as $approval)
-                            <div class="col-lg-6">
-                                <div class="border rounded-4 p-3 h-100 bg-light-subtle">
-                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3 flex-wrap">
-                                        <div>
-                                            <div class="fw-semibold">{{ $approval->role_label }}</div>
-                                            <div class="text-muted small">Signer {{ $approval->step_order }}</div>
-                                        </div>
-
-                                        <span class="badge {{ $approvalBadgeClass($approval->status) }}">
-                                            {{ \Illuminate\Support\Str::headline($approval->status ?? 'pending') }}
-                                        </span>
-                                    </div>
-
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <div class="text-muted small mb-1">Name</div>
-                                            <div class="fw-semibold">{{ $approval->approver_name ?: optional($approval->approver ?? null)->name ?: '-' }}</div>
-                                        </div>
-
-                                        <div class="col-12">
-                                            <div class="text-muted small mb-1">Position</div>
-                                            <div class="fw-semibold">{{ $approval->approver_position ?: '-' }}</div>
-                                        </div>
-
-                                        @if (! blank($approval->notes ?? null))
-                                            <div class="col-12">
-                                                <div class="text-muted small mb-1">Notes</div>
-                                                <div style="white-space: pre-line;">{{ $approval->notes }}</div>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        </div>
-
+        {{-- Budget Items moved before Approval Workflow --}}
         <div class="col-12">
             <div class="content-card mb-4">
                 <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -410,6 +443,220 @@
             </div>
         </div>
 
+        {{-- Approval Workflow --}}
+        <div class="col-12">
+            <div class="content-card mb-4">
+                <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="content-card-title mb-1">Approval Workflow</h5>
+                        <p class="content-card-subtitle mb-0">
+                            Approval berjalan berurutan dari signer 1 sampai signer 3.
+                        </p>
+                    </div>
+
+                    @if ($activeApproval)
+                        <span class="badge bg-primary">
+                            Active: Signer {{ $activeApproval->step_order }}
+                        </span>
+                    @endif
+                </div>
+
+                <div class="content-card-body">
+                    @if ($approvalRows->isNotEmpty())
+                        <div class="row g-3">
+                            @foreach ($approvalRows as $approval)
+                                @php
+                                    $isActiveApproval = $activeApprovalId && (int) $activeApprovalId === (int) $approval->id;
+                                    $approverName = $approval->approver_name ?: optional($approval->approver ?? null)->name;
+                                    $approverEmail = $approval->approver_email ?: optional($approval->approver ?? null)->email;
+                                @endphp
+
+                                <div class="col-xl-4 col-lg-6">
+                                    <div class="memo-approval-card {{ $approvalCardClass($approval->status, $isActiveApproval) }} p-3 h-100">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                            <div class="d-flex align-items-start gap-2">
+                                                <span class="memo-approval-step">{{ $approval->step_order }}</span>
+                                                <div>
+                                                    <div class="fw-bold">
+                                                        Signer {{ $approval->step_order }}
+                                                    </div>
+                                                    <div class="text-muted small">
+                                                        {{ $approvalStageLabel($approval) }}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="d-flex flex-column align-items-end gap-1">
+                                                <span class="badge {{ $approvalBadgeClass($approval->status) }}">
+                                                    {{ \Illuminate\Support\Str::headline($approval->status ?? 'pending') }}
+                                                </span>
+
+                                                @if ($isActiveApproval)
+                                                    <span class="badge bg-primary">
+                                                        Active
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-12">
+                                                <div class="text-muted small mb-1">Name</div>
+                                                <div class="fw-semibold">{{ $approverName ?: '-' }}</div>
+                                            </div>
+
+                                            <div class="col-12">
+                                                <div class="text-muted small mb-1">Email</div>
+                                                <div class="fw-semibold text-break">{{ $approverEmail ?: '-' }}</div>
+                                            </div>
+
+                                            <div class="col-12">
+                                                <div class="text-muted small mb-1">Position</div>
+                                                <div class="fw-semibold">{{ $approval->approver_position ?: '-' }}</div>
+                                            </div>
+
+                                            <div class="col-12">
+                                                <div class="text-muted small mb-1">Notification Sent</div>
+                                                <div class="fw-semibold">{{ $formatDateTime($approval->notification_sent_at ?? null) }}</div>
+                                            </div>
+
+                                            @if ($approval->status === 'approved')
+                                                <div class="col-12">
+                                                    <div class="text-muted small mb-1">Approved At</div>
+                                                    <div class="fw-semibold">{{ $formatDateTime($approval->approved_at ?? null) }}</div>
+                                                </div>
+                                            @endif
+
+                                            @if ($approval->status === 'rejected')
+                                                <div class="col-12">
+                                                    <div class="text-muted small mb-1">Rejected At</div>
+                                                    <div class="fw-semibold">{{ $formatDateTime($approval->rejected_at ?? null) }}</div>
+                                                </div>
+                                            @endif
+
+                                            @if (! blank($approval->notes ?? null))
+                                                <div class="col-12">
+                                                    <div class="text-muted small mb-1">Notes</div>
+                                                    <div class="border rounded-3 bg-white p-2 small" style="white-space: pre-line;">{{ $approval->notes }}</div>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center text-muted py-4">
+                            Belum ada approval signer.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        @if ($canApprove && $activeApproval)
+            <div class="col-12">
+                <div class="content-card mb-4 border border-primary">
+                    <div class="content-card-header">
+                        <div>
+                            <h5 class="content-card-title mb-1">Approval Action</h5>
+                            <p class="content-card-subtitle mb-0">
+                                Anda adalah signer aktif untuk memo ini. Silakan approve atau reject memo.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-card-body">
+                        <div class="row g-3">
+                            <div class="col-lg-5">
+                                <div class="border rounded-4 p-3 bg-light-subtle h-100">
+                                    <div class="text-muted small mb-1">Active Signer</div>
+                                    <div class="fw-bold">
+                                        Signer {{ $activeApproval->step_order }} - {{ $approvalStageLabel($activeApproval) }}
+                                    </div>
+                                    <div class="text-muted mt-1">
+                                        {{ $activeApproval->approver_name ?: optional($activeApproval->approver ?? null)->name ?: '-' }}
+                                    </div>
+
+                                    <div class="alert alert-info border-0 mt-3 mb-0 small">
+                                        Jika di-approve, memo akan otomatis dikirim ke signer berikutnya.
+                                        Jika ini signer terakhir, memo akan menjadi approved.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-7">
+                                <div class="border rounded-4 p-3 bg-white h-100">
+                                    <form method="POST" action="{{ route('internal-memos.approve', $memo) }}" class="mb-3">
+                                        @csrf
+                                        @method('PATCH')
+
+                                        <label class="form-label">Approval Notes <span class="text-muted">(optional)</span></label>
+                                        <textarea
+                                            name="notes"
+                                            rows="3"
+                                            class="form-control mb-3 @error('notes') is-invalid @enderror"
+                                            placeholder="Catatan approval jika ada..."
+                                        >{{ old('notes') }}</textarea>
+
+                                        @error('notes')
+                                            <div class="invalid-feedback d-block mb-2">{{ $message }}</div>
+                                        @enderror
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-success btn-modern w-100"
+                                            data-confirm-submit
+                                            data-confirm-title="Approve Internal Memo"
+                                            data-confirm-message="Approve internal memo ini? Jika masih ada signer berikutnya, sistem akan otomatis mengirim notifikasi ke signer selanjutnya."
+                                            data-confirm-button-text="Ya, Approve Memo"
+                                            data-confirm-button-class="btn-success"
+                                            data-confirm-icon="bi-check-circle"
+                                        >
+                                            <i class="bi bi-check-circle me-2"></i>Approve Memo
+                                        </button>
+                                    </form>
+
+                                   
+
+                                    <form method="POST" action="{{ route('internal-memos.reject', $memo) }}">
+                                        @csrf
+                                        @method('PATCH')
+
+                                        <label class="form-label">Rejection Notes <span class="text-danger">*</span></label>
+                                        <textarea
+                                            name="notes"
+                                            rows="3"
+                                            class="form-control mb-3 @error('notes') is-invalid @enderror"
+                                            placeholder="Tuliskan alasan rejection..."
+                                            required
+                                        >{{ old('notes') }}</textarea>
+
+                                        @error('notes')
+                                            <div class="invalid-feedback d-block mb-2">{{ $message }}</div>
+                                        @enderror
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-danger btn-modern w-100"
+                                            data-confirm-submit
+                                            data-confirm-title="Reject Internal Memo"
+                                            data-confirm-message="Reject internal memo ini? Memo akan dikembalikan ke creator/submitter bersama notes rejection."
+                                            data-confirm-button-text="Ya, Reject Memo"
+                                            data-confirm-button-class="btn-danger"
+                                            data-confirm-icon="bi-x-circle"
+                                        >
+                                            <i class="bi bi-x-circle me-2"></i>Reject Memo
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="col-12">
             <div class="content-card mb-4">
                 <div class="content-card-header">
@@ -479,35 +726,215 @@
             </div>
         </div>
 
-        <div class="col-12 d-none">
-            <div class="content-card mb-4">
-                <div class="content-card-header">
+        @if ($canSubmit || in_array($memo->status, ['draft', 'rejected', 'waiting_acknowledgement', 'waiting_approval', 'approved'], true))
+            <div class="col-12 d-none">
+                <div class="content-card mb-4">
+                    <div class="content-card-header">
+                        <div>
+                            <h5 class="content-card-title mb-1">Memo Actions</h5>
+                            <p class="content-card-subtitle mb-0">
+                                Action tambahan untuk publish atau cancel memo.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-card-body">
+                        <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                            @if ($canSubmit)
+                                <form method="POST" action="{{ route('internal-memos.submit', $memo) }}">
+                                    @csrf
+                                    @method('PATCH')
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-primary btn-modern"
+                                        data-confirm-submit
+                                        data-confirm-title="Publish Internal Memo"
+                                        data-confirm-message="Publish memo dan kirim notifikasi ke signer pertama?"
+                                        data-confirm-button-text="Ya, Publish Memo"
+                                        data-confirm-button-class="btn-primary"
+                                        data-confirm-icon="bi-send"
+                                    >
+                                        <i class="bi bi-send me-2"></i>Publish Memo
+                                    </button>
+                                </form>
+                            @endif
+
+                            @if (in_array($memo->status, ['draft', 'rejected', 'waiting_acknowledgement', 'waiting_approval', 'approved'], true))
+                                <form method="POST" action="{{ route('internal-memos.cancel', $memo) }}">
+                                    @csrf
+                                    @method('PATCH')
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-danger btn-modern"
+                                        data-confirm-submit
+                                        data-confirm-title="Cancel Internal Memo"
+                                        data-confirm-message="Cancel memo ini? Memo yang sudah dicancel tidak akan lanjut ke proses approval."
+                                        data-confirm-button-text="Ya, Cancel Memo"
+                                        data-confirm-button-class="btn-danger"
+                                        data-confirm-icon="bi-slash-circle"
+                                    >
+                                        <i class="bi bi-slash-circle me-2"></i>Cancel Memo
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+    </div>
+</div>
+
+<div class="modal fade" id="memoConfirmModal" tabindex="-1" aria-labelledby="memoConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="memo-confirm-icon" id="memoConfirmIconWrap">
+                        <i class="bi bi-question-circle" id="memoConfirmIcon"></i>
+                    </span>
+
                     <div>
-                        <h5 class="content-card-title mb-1">Memo Actions</h5>
-                        <p class="content-card-subtitle mb-0">
-                            Memo sekarang otomatis approved setelah disimpan.
-                        </p>
+                        <h5 class="modal-title fw-bold mb-1" id="memoConfirmModalLabel">
+                            Konfirmasi Action
+                        </h5>
+                        <div class="text-muted small">
+                            Pastikan data memo sudah sesuai sebelum melanjutkan.
+                        </div>
                     </div>
                 </div>
 
-                <div class="content-card-body">
-                    @if (in_array($memo->status, ['draft', 'rejected', 'waiting_acknowledgement', 'waiting_approval'], true))
-                        <form method="POST" action="{{ route('internal-memos.cancel', $memo) }}" class="d-flex justify-content-end">
-                            @csrf
-                            @method('PATCH')
+                <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
 
-                            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Cancel memo ini?')">
-                                <i class="bi bi-slash-circle me-2"></i>Cancel Memo
-                            </button>
-                        </form>
-                    @else
-                        <div class="text-muted small">
-                            Memo ini sudah otomatis approved. Edit memo masih bisa dilakukan selama belum cancelled.
-                        </div>
-                    @endif
-                </div>
+            <div class="modal-body pt-3">
+                <p class="mb-0 memo-confirm-message" id="memoConfirmMessage">
+                    Apakah Anda yakin ingin melanjutkan action ini?
+                </p>
+            </div>
+
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light btn-modern" data-bs-dismiss="modal">
+                    Batal
+                </button>
+
+                <button type="button" class="btn btn-primary btn-modern" id="memoConfirmSubmitBtn">
+                    Ya, Lanjutkan
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const modalElement = document.getElementById('memoConfirmModal');
+        const modalTitle = document.getElementById('memoConfirmModalLabel');
+        const modalMessage = document.getElementById('memoConfirmMessage');
+        const modalIcon = document.getElementById('memoConfirmIcon');
+        const confirmButton = document.getElementById('memoConfirmSubmitBtn');
+
+        let targetForm = null;
+        let memoConfirmModal = null;
+
+        if (modalElement && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            memoConfirmModal = new bootstrap.Modal(modalElement);
+        }
+
+        function resetConfirmButtonClass() {
+            if (! confirmButton) {
+                return;
+            }
+
+            confirmButton.className = 'btn btn-primary btn-modern';
+        }
+
+        document.querySelectorAll('[data-confirm-submit]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const form = button.closest('form');
+
+                if (! form) {
+                    return;
+                }
+
+                if (typeof form.reportValidity === 'function' && ! form.reportValidity()) {
+                    return;
+                }
+
+                targetForm = form;
+
+                const title = button.dataset.confirmTitle || 'Konfirmasi Action';
+                const message = button.dataset.confirmMessage || 'Apakah Anda yakin ingin melanjutkan action ini?';
+                const buttonText = button.dataset.confirmButtonText || 'Ya, Lanjutkan';
+                const buttonClass = button.dataset.confirmButtonClass || 'btn-primary';
+                const iconClass = button.dataset.confirmIcon || 'bi-question-circle';
+
+                if (! memoConfirmModal) {
+                    if (window.confirm(message)) {
+                        form.submit();
+                    }
+
+                    return;
+                }
+
+                if (modalTitle) {
+                    modalTitle.textContent = title;
+                }
+
+                if (modalMessage) {
+                    modalMessage.textContent = message;
+                }
+
+                if (modalIcon) {
+                    modalIcon.className = 'bi ' + iconClass;
+                }
+
+                if (confirmButton) {
+                    resetConfirmButtonClass();
+                    confirmButton.classList.remove('btn-primary');
+                    confirmButton.classList.add(buttonClass);
+                    confirmButton.textContent = buttonText;
+                    confirmButton.disabled = false;
+                }
+
+                memoConfirmModal.show();
+            });
+        });
+
+        confirmButton?.addEventListener('click', function () {
+            if (! targetForm) {
+                return;
+            }
+
+            confirmButton.disabled = true;
+            confirmButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Memproses...';
+
+            if (typeof targetForm.requestSubmit === 'function') {
+                targetForm.requestSubmit();
+                return;
+            }
+
+            targetForm.submit();
+        });
+
+        modalElement?.addEventListener('hidden.bs.modal', function () {
+            targetForm = null;
+
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.textContent = 'Ya, Lanjutkan';
+                resetConfirmButtonClass();
+            }
+
+            if (modalIcon) {
+                modalIcon.className = 'bi bi-question-circle';
+            }
+        });
+    });
+</script>
+@endpush
+
 @endsection

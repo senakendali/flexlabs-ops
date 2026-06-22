@@ -6,34 +6,59 @@
         ? route('internal-memos.update', $memo)
         : route('internal-memos.store');
 
+    $users = $users ?? collect();
+
     $approvalRows = $memo->relationLoaded('approvals') ? $memo->approvals : collect();
 
-    $defaultAcknowledgements = $acknowledgementDefaults ?? [
+    $defaultApprovalSigners = $approvalSignersDefaults ?? $acknowledgementDefaults ?? [
         [
-            'name' => 'Andres Dony Wijaya',
-            'position' => 'Business Admin Manager',
+            'role_label' => 'Acknowledged by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
         ],
         [
-            'name' => 'Awalokita Garnierit',
-            'position' => 'Academic Business Unit Head',
+            'role_label' => 'Acknowledged by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
+        ],
+        [
+            'role_label' => 'Approved by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
         ],
     ];
 
-    $storedAcknowledgements = $approvalRows
-        ->where('role_label', 'Acknowledged by')
+    $storedApprovalSigners = $approvalRows
         ->values()
         ->map(fn ($approval) => [
+            'role_label' => $approval->role_label ?: 'Acknowledged by',
+            'approver_id' => $approval->approver_id,
             'name' => $approval->approver_name,
             'position' => $approval->approver_position,
         ])
         ->toArray();
 
-    $acknowledgementRows = old(
+    $approvalSignerRows = old(
         'acknowledgements',
-        count($storedAcknowledgements) >= 2 ? $storedAcknowledgements : $defaultAcknowledgements
+        count($storedApprovalSigners) >= 3 ? $storedApprovalSigners : $defaultApprovalSigners
     );
 
-    $acknowledgementRows = array_values(array_replace($defaultAcknowledgements, array_slice($acknowledgementRows, 0, 2)));
+    $approvalSignerRows = array_slice(array_values($approvalSignerRows), 0, 3);
+
+    for ($i = 0; $i < 3; $i++) {
+        $approvalSignerRows[$i] = array_merge(
+            $defaultApprovalSigners[$i] ?? [
+                'role_label' => $i === 2 ? 'Approved by' : 'Acknowledged by',
+                'approver_id' => null,
+                'name' => '',
+                'position' => '',
+            ],
+            $approvalSignerRows[$i] ?? []
+        );
+    }
 
     $memoItems = old(
         'items',
@@ -88,6 +113,16 @@
         (string) $purposeValue,
         '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>'
     );
+
+    $resolveUserPosition = function ($user) {
+        foreach (['position', 'job_title', 'title', 'role_label', 'role'] as $field) {
+            if (! empty($user->{$field})) {
+                return \Illuminate\Support\Str::headline((string) $user->{$field});
+            }
+        }
+
+        return '';
+    };
 @endphp
 
 @push('styles')
@@ -124,6 +159,67 @@
             display: flex;
             align-items: center;
         }
+
+        .approval-signer-card {
+            background: #f8fafc;
+            border: 1px solid rgba(15, 23, 42, .08);
+            border-radius: 1rem;
+        }
+
+        .approval-signer-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .35rem .65rem;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 700;
+            background: rgba(1, 150, 65, .1);
+            color: #019641;
+        }
+
+        .memo-item-row {
+            background: #f8fafc;
+            border: 1px solid rgba(15, 23, 42, .08);
+            border-radius: 1rem;
+        }
+
+        .memo-item-number {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            background: rgba(1, 150, 65, .1);
+            color: #019641;
+            flex: 0 0 auto;
+        }
+
+        .memo-item-row textarea {
+            resize: vertical;
+        }
+
+        .memo-item-row .form-label {
+            margin-bottom: .4rem;
+        }
+
+        .item-estimated-label {
+            min-height: 38px;
+            display: flex;
+            align-items: center;
+        }
+
+        .budget-action-col {
+            padding-top: 1.95rem;
+        }
+
+        @media (max-width: 1199.98px) {
+            .budget-action-col {
+                padding-top: 0;
+            }
+        }
     </style>
 @endpush
 
@@ -137,7 +233,7 @@
                     {{ $isEdit ? 'Edit Internal Memo' : 'Create Internal Memo' }}
                 </h1>
                 <p class="page-subtitle mb-0">
-                    Buat memo internal dengan budget item. Untuk sementara approval di-hide dan memo akan otomatis approved.
+                    Buat memo internal dengan budget item, payment detail, attachment link, dan approval signer.
                 </p>
             </div>
 
@@ -249,7 +345,7 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Attachment</label>
+                                <label class="form-label">Attachment Label</label>
                                 <input
                                     type="text"
                                     name="attachment_label"
@@ -258,6 +354,23 @@
                                     placeholder="Contoh: Course Price"
                                 >
                                 @error('attachment_label')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Attachment Google Drive Link</label>
+                                <input
+                                    type="url"
+                                    name="attachment_url"
+                                    class="form-control @error('attachment_url') is-invalid @enderror"
+                                    value="{{ old('attachment_url', $memo->attachment_url ?? '') }}"
+                                    placeholder="https://drive.google.com/..."
+                                >
+                                <div class="form-text">
+                                    Masukkan link Google Drive untuk lampiran memo jika ada.
+                                </div>
+                                @error('attachment_url')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -369,32 +482,88 @@
                 <div class="content-card mb-4">
                     <div class="content-card-header">
                         <div>
-                            <h5 class="content-card-title mb-1">Acknowledgement Signers</h5>
+                            <h5 class="content-card-title mb-1">Approval Signers</h5>
                             <p class="content-card-subtitle mb-0">
-                                Penandatangan dapat disesuaikan untuk memo ini.
+                                Pilih tiga user yang akan menjadi signer approval dan menerima notifikasi email.
                             </p>
                         </div>
                     </div>
 
                     <div class="content-card-body">
                         <div class="row g-3">
-                            @foreach ($acknowledgementRows as $index => $acknowledgement)
-                                <div class="col-lg-6">
-                                    <div class="border rounded-4 p-3 h-100 bg-light-subtle">
-                                        <div class="fw-semibold mb-3">Acknowledged by {{ $index + 1 }}</div>
+                            @foreach ($approvalSignerRows as $index => $signer)
+                                @php
+                                    $roleLabel = $signer['role_label'] ?? ($index === 2 ? 'Approved by' : 'Acknowledged by');
+                                    $selectedApproverId = (string) ($signer['approver_id'] ?? '');
+                                    $selectedName = $signer['name'] ?? '';
+                                    $selectedPosition = $signer['position'] ?? '';
+                                @endphp
+
+                                <div class="col-xl-4 col-lg-6">
+                                    <div class="approval-signer-card p-3 h-100">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                            <div>
+                                                <div class="approval-signer-badge">
+                                                    <i class="bi bi-person-check"></i>
+                                                    Signer {{ $index + 1 }}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <input
+                                            type="hidden"
+                                            name="acknowledgements[{{ $index }}][role_label]"
+                                            value="{{ $roleLabel }}"
+                                        >
+
+                                        <input
+                                            type="hidden"
+                                            name="acknowledgements[{{ $index }}][name]"
+                                            class="signer-name-hidden"
+                                            value="{{ $selectedName }}"
+                                        >
 
                                         <div class="row g-3">
                                             <div class="col-12">
-                                                <label class="form-label">Name <span class="text-danger">*</span></label>
+                                                <label class="form-label">Role Label <span class="text-danger">*</span></label>
                                                 <input
                                                     type="text"
-                                                    name="acknowledgements[{{ $index }}][name]"
-                                                    class="form-control @error("acknowledgements.$index.name") is-invalid @enderror"
-                                                    value="{{ $acknowledgement['name'] ?? '' }}"
+                                                    class="form-control"
+                                                    value="{{ $roleLabel }}"
+                                                    readonly
+                                                >
+                                            </div>
+
+                                            <div class="col-12">
+                                                <label class="form-label">User <span class="text-danger">*</span></label>
+                                                <select
+                                                    name="acknowledgements[{{ $index }}][approver_id]"
+                                                    class="form-select signer-user-select @error("acknowledgements.$index.approver_id") is-invalid @enderror"
+                                                    data-index="{{ $index }}"
                                                     required
                                                 >
-                                                @error("acknowledgements.$index.name")
+                                                    <option value="">Select user</option>
+                                                    @foreach ($users as $user)
+                                                        @php
+                                                            $userPosition = $resolveUserPosition($user);
+                                                        @endphp
+                                                        <option
+                                                            value="{{ $user->id }}"
+                                                            data-name="{{ $user->name }}"
+                                                            data-position="{{ $userPosition }}"
+                                                            @selected($selectedApproverId === (string) $user->id)
+                                                        >
+                                                            {{ $user->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+
+                                                @error("acknowledgements.$index.approver_id")
                                                     <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+
+                                                @error("acknowledgements.$index.name")
+                                                    <div class="text-danger small mt-1">{{ $message }}</div>
                                                 @enderror
                                             </div>
 
@@ -403,8 +572,9 @@
                                                 <input
                                                     type="text"
                                                     name="acknowledgements[{{ $index }}][position]"
-                                                    class="form-control @error("acknowledgements.$index.position") is-invalid @enderror"
-                                                    value="{{ $acknowledgement['position'] ?? '' }}"
+                                                    class="form-control signer-position-input @error("acknowledgements.$index.position") is-invalid @enderror"
+                                                    value="{{ $selectedPosition }}"
+                                                    placeholder="Jabatan signer"
                                                     required
                                                 >
                                                 @error("acknowledgements.$index.position")
@@ -416,6 +586,10 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        @error('acknowledgements')
+                            <div class="text-danger small mt-2">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
             </div>
@@ -426,7 +600,7 @@
                         <div>
                             <h5 class="content-card-title mb-1">Budget Items</h5>
                             <p class="content-card-subtitle mb-0">
-                                Setiap budget item dibuat sebagai row/card sendiri supaya input lebih lega dan gampang dibaca.
+                                Budget item dibuat dalam kolom agar lebih ringkas dan mudah dicek.
                             </p>
                         </div>
 
@@ -438,34 +612,31 @@
                     <div class="content-card-body">
                         <div id="memoItemsContainer" class="d-grid gap-3">
                             @foreach ($memoItems as $index => $item)
-                                <div class="memo-item-row border rounded-4 p-3 bg-light-subtle">
-                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3 flex-wrap">
-                                        <div>
-                                            <div class="fw-semibold memo-item-title">Budget Item #{{ $index + 1 }}</div>
-                                            <div class="text-muted small">Isi detail item, nominal, quantity, dan remarks pada row ini.</div>
-                                        </div>
+                                <div class="memo-item-row p-3">
+                                    <div class="row g-3 align-items-start">
+                                        <div class="col-xl-4 col-lg-12">
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                
+                                                <div>
+                                                    <div class="fw-semibold memo-item-title">Budget Item #{{ $index + 1 }}</div>
+                                                    
+                                                </div>
+                                            </div>
 
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn">
-                                            <i class="bi bi-trash me-1"></i>Remove
-                                        </button>
-                                    </div>
-
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <label class="form-label">Details <span class="text-danger">*</span></label>
                                             <textarea
                                                 name="items[{{ $index }}][details]"
-                                                rows="3"
+                                                rows="2"
                                                 class="form-control item-details @error("items.$index.details") is-invalid @enderror"
                                                 placeholder="Detail item..."
                                                 required
                                             >{{ $item['details'] ?? '' }}</textarea>
+
                                             @error("items.$index.details")
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
 
-                                        <div class="col-12">
+                                        <div class="col-xl-2 col-md-4">
                                             <label class="form-label">Price <span class="text-danger">*</span></label>
                                             <input
                                                 type="number"
@@ -481,8 +652,8 @@
                                             @enderror
                                         </div>
 
-                                        <div class="col-12">
-                                            <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                                        <div class="col-xl-1 col-md-4">
+                                            <label class="form-label">Qty <span class="text-danger">*</span></label>
                                             <input
                                                 type="number"
                                                 name="items[{{ $index }}][quantity]"
@@ -497,22 +668,28 @@
                                             @enderror
                                         </div>
 
-                                        <div class="col-12">
-                                            <label class="form-label">Estimated Price</label>
+                                        <div class="col-xl-2 col-md-4">
+                                            <label class="form-label">Estimated</label>
                                             <div class="form-control bg-white fw-semibold item-estimated-label">Rp 0</div>
                                         </div>
 
-                                        <div class="col-12">
+                                        <div class="col-xl-2 col-lg-10">
                                             <label class="form-label">Remarks</label>
                                             <textarea
                                                 name="items[{{ $index }}][remarks]"
-                                                rows="3"
+                                                rows="2"
                                                 class="form-control item-remarks @error("items.$index.remarks") is-invalid @enderror"
                                                 placeholder="Remarks..."
                                             >{{ $item['remarks'] ?? '' }}</textarea>
                                             @error("items.$index.remarks")
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
+                                        </div>
+
+                                        <div class="col-xl-1 col-lg-2 budget-action-col">
+                                            <button type="button" class="btn btn-outline-danger w-100 remove-item-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -744,12 +921,75 @@
             notesInput.value = cleanedNotes;
         }
 
+        function syncSignerFields() {
+            document.querySelectorAll('.approval-signer-card').forEach(function (card) {
+                const select = card.querySelector('.signer-user-select');
+                const hiddenName = card.querySelector('.signer-name-hidden');
+                const positionInput = card.querySelector('.signer-position-input');
+
+                if (! select || ! hiddenName) {
+                    return;
+                }
+
+                const selectedOption = select.options[select.selectedIndex];
+
+                if (! selectedOption || ! selectedOption.value) {
+                    hiddenName.value = '';
+                    return;
+                }
+
+                hiddenName.value = selectedOption.dataset.name || selectedOption.textContent.trim();
+
+                if (positionInput && ! positionInput.value.trim() && selectedOption.dataset.position) {
+                    positionInput.value = selectedOption.dataset.position;
+                }
+            });
+        }
+
+        function bindSignerSelects() {
+            document.querySelectorAll('.signer-user-select').forEach(function (select) {
+                select.addEventListener('change', function () {
+                    const card = select.closest('.approval-signer-card');
+                    const hiddenName = card?.querySelector('.signer-name-hidden');
+                    const positionInput = card?.querySelector('.signer-position-input');
+                    const selectedOption = select.options[select.selectedIndex];
+
+                    if (! hiddenName) {
+                        return;
+                    }
+
+                    if (! selectedOption || ! selectedOption.value) {
+                        hiddenName.value = '';
+
+                        if (positionInput) {
+                            positionInput.value = '';
+                        }
+
+                        return;
+                    }
+
+                    hiddenName.value = selectedOption.dataset.name || selectedOption.textContent.trim();
+
+                    if (positionInput) {
+                        positionInput.value = selectedOption.dataset.position || positionInput.value;
+                    }
+                });
+            });
+
+            syncSignerFields();
+        }
+
         function refreshItemTitles() {
             itemsContainer?.querySelectorAll('.memo-item-row').forEach(function (row, index) {
                 const title = row.querySelector('.memo-item-title');
+                const number = row.querySelector('.memo-item-number');
 
                 if (title) {
                     title.textContent = 'Budget Item #' + (index + 1);
+                }
+
+                if (number) {
+                    number.textContent = index + 1;
                 }
             });
         }
@@ -842,43 +1082,45 @@
 
         function createRow(index) {
             const wrapper = document.createElement('div');
-            wrapper.className = 'memo-item-row border rounded-4 p-3 bg-light-subtle';
+            wrapper.className = 'memo-item-row p-3';
             wrapper.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start gap-3 mb-3 flex-wrap">
-                    <div>
-                        <div class="fw-semibold memo-item-title">Budget Item #${index + 1}</div>
-                        <div class="text-muted small">Isi detail item, nominal, quantity, dan remarks pada row ini.</div>
+                <div class="row g-3 align-items-start">
+                    <div class="col-xl-4 col-lg-12">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            
+                            <div>
+                                <div class="fw-semibold memo-item-title">Budget Item #${index + 1}</div>
+                               
+                            </div>
+                        </div>
+
+                        <textarea name="items[${index}][details]" rows="2" class="form-control item-details" placeholder="Detail item..." required></textarea>
                     </div>
 
-                    <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn">
-                        <i class="bi bi-trash me-1"></i>Remove
-                    </button>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-12">
-                        <label class="form-label">Details <span class="text-danger">*</span></label>
-                        <textarea name="items[${index}][details]" rows="3" class="form-control item-details" placeholder="Detail item..." required></textarea>
-                    </div>
-
-                    <div class="col-12">
+                    <div class="col-xl-2 col-md-4">
                         <label class="form-label">Price <span class="text-danger">*</span></label>
                         <input type="number" name="items[${index}][price]" class="form-control item-price" value="0" min="0" step="0.01" required>
                     </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                    <div class="col-xl-1 col-md-4">
+                        <label class="form-label">Qty <span class="text-danger">*</span></label>
                         <input type="number" name="items[${index}][quantity]" class="form-control item-quantity" value="1" min="1" step="1" required>
                     </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Estimated Price</label>
+                    <div class="col-xl-2 col-md-4">
+                        <label class="form-label">Estimated</label>
                         <div class="form-control bg-white fw-semibold item-estimated-label">Rp 0</div>
                     </div>
 
-                    <div class="col-12">
+                    <div class="col-xl-2 col-lg-10">
                         <label class="form-label">Remarks</label>
-                        <textarea name="items[${index}][remarks]" rows="3" class="form-control item-remarks" placeholder="Remarks..."></textarea>
+                        <textarea name="items[${index}][remarks]" rows="2" class="form-control item-remarks" placeholder="Remarks..."></textarea>
+                    </div>
+
+                    <div class="col-xl-1 col-lg-2 budget-action-col">
+                        <button type="button" class="btn btn-outline-danger w-100 remove-item-btn">
+                            <i class="bi bi-trash"></i>
+                        </button>
                     </div>
                 </div>
             `;
@@ -950,9 +1192,11 @@
         form?.addEventListener('submit', function () {
             syncPurposeInput();
             syncTaxNote();
+            syncSignerFields();
         });
 
         initQuill();
+        bindSignerSelects();
         refreshItemTitles();
         refreshTaxState();
     });

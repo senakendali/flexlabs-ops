@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\InternalMemo;
 use App\Models\InternalMemoApproval;
 use App\Models\User;
+use App\Notifications\InternalMemoApprovalRequestedNotification;
+use App\Notifications\InternalMemoApprovedNotification;
+use App\Notifications\InternalMemoRejectedNotification;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -40,19 +43,29 @@ class InternalMemoController extends Controller
     private const TAX_ENTITY_NON_PKP = 'non_pkp';
 
     /**
-     * Temporary mode:
-     * Approval workflow is hidden and every memo is auto-approved after save.
+     * Create memo now means create + publish.
+     * Signer 1 will receive notification right after memo is created.
      */
-    private const AUTO_APPROVE_MEMO = true;
+    private const AUTO_PUBLISH_ON_CREATE = true;
 
-    private const DEFAULT_ACKNOWLEDGEMENTS = [
+    private const DEFAULT_APPROVAL_SIGNERS = [
         [
-            'name' => 'Andres Dony Wijaya',
-            'position' => 'Business Admin Manager',
+            'role_label' => 'Acknowledged by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
         ],
         [
-            'name' => 'Awalokita Garnierit',
-            'position' => 'Academic Business Unit Head',
+            'role_label' => 'Acknowledged by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
+        ],
+        [
+            'role_label' => 'Approved by',
+            'approver_id' => null,
+            'name' => '',
+            'position' => '',
         ],
     ];
 
@@ -65,11 +78,11 @@ class InternalMemoController extends Controller
 
         $memos = InternalMemo::query()
             ->with([
-                'creator:id,name',
-                'submitter:id,name',
+                'creator:id,name,email',
+                'submitter:id,name,email',
                 'items:id,internal_memo_id,details,price,quantity,estimated_price,remarks,sort_order',
                 'approvals' => fn ($query) => $query->orderBy('step_order'),
-                'approvals.approver:id,name',
+                'approvals.approver:id,name,email,user_type',
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
@@ -109,7 +122,7 @@ class InternalMemoController extends Controller
             ->with([
                 'items:id,internal_memo_id,details,price,quantity,estimated_price,remarks,sort_order',
                 'approvals' => fn ($query) => $query->orderBy('step_order'),
-                'approvals.approver:id,name',
+                'approvals.approver:id,name,email,user_type',
             ])
             ->where('created_by', Auth::id())
             ->when($search !== '', function ($query) use ($search) {
@@ -141,34 +154,31 @@ class InternalMemoController extends Controller
     public function pendingApprovals(Request $request): View
     {
         $search = trim((string) $request->input('search'));
+        $userId = Auth::id();
 
         $memos = InternalMemo::query()
             ->with([
-                'creator:id,name',
+                'creator:id,name,email',
+                'submitter:id,name,email',
                 'items:id,internal_memo_id,details,price,quantity,estimated_price,remarks,sort_order',
                 'approvals' => fn ($query) => $query->orderBy('step_order'),
-                'approvals.approver:id,name',
+                'approvals.approver:id,name,email,user_type',
             ])
             ->whereIn('status', [
                 self::STATUS_SUBMITTED,
                 self::STATUS_WAITING_ACKNOWLEDGEMENT,
                 self::STATUS_WAITING_APPROVAL,
             ])
-            ->where(function ($query) {
-                $query->whereHas('approvals', function ($approvalQuery) {
-                    $approvalQuery->where('step_order', 1)
-                        ->where('status', self::APPROVAL_PENDING)
-                        ->where('approver_id', Auth::id());
-                })->orWhere(function ($subQuery) {
-                    $subQuery->whereHas('approvals', function ($approvalQuery) {
-                        $approvalQuery->where('step_order', 2)
-                            ->where('status', self::APPROVAL_PENDING)
-                            ->where('approver_id', Auth::id());
-                    })->whereHas('approvals', function ($approvalQuery) {
-                        $approvalQuery->where('step_order', 1)
-                            ->where('status', self::APPROVAL_APPROVED);
+            ->whereHas('approvals', function ($approvalQuery) use ($userId) {
+                $approvalQuery->where('status', self::APPROVAL_PENDING)
+                    ->where('approver_id', $userId)
+                    ->whereNotExists(function ($subQuery) {
+                        $subQuery->select(DB::raw(1))
+                            ->from('internal_memo_approvals as previous_approvals')
+                            ->whereColumn('previous_approvals.internal_memo_id', 'internal_memo_approvals.internal_memo_id')
+                            ->whereColumn('previous_approvals.step_order', '<', 'internal_memo_approvals.step_order')
+                            ->where('previous_approvals.status', '!=', self::APPROVAL_APPROVED);
                     });
-                });
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
@@ -209,7 +219,8 @@ class InternalMemoController extends Controller
                 'notes' => "Payment prices may change depending on the promo period.\nPayments can be made through Bank Mandiri.",
             ]),
             'users' => $this->userOptions(),
-            'acknowledgementDefaults' => self::DEFAULT_ACKNOWLEDGEMENTS,
+            'approvalSignersDefaults' => self::DEFAULT_APPROVAL_SIGNERS,
+            'acknowledgementDefaults' => self::DEFAULT_APPROVAL_SIGNERS,
             'statuses' => $this->memoStatuses(),
             'paymentSources' => $this->paymentSources(),
             'taxTreatments' => $this->taxTreatments(),
@@ -220,6 +231,7 @@ class InternalMemoController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateMemo($request);
+
         $amounts = $this->calculateAmounts(
             $validated['items'],
             (float) ($validated['tax_rate'] ?? 0),
@@ -235,6 +247,7 @@ class InternalMemoController extends Controller
 
                 'subject' => $validated['subject'],
                 'attachment_label' => $validated['attachment_label'] ?? null,
+                'attachment_url' => $validated['attachment_url'] ?? null,
 
                 'to_name' => $validated['to_name'],
                 'to_position' => $validated['to_position'] ?? null,
@@ -254,12 +267,17 @@ class InternalMemoController extends Controller
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
 
-                'status' => self::AUTO_APPROVE_MEMO ? self::STATUS_APPROVED : self::STATUS_DRAFT,
+                'status' => self::AUTO_PUBLISH_ON_CREATE
+                    ? self::STATUS_WAITING_ACKNOWLEDGEMENT
+                    : self::STATUS_DRAFT,
 
                 'created_by' => Auth::id(),
-                'submitted_by' => self::AUTO_APPROVE_MEMO ? Auth::id() : null,
-                'submitted_at' => self::AUTO_APPROVE_MEMO ? now() : null,
-                'approved_at' => self::AUTO_APPROVE_MEMO ? now() : null,
+                'submitted_by' => self::AUTO_PUBLISH_ON_CREATE ? Auth::id() : null,
+                'submitted_at' => self::AUTO_PUBLISH_ON_CREATE ? now() : null,
+
+                'approved_at' => null,
+                'rejected_at' => null,
+                'cancelled_at' => null,
             ]);
 
             $this->syncItems($memo, $validated['items']);
@@ -268,10 +286,15 @@ class InternalMemoController extends Controller
             return $memo;
         });
 
+        if (self::AUTO_PUBLISH_ON_CREATE) {
+            $memo->refresh();
+            $this->notifyActiveApproval($memo);
+        }
+
         return redirect()
             ->route('internal-memos.show', $memo)
-            ->with('success', self::AUTO_APPROVE_MEMO
-                ? 'Internal memo berhasil dibuat dan otomatis approved.'
+            ->with('success', self::AUTO_PUBLISH_ON_CREATE
+                ? 'Internal memo berhasil dibuat dan dikirim ke signer pertama.'
                 : 'Internal memo berhasil dibuat sebagai draft.'
             );
     }
@@ -279,11 +302,11 @@ class InternalMemoController extends Controller
     public function show(InternalMemo $internalMemo): View
     {
         $internalMemo->load([
-            'creator:id,name',
-            'submitter:id,name',
+            'creator:id,name,email',
+            'submitter:id,name,email',
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'approvals' => fn ($query) => $query->orderBy('step_order'),
-            'approvals.approver:id,name',
+            'approvals.approver:id,name,email,user_type',
         ]);
 
         return view('operation.internal-memos.show', [
@@ -311,7 +334,8 @@ class InternalMemoController extends Controller
         return view('operation.internal-memos.edit', [
             'memo' => $internalMemo,
             'users' => $this->userOptions(),
-            'acknowledgementDefaults' => self::DEFAULT_ACKNOWLEDGEMENTS,
+            'approvalSignersDefaults' => self::DEFAULT_APPROVAL_SIGNERS,
+            'acknowledgementDefaults' => self::DEFAULT_APPROVAL_SIGNERS,
             'statuses' => $this->memoStatuses(),
             'paymentSources' => $this->paymentSources(),
             'taxTreatments' => $this->taxTreatments(),
@@ -324,6 +348,7 @@ class InternalMemoController extends Controller
         abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
         $validated = $this->validateMemo($request, $internalMemo);
+
         $amounts = $this->calculateAmounts(
             $validated['items'],
             (float) ($validated['tax_rate'] ?? 0),
@@ -338,6 +363,7 @@ class InternalMemoController extends Controller
 
                 'subject' => $validated['subject'],
                 'attachment_label' => $validated['attachment_label'] ?? null,
+                'attachment_url' => $validated['attachment_url'] ?? null,
 
                 'to_name' => $validated['to_name'],
                 'to_position' => $validated['to_position'] ?? null,
@@ -357,11 +383,15 @@ class InternalMemoController extends Controller
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
 
-                'status' => self::AUTO_APPROVE_MEMO ? self::STATUS_APPROVED : $internalMemo->status,
-                'submitted_by' => self::AUTO_APPROVE_MEMO ? ($internalMemo->submitted_by ?: Auth::id()) : $internalMemo->submitted_by,
-                'submitted_at' => self::AUTO_APPROVE_MEMO ? ($internalMemo->submitted_at ?: now()) : $internalMemo->submitted_at,
-                'approved_at' => self::AUTO_APPROVE_MEMO ? ($internalMemo->approved_at ?: now()) : $internalMemo->approved_at,
-                'rejected_at' => self::AUTO_APPROVE_MEMO ? null : $internalMemo->rejected_at,
+                'status' => self::AUTO_PUBLISH_ON_CREATE
+                    ? self::STATUS_WAITING_ACKNOWLEDGEMENT
+                    : self::STATUS_DRAFT,
+
+                'submitted_by' => self::AUTO_PUBLISH_ON_CREATE ? Auth::id() : null,
+                'submitted_at' => self::AUTO_PUBLISH_ON_CREATE ? now() : null,
+
+                'approved_at' => null,
+                'rejected_at' => null,
                 'cancelled_at' => null,
             ]);
 
@@ -369,9 +399,17 @@ class InternalMemoController extends Controller
             $this->syncApprovals($internalMemo, $validated);
         });
 
+        if (self::AUTO_PUBLISH_ON_CREATE) {
+            $internalMemo->refresh();
+            $this->notifyActiveApproval($internalMemo);
+        }
+
         return redirect()
             ->route('internal-memos.show', $internalMemo)
-            ->with('success', 'Internal memo berhasil diperbarui.');
+            ->with('success', self::AUTO_PUBLISH_ON_CREATE
+                ? 'Internal memo berhasil diperbarui dan dikirim ke signer pertama.'
+                : 'Internal memo berhasil diperbarui.'
+            );
     }
 
     public function destroy(InternalMemo $internalMemo): RedirectResponse
@@ -387,10 +425,6 @@ class InternalMemoController extends Controller
 
     public function submit(InternalMemo $internalMemo): RedirectResponse
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
-        }
-
         abort_unless($this->canSubmitMemo($internalMemo), 403, 'Memo ini tidak bisa disubmit.');
 
         $internalMemo->load(['items', 'approvals']);
@@ -399,14 +433,16 @@ class InternalMemoController extends Controller
             return back()->with('error', 'Memo belum bisa disubmit karena budget item masih kosong.');
         }
 
-        if ($internalMemo->approvals->count() < 2) {
-            return back()->with('error', 'Memo belum bisa disubmit karena approval belum lengkap.');
+        if ($internalMemo->approvals->count() < 3) {
+            return back()->with('error', 'Memo belum bisa disubmit karena approval signer belum lengkap.');
         }
 
         DB::transaction(function () use ($internalMemo) {
             $internalMemo->approvals()->update([
                 'status' => self::APPROVAL_PENDING,
                 'notes' => null,
+                'notification_sent_at' => null,
+                'reminder_sent_at' => null,
                 'approved_at' => null,
                 'rejected_at' => null,
             ]);
@@ -421,19 +457,18 @@ class InternalMemoController extends Controller
             ]);
         });
 
+        $internalMemo->refresh();
+        $this->notifyActiveApproval($internalMemo);
+
         return redirect()
             ->route('internal-memos.show', $internalMemo)
-            ->with('success', 'Internal memo berhasil disubmit dan menunggu acknowledgement.');
+            ->with('success', 'Internal memo berhasil dipublish dan dikirim ke signer pertama.');
     }
 
     public function approve(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
-        }
-
         $validated = $request->validate([
-            'notes' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $internalMemo->load(['approvals' => fn ($query) => $query->orderBy('step_order')]);
@@ -444,9 +479,12 @@ class InternalMemoController extends Controller
             return back()->with('error', 'Tidak ada approval aktif untuk memo ini.');
         }
 
-        abort_unless($this->canActOnApproval($approval), 403, 'Kamu bukan approver aktif untuk memo ini.');
+        abort_unless($this->canActOnApproval($approval), 403, 'Anda bukan approver aktif untuk memo ini.');
 
-        DB::transaction(function () use ($internalMemo, $approval, $validated) {
+        $hasNextApproval = false;
+        $isFinalApproval = false;
+
+        DB::transaction(function () use ($internalMemo, $approval, $validated, &$hasNextApproval, &$isFinalApproval) {
             $approval->update([
                 'status' => self::APPROVAL_APPROVED,
                 'notes' => $validated['notes'] ?? null,
@@ -460,14 +498,17 @@ class InternalMemoController extends Controller
                 ->first();
 
             if ($nextApproval) {
+                $hasNextApproval = true;
+
                 $internalMemo->update([
-                    'status' => $nextApproval->step_order === 2
-                        ? self::STATUS_WAITING_APPROVAL
-                        : self::STATUS_WAITING_ACKNOWLEDGEMENT,
+                    'status' => $this->statusForNextApproval($nextApproval),
+                    'rejected_at' => null,
                 ]);
 
                 return;
             }
+
+            $isFinalApproval = true;
 
             $internalMemo->update([
                 'status' => self::STATUS_APPROVED,
@@ -476,6 +517,17 @@ class InternalMemoController extends Controller
             ]);
         });
 
+        $internalMemo->refresh();
+        $approval->refresh();
+
+        if ($hasNextApproval) {
+            $this->notifyActiveApproval($internalMemo);
+        }
+
+        if ($isFinalApproval) {
+            $this->notifyMemoApproved($internalMemo, $approval);
+        }
+
         return redirect()
             ->route('internal-memos.show', $internalMemo)
             ->with('success', 'Internal memo berhasil di-approve.');
@@ -483,10 +535,6 @@ class InternalMemoController extends Controller
 
     public function reject(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return back()->with('error', 'Approval workflow sementara sedang di-hide. Memo otomatis approved saat disimpan.');
-        }
-
         $validated = $request->validate([
             'notes' => ['required', 'string', 'max:5000'],
         ], [
@@ -501,7 +549,7 @@ class InternalMemoController extends Controller
             return back()->with('error', 'Tidak ada approval aktif untuk memo ini.');
         }
 
-        abort_unless($this->canActOnApproval($approval), 403, 'Kamu bukan approver aktif untuk memo ini.');
+        abort_unless($this->canActOnApproval($approval), 403, 'Anda bukan approver aktif untuk memo ini.');
 
         DB::transaction(function () use ($internalMemo, $approval, $validated) {
             $approval->update([
@@ -517,6 +565,11 @@ class InternalMemoController extends Controller
                 'approved_at' => null,
             ]);
         });
+
+        $internalMemo->refresh();
+        $approval->refresh();
+
+        $this->notifyMemoRejected($internalMemo, $approval);
 
         return redirect()
             ->route('internal-memos.show', $internalMemo)
@@ -552,11 +605,11 @@ class InternalMemoController extends Controller
     public function downloadPdf(InternalMemo $internalMemo)
     {
         $internalMemo->load([
-            'creator:id,name',
-            'submitter:id,name',
+            'creator:id,name,email',
+            'submitter:id,name,email',
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'approvals' => fn ($query) => $query->orderBy('step_order'),
-            'approvals.approver:id,name',
+            'approvals.approver:id,name,email,user_type',
         ]);
 
         $filename = Str::slug($internalMemo->memo_number ?: 'internal-memo') . '.pdf';
@@ -583,6 +636,7 @@ class InternalMemoController extends Controller
 
             'subject' => ['required', 'string', 'max:255'],
             'attachment_label' => ['nullable', 'string', 'max:255'],
+            'attachment_url' => ['nullable', 'url', 'max:2048'],
 
             'to_name' => ['required', 'string', 'max:255'],
             'to_position' => ['nullable', 'string', 'max:255'],
@@ -599,8 +653,17 @@ class InternalMemoController extends Controller
             'tax_treatment' => ['required', Rule::in(array_keys($this->taxTreatments()))],
             'tax_entity_type' => ['required', Rule::in(array_keys($this->taxEntityTypes()))],
 
-            'acknowledgements' => ['required', 'array', 'size:2'],
-            'acknowledgements.*.name' => ['required', 'string', 'max:255'],
+            'acknowledgements' => ['required', 'array', 'size:3'],
+            'acknowledgements.*.role_label' => ['required', 'string', 'max:255'],
+            'acknowledgements.*.approver_id' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('users', 'id')->where(function ($query) {
+                    $query->where('user_type', 'staff');
+                }),
+            ],
+            'acknowledgements.*.name' => ['nullable', 'string', 'max:255'],
             'acknowledgements.*.position' => ['required', 'string', 'max:255'],
 
             'items' => ['required', 'array', 'min:1'],
@@ -611,10 +674,16 @@ class InternalMemoController extends Controller
         ], [
             'due_date.after_or_equal' => 'Due date tidak boleh lebih awal dari memo date.',
             'purpose.required' => 'Purpose wajib diisi minimal 2 poin.',
-            'acknowledgements.required' => 'Acknowledgement signer wajib diisi.',
-            'acknowledgements.size' => 'Acknowledgement signer harus berisi 2 orang.',
-            'acknowledgements.*.name.required' => 'Nama acknowledgement signer wajib diisi.',
-            'acknowledgements.*.position.required' => 'Jabatan acknowledgement signer wajib diisi.',
+            'attachment_url.url' => 'Attachment Google Drive Link harus berupa URL yang valid.',
+
+            'acknowledgements.required' => 'Approval signer wajib diisi.',
+            'acknowledgements.size' => 'Approval signer harus berisi 3 orang.',
+            'acknowledgements.*.role_label.required' => 'Role label signer wajib diisi.',
+            'acknowledgements.*.approver_id.required' => 'User signer wajib dipilih.',
+            'acknowledgements.*.approver_id.distinct' => 'Signer tidak boleh orang yang sama.',
+            'acknowledgements.*.approver_id.exists' => 'User signer harus merupakan staff yang valid.',
+            'acknowledgements.*.position.required' => 'Jabatan signer wajib diisi.',
+
             'items.required' => 'Minimal harus ada 1 budget item.',
             'items.*.details.required' => 'Detail budget item wajib diisi.',
         ]);
@@ -638,7 +707,12 @@ class InternalMemoController extends Controller
             $validated['tax_treatment']
         );
 
-        $validated['acknowledgements'] = array_values(array_slice($validated['acknowledgements'], 0, 2));
+        $validated['acknowledgements'] = array_values(array_slice($validated['acknowledgements'], 0, 3));
+
+        foreach ($validated['acknowledgements'] as $index => $acknowledgement) {
+            $validated['acknowledgements'][$index]['role_label'] = $acknowledgement['role_label']
+                ?: (self::DEFAULT_APPROVAL_SIGNERS[$index]['role_label'] ?? 'Acknowledged by');
+        }
 
         return $validated;
     }
@@ -666,15 +740,41 @@ class InternalMemoController extends Controller
     {
         $memo->approvals()->delete();
 
-        foreach (array_values($validated['acknowledgements'] ?? self::DEFAULT_ACKNOWLEDGEMENTS) as $index => $acknowledgement) {
+        $approverIds = collect($validated['acknowledgements'] ?? [])
+            ->pluck('approver_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $approvers = User::query()
+            ->where('user_type', 'staff')
+            ->whereIn('id', $approverIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach (array_values($validated['acknowledgements'] ?? self::DEFAULT_APPROVAL_SIGNERS) as $index => $signer) {
+            $approverId = (int) ($signer['approver_id'] ?? 0);
+            $approver = $approvers->get($approverId);
+
+            $roleLabel = $signer['role_label']
+                ?? (self::DEFAULT_APPROVAL_SIGNERS[$index]['role_label'] ?? 'Acknowledged by');
+
             $memo->approvals()->create([
                 'step_order' => $index + 1,
-                'role_label' => 'Acknowledged by',
-                'approver_id' => null,
-                'approver_name' => $acknowledgement['name'] ?? self::DEFAULT_ACKNOWLEDGEMENTS[$index]['name'],
-                'approver_position' => $acknowledgement['position'] ?? self::DEFAULT_ACKNOWLEDGEMENTS[$index]['position'],
-                'status' => self::AUTO_APPROVE_MEMO ? self::APPROVAL_APPROVED : self::APPROVAL_PENDING,
-                'approved_at' => self::AUTO_APPROVE_MEMO ? now() : null,
+                'role_label' => $roleLabel,
+
+                'approver_id' => $approver?->id,
+                'approver_email' => $approver?->email,
+                'approver_name' => $approver?->name ?: ($signer['name'] ?? null),
+                'approver_position' => $signer['position'] ?? $this->resolveUserPosition($approver),
+
+                'status' => self::APPROVAL_PENDING,
+                'notes' => null,
+
+                'notification_sent_at' => null,
+                'reminder_sent_at' => null,
+
+                'approved_at' => null,
                 'rejected_at' => null,
             ]);
         }
@@ -714,6 +814,72 @@ class InternalMemoController extends Controller
             'tax_amount' => round($taxAmount, 2),
             'grand_total_amount' => round($subtotal + $taxAmount, 2),
         ];
+    }
+
+    private function notifyActiveApproval(InternalMemo $memo): void
+    {
+        $memo->loadMissing([
+            'approvals' => fn ($query) => $query->orderBy('step_order'),
+            'approvals.approver:id,name,email,user_type',
+        ]);
+
+        $approval = $this->activeApproval($memo);
+
+        if (! $approval || ! $approval->approver) {
+            return;
+        }
+
+        if ($approval->notification_sent_at) {
+            return;
+        }
+
+        if ($approval->approver->user_type !== 'staff') {
+            return;
+        }
+
+        $approval->approver->notify(
+            new InternalMemoApprovalRequestedNotification($approval)
+        );
+
+        $approval->forceFill([
+            'notification_sent_at' => now(),
+        ])->save();
+    }
+
+    private function notifyMemoApproved(InternalMemo $memo, ?InternalMemoApproval $approval = null): void
+    {
+        $memo->loadMissing([
+            'creator:id,name,email',
+            'submitter:id,name,email',
+        ]);
+
+        collect([
+            $memo->submitter,
+            $memo->creator,
+        ])
+            ->filter()
+            ->unique('id')
+            ->each(function (User $user) use ($memo, $approval) {
+                $user->notify(new InternalMemoApprovedNotification($memo, $approval));
+            });
+    }
+
+    private function notifyMemoRejected(InternalMemo $memo, ?InternalMemoApproval $approval = null): void
+    {
+        $memo->loadMissing([
+            'creator:id,name,email',
+            'submitter:id,name,email',
+        ]);
+
+        collect([
+            $memo->submitter,
+            $memo->creator,
+        ])
+            ->filter()
+            ->unique('id')
+            ->each(function (User $user) use ($memo, $approval) {
+                $user->notify(new InternalMemoRejectedNotification($memo, $approval));
+            });
     }
 
     private function sanitizeQuillHtml(?string $html): string
@@ -813,10 +979,6 @@ class InternalMemoController extends Controller
 
     private function activeApproval(InternalMemo $memo): ?InternalMemoApproval
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return null;
-        }
-
         if (in_array($memo->status, [self::STATUS_APPROVED, self::STATUS_REJECTED, self::STATUS_CANCELLED], true)) {
             return null;
         }
@@ -831,39 +993,34 @@ class InternalMemoController extends Controller
             ->first();
     }
 
-    private function canEditMemo(InternalMemo $memo): bool
+    private function statusForNextApproval(InternalMemoApproval $approval): string
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return ! in_array($memo->status, [self::STATUS_CANCELLED], true);
+        $roleLabel = Str::lower((string) $approval->role_label);
+
+        if (Str::contains($roleLabel, 'approved') || $approval->step_order >= 3) {
+            return self::STATUS_WAITING_APPROVAL;
         }
 
+        return self::STATUS_WAITING_ACKNOWLEDGEMENT;
+    }
+
+    private function canEditMemo(InternalMemo $memo): bool
+    {
         return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
     }
 
     private function canDeleteMemo(InternalMemo $memo): bool
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return ! in_array($memo->status, [self::STATUS_CANCELLED], true);
-        }
-
         return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
     }
 
     private function canSubmitMemo(InternalMemo $memo): bool
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return false;
-        }
-
         return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
     }
 
     private function canActOnMemo(InternalMemo $memo): bool
     {
-        if (self::AUTO_APPROVE_MEMO) {
-            return false;
-        }
-
         $approval = $this->activeApproval($memo);
 
         return $approval && $this->canActOnApproval($approval);
@@ -925,7 +1082,7 @@ class InternalMemoController extends Controller
     private function userOptions()
     {
         return User::query()
-            ->select('id', 'name')
+            ->where('user_type', 'staff')
             ->orderBy('name')
             ->get();
     }
