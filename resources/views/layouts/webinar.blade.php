@@ -108,7 +108,8 @@
                 'flexlabs.co.id',
                 'workshop.flexlabs.co.id',
                 'webinar.flexlabs.co.id',
-                'event.flexlabs.co.id'
+                'event.flexlabs.co.id',
+                'konsultasi.flexlabs.co.id'
             ]
         });
 
