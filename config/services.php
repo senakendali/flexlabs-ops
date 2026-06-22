@@ -48,4 +48,14 @@ return [
         'timeout' => (int) env('GEMINI_TIMEOUT', 30),
     ],
 
+    'kommo' => [
+        'enabled' => env('KOMMO_ENABLED', false),
+        'subdomain' => env('KOMMO_SUBDOMAIN'),
+        'base_url' => env('KOMMO_BASE_URL'),
+        'long_lived_token' => env('KOMMO_LONG_LIVED_TOKEN'),
+        'pipeline_id' => env('KOMMO_PIPELINE_ID'),
+        'status_id' => env('KOMMO_STATUS_ID'),
+        'timeout' => env('KOMMO_TIMEOUT', 15),
+    ],
+
 ];

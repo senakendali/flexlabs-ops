@@ -74,6 +74,7 @@ use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\PublicEventLeadController;
+use App\Http\Controllers\PublicSemLeadController;
 
 
 
@@ -104,36 +105,70 @@ use App\Http\Controllers\PublicEventLeadController;
 
 if (app()->environment('production')) {
 
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation / SEM Landing Page - Production Subdomain
+    |--------------------------------------------------------------------------
+    |
+    | Production URL:
+    | - https://konsultasi.flexlabs.co.id
+    | - https://konsultasi.flexlabs.co.id/{program}
+    | - https://konsultasi.flexlabs.co.id/thank-you
+    |
+    | Route names:
+    | - consultation.index
+    | - consultation.show
+    | - consultation.store
+    | - consultation.thank-you
+    |--------------------------------------------------------------------------
+    */
+    Route::domain('konsultasi.flexlabs.co.id')
+        ->name('consultation.')
+        ->controller(PublicSemLeadController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
+
+            Route::post('/', 'store')
+                ->name('store');
+
+            Route::get('/thank-you', 'thankYou')
+                ->name('thank-you');
+
+            Route::get('/{program}', 'show')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('show');
+
+            Route::post('/{program}', 'store')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('program.store');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation - Production Legacy URL on Ops Domain
+    |--------------------------------------------------------------------------
+    |
+    | Old production URL:
+    | - https://ops.flexlabs.co.id/konsultasi-program
+    |
+    | Redirects to:
+    | - https://konsultasi.flexlabs.co.id
+    |
+    | Query string such as UTM, gclid, gbraid, and wbraid is preserved.
+    |--------------------------------------------------------------------------
+    */
     Route::get('/konsultasi-program', function () {
-        $request = request();
+        $queryString = request()->getQueryString();
 
-        $message = 'Halo FlexLabs! saya mau tahu lebih lanjut tentang program kalian ya';
+        $targetUrl = 'https://konsultasi.flexlabs.co.id';
 
-        $utmParams = collect([
-            'utm_source',
-            'utm_medium',
-            'utm_campaign',
-            'utm_content',
-            'utm_term',
-        ])
-            ->map(function (string $key) use ($request) {
-                return $request->filled($key)
-                    ? $key . '=' . $request->query($key)
-                    : null;
-            })
-            ->filter()
-            ->values();
-
-        if ($utmParams->isNotEmpty()) {
-            $message .= "\n\nSumber: " . $utmParams->implode(', ');
+        if (!empty($queryString)) {
+            $targetUrl .= '?' . $queryString;
         }
 
-        $whatsappUrl = 'https://wa.me/62811134759?' . http_build_query([
-            'text' => $message,
-        ], '', '&', PHP_QUERY_RFC3986);
-
-        return redirect()->away($whatsappUrl, 302);
-    });
+        return redirect()->away($targetUrl, 301);
+    })->name('legacy.consultation.redirect');
 
     /*
     |--------------------------------------------------------------------------
@@ -231,6 +266,63 @@ if (app()->environment('production')) {
                 ->name('show');
         });
 } else {
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation / SEM Landing Page - Local Development URL
+    |--------------------------------------------------------------------------
+    |
+    | Local URL:
+    | - /konsultasi
+    | - /konsultasi/{program}
+    | - /konsultasi/thank-you
+    |
+    | Route names:
+    | - consultation.index
+    | - consultation.show
+    | - consultation.store
+    | - consultation.thank-you
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('konsultasi')
+        ->name('consultation.')
+        ->controller(PublicSemLeadController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
+
+            Route::post('/', 'store')
+                ->name('store');
+
+            Route::get('/thank-you', 'thankYou')
+                ->name('thank-you');
+
+            Route::get('/{program}', 'show')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('show');
+
+            Route::post('/{program}', 'store')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('program.store');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation - Local Legacy URL
+    |--------------------------------------------------------------------------
+    |
+    | Old local URL:
+    | - /konsultasi-program
+    |
+    | Redirects to:
+    | - /konsultasi
+    |
+    | Query string such as UTM, gclid, gbraid, and wbraid is preserved.
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/konsultasi-program', function () {
+        return redirect()->route('consultation.index', request()->query(), 301);
+    })->name('legacy.consultation.redirect');
+
     /*
     |--------------------------------------------------------------------------
     | Public Workshop - Local Development URL

@@ -17,6 +17,7 @@ use App\Http\Controllers\Operation\QuizOptionController;
 use App\Http\Controllers\Operation\QuizPlayController;
 use App\Http\Controllers\Operation\QuizLeaderboardController;
 use App\Http\Controllers\Operation\MeetingMinuteController;
+use App\Http\Controllers\Operation\InternalMemoController;
 use App\Http\Controllers\Enrollment\BatchController;
 use App\Http\Controllers\Enrollment\StudentController;
 use App\Http\Controllers\Payment\OrderController;
@@ -102,6 +103,38 @@ use App\Http\Controllers\PublicEventLeadController;
 */
 
 if (app()->environment('production')) {
+
+    Route::get('/konsultasi-program', function () {
+        $request = request();
+
+        $message = 'Halo FlexLabs! saya mau tahu lebih lanjut tentang program kalian ya';
+
+        $utmParams = collect([
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_content',
+            'utm_term',
+        ])
+            ->map(function (string $key) use ($request) {
+                return $request->filled($key)
+                    ? $key . '=' . $request->query($key)
+                    : null;
+            })
+            ->filter()
+            ->values();
+
+        if ($utmParams->isNotEmpty()) {
+            $message .= "\n\nSumber: " . $utmParams->implode(', ');
+        }
+
+        $whatsappUrl = 'https://wa.me/62811134759?' . http_build_query([
+            'text' => $message,
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return redirect()->away($whatsappUrl, 302);
+    });
+
     /*
     |--------------------------------------------------------------------------
     | Public Workshop - Production Subdomain
@@ -1725,38 +1758,120 @@ Route::middleware('auth')->group(function () {
         Route::get('/{instructorSchedule}', [InstructorScheduleController::class, 'show'])->name('show');
     });
 
-     /*
+    /*
     |--------------------------------------------------------------------------
-    | Operations - General Affairs
+    | Operations - Internal Memo
+    |--------------------------------------------------------------------------
+    |
+    | URL:
+    | - /operations/internal-memos
+    |
+    | Route names:
+    | - internal-memos.index
+    | - internal-memos.create
+    | - internal-memos.store
+    | - internal-memos.show
+    | - internal-memos.edit
+    | - internal-memos.update
+    | - internal-memos.destroy
+    | - internal-memos.submit
+    | - internal-memos.approve
+    | - internal-memos.reject
+    | - internal-memos.cancel
+    | - internal-memos.download-pdf
     |--------------------------------------------------------------------------
     */
+    Route::prefix('operations/internal-memos')
+        ->name('internal-memos.')
+        ->middleware('permission:internal_memos.view')
+        ->controller(InternalMemoController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
 
-    Route::prefix('operations')->group(function () {
+            Route::get('/create', 'create')
+                ->middleware('permission:internal_memos.create')
+                ->name('create');
 
-        // Internal Memo
-        Route::resource('internal-memos', InternalMemoController::class);
+            Route::post('/', 'store')
+                ->middleware('permission:internal_memos.create')
+                ->name('store');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Operations - Inventory
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | Helper Pages
+            |--------------------------------------------------------------------------
+            | Must stay before /{internalMemo} routes.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/my-memos', 'myMemos')
+                ->name('my-memos');
 
-        // Equipment (Master)
-        Route::resource('equipments', EquipmentController::class);
+            Route::get('/pending-approvals', 'pendingApprovals')
+                ->middleware('permission:internal_memos.approve')
+                ->name('pending-approvals');
 
-        // Borrowing (Pinjam Barang)
-        Route::resource('borrowings', BorrowingController::class);
+            /*
+            |--------------------------------------------------------------------------
+            | Actions
+            |--------------------------------------------------------------------------
+            | Must stay before /{internalMemo} show/edit/update/destroy routes.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/{internalMemo}/download-pdf', 'downloadPdf')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.export')
+                ->name('download-pdf');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Operations - Requests
-        |--------------------------------------------------------------------------
-        */
+            Route::patch('/{internalMemo}/submit', 'submit')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.submit')
+                ->name('submit');
 
-        // ATK Request
-        Route::resource('atk-requests', AtkRequestController::class);
-    });
+            Route::patch('/{internalMemo}/approve', 'approve')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.approve')
+                ->name('approve');
+
+            Route::patch('/{internalMemo}/reject', 'reject')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.reject')
+                ->name('reject');
+
+            Route::patch('/{internalMemo}/cancel', 'cancel')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.update')
+                ->name('cancel');
+
+            /*
+            |--------------------------------------------------------------------------
+            | CRUD
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/{internalMemo}', 'show')
+                ->whereNumber('internalMemo')
+                ->name('show');
+
+            Route::get('/{internalMemo}/edit', 'edit')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.update')
+                ->name('edit');
+
+            Route::put('/{internalMemo}', 'update')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.update')
+                ->name('update');
+
+            Route::patch('/{internalMemo}', 'update')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.update')
+                ->name('patch');
+
+            Route::delete('/{internalMemo}', 'destroy')
+                ->whereNumber('internalMemo')
+                ->middleware('permission:internal_memos.update')
+                ->name('destroy');
+        });
 
 
     /*
