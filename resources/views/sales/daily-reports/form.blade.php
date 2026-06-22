@@ -33,6 +33,7 @@
         action="{{ $isEdit ? route('sales-daily-reports.update', $report) : route('sales-daily-reports.store') }}"
         method="POST"
         data-redirect="{{ route('sales-daily-reports.index') }}"
+        data-kommo-summary-url="{{ route('sales-daily-reports.kommo-summary') }}"
     >
         @csrf
         @if ($isEdit)
@@ -73,12 +74,26 @@
         </div>
 
         <div class="content-card mb-4">
-            <div class="content-card-header">
+            <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
                 <div>
                     <h5 class="content-card-title mb-1">Lead Metrics</h5>
                     <p class="content-card-subtitle mb-0">
-                        Masukkan angka utama dari daily report untuk membantu membaca volume leads, kualitas interaksi, dan peluang konsultasi.
+                        Data leads akan otomatis ditarik dari Kommo setelah tanggal laporan dipilih atau berubah.
                     </p>
+                </div>
+
+                <div
+                    id="kommoSummaryStatus"
+                    class="d-inline-flex align-items-center gap-2 rounded-pill bg-light border px-3 py-2 small text-muted"
+                >
+                    <span
+                        id="kommoSummarySpinner"
+                        class="spinner-border spinner-border-sm d-none"
+                        role="status"
+                        aria-hidden="true"
+                    ></span>
+                    <i id="kommoSummaryIcon" class="bi bi-cloud-arrow-down"></i>
+                    <span id="kommoSummaryText">Menunggu tanggal laporan.</span>
                 </div>
             </div>
 
@@ -339,6 +354,14 @@
     const salesDailyReportForm = document.getElementById('salesDailyReportForm');
     const submitBtn = document.getElementById('submitBtn');
     const formAlert = document.getElementById('formAlert');
+    const kommoSummaryUrl = salesDailyReportForm.dataset.kommoSummaryUrl;
+    const kommoSummaryStatus = document.getElementById('kommoSummaryStatus');
+    const kommoSummarySpinner = document.getElementById('kommoSummarySpinner');
+    const kommoSummaryIcon = document.getElementById('kommoSummaryIcon');
+    const kommoSummaryText = document.getElementById('kommoSummaryText');
+
+    let kommoSummaryAbortController = null;
+    let kommoSummaryDebounceTimer = null;
 
     const fields = {
         report_date: document.getElementById('report_date'),
@@ -425,6 +448,139 @@
         submitBtn.disabled = isLoading;
         submitBtn.querySelector('.default-text').classList.toggle('d-none', isLoading);
         submitBtn.querySelector('.loading-text').classList.toggle('d-none', !isLoading);
+    }
+
+    function setKommoSummaryStatus(type, message, isLoading = false) {
+        if (!kommoSummaryStatus || !kommoSummaryText) {
+            return;
+        }
+
+        const statusClasses = {
+            idle: 'd-inline-flex align-items-center gap-2 rounded-pill bg-light border px-3 py-2 small text-muted',
+            loading: 'd-inline-flex align-items-center gap-2 rounded-pill bg-info-subtle border border-info-subtle px-3 py-2 small text-info-emphasis',
+            success: 'd-inline-flex align-items-center gap-2 rounded-pill bg-success-subtle border border-success-subtle px-3 py-2 small text-success-emphasis',
+            warning: 'd-inline-flex align-items-center gap-2 rounded-pill bg-warning-subtle border border-warning-subtle px-3 py-2 small text-warning-emphasis',
+            danger: 'd-inline-flex align-items-center gap-2 rounded-pill bg-danger-subtle border border-danger-subtle px-3 py-2 small text-danger-emphasis',
+        };
+
+        const iconClasses = {
+            idle: 'bi bi-cloud-arrow-down',
+            loading: 'bi bi-cloud-arrow-down',
+            success: 'bi bi-check-circle',
+            warning: 'bi bi-exclamation-triangle',
+            danger: 'bi bi-x-circle',
+        };
+
+        kommoSummaryStatus.className = statusClasses[type] || statusClasses.idle;
+        kommoSummaryText.textContent = message;
+
+        if (kommoSummarySpinner) {
+            kommoSummarySpinner.classList.toggle('d-none', !isLoading);
+        }
+
+        if (kommoSummaryIcon) {
+            kommoSummaryIcon.className = iconClasses[type] || iconClasses.idle;
+            kommoSummaryIcon.classList.toggle('d-none', isLoading);
+        }
+    }
+
+    function setKommoMetricFields(data = {}) {
+        const metricKeys = [
+            'total_leads',
+            'interacted',
+            'ignored',
+            'closed_lost',
+            'not_related',
+            'warm_leads',
+            'hot_leads',
+            'consultation',
+        ];
+
+        metricKeys.forEach(key => {
+            if (!fields[key]) {
+                return;
+            }
+
+            const value = Number(data[key] ?? 0);
+
+            fields[key].value = Number.isFinite(value) && value >= 0 ? value : 0;
+            fields[key].classList.remove('is-invalid');
+        });
+    }
+
+    async function fetchKommoSummary(reportDate, options = {}) {
+        if (!reportDate) {
+            setKommoSummaryStatus('idle', 'Menunggu tanggal laporan.');
+            return;
+        }
+
+        if (!kommoSummaryUrl) {
+            setKommoSummaryStatus('warning', 'Endpoint Kommo summary belum tersedia.');
+            return;
+        }
+
+        if (kommoSummaryAbortController) {
+            kommoSummaryAbortController.abort();
+        }
+
+        kommoSummaryAbortController = new AbortController();
+
+        setKommoSummaryStatus('loading', 'Menarik data Kommo...', true);
+
+        try {
+            const url = new URL(kommoSummaryUrl, window.location.origin);
+            url.searchParams.set('date', reportDate);
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: kommoSummaryAbortController.signal,
+            });
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Gagal menarik data Kommo.');
+            }
+
+            setKommoMetricFields(result.data || {});
+            setKommoSummaryStatus('success', `Data Kommo ${reportDate} berhasil ditarik.`);
+
+            if (options.showToast) {
+                showToast(result.message || 'Data Kommo berhasil ditarik.', 'success');
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
+            setKommoSummaryStatus('danger', error.message || 'Gagal menarik data Kommo.');
+
+            if (options.showToast) {
+                showToast(error.message || 'Gagal menarik data Kommo.', 'danger');
+            }
+        }
+    }
+
+    function scheduleKommoSummaryFetch(reportDate, options = {}) {
+        clearTimeout(kommoSummaryDebounceTimer);
+
+        kommoSummaryDebounceTimer = setTimeout(() => {
+            fetchKommoSummary(reportDate, options);
+        }, 350);
+    }
+
+    if (fields.report_date) {
+        fields.report_date.addEventListener('change', function () {
+            scheduleKommoSummaryFetch(this.value, { showToast: true });
+        });
+
+        if (fields.report_date.value) {
+            scheduleKommoSummaryFetch(fields.report_date.value);
+        }
     }
 
     salesDailyReportForm.addEventListener('submit', async function (e) {

@@ -728,6 +728,29 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [SalesDailyReportController::class, 'index'])->name('index');
             Route::get('/create', [SalesDailyReportController::class, 'create'])->middleware('permission:sales_daily_reports.create')->name('create');
             Route::post('/', [SalesDailyReportController::class, 'store'])->middleware('permission:sales_daily_reports.create')->name('store');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Kommo Daily Lead Summary
+            |--------------------------------------------------------------------------
+            |
+            | Used by Sales Daily Report form to auto-fill lead metrics from Kommo
+            | based on selected report date.
+            |
+            | URL:
+            | - /sales-tools/daily-reports/kommo-summary?date=2026-06-22
+            |
+            | Route name:
+            | - sales-daily-reports.kommo-summary
+            |
+            | Important:
+            | Must stay before /{salesDailyReport}, otherwise Laravel may treat
+            | "kommo-summary" as the {salesDailyReport} route parameter.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/kommo-summary', [SalesDailyReportController::class, 'kommoSummary'])
+                ->name('kommo-summary');
+
             Route::get('/{salesDailyReport}', [SalesDailyReportController::class, 'show'])->name('show');
             Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->middleware('permission:sales_daily_reports.update')->name('edit');
             Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->middleware('permission:sales_daily_reports.update')->name('update');

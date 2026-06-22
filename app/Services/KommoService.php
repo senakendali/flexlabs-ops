@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
@@ -89,6 +90,203 @@ class KommoService
         }
 
         return $response->json() ?? [];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daily Lead Summary
+    |--------------------------------------------------------------------------
+    | Dipakai untuk auto-fill Sales Daily Report dari Kommo.
+    |
+    | Important:
+    | - Summary ini menghitung lead yang CREATED pada tanggal tersebut.
+    | - Status yang dihitung adalah posisi/current status lead saat data ditarik.
+    | - Kalau lead dibuat kemarin tapi baru dipindah Hot Leads hari ini,
+    |   lead itu tidak masuk summary hari ini.
+    |--------------------------------------------------------------------------
+    */
+    public function getDailyLeadSummary(string $date, ?string $timezone = null): array
+    {
+        $this->ensureConfigured();
+
+        [$startAt, $endAt] = $this->dailyTimestampRange($date, $timezone);
+
+        $leads = $this->fetchLeadsByCreatedDateRange($startAt, $endAt);
+
+        $summary = $this->emptyDailyLeadSummary();
+
+        foreach ($leads as $lead) {
+            $summary['total_leads']++;
+
+            $statusId = (int) ($lead['status_id'] ?? 0);
+            $field = $this->dailyReportFieldByStatusId($statusId);
+
+            if ($field !== null && array_key_exists($field, $summary)) {
+                $summary[$field]++;
+            }
+        }
+
+        $summary['date'] = $date;
+        $summary['timezone'] = $timezone ?: config('app.timezone', 'Asia/Jakarta');
+        $summary['pipeline_id'] = (int) config('services.kommo.pipeline_id');
+        $summary['start_timestamp'] = $startAt;
+        $summary['end_timestamp'] = $endAt;
+
+        return $summary;
+    }
+
+    private function fetchLeadsByCreatedDateRange(int $startAt, int $endAt): array
+    {
+        $allLeads = [];
+        $page = 1;
+        $limit = 250;
+        $maxPages = 50;
+
+        do {
+            $response = $this->http()
+                ->get('/api/v4/leads', [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'filter[pipeline_id]' => (int) config('services.kommo.pipeline_id'),
+                    'filter[created_at][from]' => $startAt,
+                    'filter[created_at][to]' => $endAt,
+                ]);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Kommo can return 204 when there is no content
+            |--------------------------------------------------------------------------
+            */
+            if ($response->status() === 204) {
+                break;
+            }
+
+            if (!$response->successful()) {
+                throw new RuntimeException(
+                    'Kommo fetch daily leads failed. Status: ' . $response->status() . '. Body: ' . $response->body()
+                );
+            }
+
+            $json = $response->json() ?? [];
+            $leads = Arr::get($json, '_embedded.leads', []);
+
+            if (empty($leads)) {
+                break;
+            }
+
+            foreach ($leads as $lead) {
+                $allLeads[] = $lead;
+            }
+
+            $hasNextPage = !empty(Arr::get($json, '_links.next.href'));
+            $page++;
+        } while ($hasNextPage && $page <= $maxPages);
+
+        return $allLeads;
+    }
+
+    private function emptyDailyLeadSummary(): array
+    {
+        return [
+            'total_leads' => 0,
+            'interacted' => 0,
+            'ignored' => 0,
+            'closed_lost' => 0,
+            'not_related' => 0,
+            'warm_leads' => 0,
+            'hot_leads' => 0,
+            'consultation' => 0,
+        ];
+    }
+
+    private function dailyReportFieldByStatusId(int $statusId): ?string
+    {
+        foreach ($this->dailyReportStatusMap() as $field => $statusIds) {
+            if (in_array($statusId, $statusIds, true)) {
+                return $field;
+            }
+        }
+
+        return null;
+    }
+
+    private function dailyReportStatusMap(): array
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Default status IDs from FlexLabs Kommo Pipeline
+        |--------------------------------------------------------------------------
+        | Pipeline ID: 13174499
+        |
+        | Ignore                  : 101927851
+        | Interacted              : 101927855
+        | Follow Up / Warm Leads  : 101586663
+        | Interested / Hot Leads  : 101586667
+        | Appointment             : 101927859
+        | Register                : 102178515
+        | Not Related             : 102456323
+        | Closed Lost             : 143
+        |--------------------------------------------------------------------------
+        |
+        | Kalau nanti mau dibuat configurable dari config/services.php:
+        | 'status_ids' => [
+        |     'interacted' => env('KOMMO_STATUS_INTERACTED'),
+        |     ...
+        | ]
+        |
+        | Method ini sudah support config tersebut.
+        |--------------------------------------------------------------------------
+        */
+
+        return [
+            'interacted' => $this->statusIdsFromConfig('interacted', [101927855]),
+            'ignored' => $this->statusIdsFromConfig('ignored', [101927851]),
+            'closed_lost' => $this->statusIdsFromConfig('closed_lost', [143]),
+            'not_related' => $this->statusIdsFromConfig('not_related', [102456323]),
+            'warm_leads' => $this->statusIdsFromConfig('warm_leads', [101586663]),
+            'hot_leads' => $this->statusIdsFromConfig('hot_leads', [101586667]),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Consultation
+            |--------------------------------------------------------------------------
+            | Untuk sekarang consultation dihitung dari stage Appointment.
+            | Kalau nanti consultation lu pakai stage lain, tinggal ganti config/env.
+            |--------------------------------------------------------------------------
+            */
+            'consultation' => $this->statusIdsFromConfig('consultation', [101927859]),
+        ];
+    }
+
+    private function statusIdsFromConfig(string $key, array $fallback): array
+    {
+        $configured = config("services.kommo.status_ids.{$key}");
+
+        if ($configured === null || $configured === '') {
+            return array_map('intval', $fallback);
+        }
+
+        if (is_array($configured)) {
+            return array_values(array_filter(array_map('intval', $configured)));
+        }
+
+        return array_values(array_filter(array_map(
+            'intval',
+            explode(',', (string) $configured)
+        )));
+    }
+
+    private function dailyTimestampRange(string $date, ?string $timezone = null): array
+    {
+        $timezone = $timezone ?: config('app.timezone', 'Asia/Jakarta');
+
+        $start = CarbonImmutable::parse($date, $timezone)->startOfDay();
+        $end = CarbonImmutable::parse($date, $timezone)->endOfDay();
+
+        return [
+            $start->timestamp,
+            $end->timestamp,
+        ];
     }
 
     private function addSemLeadNote(int $leadId, array $data): void

@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Models\SalesDailyReport;
+use App\Services\KommoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use Throwable;
 
 class SalesDailyReportController extends Controller
 {
@@ -134,6 +137,78 @@ class SalesDailyReportController extends Controller
         return redirect()
             ->route('sales-daily-reports.index')
             ->with('success', 'Sales daily report berhasil dihapus.');
+    }
+
+
+    public function kommoSummary(Request $request, KommoService $kommoService): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => ['nullable', 'date'],
+            'report_date' => ['nullable', 'date'],
+        ]);
+
+        $date = $validated['date']
+            ?? $validated['report_date']
+            ?? now()->toDateString();
+
+        $date = Carbon::parse($date)->toDateString();
+
+        try {
+            $summary = $kommoService->getDailyLeadSummary(
+                date: $date,
+                timezone: config('app.timezone', 'Asia/Jakarta')
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data Kommo berhasil ditarik.',
+                'data' => [
+                    'total_leads' => (int) ($summary['total_leads'] ?? 0),
+                    'interacted' => (int) ($summary['interacted'] ?? 0),
+                    'ignored' => (int) ($summary['ignored'] ?? 0),
+                    'closed_lost' => (int) ($summary['closed_lost'] ?? 0),
+                    'not_related' => (int) ($summary['not_related'] ?? 0),
+                    'warm_leads' => (int) ($summary['warm_leads'] ?? 0),
+                    'hot_leads' => (int) ($summary['hot_leads'] ?? 0),
+                    'consultation' => (int) ($summary['consultation'] ?? 0),
+                ],
+                'meta' => [
+                    'date' => $date,
+                    'timezone' => $summary['timezone'] ?? config('app.timezone', 'Asia/Jakarta'),
+                    'pipeline_id' => $summary['pipeline_id'] ?? config('services.kommo.pipeline_id'),
+                    'start_timestamp' => $summary['start_timestamp'] ?? null,
+                    'end_timestamp' => $summary['end_timestamp'] ?? null,
+                    'source' => 'kommo',
+                ],
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Failed to fetch Kommo daily lead summary.', [
+                'date' => $date,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Data Kommo belum bisa ditarik. Silakan cek konfigurasi Kommo atau coba lagi.',
+                'error' => app()->hasDebugModeEnabled()
+                    ? $exception->getMessage()
+                    : null,
+                'data' => [
+                    'total_leads' => 0,
+                    'interacted' => 0,
+                    'ignored' => 0,
+                    'closed_lost' => 0,
+                    'not_related' => 0,
+                    'warm_leads' => 0,
+                    'hot_leads' => 0,
+                    'consultation' => 0,
+                ],
+                'meta' => [
+                    'date' => $date,
+                    'source' => 'kommo',
+                ],
+            ], 500);
+        }
     }
 
     protected function validateRequest(Request $request): array
