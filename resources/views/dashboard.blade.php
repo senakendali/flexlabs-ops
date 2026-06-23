@@ -57,13 +57,31 @@
     $kommoTodayLeadInsight = $kommoTodayLeadInsight ?? [];
     $kommoAvailable = (bool) ($kommoTodayLeadInsight['is_available'] ?? false);
     $kommoTotalLeads = (int) ($kommoTodayLeadInsight['total_leads'] ?? 0);
-    $kommoFollowedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? 0);
-    $kommoNotFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? 0);
-    $kommoFollowUpRate = (int) ($kommoTodayLeadInsight['follow_up_rate'] ?? 0);
+
+    // Raw Kommo pipeline states.
+    // Incoming Leads / Lead masuk = lead mentah yang belum disentuh sales.
+    // Initial Contact dan New Leads = sudah disentuh sales, jadi masuk Sudah Follow-up.
+    $kommoIncomingLeads = (int) ($kommoTodayLeadInsight['incoming_leads'] ?? $kommoTodayLeadInsight['lead_masuk'] ?? 0);
+    $kommoInitialContact = (int) ($kommoTodayLeadInsight['initial_contact'] ?? 0);
+    $kommoNewLeads = (int) ($kommoTodayLeadInsight['new_leads'] ?? 0);
+
+    $kommoInteracted = (int) ($kommoTodayLeadInsight['interacted'] ?? 0);
+    $kommoIgnored = (int) ($kommoTodayLeadInsight['ignored'] ?? 0);
+    $kommoClosedLost = (int) ($kommoTodayLeadInsight['closed_lost'] ?? 0);
+    $kommoNotRelated = (int) ($kommoTodayLeadInsight['not_related'] ?? 0);
+    $kommoWarmLeads = (int) ($kommoTodayLeadInsight['warm_leads'] ?? 0);
+    $kommoHotLeads = (int) ($kommoTodayLeadInsight['hot_leads'] ?? 0);
+    $kommoConsultation = (int) ($kommoTodayLeadInsight['consultation'] ?? 0);
+
+    $kommoFollowedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? max($kommoTotalLeads - $kommoIncomingLeads, 0));
+    $kommoNotFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? $kommoIncomingLeads);
+    $kommoNeedAction = (int) ($kommoTodayLeadInsight['need_action'] ?? $kommoTodayLeadInsight['needs_attention'] ?? $kommoNotFollowedUp);
+    $kommoFollowUpRate = (int) ($kommoTodayLeadInsight['follow_up_rate'] ?? ($kommoTotalLeads > 0 ? round(($kommoFollowedUp / $kommoTotalLeads) * 100) : 0));
+
     $kommoProgressClass = $kommoFollowUpRate >= 80
         ? 'bg-success'
         : ($kommoFollowUpRate >= 50 ? 'bg-warning' : 'bg-danger');
-    $kommoAttentionClass = $kommoNotFollowedUp > 0 ? 'text-warning' : 'text-success';
+    $kommoAttentionClass = $kommoNeedAction > 0 ? 'text-warning' : 'text-success';
     $kommoStatusBadgeClass = $kommoAvailable ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning';
     $kommoStatusBadgeText = $kommoAvailable ? 'Synced' : 'Not Synced';
 
@@ -218,14 +236,15 @@
         <div class="dashboard-section-eyebrow">Kommo Leads Overview</div>
         <h4 class="dashboard-section-title mb-1">Lead Hari Ini dari Kommo</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Monitoring lead yang masuk hari ini dari Kommo dan status follow-up sales agar lead baru tidak dingin.
+            Monitoring lead yang masuk hari ini dari Kommo: incoming leads yang perlu screening, state follow-up sales,
+            dan progress follow-up agar lead baru tidak dingin.
         </p>
     </div>
 
     {{-- Kommo Leads Today Stats --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
-            <div class="funnel-card">
+            <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-inboxes-fill"></i>
@@ -242,7 +261,7 @@
         </div>
 
         <div class="col-xl-3 col-md-6">
-            <div class="funnel-card">
+            <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-chat-dots-fill"></i>
@@ -259,7 +278,7 @@
         </div>
 
         <div class="col-xl-3 col-md-6">
-            <div class="funnel-card">
+            <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-exclamation-triangle-fill"></i>
@@ -276,7 +295,7 @@
         </div>
 
         <div class="col-xl-3 col-md-6">
-            <div class="funnel-card">
+            <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-speedometer2"></i>
@@ -287,7 +306,7 @@
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Persentase follow-up dari total lead Kommo hari ini.
+                    Persentase lead yang sudah masuk status follow-up.
                 </div>
             </div>
         </div>
@@ -299,7 +318,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Kommo Follow-up Progress</h5>
                 <p class="content-card-subtitle mb-0">
-                    Progress follow-up lead baru hari ini berdasarkan status yang sudah bergerak di Kommo.
+                    Progress follow-up dihitung dari lead yang sudah masuk status proses atau interaksi sales.
                 </p>
             </div>
 
@@ -368,7 +387,7 @@
                                 </div>
                                 <span>Need Action</span>
                             </div>
-                            <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoNotFollowedUp) }}</strong>
+                            <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoNeedAction) }}</strong>
                         </div>
                     </div>
 
@@ -434,34 +453,32 @@
                     <tbody>
                         <tr>
                             <td class="fw-semibold text-dark">Interacted</td>
-                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['interacted'] ?? 0)) }}</td>
+                            <td class="text-center">{{ number_format($kommoInteracted) }}</td>
                             <td class="text-muted">Lead sudah ada interaksi awal.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Warm Leads</td>
-                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['warm_leads'] ?? 0)) }}</td>
+                            <td class="text-center">{{ number_format($kommoWarmLeads) }}</td>
                             <td class="text-muted">Lead mulai menunjukkan minat.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Hot Leads</td>
-                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['hot_leads'] ?? 0)) }}</td>
+                            <td class="text-center">{{ number_format($kommoHotLeads) }}</td>
                             <td class="text-muted">Lead prioritas tinggi untuk dikejar closing.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Consultation</td>
-                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['consultation'] ?? 0)) }}</td>
+                            <td class="text-center">{{ number_format($kommoConsultation) }}</td>
                             <td class="text-muted">Lead sudah masuk tahap konsultasi.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Ignored</td>
-                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['ignored'] ?? 0)) }}</td>
+                            <td class="text-center">{{ number_format($kommoIgnored) }}</td>
                             <td class="text-muted">Lead tidak merespons atau belum lanjut.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Closed Lost / Not Related</td>
-                            <td class="text-center">
-                                {{ number_format(((int) ($kommoTodayLeadInsight['closed_lost'] ?? 0)) + ((int) ($kommoTodayLeadInsight['not_related'] ?? 0))) }}
-                            </td>
+                            <td class="text-center">{{ number_format($kommoClosedLost + $kommoNotRelated) }}</td>
                             <td class="text-muted">Lead sudah diproses tapi tidak lanjut.</td>
                         </tr>
                     </tbody>

@@ -409,10 +409,26 @@ class DashboardController extends Controller
             'error_message' => null,
 
             'total_leads' => 0,
-            'followed_up' => 0,
-            'not_followed_up' => 0,
-            'follow_up_rate' => 0,
-            'needs_attention' => 0,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Kommo status counters
+            |--------------------------------------------------------------------------
+            | Top stats yang dipakai dashboard:
+            | - Lead Hari Ini
+            | - Sudah Follow-up
+            | - Belum Follow-up
+            | - Follow-up Rate
+            |
+            | Breakdown tetap menampilkan status detail seperti Interacted,
+            | Warm Leads, Hot Leads, Consultation, Ignored, Closed Lost,
+            | dan Not Related.
+            |--------------------------------------------------------------------------
+            */
+            'incoming_leads' => 0,
+            'lead_masuk' => 0,
+            'initial_contact' => 0,
+            'new_leads' => 0,
 
             'interacted' => 0,
             'ignored' => 0,
@@ -421,6 +437,18 @@ class DashboardController extends Controller
             'warm_leads' => 0,
             'hot_leads' => 0,
             'consultation' => 0,
+            'register' => 0,
+            'data_storage' => 0,
+            'paid' => 0,
+            'trial_class' => 0,
+            'wa_first_bubble' => 0,
+
+            'filtered_out' => 0,
+            'followed_up' => 0,
+            'not_followed_up' => 0,
+            'follow_up_rate' => 0,
+            'needs_attention' => 0,
+            'need_action' => 0,
 
             'pipeline_id' => config('services.kommo.pipeline_id'),
             'start_timestamp' => null,
@@ -436,6 +464,22 @@ class DashboardController extends Controller
             );
 
             $totalLeads = (int) ($summary['total_leads'] ?? 0);
+
+            $incomingLeads = (int) (
+                $summary['incoming_leads']
+                ?? $summary['lead_masuk']
+                ?? 0
+            );
+
+            $leadMasuk = (int) (
+                $summary['lead_masuk']
+                ?? $summary['incoming_leads']
+                ?? 0
+            );
+
+            $initialContact = (int) ($summary['initial_contact'] ?? 0);
+            $newLeads = (int) ($summary['new_leads'] ?? 0);
+
             $interacted = (int) ($summary['interacted'] ?? 0);
             $ignored = (int) ($summary['ignored'] ?? 0);
             $closedLost = (int) ($summary['closed_lost'] ?? 0);
@@ -443,30 +487,47 @@ class DashboardController extends Controller
             $warmLeads = (int) ($summary['warm_leads'] ?? 0);
             $hotLeads = (int) ($summary['hot_leads'] ?? 0);
             $consultation = (int) ($summary['consultation'] ?? 0);
+            $register = (int) ($summary['register'] ?? 0);
+            $dataStorage = (int) ($summary['data_storage'] ?? 0);
+            $paid = (int) ($summary['paid'] ?? 0);
+            $trialClass = (int) ($summary['trial_class'] ?? 0);
+            $waFirstBubble = (int) ($summary['wa_first_bubble'] ?? 0);
 
-            /**
-             * Follow-up dashboard sementara dihitung dari lead yang sudah pindah
-             * ke status proses. Kalau nanti KommoService sudah return field khusus
-             * followed_up/not_followed_up dari activity/notes, cukup override di sini.
-             */
-            $processedLeads = $interacted
-                + $ignored
-                + $closedLost
-                + $notRelated
+            /*
+            |--------------------------------------------------------------------------
+            | Follow-up logic
+            |--------------------------------------------------------------------------
+            | Definisi final untuk top stats dashboard:
+            |
+            | Sudah Follow-up =
+            | Initial Contact + New Leads + Interacted + Warm + Hot
+            | + Consultation + Register + Paid + status proses lain.
+            |
+            | Ignored / Closed Lost / Not Related tetap tampil di breakdown,
+            | tapi tidak dihitung sebagai Sudah Follow-up pada top stats.
+            |
+            | Belum Follow-up = Total Leads - Sudah Follow-up.
+            |--------------------------------------------------------------------------
+            */
+            $followedUp = $initialContact
+                + $newLeads
+                + $interacted
                 + $warmLeads
                 + $hotLeads
-                + $consultation;
+                + $consultation
+                + $register
+                + $dataStorage
+                + $paid
+                + $trialClass
+                + $waFirstBubble;
 
-            $followedUp = array_key_exists('followed_up', $summary)
-                ? (int) $summary['followed_up']
-                : min($totalLeads, $processedLeads);
-
-            $notFollowedUp = array_key_exists('not_followed_up', $summary)
-                ? (int) $summary['not_followed_up']
-                : max($totalLeads - $followedUp, 0);
+            $filteredOut = array_key_exists('filtered_out', $summary)
+                ? (int) $summary['filtered_out']
+                : ($ignored + $closedLost + $notRelated);
 
             $followedUp = max(min($followedUp, $totalLeads), 0);
-            $notFollowedUp = max(min($notFollowedUp, $totalLeads), 0);
+            $notFollowedUp = max($totalLeads - $followedUp, 0);
+            $needsAttention = $notFollowedUp;
 
             $followUpRate = $totalLeads > 0
                 ? (int) round(($followedUp / $totalLeads) * 100)
@@ -486,10 +547,11 @@ class DashboardController extends Controller
                 'error_message' => null,
 
                 'total_leads' => $totalLeads,
-                'followed_up' => $followedUp,
-                'not_followed_up' => $notFollowedUp,
-                'follow_up_rate' => $followUpRate,
-                'needs_attention' => $notFollowedUp,
+
+                'incoming_leads' => $incomingLeads,
+                'lead_masuk' => $leadMasuk,
+                'initial_contact' => $initialContact,
+                'new_leads' => $newLeads,
 
                 'interacted' => $interacted,
                 'ignored' => $ignored,
@@ -498,6 +560,18 @@ class DashboardController extends Controller
                 'warm_leads' => $warmLeads,
                 'hot_leads' => $hotLeads,
                 'consultation' => $consultation,
+                'register' => $register,
+                'data_storage' => $dataStorage,
+                'paid' => $paid,
+                'trial_class' => $trialClass,
+                'wa_first_bubble' => $waFirstBubble,
+
+                'filtered_out' => $filteredOut,
+                'followed_up' => $followedUp,
+                'not_followed_up' => $notFollowedUp,
+                'follow_up_rate' => $followUpRate,
+                'needs_attention' => $needsAttention,
+                'need_action' => $needsAttention,
 
                 'pipeline_id' => $summary['pipeline_id'] ?? config('services.kommo.pipeline_id'),
                 'start_timestamp' => $summary['start_timestamp'] ?? null,
@@ -521,12 +595,14 @@ class DashboardController extends Controller
         }
     }
 
+
     protected function mergeKommoTodayLeadInsightIntoManagementSummary(
         array $managementSummary,
         array $kommoTodayLeadInsight
     ): array {
         $totalLeads = (int) ($kommoTodayLeadInsight['total_leads'] ?? 0);
         $notFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? 0);
+        $followedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? 0);
         $isAvailable = (bool) ($kommoTodayLeadInsight['is_available'] ?? false);
         $summaryText = trim((string) ($kommoTodayLeadInsight['summary_text'] ?? ''));
 
@@ -543,9 +619,12 @@ class DashboardController extends Controller
         } elseif ($notFollowedUp > 0) {
             $type = 'action';
             $title = 'Lead Kommo belum difollow-up';
-        } elseif ($totalLeads > 0) {
+        } elseif ($totalLeads > 0 && $followedUp >= $totalLeads) {
             $type = 'good';
             $title = 'Lead Kommo sudah difollow-up';
+        } elseif ($totalLeads > 0) {
+            $type = 'info';
+            $title = 'Lead Kommo sudah masuk';
         }
 
         $kommoItem = $this->summaryItem($type, $title, $summaryText);
@@ -564,6 +643,7 @@ class DashboardController extends Controller
 
         return $managementSummary;
     }
+
 
     protected function getFinanceInsight(): array
     {
