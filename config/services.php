@@ -58,4 +58,8 @@ return [
         'timeout' => env('KOMMO_TIMEOUT', 15),
     ],
 
+    'meta_leads' => [
+        'webhook_secret' => env('META_LEADS_WEBHOOK_SECRET'),
+    ],
+
 ];

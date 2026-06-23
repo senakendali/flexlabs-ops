@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->validateCsrfTokens(except: [
             'webhooks/xendit/invoice',
+            'webhooks/meta-leads/google-sheet',
         ]);
          $middleware->alias([
             'permission' => EnsureUserPermission::class,

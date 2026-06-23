@@ -75,7 +75,7 @@ use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
-
+use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 
 
 /*
@@ -538,6 +538,15 @@ Route::get('/pay/{token}', [PublicPaymentController::class, 'show'])
 
 Route::post('/webhooks/xendit/invoice', [XenditWebhookController::class, 'handle'])
     ->name('webhooks.xendit.invoice');
+
+
+/*
+|--------------------------------------------------------------------------
+| Webhooks - Meta Leads from Google Sheet
+|--------------------------------------------------------------------------
+*/
+Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookController::class, 'store'])
+    ->name('webhooks.meta-leads.google-sheet');
 
 /*
 |--------------------------------------------------------------------------
