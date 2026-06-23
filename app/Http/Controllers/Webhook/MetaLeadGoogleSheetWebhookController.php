@@ -323,17 +323,7 @@ class MetaLeadGoogleSheetWebhookController extends Controller
 
     private function buildHelpNeed(array $payload): ?string
     {
-        $rows = [];
-
-        if (!empty($payload['education_level'])) {
-            $rows[] = 'Education Level: ' . $payload['education_level'];
-        }
-
-        if (!empty($payload['lead_status'])) {
-            $rows[] = 'Meta Lead Status: ' . $payload['lead_status'];
-        }
-
-        return empty($rows) ? null : implode("\n", $rows);
+        return $this->nullableText($payload['help_need'] ?? null);
     }
 
     private function normalizeWhatsappNumber(mixed $value): ?string
