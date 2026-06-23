@@ -25,16 +25,7 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
-/*
-|--------------------------------------------------------------------------
-| Trello Webhook
-|--------------------------------------------------------------------------
-|
-| Trello validates callbackURL before registering webhook.
-| Some validation requests may hit HEAD/GET, so we allow GET, HEAD, and POST.
-|
-*/
-Route::match(['GET', 'HEAD', 'POST'], '/webhooks/trello', [TrelloWebhookController::class, 'handle'])
+Route::match(['HEAD', 'POST'], '/webhooks/trello', [TrelloWebhookController::class, 'handle'])
     ->name('webhooks.trello');
 
 /*
@@ -128,8 +119,8 @@ Route::prefix('lms/student')->group(function () {
     Route::post('/login', [StudentAuthController::class, 'login']);
 
     Route::get('/learn/{courseSlug}/{lessonSlug}/video', [StudentLearningController::class, 'streamLessonVideo'])
-        ->middleware('signed')
-        ->name('lms.student.learn.video');
+    ->middleware('signed')
+    ->name('lms.student.learn.video');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [StudentAuthController::class, 'me']);
@@ -159,6 +150,7 @@ Route::prefix('lms/student')->group(function () {
         */
         Route::get('/learn/{courseSlug}/{lessonSlug}', [StudentLearningController::class, 'show']);
         Route::post('/learn/{courseSlug}/{lessonSlug}/progress', [StudentLearningController::class, 'saveProgress']);
+        
 
         /*
         |--------------------------------------------------------------------------
