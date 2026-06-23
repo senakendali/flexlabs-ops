@@ -53,6 +53,20 @@
     $salesClosingRate = (float) ($salesInsight['closing_rate'] ?? $salesInsight['deal_rate'] ?? $salesInsight['conversion_join'] ?? 0);
     $salesPaidRate = (float) ($salesInsight['paid_rate'] ?? $salesInsight['conversion_paid'] ?? 0);
 
+
+    $kommoTodayLeadInsight = $kommoTodayLeadInsight ?? [];
+    $kommoAvailable = (bool) ($kommoTodayLeadInsight['is_available'] ?? false);
+    $kommoTotalLeads = (int) ($kommoTodayLeadInsight['total_leads'] ?? 0);
+    $kommoFollowedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? 0);
+    $kommoNotFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? 0);
+    $kommoFollowUpRate = (int) ($kommoTodayLeadInsight['follow_up_rate'] ?? 0);
+    $kommoProgressClass = $kommoFollowUpRate >= 80
+        ? 'bg-success'
+        : ($kommoFollowUpRate >= 50 ? 'bg-warning' : 'bg-danger');
+    $kommoAttentionClass = $kommoNotFollowedUp > 0 ? 'text-warning' : 'text-success';
+    $kommoStatusBadgeClass = $kommoAvailable ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning';
+    $kommoStatusBadgeText = $kommoAvailable ? 'Synced' : 'Not Synced';
+
     $dashboardAiSummaryText = (string) ($dashboardAiSummaryText ?? ($managementSummary['summary_text'] ?? ''));
 
     if (blank($dashboardAiSummaryText)) {
@@ -194,6 +208,244 @@
         <div class="content-card-body">
             <div class="chart-wrap" style="height: 360px;">
                 <canvas id="salesPerformanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Kommo Leads Overview</div>
+        <h4 class="dashboard-section-title mb-1">Lead Hari Ini dari Kommo</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Monitoring lead yang masuk hari ini dari Kommo dan status follow-up sales agar lead baru tidak dingin.
+        </p>
+    </div>
+
+    {{-- Kommo Leads Today Stats --}}
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="funnel-card">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-inboxes-fill"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Lead Hari Ini</div>
+                        <div class="funnel-value">{{ number_format($kommoTotalLeads) }}</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Total lead baru yang masuk dari Kommo hari ini.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="funnel-card">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-chat-dots-fill"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Sudah Follow-up</div>
+                        <div class="funnel-value text-success">{{ number_format($kommoFollowedUp) }}</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Lead yang sudah masuk status proses atau interaksi sales.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="funnel-card">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Belum Follow-up</div>
+                        <div class="funnel-value {{ $kommoAttentionClass }}">{{ number_format($kommoNotFollowedUp) }}</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Lead yang belum terlihat masuk status follow-up di Kommo.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="funnel-card">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-speedometer2"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Follow-up Rate</div>
+                        <div class="funnel-value">{{ number_format($kommoFollowUpRate) }}%</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Persentase follow-up dari total lead Kommo hari ini.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Kommo Leads Today Progress --}}
+    <div class="content-card mb-4">
+        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <h5 class="content-card-title mb-1">Kommo Follow-up Progress</h5>
+                <p class="content-card-subtitle mb-0">
+                    Progress follow-up lead baru hari ini berdasarkan status yang sudah bergerak di Kommo.
+                </p>
+            </div>
+
+            <span class="badge rounded-pill {{ $kommoStatusBadgeClass }}">
+                {{ $kommoStatusBadgeText }}
+            </span>
+        </div>
+
+        <div class="content-card-body">
+            <div class="trial-progress-card kommo-progress-row-card">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
+                    <div>
+                        <div class="trial-progress-value">{{ number_format($kommoFollowUpRate) }}%</div>
+                        <div class="trial-progress-label">Follow-up Progress Hari Ini</div>
+                    </div>
+
+                    <div class="text-lg-end">
+                        <div class="small text-muted">Update terakhir</div>
+                        <div class="fw-semibold text-dark">
+                            {{ $kommoTodayLeadInsight['last_synced_at'] ?? '-' }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress progress-modern mb-4">
+                    <div
+                        class="progress-bar {{ $kommoProgressClass }}"
+                        role="progressbar"
+                        style="width: {{ min($kommoFollowUpRate, 100) }}%;"
+                        aria-valuenow="{{ $kommoFollowUpRate }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    ></div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-xl-3 col-md-6">
+                        <div class="kommo-progress-metric h-100">
+                            <span>Total Lead</span>
+                            <strong>{{ number_format($kommoTotalLeads) }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6">
+                        <div class="kommo-progress-metric h-100">
+                            <span>Followed Up</span>
+                            <strong class="text-success">{{ number_format($kommoFollowedUp) }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6">
+                        <div class="kommo-progress-metric h-100">
+                            <span>Need Action</span>
+                            <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoNotFollowedUp) }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6">
+                        <div class="kommo-progress-metric h-100">
+                            <span>Sync Status</span>
+                            <strong class="{{ $kommoAvailable ? 'text-success' : 'text-warning' }}">
+                                {{ $kommoAvailable ? 'Synced' : 'Not Synced' }}
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+
+                @if(! $kommoAvailable && ! empty($kommoTodayLeadInsight['error_message']))
+                    <div class="alert alert-warning mt-3 mb-0">
+                        {{ $kommoTodayLeadInsight['error_message'] }}
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- Kommo Leads Today Breakdown --}}
+    <div class="content-card mb-4">
+        <div class="content-card-header">
+            <div>
+                <h5 class="content-card-title mb-1">Kommo Lead Status Breakdown</h5>
+                <p class="content-card-subtitle mb-0">
+                    Ringkasan status lead hari ini untuk membantu tim sales menentukan prioritas follow-up.
+                </p>
+            </div>
+        </div>
+
+        <div class="content-card-body">
+            <div class="kommo-insight-box mb-3">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="kommo-insight-icon">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold text-dark mb-1">Insight Lead Kommo</div>
+                        <p class="text-muted mb-0">
+                            {{ $kommoTodayLeadInsight['summary_text'] ?? 'Data lead Kommo hari ini belum tersedia.' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-modern align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th class="text-center">Total</th>
+                            <th>Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="fw-semibold text-dark">Interacted</td>
+                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['interacted'] ?? 0)) }}</td>
+                            <td class="text-muted">Lead sudah ada interaksi awal.</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-dark">Warm Leads</td>
+                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['warm_leads'] ?? 0)) }}</td>
+                            <td class="text-muted">Lead mulai menunjukkan minat.</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-dark">Hot Leads</td>
+                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['hot_leads'] ?? 0)) }}</td>
+                            <td class="text-muted">Lead prioritas tinggi untuk dikejar closing.</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-dark">Consultation</td>
+                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['consultation'] ?? 0)) }}</td>
+                            <td class="text-muted">Lead sudah masuk tahap konsultasi.</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-dark">Ignored</td>
+                            <td class="text-center">{{ number_format((int) ($kommoTodayLeadInsight['ignored'] ?? 0)) }}</td>
+                            <td class="text-muted">Lead tidak merespons atau belum lanjut.</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-semibold text-dark">Closed Lost / Not Related</td>
+                            <td class="text-center">
+                                {{ number_format(((int) ($kommoTodayLeadInsight['closed_lost'] ?? 0)) + ((int) ($kommoTodayLeadInsight['not_related'] ?? 0))) }}
+                            </td>
+                            <td class="text-muted">Lead sudah diproses tapi tidak lanjut.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -828,6 +1080,87 @@
     :summary="$dashboardAiSummaryText ?? null"
 />
 @endsection
+
+@push('styles')
+<style>
+    .kommo-insight-box {
+        border: 1px solid rgba(91, 62, 142, 0.12);
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.06), rgba(255, 190, 4, 0.08));
+        padding: 16px;
+    }
+
+    .kommo-insight-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        color: #5B3E8E;
+        background: rgba(91, 62, 142, 0.12);
+        font-size: 1.15rem;
+    }
+</style>
+@endpush
+
+
+@push('styles')
+<style>
+    .kommo-progress-row-card {
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.08), rgba(255, 190, 4, 0.08));
+        border: 1px solid rgba(91, 62, 142, 0.10);
+        border-radius: 20px;
+        padding: 1.25rem;
+    }
+
+    .kommo-progress-metric {
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 16px;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .kommo-progress-metric span {
+        color: #6b7280;
+        font-size: .85rem;
+        font-weight: 600;
+    }
+
+    .kommo-progress-metric strong {
+        color: #111827;
+        font-size: 1.2rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .kommo-insight-box {
+        background: rgba(91, 62, 142, 0.06);
+        border: 1px solid rgba(91, 62, 142, 0.10);
+        border-radius: 18px;
+        padding: 1rem;
+    }
+
+    .kommo-insight-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: rgba(91, 62, 142, 0.12);
+        color: #5B3E8E;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.15rem;
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

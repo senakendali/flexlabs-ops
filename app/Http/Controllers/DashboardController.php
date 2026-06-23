@@ -6,16 +6,21 @@ use App\Models\SalesDailyReport;
 use App\Models\TrialParticipant;
 use App\Models\TrialSchedule;
 use App\Models\TrialTheme;
+use App\Services\KommoService;
+use App\Services\LocalDashboardInsightService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
-use App\Services\LocalDashboardInsightService;
+use Throwable;
 
 class DashboardController extends Controller
 {
-    public function index(LocalDashboardInsightService $localDashboardInsightService): View
-    {
+    public function index(
+        LocalDashboardInsightService $localDashboardInsightService,
+        KommoService $kommoService
+    ): View {
         $academicStats = $this->getAcademicStats();
         $batchCapacity = $this->getBatchCapacitySummary();
         $revenueChart = $this->getMonthlyRevenueChart();
@@ -35,6 +40,8 @@ class DashboardController extends Controller
         $workshopFollowUpProgress = $this->getWorkshopFollowUpProgress();
         $upcomingWorkshopSchedules = $this->getUpcomingWorkshopSchedules();
 
+        $kommoTodayLeadInsight = $this->getKommoTodayLeadInsight($kommoService);
+
         $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
@@ -51,9 +58,14 @@ class DashboardController extends Controller
             'workshop_status_counts' => $workshopParticipantStatusCounts,
             'workshop_follow_up_progress' => $workshopFollowUpProgress,
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
+            'kommo_today_lead_insight' => $kommoTodayLeadInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
+        $managementSummary = $this->mergeKommoTodayLeadInsightIntoManagementSummary(
+            $managementSummary,
+            $kommoTodayLeadInsight
+        );
 
         return view('dashboard', [
             'academicStats' => $academicStats,
@@ -75,6 +87,7 @@ class DashboardController extends Controller
             'workshopParticipantStatusCounts' => $workshopParticipantStatusCounts,
             'workshopFollowUpProgress' => $workshopFollowUpProgress,
             'upcomingWorkshopSchedules' => $upcomingWorkshopSchedules,
+            'kommoTodayLeadInsight' => $kommoTodayLeadInsight,
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
         ]);
@@ -381,6 +394,175 @@ class DashboardController extends Controller
             'closed_deal' => $this->sumExistingColumn($query, $table, ['closed_deal', 'closing', 'join', 'deal']),
             'revenue' => $this->sumExistingColumn($query, $table, ['revenue', 'total_revenue', 'sales_revenue']),
         ];
+    }
+
+    protected function getKommoTodayLeadInsight(KommoService $kommoService): array
+    {
+        $timezone = config('app.timezone', 'Asia/Jakarta');
+        $today = now($timezone)->toDateString();
+
+        $empty = [
+            'date' => $today,
+            'timezone' => $timezone,
+            'source' => 'kommo',
+            'is_available' => false,
+            'error_message' => null,
+
+            'total_leads' => 0,
+            'followed_up' => 0,
+            'not_followed_up' => 0,
+            'follow_up_rate' => 0,
+            'needs_attention' => 0,
+
+            'interacted' => 0,
+            'ignored' => 0,
+            'closed_lost' => 0,
+            'not_related' => 0,
+            'warm_leads' => 0,
+            'hot_leads' => 0,
+            'consultation' => 0,
+
+            'pipeline_id' => config('services.kommo.pipeline_id'),
+            'start_timestamp' => null,
+            'end_timestamp' => null,
+            'summary_text' => 'Data Kommo hari ini belum tersedia.',
+            'last_synced_at' => null,
+        ];
+
+        try {
+            $summary = $kommoService->getDailyLeadSummary(
+                date: $today,
+                timezone: $timezone
+            );
+
+            $totalLeads = (int) ($summary['total_leads'] ?? 0);
+            $interacted = (int) ($summary['interacted'] ?? 0);
+            $ignored = (int) ($summary['ignored'] ?? 0);
+            $closedLost = (int) ($summary['closed_lost'] ?? 0);
+            $notRelated = (int) ($summary['not_related'] ?? 0);
+            $warmLeads = (int) ($summary['warm_leads'] ?? 0);
+            $hotLeads = (int) ($summary['hot_leads'] ?? 0);
+            $consultation = (int) ($summary['consultation'] ?? 0);
+
+            /**
+             * Follow-up dashboard sementara dihitung dari lead yang sudah pindah
+             * ke status proses. Kalau nanti KommoService sudah return field khusus
+             * followed_up/not_followed_up dari activity/notes, cukup override di sini.
+             */
+            $processedLeads = $interacted
+                + $ignored
+                + $closedLost
+                + $notRelated
+                + $warmLeads
+                + $hotLeads
+                + $consultation;
+
+            $followedUp = array_key_exists('followed_up', $summary)
+                ? (int) $summary['followed_up']
+                : min($totalLeads, $processedLeads);
+
+            $notFollowedUp = array_key_exists('not_followed_up', $summary)
+                ? (int) $summary['not_followed_up']
+                : max($totalLeads - $followedUp, 0);
+
+            $followedUp = max(min($followedUp, $totalLeads), 0);
+            $notFollowedUp = max(min($notFollowedUp, $totalLeads), 0);
+
+            $followUpRate = $totalLeads > 0
+                ? (int) round(($followedUp / $totalLeads) * 100)
+                : 0;
+
+            $summaryText = match (true) {
+                $totalLeads <= 0 => 'Belum ada lead baru dari Kommo hari ini.',
+                $notFollowedUp > 0 => 'Kommo mencatat ' . number_format($totalLeads) . ' lead hari ini, dan ' . number_format($notFollowedUp) . ' lead belum terlihat masuk status follow-up. Tim sales perlu cek lead baru agar tidak dingin.',
+                default => 'Semua ' . number_format($totalLeads) . ' lead Kommo hari ini sudah masuk status follow-up. Mantap, tinggal jaga kualitas follow-up berikutnya.',
+            };
+
+            return [
+                'date' => $today,
+                'timezone' => $summary['timezone'] ?? $timezone,
+                'source' => 'kommo',
+                'is_available' => true,
+                'error_message' => null,
+
+                'total_leads' => $totalLeads,
+                'followed_up' => $followedUp,
+                'not_followed_up' => $notFollowedUp,
+                'follow_up_rate' => $followUpRate,
+                'needs_attention' => $notFollowedUp,
+
+                'interacted' => $interacted,
+                'ignored' => $ignored,
+                'closed_lost' => $closedLost,
+                'not_related' => $notRelated,
+                'warm_leads' => $warmLeads,
+                'hot_leads' => $hotLeads,
+                'consultation' => $consultation,
+
+                'pipeline_id' => $summary['pipeline_id'] ?? config('services.kommo.pipeline_id'),
+                'start_timestamp' => $summary['start_timestamp'] ?? null,
+                'end_timestamp' => $summary['end_timestamp'] ?? null,
+                'summary_text' => $summaryText,
+                'last_synced_at' => now($timezone)->format('d M Y H:i'),
+            ];
+        } catch (Throwable $exception) {
+            Log::error('Failed to fetch Kommo today lead insight for dashboard.', [
+                'date' => $today,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return array_merge($empty, [
+                'error_message' => app()->hasDebugModeEnabled()
+                    ? $exception->getMessage()
+                    : 'Data Kommo belum bisa ditarik.',
+                'summary_text' => 'Data lead Kommo hari ini belum bisa ditarik. Dashboard tetap aman, tapi tim perlu cek koneksi atau konfigurasi Kommo.',
+                'last_synced_at' => now($timezone)->format('d M Y H:i'),
+            ]);
+        }
+    }
+
+    protected function mergeKommoTodayLeadInsightIntoManagementSummary(
+        array $managementSummary,
+        array $kommoTodayLeadInsight
+    ): array {
+        $totalLeads = (int) ($kommoTodayLeadInsight['total_leads'] ?? 0);
+        $notFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? 0);
+        $isAvailable = (bool) ($kommoTodayLeadInsight['is_available'] ?? false);
+        $summaryText = trim((string) ($kommoTodayLeadInsight['summary_text'] ?? ''));
+
+        if ($summaryText === '') {
+            return $managementSummary;
+        }
+
+        $type = 'info';
+        $title = 'Kommo Lead Hari Ini';
+
+        if (! $isAvailable) {
+            $type = 'warning';
+            $title = 'Kommo belum bisa ditarik';
+        } elseif ($notFollowedUp > 0) {
+            $type = 'action';
+            $title = 'Lead Kommo belum difollow-up';
+        } elseif ($totalLeads > 0) {
+            $type = 'good';
+            $title = 'Lead Kommo sudah difollow-up';
+        }
+
+        $kommoItem = $this->summaryItem($type, $title, $summaryText);
+
+        $existingItems = $managementSummary['items'] ?? [];
+        $existingFocus = $managementSummary['focus'] ?? [];
+        $existingSummaryText = trim((string) ($managementSummary['summary_text'] ?? ''));
+
+        $managementSummary['items'] = array_values(array_merge([$kommoItem], $existingItems));
+        $managementSummary['focus'] = array_slice(array_values(array_merge([$kommoItem], $existingFocus)), 0, 3);
+        $managementSummary['summary_text'] = trim($summaryText . ' ' . $existingSummaryText);
+
+        if (! isset($managementSummary['headline']) || $notFollowedUp > 0 || ! $isAvailable) {
+            $managementSummary['headline'] = $title;
+        }
+
+        return $managementSummary;
     }
 
     protected function getFinanceInsight(): array
