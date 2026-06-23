@@ -100,14 +100,17 @@ class KommoService
     |
     | Definisi final FlexLabs:
     | - Total Leads      = semua lead yang dibuat pada tanggal tersebut.
-    | - Sudah Follow-up  = lead yang sudah masuk status proses/interaksi sales.
-    | - Belum Follow-up  = incoming_leads / lead yang masih butuh action.
-    | - Need Action      = incoming_leads / lead yang masih butuh action.
-    | - Filtered Out     = ignored + closed_lost + not_related.
+    | - Incoming Leads   = lead yang masih berada di status Incoming/Lead Masuk.
+    | - Belum Follow-up  = Incoming Leads yang masih perlu action sales.
+    | - Need Action      = Incoming Leads yang masih perlu action sales.
+    | - Sudah Follow-up  = Total Leads - Incoming Leads.
+    | - Filtered Out     = ignored + closed_lost + not_related, hanya untuk
+    |   breakdown/status detail, bukan untuk mengurangi total lead.
     |
     | Important:
-    | - Closed Lost, Not Related, dan Ignore tetap ditampilkan di breakdown,
-    |   tapi tidak dihitung ke Sudah Follow-up.
+    | - Closed Lost, Not Related, dan Ignore tetap dihitung sebagai Sudah Follow-up
+    |   karena lead tersebut sudah diproses/diputuskan oleh tim sales.
+    | - Satu-satunya status yang dianggap Belum Follow-up adalah Incoming Leads.
     | - Status yang dihitung adalah current status lead saat data ditarik.
     |--------------------------------------------------------------------------
     */
@@ -179,60 +182,34 @@ class KommoService
         |--------------------------------------------------------------------------
         | Derived metrics
         |--------------------------------------------------------------------------
-        | Status yang masuk Sudah Follow-up:
-        | - Initial Contact
-        | - New Leads
-        | - Interacted
-        | - Warm Leads
-        | - Hot Leads
-        | - Consultation / Appointment
-        | - Trial Class
-        | - WA First Bubble
-        | - Register
-        | - Data Storage
-        | - Paid
+        | Definisi final dashboard FlexLabs:
+        | - Filtered Out tetap disimpan sebagai detail breakdown.
+        | - Belum Follow-up / Need Action hanya Incoming Leads.
+        | - Sudah Follow-up adalah semua lead selain Incoming Leads.
         |
-        | Status yang tidak masuk Sudah Follow-up tapi tetap muncul detail:
-        | - Incoming Leads / Lead masuk
-        | - Ignore
-        | - Closed Lost
-        | - Not Related
+        | Dengan rule ini:
+        | Total Leads 9, Incoming Leads 1
+        | => Sudah Follow-up 8
+        | => Belum Follow-up 1
+        | => Follow-up Rate 89%
+        |
+        | Closed Lost, Not Related, dan Ignored tetap dihitung sebagai Sudah
+        | Follow-up karena lead tersebut sudah diproses/diputuskan.
         */
         $summary['filtered_out'] = (int) $summary['ignored']
             + (int) $summary['closed_lost']
             + (int) $summary['not_related'];
 
-        $summary['followed_up'] = (int) $summary['initial_contact']
-            + (int) $summary['new_leads']
-            + (int) $summary['interacted']
-            + (int) $summary['warm_leads']
-            + (int) $summary['hot_leads']
-            + (int) $summary['consultation']
-            + (int) $summary['trial_class']
-            + (int) $summary['wa_first_bubble']
-            + (int) $summary['register']
-            + (int) $summary['data_storage']
-            + (int) $summary['paid'];
+        $totalLeads = max((int) $summary['total_leads'], 0);
+        $incomingLeads = max((int) $summary['incoming_leads'], 0);
 
-        $summary['followed_up'] = max(min((int) $summary['followed_up'], (int) $summary['total_leads']), 0);
+        $summary['not_followed_up'] = $incomingLeads;
+        $summary['need_action'] = $incomingLeads;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Belum follow-up / Need action
-        |--------------------------------------------------------------------------
-        | Definisi final dashboard FlexLabs:
-        | - Belum Follow-up = Incoming Leads yang masih perlu action sales.
-        | - Need Action     = Incoming Leads yang masih perlu action sales.
-        |
-        | Filtered Out seperti Ignore, Closed Lost, dan Not Related tidak boleh
-        | menaikkan angka Belum Follow-up / Need Action karena lead tersebut sudah
-        | diputuskan tidak lanjut atau tidak relevan.
-        */
-        $summary['not_followed_up'] = max((int) $summary['incoming_leads'], 0);
-        $summary['need_action'] = max((int) $summary['incoming_leads'], 0);
+        $summary['followed_up'] = max($totalLeads - min($incomingLeads, $totalLeads), 0);
 
-        $summary['follow_up_rate'] = (int) $summary['total_leads'] > 0
-            ? (int) round(((int) $summary['followed_up'] / (int) $summary['total_leads']) * 100)
+        $summary['follow_up_rate'] = $totalLeads > 0
+            ? (int) round(((int) $summary['followed_up'] / $totalLeads) * 100)
             : 0;
 
         $summary['date'] = $date;

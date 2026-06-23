@@ -408,27 +408,39 @@ class DashboardController extends Controller
             'is_available' => false,
             'error_message' => null,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Main dashboard stats
+            |--------------------------------------------------------------------------
+            | Final FlexLabs definition:
+            | - Lead Hari Ini     = semua lead Kommo yang masuk hari ini.
+            | - Incoming Leads    = lead yang masih berada di Incoming Leads.
+            | - Sudah Follow-up   = semua lead selain Incoming Leads.
+            | - Belum Follow-up   = Incoming Leads.
+            | - Need Action       = Incoming Leads.
+            | - Follow-up Rate    = Sudah Follow-up / Lead Hari Ini.
+            |
+            | Important:
+            | Closed Lost, Not Related, dan Ignored tetap dihitung sebagai
+            | Sudah Follow-up karena lead tersebut sudah diproses/diputuskan.
+            |--------------------------------------------------------------------------
+            */
             'total_leads' => 0,
+            'incoming_leads' => 0,
+            'lead_masuk' => 0,
+            'followed_up' => 0,
+            'processed_leads' => 0,
+            'not_followed_up' => 0,
+            'pending_incoming_leads' => 0,
+            'need_action' => 0,
+            'needs_attention' => 0,
+            'follow_up_rate' => 0,
 
             /*
             |--------------------------------------------------------------------------
             | Kommo status counters
             |--------------------------------------------------------------------------
-            | Top stats yang dipakai dashboard:
-            | - Lead Hari Ini
-            | - Sudah Follow-up
-            | - Belum Follow-up
-            | - Follow-up Rate
-            |
-            | Important:
-            | Belum Follow-up / Need Action wajib mengikuti incoming_leads
-            | dari KommoService, bukan total_leads - followed_up. Kalau tidak,
-            | filtered_out seperti Closed Lost / Not Related bisa salah terbaca
-            | sebagai lead yang belum follow-up.
-            |--------------------------------------------------------------------------
             */
-            'incoming_leads' => 0,
-            'lead_masuk' => 0,
             'regular_incoming_leads' => 0,
 
             'unsorted_total' => 0,
@@ -454,12 +466,13 @@ class DashboardController extends Controller
             'trial_class' => 0,
             'wa_first_bubble' => 0,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Detail helper
+            |--------------------------------------------------------------------------
+            */
             'filtered_out' => 0,
-            'followed_up' => 0,
-            'not_followed_up' => 0,
-            'follow_up_rate' => 0,
-            'needs_attention' => 0,
-            'need_action' => 0,
+            'status_breakdown' => [],
 
             'pipeline_id' => config('services.kommo.pipeline_id'),
             'start_timestamp' => null,
@@ -474,102 +487,93 @@ class DashboardController extends Controller
                 timezone: $timezone
             );
 
-            $totalLeads = (int) ($summary['total_leads'] ?? 0);
+            $totalLeads = max((int) ($summary['total_leads'] ?? 0), 0);
 
-            $incomingLeads = (int) (
+            $incomingLeads = max((int) (
                 $summary['incoming_leads']
                 ?? $summary['lead_masuk']
                 ?? 0
-            );
+            ), 0);
 
-            $leadMasuk = (int) (
+            $leadMasuk = max((int) (
                 $summary['lead_masuk']
                 ?? $summary['incoming_leads']
                 ?? 0
-            );
+            ), 0);
 
-            $regularIncomingLeads = (int) ($summary['regular_incoming_leads'] ?? 0);
-            $unsortedTotal = (int) ($summary['unsorted_total'] ?? 0);
-            $unsortedAccepted = (int) ($summary['unsorted_accepted'] ?? 0);
-            $unsortedDeclined = (int) ($summary['unsorted_declined'] ?? 0);
-            $unsortedPending = (int) ($summary['unsorted_pending'] ?? 0);
-            $unsortedAverageSortTime = (int) ($summary['unsorted_average_sort_time'] ?? 0);
-            $unsortedFormsTotal = (int) ($summary['unsorted_forms_total'] ?? 0);
-            $unsortedChatsTotal = (int) ($summary['unsorted_chats_total'] ?? 0);
+            $regularIncomingLeads = max((int) ($summary['regular_incoming_leads'] ?? 0), 0);
+            $unsortedTotal = max((int) ($summary['unsorted_total'] ?? 0), 0);
+            $unsortedAccepted = max((int) ($summary['unsorted_accepted'] ?? 0), 0);
+            $unsortedDeclined = max((int) ($summary['unsorted_declined'] ?? 0), 0);
+            $unsortedPending = max((int) ($summary['unsorted_pending'] ?? 0), 0);
+            $unsortedAverageSortTime = max((int) ($summary['unsorted_average_sort_time'] ?? 0), 0);
+            $unsortedFormsTotal = max((int) ($summary['unsorted_forms_total'] ?? 0), 0);
+            $unsortedChatsTotal = max((int) ($summary['unsorted_chats_total'] ?? 0), 0);
 
-            $initialContact = (int) ($summary['initial_contact'] ?? 0);
-            $newLeads = (int) ($summary['new_leads'] ?? 0);
-            $interacted = (int) ($summary['interacted'] ?? 0);
-            $ignored = (int) ($summary['ignored'] ?? 0);
-            $closedLost = (int) ($summary['closed_lost'] ?? 0);
-            $notRelated = (int) ($summary['not_related'] ?? 0);
-            $warmLeads = (int) ($summary['warm_leads'] ?? 0);
-            $hotLeads = (int) ($summary['hot_leads'] ?? 0);
-            $consultation = (int) ($summary['consultation'] ?? 0);
-            $register = (int) ($summary['register'] ?? 0);
-            $dataStorage = (int) ($summary['data_storage'] ?? 0);
-            $paid = (int) ($summary['paid'] ?? 0);
-            $trialClass = (int) ($summary['trial_class'] ?? 0);
-            $waFirstBubble = (int) ($summary['wa_first_bubble'] ?? 0);
+            $initialContact = max((int) ($summary['initial_contact'] ?? 0), 0);
+            $newLeads = max((int) ($summary['new_leads'] ?? 0), 0);
+            $interacted = max((int) ($summary['interacted'] ?? 0), 0);
+            $ignored = max((int) ($summary['ignored'] ?? 0), 0);
+            $closedLost = max((int) ($summary['closed_lost'] ?? 0), 0);
+            $notRelated = max((int) ($summary['not_related'] ?? 0), 0);
+            $warmLeads = max((int) ($summary['warm_leads'] ?? 0), 0);
+            $hotLeads = max((int) ($summary['hot_leads'] ?? 0), 0);
+            $consultation = max((int) ($summary['consultation'] ?? 0), 0);
+            $register = max((int) ($summary['register'] ?? 0), 0);
+            $dataStorage = max((int) ($summary['data_storage'] ?? 0), 0);
+            $paid = max((int) ($summary['paid'] ?? 0), 0);
+            $trialClass = max((int) ($summary['trial_class'] ?? 0), 0);
+            $waFirstBubble = max((int) ($summary['wa_first_bubble'] ?? 0), 0);
 
             $filteredOut = array_key_exists('filtered_out', $summary)
-                ? (int) $summary['filtered_out']
+                ? max((int) $summary['filtered_out'], 0)
                 : ($ignored + $closedLost + $notRelated);
 
             /*
             |--------------------------------------------------------------------------
-            | Follow-up logic
+            | Final follow-up metrics
             |--------------------------------------------------------------------------
-            | KommoService adalah source of truth untuk derived metrics.
+            | Controller sengaja re-calculate supaya aman walaupun service lama/cache
+            | masih mengirim derived metric versi lama.
             |
-            | Final rule:
-            | - Followed Up      = status proses/interaksi sales.
-            | - Need Action      = incoming_leads.
-            | - Belum Follow-up  = incoming_leads.
-            | - Filtered Out     = ignored + closed_lost + not_related.
-            |
-            | Jangan hitung Belum Follow-up dari total_leads - followed_up,
-            | karena filtered_out akan ikut masuk ke Belum Follow-up.
+            | Rule final:
+            | - Incoming Leads adalah satu-satunya Belum Follow-up.
+            | - Semua status selain Incoming Leads dihitung Sudah Follow-up.
+            | - Filtered Out tetap masuk processed/followed-up, bukan dibuang.
             |--------------------------------------------------------------------------
             */
-            $fallbackFollowedUp = $initialContact
-                + $newLeads
-                + $interacted
-                + $warmLeads
-                + $hotLeads
-                + $consultation
-                + $register
-                + $dataStorage
-                + $paid
-                + $trialClass
-                + $waFirstBubble;
+            $notFollowedUp = $incomingLeads;
+            $needsAttention = $incomingLeads;
+            $followedUp = max($totalLeads - min($incomingLeads, $totalLeads), 0);
 
-            $followedUp = array_key_exists('followed_up', $summary)
-                ? (int) $summary['followed_up']
-                : $fallbackFollowedUp;
+            $followUpRate = $totalLeads > 0
+                ? (int) round(($followedUp / $totalLeads) * 100)
+                : 0;
 
-            $notFollowedUp = array_key_exists('not_followed_up', $summary)
-                ? (int) $summary['not_followed_up']
-                : $incomingLeads;
+            $kommoData = [
+                'incoming_leads' => $incomingLeads,
+                'initial_contact' => $initialContact,
+                'new_leads' => $newLeads,
+                'interacted' => $interacted,
+                'warm_leads' => $warmLeads,
+                'hot_leads' => $hotLeads,
+                'trial_class' => $trialClass,
+                'wa_first_bubble' => $waFirstBubble,
+                'consultation' => $consultation,
+                'register' => $register,
+                'data_storage' => $dataStorage,
+                'ignored' => $ignored,
+                'closed_lost' => $closedLost,
+                'not_related' => $notRelated,
+                'paid' => $paid,
+            ];
 
-            $needsAttention = array_key_exists('need_action', $summary)
-                ? (int) $summary['need_action']
-                : (array_key_exists('needs_attention', $summary)
-                    ? (int) $summary['needs_attention']
-                    : $notFollowedUp);
-
-            $followedUp = max(min($followedUp, $totalLeads), 0);
-            $notFollowedUp = max(min($notFollowedUp, $totalLeads), 0);
-            $needsAttention = max(min($needsAttention, $totalLeads), 0);
-
-            $followUpRate = array_key_exists('follow_up_rate', $summary)
-                ? (int) $summary['follow_up_rate']
-                : ($totalLeads > 0 ? (int) round(($followedUp / $totalLeads) * 100) : 0);
+            $statusBreakdown = $this->buildKommoLeadStatusBreakdown($kommoData);
 
             $summaryText = match (true) {
                 $totalLeads <= 0 => 'Belum ada lead baru dari Kommo hari ini.',
-                $notFollowedUp > 0 => 'Kommo mencatat ' . number_format($totalLeads) . ' lead hari ini, dan ' . number_format($notFollowedUp) . ' lead belum terlihat masuk status follow-up. Tim sales perlu cek lead baru agar tidak dingin.',
-                default => 'Semua ' . number_format($totalLeads) . ' lead Kommo hari ini sudah masuk status follow-up. Mantap, tinggal jaga kualitas follow-up berikutnya.',
+                $notFollowedUp > 0 => 'Kommo mencatat ' . number_format($totalLeads) . ' lead hari ini. Dari jumlah tersebut, ' . number_format($followedUp) . ' lead sudah keluar dari Incoming Leads dan ' . number_format($notFollowedUp) . ' lead masih perlu dicek tim sales agar tidak dingin.',
+                default => 'Semua ' . number_format($totalLeads) . ' lead Kommo hari ini sudah keluar dari Incoming Leads. Mantap, tinggal jaga kualitas follow-up berikutnya.',
             };
 
             return [
@@ -610,10 +614,13 @@ class DashboardController extends Controller
 
                 'filtered_out' => $filteredOut,
                 'followed_up' => $followedUp,
+                'processed_leads' => $followedUp,
                 'not_followed_up' => $notFollowedUp,
+                'pending_incoming_leads' => $notFollowedUp,
                 'follow_up_rate' => $followUpRate,
                 'needs_attention' => $needsAttention,
                 'need_action' => $needsAttention,
+                'status_breakdown' => $statusBreakdown,
 
                 'pipeline_id' => $summary['pipeline_id'] ?? config('services.kommo.pipeline_id'),
                 'start_timestamp' => $summary['start_timestamp'] ?? null,
@@ -636,6 +643,125 @@ class DashboardController extends Controller
             ]);
         }
     }
+
+    protected function buildKommoLeadStatusBreakdown(array $data): array
+    {
+        return [
+            $this->kommoStatusItem(
+                key: 'incoming_leads',
+                label: 'Incoming Leads',
+                total: (int) ($data['incoming_leads'] ?? 0),
+                description: 'Lead baru yang masih berada di Incoming Leads dan perlu dicek sales.',
+                isNeedAction: true
+            ),
+            $this->kommoStatusItem(
+                key: 'initial_contact',
+                label: 'Initial Contact',
+                total: (int) ($data['initial_contact'] ?? 0),
+                description: 'Lead sudah masuk tahap kontak awal.'
+            ),
+            $this->kommoStatusItem(
+                key: 'new_leads',
+                label: 'New Leads',
+                total: (int) ($data['new_leads'] ?? 0),
+                description: 'Lead baru yang sudah tercatat di pipeline Kommo.'
+            ),
+            $this->kommoStatusItem(
+                key: 'interacted',
+                label: 'Interacted',
+                total: (int) ($data['interacted'] ?? 0),
+                description: 'Lead sudah ada interaksi awal.'
+            ),
+            $this->kommoStatusItem(
+                key: 'warm_leads',
+                label: 'Warm Leads',
+                total: (int) ($data['warm_leads'] ?? 0),
+                description: 'Lead mulai menunjukkan minat.'
+            ),
+            $this->kommoStatusItem(
+                key: 'hot_leads',
+                label: 'Hot Leads',
+                total: (int) ($data['hot_leads'] ?? 0),
+                description: 'Lead prioritas tinggi untuk dikejar closing.'
+            ),
+            $this->kommoStatusItem(
+                key: 'trial_class',
+                label: 'Trial Class',
+                total: (int) ($data['trial_class'] ?? 0),
+                description: 'Lead sudah diarahkan ke trial/webinar.'
+            ),
+            $this->kommoStatusItem(
+                key: 'wa_first_bubble',
+                label: 'WA First Bubble',
+                total: (int) ($data['wa_first_bubble'] ?? 0),
+                description: 'Lead sudah masuk interaksi awal WhatsApp.'
+            ),
+            $this->kommoStatusItem(
+                key: 'consultation',
+                label: 'Consultation',
+                total: (int) ($data['consultation'] ?? 0),
+                description: 'Lead sudah masuk tahap konsultasi.'
+            ),
+            $this->kommoStatusItem(
+                key: 'register',
+                label: 'Register',
+                total: (int) ($data['register'] ?? 0),
+                description: 'Lead sudah masuk tahap registrasi.'
+            ),
+            $this->kommoStatusItem(
+                key: 'data_storage',
+                label: 'Data Storage',
+                total: (int) ($data['data_storage'] ?? 0),
+                description: 'Lead sudah disimpan sebagai data referensi/follow-up lanjutan.'
+            ),
+            $this->kommoStatusItem(
+                key: 'ignored',
+                label: 'Ignored',
+                total: (int) ($data['ignored'] ?? 0),
+                description: 'Lead tidak merespons atau belum lanjut, tapi sudah diproses sales.',
+                isFilteredOut: true
+            ),
+            $this->kommoStatusItem(
+                key: 'closed_lost',
+                label: 'Closed Lost',
+                total: (int) ($data['closed_lost'] ?? 0),
+                description: 'Lead sudah diproses tapi tidak berhasil closing.',
+                isFilteredOut: true
+            ),
+            $this->kommoStatusItem(
+                key: 'not_related',
+                label: 'Not Related',
+                total: (int) ($data['not_related'] ?? 0),
+                description: 'Lead sudah dicek dan dinilai tidak relevan.',
+                isFilteredOut: true
+            ),
+            $this->kommoStatusItem(
+                key: 'paid',
+                label: 'Paid',
+                total: (int) ($data['paid'] ?? 0),
+                description: 'Lead sudah berhasil menjadi pembayaran.'
+            ),
+        ];
+    }
+
+    protected function kommoStatusItem(
+        string $key,
+        string $label,
+        int $total,
+        string $description,
+        bool $isNeedAction = false,
+        bool $isFilteredOut = false
+    ): array {
+        return [
+            'key' => $key,
+            'label' => $label,
+            'total' => max($total, 0),
+            'description' => $description,
+            'is_need_action' => $isNeedAction,
+            'is_filtered_out' => $isFilteredOut,
+        ];
+    }
+
 
 
     protected function mergeKommoTodayLeadInsightIntoManagementSummary(
@@ -660,10 +786,10 @@ class DashboardController extends Controller
             $title = 'Kommo belum bisa ditarik';
         } elseif ($notFollowedUp > 0) {
             $type = 'action';
-            $title = 'Lead Kommo belum difollow-up';
+            $title = 'Lead Kommo masih di Incoming';
         } elseif ($totalLeads > 0 && $followedUp >= $totalLeads) {
             $type = 'good';
-            $title = 'Lead Kommo sudah difollow-up';
+            $title = 'Lead Kommo sudah diproses';
         } elseif ($totalLeads > 0) {
             $type = 'info';
             $title = 'Lead Kommo sudah masuk';
