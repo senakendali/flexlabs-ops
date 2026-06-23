@@ -19,10 +19,14 @@ use App\Http\Controllers\Api\Lms\Student\StudentProfileController;
 use App\Http\Controllers\Api\Lms\Student\StudentSearchController;
 use App\Http\Controllers\Api\Lms\StudentGradeController;
 use App\Http\Controllers\Api\PublicQuizController;
+use App\Http\Controllers\Integrations\TrelloWebhookController;
 use App\Models\Student;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+
+Route::match(['HEAD', 'POST'], '/webhooks/trello', [TrelloWebhookController::class, 'handle'])
+    ->name('webhooks.trello');
 
 /*
 |--------------------------------------------------------------------------
