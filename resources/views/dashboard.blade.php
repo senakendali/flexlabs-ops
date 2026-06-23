@@ -77,11 +77,19 @@
     $kommoFollowedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? max($kommoTotalLeads - $kommoIncomingLeads, 0));
     $kommoNotFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? $kommoIncomingLeads);
     $kommoNeedAction = (int) ($kommoTodayLeadInsight['need_action'] ?? $kommoNotFollowedUp);
-    $kommoFollowUpRate = (int) ($kommoTodayLeadInsight['follow_up_rate'] ?? ($kommoTotalLeads > 0 ? round(($kommoFollowedUp / $kommoTotalLeads) * 100) : 0));
 
-    $kommoProgressClass = $kommoFollowUpRate >= 80
+    // Follow-up Rate = only active followed-up leads divided by today's pipeline leads.
+    // Processing Progress = followed-up + filtered leads divided by today's pipeline leads.
+    // This keeps the top KPI honest while the progress bar shows whether all pipeline leads have been handled.
+    $kommoFollowUpRate = (int) ($kommoTodayLeadInsight['follow_up_rate'] ?? ($kommoTotalLeads > 0 ? round(($kommoFollowedUp / $kommoTotalLeads) * 100) : 0));
+    $kommoProcessedLeads = (int) ($kommoTodayLeadInsight['processed_leads'] ?? ($kommoFollowedUp + $kommoFilteredLeads));
+    $kommoProcessedLeads = max(min($kommoProcessedLeads, $kommoTotalLeads), 0);
+    $kommoProcessingProgress = (int) ($kommoTodayLeadInsight['processing_progress'] ?? ($kommoTotalLeads > 0 ? round(($kommoProcessedLeads / $kommoTotalLeads) * 100) : 0));
+    $kommoProcessingProgress = max(min($kommoProcessingProgress, 100), 0);
+
+    $kommoProgressClass = $kommoProcessingProgress >= 80
         ? 'bg-success'
-        : ($kommoFollowUpRate >= 50 ? 'bg-warning' : 'bg-danger');
+        : ($kommoProcessingProgress >= 50 ? 'bg-warning' : 'bg-danger');
     $kommoAttentionClass = $kommoNeedAction > 0 ? 'text-warning' : 'text-success';
     $kommoStatusBadgeClass = $kommoAvailable ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning';
     $kommoStatusBadgeText = $kommoAvailable ? 'Synced' : 'Not Synced';
@@ -333,9 +341,9 @@
     <div class="content-card mb-4">
         <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-                <h5 class="content-card-title mb-1">Kommo Follow-up Progress</h5>
+                <h5 class="content-card-title mb-1">Kommo Processing Progress</h5>
                 <p class="content-card-subtitle mb-0">
-                    Pipeline Leads are split into Followed Up and Filtered Leads. Incoming Lead is a separate pending queue that still needs sales action.
+                    Processing Progress shows how many pipeline leads have been handled, either followed up or filtered out. Incoming Lead is a separate pending queue that still needs sales action.
                 </p>
             </div>
 
@@ -348,8 +356,8 @@
             <div class="trial-progress-card kommo-progress-row-card">
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
                     <div>
-                        <div class="trial-progress-value">{{ number_format($kommoFollowUpRate) }}%</div>
-                        <div class="trial-progress-label">Follow-up Progress Today</div>
+                        <div class="trial-progress-value">{{ number_format($kommoProcessingProgress) }}%</div>
+                        <div class="trial-progress-label">Processing Progress Today</div>
                     </div>
 
                     <div class="text-lg-end">
@@ -364,8 +372,8 @@
                     <div
                         class="progress-bar {{ $kommoProgressClass }}"
                         role="progressbar"
-                        style="width: {{ min($kommoFollowUpRate, 100) }}%;"
-                        aria-valuenow="{{ $kommoFollowUpRate }}"
+                        style="width: {{ min($kommoProcessingProgress, 100) }}%;"
+                        aria-valuenow="{{ $kommoProcessingProgress }}"
                         aria-valuemin="0"
                         aria-valuemax="100"
                     ></div>
