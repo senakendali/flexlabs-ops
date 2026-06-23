@@ -99,8 +99,8 @@ class KommoService
     | Dipakai untuk dashboard dan Sales Daily Report.
     |
     | Definisi final FlexLabs:
-    | - Total Leads      = semua lead yang dibuat pada tanggal tersebut.
-    | - Incoming Leads   = lead yang masih berada di status Incoming/Lead Masuk.
+    | - Total Leads      = semua regular pipeline lead yang dibuat pada tanggal tersebut.
+    | - Incoming Leads   = regular pipeline lead yang masih berada di status Incoming/Lead Masuk.
     | - Belum Follow-up  = Incoming Leads yang masih perlu action sales.
     | - Need Action      = Incoming Leads yang masih perlu action sales.
     | - Sudah Follow-up  = Total Leads - Incoming Leads.
@@ -124,7 +124,23 @@ class KommoService
 
         $summary = $this->emptyDailyLeadSummary();
 
-        foreach ($leads as $lead) {
+        $seenPipelineLeadIds = [];
+
+        foreach ($leads as $index => $lead) {
+            /*
+            |--------------------------------------------------------------------------
+            | Dedupe regular pipeline leads
+            |--------------------------------------------------------------------------
+            | Defensive guard: kalau Kommo mengembalikan lead yang sama lebih dari
+            | sekali di pagination / filter edge-case, dashboard tidak ikut double count.
+            */
+            $leadUniqueKey = (string) ($lead['id'] ?? 'row_' . $index);
+
+            if (isset($seenPipelineLeadIds[$leadUniqueKey])) {
+                continue;
+            }
+
+            $seenPipelineLeadIds[$leadUniqueKey] = true;
             $summary['total_leads']++;
 
             $statusId = (int) ($lead['status_id'] ?? 0);
@@ -135,39 +151,77 @@ class KommoService
             }
         }
 
+        $regularPipelineLeads = (int) $summary['total_leads'];
+        $summary['pipeline_leads'] = $regularPipelineLeads;
+        $summary['regular_pipeline_leads'] = $regularPipelineLeads;
+
         /*
         |--------------------------------------------------------------------------
         | Kommo Incoming / Unsorted Leads
         |--------------------------------------------------------------------------
-        | Di Kommo, angka Incoming Leads yang muncul di inbox bisa berasal dari
-        | resource unsorted, bukan dari status regular pipeline /api/v4/leads.
+        | Di Kommo, incoming bisa muncul dari 2 tempat:
+        | 1. Regular pipeline lead dengan status "Lead masuk / Incoming Leads".
+        | 2. Unsorted inbox metadata dari Kommo. Untuk KPI dashboard, unsorted
+        |    tidak ikut menambah total karena bisa double count setelah accepted.
         |
-        | Rumus pending unsorted:
-        | pending = total - accepted - declined
+        | Masalah yang kita cegah:
+        | - Saat unsorted lead di-accept / dipindah ke Initial Contact, lead tersebut
+        |   sudah muncul sebagai regular pipeline lead.
+        | - Tetapi summary unsorted kadang masih menyimpan total historis hari itu.
+        | - Kalau unsorted total ikut ditambahkan, dashboard bisa naik 9 -> 10
+        |   walaupun real total Kommo tetap 9.
         |
-        | Catatan penting:
-        | - unsorted_pending digabung ke incoming_leads supaya dashboard bisa
-        |   menampilkan lead yang masih perlu action sales.
-        | - total_leads tetap dihitung dari regular leads yang created pada hari itu,
-        |   supaya angka Lead Hari Ini tidak mendadak double count saat incoming
-        |   sudah di-accept menjadi lead regular.
+        | Rule final:
+        | - total_leads = regular pipeline leads dari endpoint leads.
+        | - incoming_leads = incoming regular pipeline saja.
+        | - unsorted_* disimpan sebagai metadata/debug, bukan KPI utama.
         */
         $regularIncomingLeads = (int) $summary['incoming_leads'];
         $unsortedSummary = $this->fetchUnsortedLeadSummary($startAt, $endAt);
+        $normalizedUnsortedSummary = $this->normalizeUnsortedSummary($unsortedSummary);
 
-        $unsortedTotal = (int) ($unsortedSummary['total'] ?? 0);
-        $unsortedAccepted = (int) ($unsortedSummary['accepted'] ?? 0);
-        $unsortedDeclined = (int) ($unsortedSummary['declined'] ?? 0);
-        $unsortedPending = max($unsortedTotal - $unsortedAccepted - $unsortedDeclined, 0);
+        $unsortedPendingFromList = $this->fetchUnsortedPendingLeadCount($startAt, $endAt);
+
+        $unsortedTotal = (int) $normalizedUnsortedSummary['total'];
+        $unsortedAccepted = (int) $normalizedUnsortedSummary['accepted'];
+        $unsortedDeclined = (int) $normalizedUnsortedSummary['declined'];
+        $unsortedPending = $unsortedPendingFromList !== null
+            ? (int) $unsortedPendingFromList
+            : (int) $normalizedUnsortedSummary['pending'];
+
+        /*
+        |--------------------------------------------------------------------------
+        | Unsorted is diagnostic only for dashboard KPI
+        |--------------------------------------------------------------------------
+        | Fix final untuk kasus total 9 berubah jadi 10:
+        |
+        | Kommo bisa tetap mengembalikan item di /leads/unsorted walaupun lead
+        | tersebut sudah accepted dan sudah muncul sebagai regular pipeline lead.
+        | Karena dashboard ingin sama dengan angka total di pipeline Kommo, maka
+        | KPI utama dashboard harus memakai regular pipeline leads saja.
+        |
+        | Rule final dashboard FlexLabs:
+        | - total_leads     = regular pipeline leads dari /api/v4/leads.
+        | - incoming_leads  = regular pipeline leads dengan status Lead Masuk.
+        | - unsorted_*      = metadata/debug/reference, tidak menambah total KPI.
+        |
+        | Dengan rule ini:
+        | - Saat 1 lead masih di Lead Masuk: total 9, incoming 1, followed up 8.
+        | - Saat lead dipindah ke Initial Contact: total tetap 9, incoming 0,
+        |   followed up 9.
+        */
+        $externalUnsortedPending = 0;
 
         $summary['regular_incoming_leads'] = $regularIncomingLeads;
         $summary['unsorted_total'] = $unsortedTotal;
         $summary['unsorted_accepted'] = $unsortedAccepted;
         $summary['unsorted_declined'] = $unsortedDeclined;
         $summary['unsorted_pending'] = $unsortedPending;
-        $summary['unsorted_average_sort_time'] = (int) ($unsortedSummary['average_sort_time'] ?? 0);
-        $summary['unsorted_forms_total'] = (int) Arr::get($unsortedSummary, 'categories.forms.total', 0);
-        $summary['unsorted_chats_total'] = (int) Arr::get($unsortedSummary, 'categories.chats.total', 0);
+        $summary['external_unsorted_pending'] = $externalUnsortedPending;
+        $summary['unsorted_pending_source'] = $unsortedPendingFromList !== null ? 'list' : 'summary';
+        $summary['unsorted_average_sort_time'] = (int) $normalizedUnsortedSummary['average_sort_time'];
+        $summary['unsorted_forms_total'] = (int) $normalizedUnsortedSummary['forms_total'];
+        $summary['unsorted_chats_total'] = (int) $normalizedUnsortedSummary['chats_total'];
 
         /*
         |--------------------------------------------------------------------------
@@ -175,7 +229,8 @@ class KommoService
         |--------------------------------------------------------------------------
         | Controller/Blade lama mungkin masih baca lead_masuk.
         */
-        $summary['incoming_leads'] = $regularIncomingLeads + $unsortedPending;
+        $summary['total_leads'] = $regularPipelineLeads;
+        $summary['incoming_leads'] = $regularIncomingLeads;
         $summary['lead_masuk'] = (int) $summary['incoming_leads'];
 
         /*
@@ -211,6 +266,16 @@ class KommoService
         $summary['follow_up_rate'] = $totalLeads > 0
             ? (int) round(((int) $summary['followed_up'] / $totalLeads) * 100)
             : 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Processing progress aliases
+        |--------------------------------------------------------------------------
+        | Dipakai Blade progress bar. Karena rule baru menganggap semua selain
+        | Incoming sebagai sudah diproses, processed_leads sama dengan followed_up.
+        */
+        $summary['processed_leads'] = (int) $summary['followed_up'];
+        $summary['processing_progress'] = (int) $summary['follow_up_rate'];
 
         $summary['date'] = $date;
         $summary['timezone'] = $timezone ?: config('app.timezone', 'Asia/Jakarta');
@@ -299,10 +364,239 @@ class KommoService
         }
     }
 
+    private function fetchUnsortedPendingLeadCount(int $startAt, int $endAt): ?int
+    {
+        $pendingCount = 0;
+        $page = 1;
+        $limit = 250;
+        $maxPages = 50;
+
+        try {
+            do {
+                $response = $this->http()
+                    ->get('/api/v4/leads/unsorted', [
+                        'page' => $page,
+                        'limit' => $limit,
+                        'filter[pipeline_id]' => (int) config('services.kommo.pipeline_id'),
+                        'filter[created_at][from]' => $startAt,
+                        'filter[created_at][to]' => $endAt,
+                    ]);
+
+                if ($response->status() === 204) {
+                    break;
+                }
+
+                if (!$response->successful()) {
+                    Log::warning('Kommo fetch unsorted pending lead list failed.', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    return null;
+                }
+
+                $json = $response->json() ?? [];
+                $items = Arr::get($json, '_embedded.unsorted', []);
+
+                if (empty($items)) {
+                    $items = Arr::get($json, '_embedded.leads', []);
+                }
+
+                if (empty($items)) {
+                    break;
+                }
+
+                foreach ($items as $item) {
+                    if ($this->isPendingUnsortedLead($item)) {
+                        $pendingCount++;
+                    }
+                }
+
+                $hasNextPage = !empty(Arr::get($json, '_links.next.href'));
+                $page++;
+            } while ($hasNextPage && $page <= $maxPages);
+
+            return $pendingCount;
+        } catch (Throwable $exception) {
+            Log::warning('Kommo fetch unsorted pending lead list exception occurred.', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function isPendingUnsortedLead(array $item): bool
+    {
+        $status = Str::of((string) (
+            Arr::get($item, 'status')
+            ?? Arr::get($item, 'request_status')
+            ?? Arr::get($item, 'account_status')
+            ?? Arr::get($item, 'state')
+            ?? ''
+        ))->lower()->toString();
+
+        if (in_array($status, [
+            'accepted',
+            'declined',
+            'deleted',
+            'processed',
+            'sorted',
+            'closed',
+        ], true)) {
+            return false;
+        }
+
+        foreach ([
+            'accepted_at',
+            'declined_at',
+            'processed_at',
+            'sorted_at',
+            'deleted_at',
+        ] as $timestampKey) {
+            if (!empty(Arr::get($item, $timestampKey))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeUnsortedSummary(array $summary): array
+    {
+        $categoryTotal = $this->sumUnsortedCategoryMetric($summary, ['total', 'count']);
+        $categoryAccepted = $this->sumUnsortedCategoryMetric($summary, ['accepted', 'accepted_total', 'accepted.count', 'accepted.total']);
+        $categoryDeclined = $this->sumUnsortedCategoryMetric($summary, ['declined', 'declined_total', 'declined.count', 'declined.total']);
+        $categoryPending = $this->sumUnsortedCategoryMetric($summary, ['pending', 'not_sorted', 'unsorted', 'new', 'new_total']);
+
+        $total = $this->firstIntFromArray($summary, [
+            'total',
+            'count',
+            'summary.total',
+            'summary.count',
+            'data.total',
+            'result.total',
+        ], $categoryTotal);
+
+        $accepted = $this->firstIntFromArray($summary, [
+            'accepted',
+            'accepted_total',
+            'accepted.count',
+            'accepted.total',
+            'summary.accepted',
+            'summary.accepted_total',
+            'summary.accepted.count',
+            'summary.accepted.total',
+            'data.accepted',
+            'result.accepted',
+        ], $categoryAccepted);
+
+        $declined = $this->firstIntFromArray($summary, [
+            'declined',
+            'declined_total',
+            'declined.count',
+            'declined.total',
+            'summary.declined',
+            'summary.declined_total',
+            'summary.declined.count',
+            'summary.declined.total',
+            'data.declined',
+            'result.declined',
+        ], $categoryDeclined);
+
+        $pending = $this->firstIntFromArray($summary, [
+            'pending',
+            'pending_total',
+            'pending.count',
+            'pending.total',
+            'not_sorted',
+            'not_sorted_total',
+            'unsorted',
+            'unsorted_total',
+            'new',
+            'new_total',
+            'summary.pending',
+            'summary.pending_total',
+            'summary.not_sorted',
+            'summary.unsorted',
+            'data.pending',
+            'result.pending',
+        ], $categoryPending);
+
+        if ($pending <= 0 && $total > 0) {
+            $pending = max($total - $accepted - $declined, 0);
+        }
+
+        return [
+            'total' => max($total, 0),
+            'accepted' => max($accepted, 0),
+            'declined' => max($declined, 0),
+            'pending' => max($pending, 0),
+            'average_sort_time' => $this->firstIntFromArray($summary, [
+                'average_sort_time',
+                'avg_sort_time',
+                'summary.average_sort_time',
+            ]),
+            'forms_total' => $this->firstIntFromArray($summary, [
+                'categories.forms.total',
+                'categories.form.total',
+                'categories.forms.count',
+            ]),
+            'chats_total' => $this->firstIntFromArray($summary, [
+                'categories.chats.total',
+                'categories.chat.total',
+                'categories.chats.count',
+            ]),
+        ];
+    }
+
+    private function sumUnsortedCategoryMetric(array $summary, array $paths): int
+    {
+        $categories = Arr::get($summary, 'categories', []);
+
+        if (!is_array($categories)) {
+            return 0;
+        }
+
+        $total = 0;
+
+        foreach ($categories as $category) {
+            if (!is_array($category)) {
+                continue;
+            }
+
+            foreach ($paths as $path) {
+                $value = Arr::get($category, $path);
+
+                if ($value !== null && $value !== '') {
+                    $total += (int) $value;
+                    break;
+                }
+            }
+        }
+
+        return $total;
+    }
+
+    private function firstIntFromArray(array $array, array $paths, int $fallback = 0): int
+    {
+        foreach ($paths as $path) {
+            $value = Arr::get($array, $path);
+
+            if ($value !== null && $value !== '') {
+                return (int) $value;
+            }
+        }
+
+        return $fallback;
+    }
+
     private function emptyDailyLeadSummary(): array
     {
         return [
             'total_leads' => 0,
+            'pipeline_leads' => 0,
+            'regular_pipeline_leads' => 0,
 
             /*
             |--------------------------------------------------------------------------
@@ -316,6 +610,8 @@ class KommoService
             'unsorted_accepted' => 0,
             'unsorted_declined' => 0,
             'unsorted_pending' => 0,
+            'external_unsorted_pending' => 0,
+            'unsorted_pending_source' => null,
             'unsorted_average_sort_time' => 0,
             'unsorted_forms_total' => 0,
             'unsorted_chats_total' => 0,
@@ -345,6 +641,8 @@ class KommoService
             'not_followed_up' => 0,
             'need_action' => 0,
             'follow_up_rate' => 0,
+            'processed_leads' => 0,
+            'processing_progress' => 0,
         ];
     }
 
