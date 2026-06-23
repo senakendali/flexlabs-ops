@@ -338,29 +338,49 @@
                 <div class="row g-3">
                     <div class="col-xl-3 col-md-6">
                         <div class="kommo-progress-metric h-100">
-                            <span>Total Lead</span>
+                            <div class="kommo-progress-metric-left">
+                                <div class="kommo-progress-metric-icon bg-primary-subtle text-primary">
+                                    <i class="bi bi-people"></i>
+                                </div>
+                                <span>Total Lead</span>
+                            </div>
                             <strong>{{ number_format($kommoTotalLeads) }}</strong>
                         </div>
                     </div>
 
                     <div class="col-xl-3 col-md-6">
                         <div class="kommo-progress-metric h-100">
-                            <span>Followed Up</span>
+                            <div class="kommo-progress-metric-left">
+                                <div class="kommo-progress-metric-icon bg-success-subtle text-success">
+                                    <i class="bi bi-check2-circle"></i>
+                                </div>
+                                <span>Followed Up</span>
+                            </div>
                             <strong class="text-success">{{ number_format($kommoFollowedUp) }}</strong>
                         </div>
                     </div>
 
                     <div class="col-xl-3 col-md-6">
                         <div class="kommo-progress-metric h-100">
-                            <span>Need Action</span>
+                            <div class="kommo-progress-metric-left">
+                                <div class="kommo-progress-metric-icon bg-warning-subtle text-warning">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                </div>
+                                <span>Need Action</span>
+                            </div>
                             <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoNotFollowedUp) }}</strong>
                         </div>
                     </div>
 
                     <div class="col-xl-3 col-md-6">
                         <div class="kommo-progress-metric h-100">
-                            <span>Sync Status</span>
-                            <strong class="{{ $kommoAvailable ? 'text-success' : 'text-warning' }}">
+                            <div class="kommo-progress-metric-left">
+                                <div class="kommo-progress-metric-icon {{ $kommoAvailable ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }}">
+                                    <i class="bi {{ $kommoAvailable ? 'bi-cloud-check' : 'bi-cloud-slash' }}"></i>
+                                </div>
+                                <span>Sync Status</span>
+                            </div>
+                            <strong class="kommo-sync-value {{ $kommoAvailable ? 'text-success' : 'text-warning' }}">
                                 {{ $kommoAvailable ? 'Synced' : 'Not Synced' }}
                             </strong>
                         </div>
@@ -1127,10 +1147,29 @@
         box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
     }
 
+    .kommo-progress-metric-left {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        min-width: 0;
+    }
+
+    .kommo-progress-metric-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        font-size: 1rem;
+    }
+
     .kommo-progress-metric span {
         color: #6b7280;
         font-size: .85rem;
         font-weight: 600;
+        line-height: 1.2;
     }
 
     .kommo-progress-metric strong {
@@ -1138,6 +1177,11 @@
         font-size: 1.2rem;
         font-weight: 800;
         white-space: nowrap;
+    }
+
+    .kommo-progress-metric .kommo-sync-value {
+        font-size: .95rem;
+        font-weight: 700;
     }
 
     .kommo-insight-box {
