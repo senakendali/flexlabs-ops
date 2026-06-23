@@ -127,9 +127,9 @@ class MetaLeadGoogleSheetWebhookController extends Controller
                 ];
             });
 
-            if ($result['should_sync_kommo']) {
+            /*if ($result['should_sync_kommo']) {
                 $this->syncLeadToKommo($result['sem_lead_id']);
-            }
+            }*/
 
             $lead = DB::table('sem_leads')
                 ->where('id', $result['sem_lead_id'])
