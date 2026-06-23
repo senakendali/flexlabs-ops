@@ -72,6 +72,7 @@
     $kommoWarmLeads = (int) ($kommoTodayLeadInsight['warm_leads'] ?? 0);
     $kommoHotLeads = (int) ($kommoTodayLeadInsight['hot_leads'] ?? 0);
     $kommoConsultation = (int) ($kommoTodayLeadInsight['consultation'] ?? 0);
+    $kommoFilteredLeads = (int) ($kommoTodayLeadInsight['filtered_out'] ?? ($kommoIgnored + $kommoClosedLost + $kommoNotRelated));
 
     $kommoFollowedUp = (int) ($kommoTodayLeadInsight['followed_up'] ?? max($kommoTotalLeads - $kommoIncomingLeads, 0));
     $kommoNotFollowedUp = (int) ($kommoTodayLeadInsight['not_followed_up'] ?? $kommoIncomingLeads);
@@ -234,66 +235,83 @@
 
     <div class="dashboard-section-label mb-3 mt-1">
         <div class="dashboard-section-eyebrow">Kommo Leads Overview</div>
-        <h4 class="dashboard-section-title mb-1">Lead Hari Ini dari Kommo</h4>
+        <h4 class="dashboard-section-title mb-1">Today's Kommo Leads</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Monitoring lead baru dari Kommo hari ini, progress follow-up sales, dan status pipeline yang perlu diprioritaskan.
+            Monitor today’s Kommo leads, sales follow-up progress, filtered leads, and incoming leads that still need action.
         </p>
     </div>
 
     {{-- Kommo Leads Today Stats --}}
     <div class="row g-3 mb-4">
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl col-lg-4 col-md-6">
             <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-inboxes-fill"></i>
                     </div>
                     <div>
-                        <div class="funnel-title">Lead Hari Ini</div>
+                        <div class="funnel-title">Today's Leads</div>
                         <div class="funnel-value">{{ number_format($kommoTotalLeads) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Total lead baru yang masuk dari Kommo hari ini.
+                    Total new leads recorded in today’s Kommo pipeline.
                 </div>
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl col-lg-4 col-md-6">
             <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-chat-dots-fill"></i>
                     </div>
                     <div>
-                        <div class="funnel-title">Sudah Follow-up</div>
+                        <div class="funnel-title">Followed Up</div>
                         <div class="funnel-value text-success">{{ number_format($kommoFollowedUp) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Lead yang sudah masuk status proses atau interaksi sales.
+                    Leads that have entered a sales process or interaction stage.
                 </div>
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl col-lg-4 col-md-6">
             <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
                         <i class="bi bi-exclamation-triangle-fill"></i>
                     </div>
                     <div>
-                        <div class="funnel-title">Belum Follow-up</div>
-                        <div class="funnel-value {{ $kommoAttentionClass }}">{{ number_format($kommoNotFollowedUp) }}</div>
+                        <div class="funnel-title">Need Action</div>
+                        <div class="funnel-value {{ $kommoAttentionClass }}">{{ number_format($kommoNeedAction) }}</div>
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Lead yang belum terlihat masuk status follow-up di Kommo.
+                    Incoming leads waiting for sales review or follow-up.
                 </div>
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl col-lg-4 col-md-6">
+            <div class="funnel-card h-100">
+                <div class="funnel-card-top">
+                    <div class="funnel-icon-wrap">
+                        <i class="bi bi-funnel-fill"></i>
+                    </div>
+                    <div>
+                        <div class="funnel-title">Filtered Leads</div>
+                        <div class="funnel-value text-secondary">{{ number_format($kommoFilteredLeads) }}</div>
+                    </div>
+                </div>
+                <div class="funnel-description">
+                    Leads reviewed by sales but marked ignored, closed lost, or not related.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl col-lg-4 col-md-6">
             <div class="funnel-card h-100">
                 <div class="funnel-card-top">
                     <div class="funnel-icon-wrap">
@@ -305,7 +323,7 @@
                     </div>
                 </div>
                 <div class="funnel-description">
-                    Persentase lead hari ini yang sudah masuk status proses sales.
+                    Percentage of today’s pipeline leads already in a follow-up stage.
                 </div>
             </div>
         </div>
@@ -317,7 +335,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Kommo Follow-up Progress</h5>
                 <p class="content-card-subtitle mb-0">
-                    Ringkasan progress follow-up harian dari total lead baru yang masuk ke Kommo.
+                    Pipeline Leads are split into Followed Up and Filtered Leads. Incoming Lead is a separate pending queue that still needs sales action.
                 </p>
             </div>
 
@@ -331,11 +349,11 @@
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
                     <div>
                         <div class="trial-progress-value">{{ number_format($kommoFollowUpRate) }}%</div>
-                        <div class="trial-progress-label">Follow-up Progress Hari Ini</div>
+                        <div class="trial-progress-label">Follow-up Progress Today</div>
                     </div>
 
                     <div class="text-lg-end">
-                        <div class="small text-muted">Update terakhir</div>
+                        <div class="small text-muted">Last updated</div>
                         <div class="fw-semibold text-dark">
                             {{ $kommoTodayLeadInsight['last_synced_at'] ?? '-' }}
                         </div>
@@ -354,19 +372,19 @@
                 </div>
 
                 <div class="row g-3">
-                    <div class="col-xl-3 col-md-6">
+                    <div class="col-xl col-md-6">
                         <div class="kommo-progress-metric h-100">
                             <div class="kommo-progress-metric-left">
                                 <div class="kommo-progress-metric-icon bg-primary-subtle text-primary">
-                                    <i class="bi bi-people"></i>
+                                    <i class="bi bi-diagram-3"></i>
                                 </div>
-                                <span>Total Lead</span>
+                                <span>Pipeline Leads</span>
                             </div>
                             <strong>{{ number_format($kommoTotalLeads) }}</strong>
                         </div>
                     </div>
 
-                    <div class="col-xl-3 col-md-6">
+                    <div class="col-xl col-md-6">
                         <div class="kommo-progress-metric h-100">
                             <div class="kommo-progress-metric-left">
                                 <div class="kommo-progress-metric-icon bg-success-subtle text-success">
@@ -378,19 +396,31 @@
                         </div>
                     </div>
 
-                    <div class="col-xl-3 col-md-6">
+                    <div class="col-xl col-md-6">
                         <div class="kommo-progress-metric h-100">
                             <div class="kommo-progress-metric-left">
-                                <div class="kommo-progress-metric-icon bg-warning-subtle text-warning">
-                                    <i class="bi bi-exclamation-triangle"></i>
+                                <div class="kommo-progress-metric-icon bg-secondary-subtle text-secondary">
+                                    <i class="bi bi-funnel"></i>
                                 </div>
-                                <span>Need Action</span>
+                                <span>Filtered Leads</span>
                             </div>
-                            <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoNeedAction) }}</strong>
+                            <strong class="text-secondary">{{ number_format($kommoFilteredLeads) }}</strong>
                         </div>
                     </div>
 
-                    <div class="col-xl-3 col-md-6">
+                    <div class="col-xl col-md-6">
+                        <div class="kommo-progress-metric h-100">
+                            <div class="kommo-progress-metric-left">
+                                <div class="kommo-progress-metric-icon bg-warning-subtle text-warning">
+                                    <i class="bi bi-door-open"></i>
+                                </div>
+                                <span>Incoming Lead</span>
+                            </div>
+                            <strong class="{{ $kommoAttentionClass }}">{{ number_format($kommoIncomingLeads) }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-xl col-md-6">
                         <div class="kommo-progress-metric h-100">
                             <div class="kommo-progress-metric-left">
                                 <div class="kommo-progress-metric-icon {{ $kommoAvailable ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }}">
@@ -420,7 +450,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Kommo Lead Status Breakdown</h5>
                 <p class="content-card-subtitle mb-0">
-                    Ringkasan status lead hari ini untuk membantu tim sales menentukan prioritas follow-up.
+                    Detailed lead status breakdown to help the sales team understand which leads need action, which are already followed up, and which are filtered out.
                 </p>
             </div>
         </div>
@@ -432,9 +462,9 @@
                         <i class="bi bi-robot"></i>
                     </div>
                     <div>
-                        <div class="fw-semibold text-dark mb-1">Insight Lead Kommo</div>
+                        <div class="fw-semibold text-dark mb-1">Kommo Lead Insight</div>
                         <p class="text-muted mb-0">
-                            {{ $kommoTodayLeadInsight['summary_text'] ?? 'Data lead Kommo hari ini belum tersedia.' }}
+                            {{ $kommoTodayLeadInsight['summary_text'] ?? 'Kommo lead insight is not available yet.' }}
                         </p>
                     </div>
                 </div>
@@ -446,8 +476,8 @@
                         <tr>
                             <th>Status</th>
                             <th class="text-center">Total</th>
-                            <th>Kategori</th>
-                            <th>Keterangan</th>
+                            <th>Category</th>
+                            <th>Description</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -455,61 +485,61 @@
                             <td class="fw-semibold text-dark">Incoming Leads</td>
                             <td class="text-center">{{ number_format($kommoIncomingLeads) }}</td>
                             <td><span class="badge rounded-pill bg-warning-subtle text-warning">Need Action</span></td>
-                            <td class="text-muted">Lead baru yang belum terlihat masuk status follow-up di Kommo.</td>
+                            <td class="text-muted">New incoming leads that still need sales review or follow-up.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Initial Contact</td>
                             <td class="text-center">{{ number_format($kommoInitialContact) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead sudah mulai dicek atau dihubungi oleh sales.</td>
+                            <td class="text-muted">Leads already checked or contacted by sales.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">New Leads</td>
                             <td class="text-center">{{ number_format($kommoNewLeads) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead valid yang sudah masuk proses follow-up awal.</td>
+                            <td class="text-muted">Valid leads that have entered the early follow-up process.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Interacted</td>
                             <td class="text-center">{{ number_format($kommoInteracted) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead sudah ada interaksi awal dengan sales.</td>
+                            <td class="text-muted">Leads that already have an initial interaction with sales.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Warm Leads</td>
                             <td class="text-center">{{ number_format($kommoWarmLeads) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead mulai menunjukkan minat dan perlu follow-up lanjutan.</td>
+                            <td class="text-muted">Leads showing interest and requiring continued follow-up.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Hot Leads</td>
                             <td class="text-center">{{ number_format($kommoHotLeads) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead prioritas tinggi yang berpotensi masuk closing.</td>
+                            <td class="text-muted">High-priority leads with stronger closing potential.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Consultation</td>
                             <td class="text-center">{{ number_format($kommoConsultation) }}</td>
                             <td><span class="badge rounded-pill bg-success-subtle text-success">Followed Up</span></td>
-                            <td class="text-muted">Lead sudah masuk tahap appointment atau konsultasi.</td>
+                            <td class="text-muted">Leads already moved into appointment or consultation stage.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Ignored</td>
                             <td class="text-center">{{ number_format($kommoIgnored) }}</td>
-                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Out</span></td>
-                            <td class="text-muted">Lead tidak merespons atau belum bisa dilanjutkan.</td>
+                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Leads</span></td>
+                            <td class="text-muted">Leads that did not respond or are not worth continuing for now.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Closed Lost</td>
                             <td class="text-center">{{ number_format($kommoClosedLost) }}</td>
-                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Out</span></td>
-                            <td class="text-muted">Lead sudah diproses tapi tidak berhasil lanjut.</td>
+                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Leads</span></td>
+                            <td class="text-muted">Leads already processed but did not move forward.</td>
                         </tr>
                         <tr>
                             <td class="fw-semibold text-dark">Not Related</td>
                             <td class="text-center">{{ number_format($kommoNotRelated) }}</td>
-                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Out</span></td>
-                            <td class="text-muted">Lead tidak relevan dengan program atau kebutuhan FlexLabs.</td>
+                            <td><span class="badge rounded-pill bg-secondary-subtle text-secondary">Filtered Leads</span></td>
+                            <td class="text-muted">Leads that are not relevant to FlexLabs programs or offers.</td>
                         </tr>
                     </tbody>
                 </table>

@@ -420,16 +420,27 @@ class DashboardController extends Controller
             | - Belum Follow-up
             | - Follow-up Rate
             |
-            | Breakdown tetap menampilkan status detail seperti Interacted,
-            | Warm Leads, Hot Leads, Consultation, Ignored, Closed Lost,
-            | dan Not Related.
+            | Important:
+            | Belum Follow-up / Need Action wajib mengikuti incoming_leads
+            | dari KommoService, bukan total_leads - followed_up. Kalau tidak,
+            | filtered_out seperti Closed Lost / Not Related bisa salah terbaca
+            | sebagai lead yang belum follow-up.
             |--------------------------------------------------------------------------
             */
             'incoming_leads' => 0,
             'lead_masuk' => 0,
+            'regular_incoming_leads' => 0,
+
+            'unsorted_total' => 0,
+            'unsorted_accepted' => 0,
+            'unsorted_declined' => 0,
+            'unsorted_pending' => 0,
+            'unsorted_average_sort_time' => 0,
+            'unsorted_forms_total' => 0,
+            'unsorted_chats_total' => 0,
+
             'initial_contact' => 0,
             'new_leads' => 0,
-
             'interacted' => 0,
             'ignored' => 0,
             'closed_lost' => 0,
@@ -477,9 +488,17 @@ class DashboardController extends Controller
                 ?? 0
             );
 
+            $regularIncomingLeads = (int) ($summary['regular_incoming_leads'] ?? 0);
+            $unsortedTotal = (int) ($summary['unsorted_total'] ?? 0);
+            $unsortedAccepted = (int) ($summary['unsorted_accepted'] ?? 0);
+            $unsortedDeclined = (int) ($summary['unsorted_declined'] ?? 0);
+            $unsortedPending = (int) ($summary['unsorted_pending'] ?? 0);
+            $unsortedAverageSortTime = (int) ($summary['unsorted_average_sort_time'] ?? 0);
+            $unsortedFormsTotal = (int) ($summary['unsorted_forms_total'] ?? 0);
+            $unsortedChatsTotal = (int) ($summary['unsorted_chats_total'] ?? 0);
+
             $initialContact = (int) ($summary['initial_contact'] ?? 0);
             $newLeads = (int) ($summary['new_leads'] ?? 0);
-
             $interacted = (int) ($summary['interacted'] ?? 0);
             $ignored = (int) ($summary['ignored'] ?? 0);
             $closedLost = (int) ($summary['closed_lost'] ?? 0);
@@ -493,23 +512,27 @@ class DashboardController extends Controller
             $trialClass = (int) ($summary['trial_class'] ?? 0);
             $waFirstBubble = (int) ($summary['wa_first_bubble'] ?? 0);
 
+            $filteredOut = array_key_exists('filtered_out', $summary)
+                ? (int) $summary['filtered_out']
+                : ($ignored + $closedLost + $notRelated);
+
             /*
             |--------------------------------------------------------------------------
             | Follow-up logic
             |--------------------------------------------------------------------------
-            | Definisi final untuk top stats dashboard:
+            | KommoService adalah source of truth untuk derived metrics.
             |
-            | Sudah Follow-up =
-            | Initial Contact + New Leads + Interacted + Warm + Hot
-            | + Consultation + Register + Paid + status proses lain.
+            | Final rule:
+            | - Followed Up      = status proses/interaksi sales.
+            | - Need Action      = incoming_leads.
+            | - Belum Follow-up  = incoming_leads.
+            | - Filtered Out     = ignored + closed_lost + not_related.
             |
-            | Ignored / Closed Lost / Not Related tetap tampil di breakdown,
-            | tapi tidak dihitung sebagai Sudah Follow-up pada top stats.
-            |
-            | Belum Follow-up = Total Leads - Sudah Follow-up.
+            | Jangan hitung Belum Follow-up dari total_leads - followed_up,
+            | karena filtered_out akan ikut masuk ke Belum Follow-up.
             |--------------------------------------------------------------------------
             */
-            $followedUp = $initialContact
+            $fallbackFollowedUp = $initialContact
                 + $newLeads
                 + $interacted
                 + $warmLeads
@@ -521,17 +544,27 @@ class DashboardController extends Controller
                 + $trialClass
                 + $waFirstBubble;
 
-            $filteredOut = array_key_exists('filtered_out', $summary)
-                ? (int) $summary['filtered_out']
-                : ($ignored + $closedLost + $notRelated);
+            $followedUp = array_key_exists('followed_up', $summary)
+                ? (int) $summary['followed_up']
+                : $fallbackFollowedUp;
+
+            $notFollowedUp = array_key_exists('not_followed_up', $summary)
+                ? (int) $summary['not_followed_up']
+                : $incomingLeads;
+
+            $needsAttention = array_key_exists('need_action', $summary)
+                ? (int) $summary['need_action']
+                : (array_key_exists('needs_attention', $summary)
+                    ? (int) $summary['needs_attention']
+                    : $notFollowedUp);
 
             $followedUp = max(min($followedUp, $totalLeads), 0);
-            $notFollowedUp = max($totalLeads - $followedUp, 0);
-            $needsAttention = $notFollowedUp;
+            $notFollowedUp = max(min($notFollowedUp, $totalLeads), 0);
+            $needsAttention = max(min($needsAttention, $totalLeads), 0);
 
-            $followUpRate = $totalLeads > 0
-                ? (int) round(($followedUp / $totalLeads) * 100)
-                : 0;
+            $followUpRate = array_key_exists('follow_up_rate', $summary)
+                ? (int) $summary['follow_up_rate']
+                : ($totalLeads > 0 ? (int) round(($followedUp / $totalLeads) * 100) : 0);
 
             $summaryText = match (true) {
                 $totalLeads <= 0 => 'Belum ada lead baru dari Kommo hari ini.',
@@ -550,9 +583,18 @@ class DashboardController extends Controller
 
                 'incoming_leads' => $incomingLeads,
                 'lead_masuk' => $leadMasuk,
+                'regular_incoming_leads' => $regularIncomingLeads,
+
+                'unsorted_total' => $unsortedTotal,
+                'unsorted_accepted' => $unsortedAccepted,
+                'unsorted_declined' => $unsortedDeclined,
+                'unsorted_pending' => $unsortedPending,
+                'unsorted_average_sort_time' => $unsortedAverageSortTime,
+                'unsorted_forms_total' => $unsortedFormsTotal,
+                'unsorted_chats_total' => $unsortedChatsTotal,
+
                 'initial_contact' => $initialContact,
                 'new_leads' => $newLeads,
-
                 'interacted' => $interacted,
                 'ignored' => $ignored,
                 'closed_lost' => $closedLost,

@@ -101,7 +101,8 @@ class KommoService
     | Definisi final FlexLabs:
     | - Total Leads      = semua lead yang dibuat pada tanggal tersebut.
     | - Sudah Follow-up  = lead yang sudah masuk status proses/interaksi sales.
-    | - Belum Follow-up  = total leads - sudah follow-up.
+    | - Belum Follow-up  = incoming_leads / lead yang masih butuh action.
+    | - Need Action      = incoming_leads / lead yang masih butuh action.
     | - Filtered Out     = ignored + closed_lost + not_related.
     |
     | Important:
@@ -219,18 +220,16 @@ class KommoService
         |--------------------------------------------------------------------------
         | Belum follow-up / Need action
         |--------------------------------------------------------------------------
-        | not_followed_up tetap menjaga definisi dashboard lama:
-        | total regular leads - lead yang sudah masuk status proses.
+        | Definisi final dashboard FlexLabs:
+        | - Belum Follow-up = Incoming Leads yang masih perlu action sales.
+        | - Need Action     = Incoming Leads yang masih perlu action sales.
         |
-        | Tetapi kalau ada pending unsorted yang belum masuk regular pipeline,
-        | angka incoming_leads wajib tetap muncul sebagai need action.
+        | Filtered Out seperti Ignore, Closed Lost, dan Not Related tidak boleh
+        | menaikkan angka Belum Follow-up / Need Action karena lead tersebut sudah
+        | diputuskan tidak lanjut atau tidak relevan.
         */
-        $summary['not_followed_up'] = max(
-            (int) $summary['total_leads'] - (int) $summary['followed_up'],
-            (int) $summary['incoming_leads'],
-            0
-        );
-        $summary['need_action'] = max((int) $summary['not_followed_up'], (int) $summary['incoming_leads']);
+        $summary['not_followed_up'] = max((int) $summary['incoming_leads'], 0);
+        $summary['need_action'] = max((int) $summary['incoming_leads'], 0);
 
         $summary['follow_up_rate'] = (int) $summary['total_leads'] > 0
             ? (int) round(((int) $summary['followed_up'] / (int) $summary['total_leads']) * 100)
