@@ -964,7 +964,10 @@ class DashboardController extends Controller
 
         $managementSummary['items'] = array_values(array_merge([$trelloItem], $existingItems));
         $managementSummary['focus'] = array_slice(array_values(array_merge([$trelloItem], $existingFocus)), 0, 3);
-        $managementSummary['summary_text'] = trim($insight . ' ' . $existingSummaryText);
+        $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+            $insight,
+            ...$this->managementSummaryParagraphs($managementSummary),
+        ]);
 
         if (! isset($managementSummary['headline']) || $overdue > 0 || $unmapped > 0 || $webhookStatus !== 'active') {
             $managementSummary['headline'] = $title;
@@ -1012,7 +1015,10 @@ class DashboardController extends Controller
 
         $managementSummary['items'] = array_values(array_merge([$kommoItem], $existingItems));
         $managementSummary['focus'] = array_slice(array_values(array_merge([$kommoItem], $existingFocus)), 0, 3);
-        $managementSummary['summary_text'] = trim($summaryText . ' ' . $existingSummaryText);
+        $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+            $summaryText,
+            ...$this->managementSummaryParagraphs($managementSummary),
+        ]);
 
         if (! isset($managementSummary['headline']) || $notFollowedUp > 0 || ! $isAvailable) {
             $managementSummary['headline'] = $title;
@@ -1441,10 +1447,12 @@ class DashboardController extends Controller
             ->sortBy(fn ($item) => $this->summarySeverityRank($item['type']))
             ->values();
 
-        $summaryText = $priority
-            ->take(4)
-            ->pluck('message')
-            ->implode(' ');
+        $summaryText = $this->joinSummaryParagraphs(
+            $priority
+                ->take(4)
+                ->pluck('message')
+                ->all()
+        );
 
         return [
             'generated_at' => now()->format('d M Y H:i'),
@@ -1453,6 +1461,50 @@ class DashboardController extends Controller
             'items' => $priority->all(),
             'focus' => $priority->take(3)->values()->all(),
         ];
+    }
+
+    protected function joinSummaryParagraphs(array $paragraphs): string
+    {
+        return collect($paragraphs)
+            ->flatten()
+            ->flatMap(function ($paragraph) {
+                return preg_split('/\n{2,}/', (string) $paragraph) ?: [];
+            })
+            ->map(fn ($paragraph) => trim((string) $paragraph))
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode("\n\n");
+    }
+
+    protected function managementSummaryParagraphs(array $managementSummary): array
+    {
+        $summaryText = trim((string) ($managementSummary['summary_text'] ?? ''));
+
+        $paragraphs = collect(preg_split('/\n{2,}/', $summaryText) ?: [])
+            ->map(fn ($paragraph) => trim((string) $paragraph))
+            ->filter()
+            ->values();
+
+        if ($paragraphs->count() > 1) {
+            return $paragraphs->all();
+        }
+
+        $itemParagraphs = collect($managementSummary['items'] ?? [])
+            ->pluck('message')
+            ->map(fn ($message) => trim((string) $message))
+            ->filter()
+            ->values();
+
+        if ($itemParagraphs->isNotEmpty()) {
+            return $itemParagraphs
+                ->take(4)
+                ->all();
+        }
+
+        return $summaryText !== ''
+            ? [$summaryText]
+            : [];
     }
 
     protected function summaryItem(string $type, string $title, string $message): array
