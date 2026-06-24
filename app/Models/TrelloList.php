@@ -26,7 +26,7 @@ class TrelloList extends Model
     ];
 
     protected $casts = [
-        'position' => 'integer',
+        'position' => 'decimal:4',
         'is_closed' => 'boolean',
         'raw_json' => 'array',
     ];
