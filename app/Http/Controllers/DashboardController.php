@@ -752,14 +752,72 @@ class DashboardController extends Controller
         bool $isNeedAction = false,
         bool $isFilteredOut = false
     ): array {
+        $category = $this->getKommoStatusCategory(
+            key: $key,
+            isNeedAction: $isNeedAction,
+            isFilteredOut: $isFilteredOut
+        );
+
         return [
             'key' => $key,
+
+            // Blade compatibility: dashboard table reads `status`, while older code may read `label`.
+            'status' => $label,
             'label' => $label,
+
             'total' => max($total, 0),
+            'category' => $category,
+            'badge_class' => $this->getKommoStatusBadgeClass($category),
             'description' => $description,
+
+            // Keep helper flags for future logic.
             'is_need_action' => $isNeedAction,
             'is_filtered_out' => $isFilteredOut,
         ];
+    }
+
+    protected function getKommoStatusCategory(
+        string $key,
+        bool $isNeedAction = false,
+        bool $isFilteredOut = false
+    ): string {
+        if ($isNeedAction) {
+            return 'Need Action';
+        }
+
+        if ($isFilteredOut) {
+            return 'Filtered Leads';
+        }
+
+        return match ($key) {
+            'warm_leads',
+            'hot_leads',
+            'trial_class',
+            'consultation',
+            'register' => 'Sales Process',
+
+            'paid' => 'Converted',
+
+            'initial_contact',
+            'new_leads',
+            'interacted',
+            'wa_first_bubble',
+            'data_storage' => 'Followed Up',
+
+            default => 'Followed Up',
+        };
+    }
+
+    protected function getKommoStatusBadgeClass(string $category): string
+    {
+        return match ($category) {
+            'Need Action' => 'bg-warning-subtle text-warning',
+            'Filtered Leads' => 'bg-secondary-subtle text-secondary',
+            'Sales Process' => 'bg-primary-subtle text-primary',
+            'Converted' => 'bg-success-subtle text-success',
+            'Followed Up' => 'bg-success-subtle text-success',
+            default => 'bg-light text-muted',
+        };
     }
 
 
