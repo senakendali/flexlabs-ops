@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('trello:sync-cards --source=academic')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('trello:sync-cards --source=marketing')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
