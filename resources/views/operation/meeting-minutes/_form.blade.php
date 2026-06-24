@@ -1192,8 +1192,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .map(function (item) {
                     return item.startsWith('-') ? item : `- ${item}`;
                 })
-                .join('
-');
+                .join('\n');
         }
 
         if (typeof value === 'object') {
@@ -1203,8 +1202,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return normalizedItem ? `${key}: ${normalizedItem}` : '';
                 })
                 .filter(Boolean)
-                .join('
-');
+                .join('\n');
         }
 
         return String(value).trim();
@@ -1230,23 +1228,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (isFilled(decisions)) {
-            notesBlocks.push(`Decisions:
-${decisions}`);
+            notesBlocks.push(`Decisions:\n${decisions}`);
         }
 
         if (isFilled(actionItems)) {
-            notesBlocks.push(`Action Items:
-${actionItems}`);
+            notesBlocks.push(`Action Items:\n${actionItems}`);
         }
 
         if (isFilled(rawTranscript)) {
-            notesBlocks.push(`Raw Voice Transcript:
-${rawTranscript}`);
+            notesBlocks.push(`Raw Voice Transcript:\n${rawTranscript}`);
         }
 
-        return notesBlocks.join('
-
-');
+        return notesBlocks.join('\n\n');
     }
 
     function setAiButtonLoading(isLoading) {
