@@ -246,10 +246,7 @@
                     </div>
 
                     <div class="voice-bottom-row mt-3">
-                        <div class="voice-helper-note mb-0">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Untuk hasil AI lebih rapi, ulangi poin penting seperti: keputusan, PIC, deadline, dan next action.
-                        </div>
+                        
 
                         <div class="voice-bottom-actions">
                             <button type="button" class="btn btn-light border btn-modern" id="clearVoiceTranscriptBtn">
