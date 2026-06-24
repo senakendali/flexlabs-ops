@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TrelloIntegration extends Model
 {
@@ -107,5 +108,10 @@ class TrelloIntegration extends Model
             'status' => 'error',
             'last_error' => $message,
         ])->save();
+    }
+
+    public function webhookEvents(): HasMany
+    {
+        return $this->hasMany(TrelloWebhookEvent::class, 'trello_integration_id');
     }
 }
