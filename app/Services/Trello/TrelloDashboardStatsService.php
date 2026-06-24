@@ -4,6 +4,7 @@ namespace App\Services\Trello;
 
 use App\Models\TrelloCard;
 use App\Models\TrelloIntegration;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -166,17 +167,25 @@ class TrelloDashboardStatsService
 
     private function dueTodayQuery(Builder $baseQuery): Builder
     {
+        [$startUtc, $endUtc] = $this->todayUtcRangeFromDashboardTimezone();
+
         return (clone $baseQuery)
-            ->whereDate('due_at', today())
+            ->whereNotNull('due_at')
+            ->whereBetween('due_at', [
+                $startUtc->toDateTimeString(),
+                $endUtc->toDateTimeString(),
+            ])
             ->where('due_complete', false)
             ->whereNotIn('normalized_status', $this->excludedStatuses());
     }
 
     private function overdueQuery(Builder $baseQuery): Builder
     {
+        $nowUtc = $this->nowUtcFromDashboardTimezone();
+
         return (clone $baseQuery)
             ->whereNotNull('due_at')
-            ->where('due_at', '<', now())
+            ->where('due_at', '<', $nowUtc->toDateTimeString())
             ->where('due_complete', false)
             ->whereNotIn('normalized_status', $this->excludedStatuses());
     }
@@ -215,9 +224,19 @@ class TrelloDashboardStatsService
                     'list_name' => $card->trello_list_name,
                     'normalized_status' => $card->normalized_status,
 
-                    'due_at' => $card->due_at,
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Local Dashboard Time
+                    |--------------------------------------------------------------------------
+                    |
+                    | Trello due_at disimpan sebagai UTC dari API.
+                    | Dashboard perlu baca sebagai timezone app supaya deadline 17:00 WIB
+                    | tidak dianggap overdue sebelum jam 17:00 WIB.
+                    |--------------------------------------------------------------------------
+                    */
+                    'due_at' => $this->trelloUtcDateToLocal($card->getRawOriginal('due_at')),
                     'due_complete' => $card->due_complete,
-                    'last_activity_at' => $card->last_activity_at,
+                    'last_activity_at' => $this->trelloUtcDateToLocal($card->getRawOriginal('last_activity_at')),
 
                     'url' => $card->url,
                     'short_url' => $card->short_url,
@@ -268,16 +287,6 @@ class TrelloDashboardStatsService
             ?? $member['avatar_hash']
             ?? null;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Trello Avatar URL
-        |--------------------------------------------------------------------------
-        |
-        | Jangan pakai avatarUrl langsung karena sering private / AccessDenied.
-        | Kalau ada member id + avatarHash, build URL public Trello member avatar.
-        | Kalau tetap gagal di browser, Blade akan fallback ke initials.
-        |
-        */
         $avatarUrl = null;
 
         if ($id && $avatarHash) {
@@ -319,6 +328,41 @@ class TrelloDashboardStatsService
             : '';
 
         return strtoupper($first . $second);
+    }
+
+    private function dashboardTimezone(): string
+    {
+        return config('app.timezone', 'Asia/Jakarta');
+    }
+
+    private function nowUtcFromDashboardTimezone(): Carbon
+    {
+        return now($this->dashboardTimezone())->utc();
+    }
+
+    private function todayUtcRangeFromDashboardTimezone(): array
+    {
+        $timezone = $this->dashboardTimezone();
+
+        $startUtc = now($timezone)
+            ->startOfDay()
+            ->utc();
+
+        $endUtc = now($timezone)
+            ->endOfDay()
+            ->utc();
+
+        return [$startUtc, $endUtc];
+    }
+
+    private function trelloUtcDateToLocal(mixed $value): ?Carbon
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        return Carbon::parse($value, 'UTC')
+            ->timezone($this->dashboardTimezone());
     }
 
     private function buildInsight(
