@@ -44,8 +44,11 @@ class DashboardController extends Controller
 
         $kommoTodayLeadInsight = $this->getKommoTodayLeadInsight($kommoService);
         $trelloAcademicStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'academic');
+        $trelloMarketingStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'marketing');
+
         $trelloDashboardStats = [
             'academic' => $trelloAcademicStats,
+            'marketing' => $trelloMarketingStats,
         ];
 
         $summaryContext = [
@@ -66,6 +69,7 @@ class DashboardController extends Controller
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
             'kommo_today_lead_insight' => $kommoTodayLeadInsight,
             'trello_academic_stats' => $trelloAcademicStats,
+            'trello_marketing_stats' => $trelloMarketingStats,
             'trello_dashboard_stats' => $trelloDashboardStats,
         ];
 
@@ -77,6 +81,10 @@ class DashboardController extends Controller
         $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
             $managementSummary,
             $trelloAcademicStats
+        );
+        $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
+            $managementSummary,
+            $trelloMarketingStats
         );
 
         return view('dashboard', [
@@ -101,6 +109,7 @@ class DashboardController extends Controller
             'upcomingWorkshopSchedules' => $upcomingWorkshopSchedules,
             'kommoTodayLeadInsight' => $kommoTodayLeadInsight,
             'trelloAcademicStats' => $trelloAcademicStats,
+            'trelloMarketingStats' => $trelloMarketingStats,
             'trelloDashboardStats' => $trelloDashboardStats,
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
