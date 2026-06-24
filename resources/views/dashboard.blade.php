@@ -778,7 +778,7 @@
                             <th>Description</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="auto-expand-list kommo-auto-expand-list is-collapsed" data-initial-visible="4">
                         @forelse($kommoStatusBreakdown as $statusItem)
                             <tr>
                                 <td class="fw-semibold text-dark">{{ $statusItem['status'] }}</td>
@@ -800,6 +800,10 @@
                     </tbody>
                 </table>
             </div>
+
+            @if($kommoStatusBreakdown->count() > 4)
+                <div class="auto-expand-trigger kommo-auto-expand-trigger" aria-hidden="true"></div>
+            @endif
         </div>
     </div>
 
@@ -1092,8 +1096,8 @@
                     @endif
 
                     <div class="row g-3 trello-table-row">
-                        <div class="col-xl-6 d-flex">
-                            <div class="trello-table-card h-100 flex-fill">
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Priority Cards</div>
@@ -1117,7 +1121,7 @@
                                                     <th class="text-end">Link</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
                                                 @foreach($trelloAcademicPriorityCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
@@ -1203,10 +1207,14 @@
                                     </div>
                                 @endif
                             </div>
+                            @if($trelloAcademicPriorityCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-academic-priority" aria-hidden="true"></div>
+                            @endif
+
                         </div>
 
-                        <div class="col-xl-6 d-flex">
-                            <div class="trello-table-card h-100 flex-fill">
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Active Work Queue</div>
@@ -1230,7 +1238,7 @@
                                                     <th class="text-end">Link</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
                                                 @foreach($trelloAcademicActiveCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
@@ -1316,6 +1324,10 @@
                                     </div>
                                 @endif
                             </div>
+                            @if($trelloAcademicActiveCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-academic-active" aria-hidden="true"></div>
+                            @endif
+
                         </div>
                     </div>
                 </div>
@@ -1436,8 +1448,8 @@
                     @endif
 
                     <div class="row g-3 trello-table-row">
-                        <div class="col-xl-6 d-flex">
-                            <div class="trello-table-card h-100 flex-fill">
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Priority Cards</div>
@@ -1461,7 +1473,7 @@
                                                     <th class="text-end">Link</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
                                                 @foreach($trelloMarketingPriorityCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
@@ -1547,10 +1559,14 @@
                                     </div>
                                 @endif
                             </div>
+                            @if($trelloMarketingPriorityCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-marketing-priority" aria-hidden="true"></div>
+                            @endif
+
                         </div>
 
-                        <div class="col-xl-6 d-flex">
-                            <div class="trello-table-card h-100 flex-fill">
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Active Work Queue</div>
@@ -1574,7 +1590,7 @@
                                                     <th class="text-end">Link</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
                                                 @foreach($trelloMarketingActiveCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
@@ -1660,6 +1676,10 @@
                                     </div>
                                 @endif
                             </div>
+                            @if($trelloMarketingActiveCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-marketing-active" aria-hidden="true"></div>
+                            @endif
+
                         </div>
                     </div>
                 </div>
@@ -2366,8 +2386,21 @@
         font-size: .68rem;
     }
 
-    .trello-table-row > [class*="col-"] {
+    .trello-table-row {
         align-items: stretch;
+    }
+
+    .trello-table-row > [class*="col-"] {
+        display: flex;
+        align-items: stretch;
+    }
+
+    .trello-table-column {
+        gap: .8rem;
+    }
+
+    .trello-table-column + .trello-table-column {
+        margin-top: 1.35rem;
     }
 
     .trello-table-card {
@@ -2375,14 +2408,15 @@
         border-radius: 18px;
         background: #ffffff;
         overflow: hidden;
-        height: 100%;
-        min-height: 520px;
+        width: 100%;
+        min-height: 0;
         display: flex;
         flex-direction: column;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
     }
 
     .trello-table-header {
-        padding: 1rem 1rem .75rem;
+        padding: 1rem 1rem .85rem;
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
@@ -2390,35 +2424,157 @@
         flex: 0 0 auto;
         min-height: 78px;
         border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        background: linear-gradient(180deg, #ffffff 0%, rgba(248, 250, 252, 0.82) 100%);
+    }
+
+    .trello-table-header .badge {
+        flex: 0 0 auto;
+        white-space: nowrap;
     }
 
     .trello-table-scroll {
-        flex: 1 1 auto;
-        min-height: 0;
-        max-height: 460px;
-        overflow-y: auto;
-        overflow-x: auto;
+        flex: 0 0 auto;
+        overflow-x: visible;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
     }
 
     .trello-table-scroll table {
-        min-width: 720px;
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+
+    .trello-table-scroll th,
+    .trello-table-scroll td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .trello-table-scroll th:nth-child(1),
+    .trello-table-scroll td:nth-child(1) {
+        width: 38%;
+    }
+
+    .trello-table-scroll th:nth-child(2),
+    .trello-table-scroll td:nth-child(2) {
+        width: 20%;
+    }
+
+    .trello-table-scroll th:nth-child(3),
+    .trello-table-scroll td:nth-child(3) {
+        width: 16%;
+    }
+
+    .trello-table-scroll th:nth-child(4),
+    .trello-table-scroll td:nth-child(4) {
+        width: 16%;
+    }
+
+    .trello-table-scroll th:nth-child(5),
+    .trello-table-scroll td:nth-child(5) {
+        width: 10%;
     }
 
     .trello-table-scroll thead th {
         position: sticky;
         top: 0;
-        z-index: 2;
-        background: #ffffff;
+        z-index: 3;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(8px);
         box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.08);
+    }
+
+    .trello-table-scroll tbody tr {
+        transition: background-color .18s ease, transform .18s ease;
+    }
+
+    .trello-table-scroll tbody tr:hover {
+        background: rgba(91, 62, 142, 0.035);
     }
 
     .trello-table-scroll tbody tr:last-child td {
         border-bottom: 0;
     }
 
+
+    @media (max-width: 767.98px) {
+        .trello-table-header {
+            flex-direction: column;
+            align-items: flex-start;
+            min-height: auto;
+        }
+
+        .trello-table-scroll table {
+            table-layout: auto;
+        }
+
+        .trello-table-scroll th,
+        .trello-table-scroll td {
+            font-size: .78rem;
+        }
+
+        .trello-table-scroll th:nth-child(2),
+        .trello-table-scroll td:nth-child(2) {
+            display: none;
+        }
+
+        .trello-table-scroll th:nth-child(1),
+        .trello-table-scroll td:nth-child(1) {
+            width: 44%;
+        }
+
+        .trello-table-scroll th:nth-child(3),
+        .trello-table-scroll td:nth-child(3) {
+            width: 22%;
+        }
+
+        .trello-table-scroll th:nth-child(4),
+        .trello-table-scroll td:nth-child(4) {
+            width: 22%;
+        }
+
+        .trello-table-scroll th:nth-child(5),
+        .trello-table-scroll td:nth-child(5) {
+            width: 12%;
+        }
+    }
+
+    .auto-expand-list.is-collapsed tr:nth-child(n+5),
+    .trello-load-more-list.is-collapsed tr:nth-child(n+5),
+    .kommo-auto-expand-list.is-collapsed tr:nth-child(n+5) {
+        display: none;
+    }
+
+    .auto-expand-list tr {
+        transition: background-color .18s ease;
+    }
+
+    .auto-expand-trigger {
+        width: 100%;
+        height: 1px;
+        pointer-events: none;
+        opacity: 0;
+    }
+
+    .auto-expand-list:not(.is-collapsed) tr:nth-child(n+5) {
+        animation: autoExpandFadeIn .22s ease both;
+    }
+
+    @keyframes autoExpandFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
     .trello-table-card .empty-state-box {
         flex: 1 1 auto;
-        min-height: 360px;
+        min-height: 310px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -2626,6 +2782,53 @@
 document.addEventListener('DOMContentLoaded', async function () {
     const monthlyRevenueCtx = document.getElementById('monthlyRevenueChart');
     const salesPerformanceCtx = document.getElementById('salesPerformanceChart');
+
+    const expandList = function (list) {
+        if (!list || !list.classList.contains('is-collapsed')) {
+            return;
+        }
+
+        list.classList.remove('is-collapsed');
+    };
+
+    const expandSectionFromTrigger = function (trigger) {
+        const body = trigger.closest('.content-card-body') || trigger.closest('.trello-table-column') || trigger.parentElement;
+        let list = null;
+
+        if (trigger.classList.contains('kommo-auto-expand-trigger')) {
+            const cardBody = trigger.closest('.content-card-body');
+            list = cardBody ? cardBody.querySelector('.kommo-auto-expand-list') : null;
+        } else {
+            const column = trigger.closest('.trello-table-column');
+            list = column ? column.querySelector('.auto-expand-list') : null;
+        }
+
+        expandList(list);
+    };
+
+    if ('IntersectionObserver' in window) {
+        const autoExpandObserver = new IntersectionObserver(function (entries, observer) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+
+                expandSectionFromTrigger(entry.target);
+                observer.unobserve(entry.target);
+            });
+        }, {
+            root: null,
+            threshold: 0.01,
+            rootMargin: '0px 0px -8% 0px'
+        });
+
+        document.querySelectorAll('.auto-expand-trigger').forEach(function (trigger) {
+            autoExpandObserver.observe(trigger);
+        });
+    } else {
+        document.querySelectorAll('.auto-expand-trigger').forEach(expandSectionFromTrigger);
+    }
+
     if (monthlyRevenueCtx) {
         const labels = @json($revenueChart['labels'] ?? []);
         const values = @json($revenueChart['data'] ?? []);
