@@ -1180,26 +1180,73 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function normalizeAiText(value) {
+        if (value === null || value === undefined) return '';
+
+        if (Array.isArray(value)) {
+            return value
+                .map(function (item) {
+                    return normalizeAiText(item);
+                })
+                .filter(Boolean)
+                .map(function (item) {
+                    return item.startsWith('-') ? item : `- ${item}`;
+                })
+                .join('
+');
+        }
+
+        if (typeof value === 'object') {
+            return Object.entries(value)
+                .map(function ([key, item]) {
+                    const normalizedItem = normalizeAiText(item);
+                    return normalizedItem ? `${key}: ${normalizedItem}` : '';
+                })
+                .filter(Boolean)
+                .join('
+');
+        }
+
+        return String(value).trim();
+    }
+
+    function getAiPayload(data) {
+        if (data && typeof data === 'object' && data.data && typeof data.data === 'object') {
+            return data.data;
+        }
+
+        return data || {};
+    }
+
     function buildAiNotesPayload(data, transcript) {
         const notesBlocks = [];
+        const notes = normalizeAiText(data.notes);
+        const decisions = normalizeAiText(data.decisions);
+        const actionItems = normalizeAiText(data.action_items || data.actionItems);
+        const rawTranscript = normalizeAiText(transcript);
 
-        if (isFilled(data.notes)) {
-            notesBlocks.push(data.notes.trim());
+        if (isFilled(notes)) {
+            notesBlocks.push(notes);
         }
 
-        if (isFilled(data.decisions)) {
-            notesBlocks.push(`Decisions:\n${data.decisions.trim()}`);
+        if (isFilled(decisions)) {
+            notesBlocks.push(`Decisions:
+${decisions}`);
         }
 
-        if (isFilled(data.action_items)) {
-            notesBlocks.push(`Action Items:\n${data.action_items.trim()}`);
+        if (isFilled(actionItems)) {
+            notesBlocks.push(`Action Items:
+${actionItems}`);
         }
 
-        if (isFilled(transcript)) {
-            notesBlocks.push(`Raw Voice Transcript:\n${transcript.trim()}`);
+        if (isFilled(rawTranscript)) {
+            notesBlocks.push(`Raw Voice Transcript:
+${rawTranscript}`);
         }
 
-        return notesBlocks.join('\n\n');
+        return notesBlocks.join('
+
+');
     }
 
     function setAiButtonLoading(isLoading) {
@@ -1261,17 +1308,25 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             const data = await parseResponse(response);
+            const aiPayload = getAiPayload(data);
 
             if (!response.ok) {
                 throw new Error(data.message || 'Gagal membuat summary AI.');
             }
 
-            if (!isFilled(data.summary) && !isFilled(data.notes) && !isFilled(data.decisions) && !isFilled(data.action_items)) {
+            const generatedSummary = normalizeAiText(aiPayload.summary);
+            const generatedNotes = buildAiNotesPayload(aiPayload, transcript);
+
+            if (!isFilled(generatedSummary) && !isFilled(generatedNotes)) {
                 throw new Error('AI tidak mengembalikan hasil summary yang bisa dipakai.');
             }
 
-            appendToTextarea(summaryField, data.summary || '', 'AI Generated Summary');
-            appendToTextarea(notesField, buildAiNotesPayload(data, transcript), 'AI Generated Notes');
+            if (!summaryField || !notesField) {
+                throw new Error('Field Summary atau Notes tidak ditemukan di form MOM.');
+            }
+
+            appendToTextarea(summaryField, generatedSummary, 'AI Generated Summary');
+            appendToTextarea(notesField, generatedNotes, 'AI Generated Notes');
 
             refreshAll();
             setVoiceStatus('ready', 'AI Summary Ready');
