@@ -1,0 +1,12 @@
+diff --git a/app/Services/Trello/TrelloDashboardStatsService.php b/app/Services/Trello/TrelloDashboardStatsService.php
+index e0d7c88..d8af378 100644
+--- a/app/Services/Trello/TrelloDashboardStatsService.php
++++ b/app/Services/Trello/TrelloDashboardStatsService.php
+@@ -109,7 +109,6 @@ public function getStats(?string $sourceKey = 'academic'): array
+                     ->orderByRaw("FIELD(normalized_status, 'review', 'in_progress', 'todo', 'scheduled')")
+                     ->orderByRaw('due_at IS NULL, due_at ASC')
+                     ->orderByDesc('last_activity_at')
+-                    ->limit(10)
+                     ->get()
+             ),
+ 

@@ -109,7 +109,6 @@ class TrelloDashboardStatsService
                     ->orderByRaw("FIELD(normalized_status, 'review', 'in_progress', 'todo', 'scheduled')")
                     ->orderByRaw('due_at IS NULL, due_at ASC')
                     ->orderByDesc('last_activity_at')
-                    ->limit(10)
                     ->get()
             ),
 
