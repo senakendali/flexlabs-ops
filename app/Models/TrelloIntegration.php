@@ -114,4 +114,9 @@ class TrelloIntegration extends Model
     {
         return $this->hasMany(TrelloWebhookEvent::class, 'trello_integration_id');
     }
+
+    public function lists(): HasMany
+    {
+        return $this->hasMany(TrelloList::class, 'trello_integration_id');
+    }
 }
