@@ -50,8 +50,33 @@ class SyncTrelloCards extends Command
             try {
                 $cards = $this->fetchCards($integration, $includeClosed);
 
+                $fetchedCardIds = collect($cards)
+                    ->pluck('id')
+                    ->filter()
+                    ->values()
+                    ->all();
+
                 if (empty($cards)) {
                     $this->warn('Tidak ada card yang ditemukan.');
+
+                    $closedMissing = 0;
+
+                    if (! $includeClosed) {
+                        $closedMissing = $this->markMissingOpenCardsAsClosed(
+                            integration: $integration,
+                            fetchedCardIds: []
+                        );
+                    }
+
+                    if ($closedMissing > 0) {
+                        $this->warn("Marked {$closedMissing} local cards as closed karena sudah tidak ada di open cards Trello.");
+                    }
+
+                    $integration->forceFill([
+                        'last_synced_at' => now(),
+                        'last_error' => null,
+                    ])->save();
+
                     $this->newLine();
 
                     continue;
@@ -117,12 +142,39 @@ class SyncTrelloCards extends Command
                     $synced++;
                 }
 
+                $closedMissing = 0;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Close local stale cards
+                |--------------------------------------------------------------------------
+                |
+                | Saat sync normal, Trello API pakai filter=open. Kalau card dihapus /
+                | di-archive di Trello, card itu tidak muncul lagi di response API.
+                | Tanpa cleanup ini, row lama di trello_cards tetap is_closed=false
+                | dan dashboard masih menghitung task tersebut.
+                |
+                | Untuk --include-closed, cleanup ini sengaja dilewati karena response
+                | Trello berisi open + closed cards.
+                |
+                */
+                if (! $includeClosed) {
+                    $closedMissing = $this->markMissingOpenCardsAsClosed(
+                        integration: $integration,
+                        fetchedCardIds: $fetchedCardIds
+                    );
+                }
+
                 $integration->forceFill([
                     'last_synced_at' => now(),
                     'last_error' => null,
                 ])->save();
 
                 $this->info("Synced {$integration->source_key}: {$synced} cards");
+
+                if ($closedMissing > 0) {
+                    $this->warn("Marked {$closedMissing} local cards as closed karena sudah tidak ada di open cards Trello.");
+                }
 
                 if ($unmapped > 0) {
                     $this->warn("Ada {$unmapped} card yang list-nya belum kebaca/mapped. Jalankan trello:sync-lists lagi kalau perlu.");
@@ -178,5 +230,23 @@ class SyncTrelloCards extends Command
             ])
             ->throw()
             ->json();
+    }
+
+    private function markMissingOpenCardsAsClosed(TrelloIntegration $integration, array $fetchedCardIds): int
+    {
+        $query = TrelloCard::query()
+            ->where('trello_integration_id', $integration->id)
+            ->where('source_key', $integration->source_key)
+            ->where('trello_board_id', $integration->trello_board_id)
+            ->where('is_closed', false);
+
+        if (! empty($fetchedCardIds)) {
+            $query->whereNotIn('trello_card_id', $fetchedCardIds);
+        }
+
+        return (int) $query->update([
+            'is_closed' => true,
+            'updated_at' => now(),
+        ]);
     }
 }
