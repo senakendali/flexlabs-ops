@@ -1060,6 +1060,7 @@
                                             <thead>
                                                 <tr>
                                                     <th>Card</th>
+                                                    <th>PIC</th>
                                                     <th>Status</th>
                                                     <th>Due</th>
                                                     <th class="text-end">Link</th>
@@ -1072,11 +1073,45 @@
                                                         $cardDueAt = $card['due_at'] ?? null;
                                                         $cardDueText = $cardDueAt ? \Carbon\Carbon::parse($cardDueAt)->format('d M H:i') : '-';
                                                         $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                        $cardMembers = collect($card['members'] ?? []);
+                                                        $cardMemberNames = $cardMembers
+                                                            ->pluck('name')
+                                                            ->filter()
+                                                            ->implode(', ');
                                                     @endphp
                                                     <tr>
                                                         <td>
                                                             <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
                                                             <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="work-card-pic">
+                                                                <div class="work-card-avatar-stack">
+                                                                    @forelse($cardMembers->take(3) as $member)
+                                                                        <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @if(!empty($member['avatar_url']))
+                                                                                <img src="{{ $member['avatar_url'] }}" alt="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @else
+                                                                                <span>{{ $member['initials'] ?? '?' }}</span>
+                                                                            @endif
+                                                                        </div>
+                                                                    @empty
+                                                                        <div class="work-card-avatar is-empty" title="No PIC">
+                                                                            <span>?</span>
+                                                                        </div>
+                                                                    @endforelse
+
+                                                                    @if($cardMembers->count() > 3)
+                                                                        <div class="work-card-avatar is-more" title="{{ $cardMembers->count() - 3 }} PIC lainnya">
+                                                                            <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+
+                                                                <div class="work-card-pic-name">
+                                                                    {{ $cardMemberNames ? \Illuminate\Support\Str::limit($cardMemberNames, 24) : 'No PIC' }}
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td>
                                                             <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
@@ -1127,6 +1162,7 @@
                                             <thead>
                                                 <tr>
                                                     <th>Card</th>
+                                                    <th>PIC</th>
                                                     <th>Status</th>
                                                     <th>Last Activity</th>
                                                     <th class="text-end">Link</th>
@@ -1139,11 +1175,45 @@
                                                         $cardLastActivity = $card['last_activity_at'] ?? null;
                                                         $cardLastActivityText = $cardLastActivity ? \Carbon\Carbon::parse($cardLastActivity)->format('d M H:i') : '-';
                                                         $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                        $cardMembers = collect($card['members'] ?? []);
+                                                        $cardMemberNames = $cardMembers
+                                                            ->pluck('name')
+                                                            ->filter()
+                                                            ->implode(', ');
                                                     @endphp
                                                     <tr>
                                                         <td>
                                                             <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
                                                             <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="work-card-pic">
+                                                                <div class="work-card-avatar-stack">
+                                                                    @forelse($cardMembers->take(3) as $member)
+                                                                        <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @if(!empty($member['avatar_url']))
+                                                                                <img src="{{ $member['avatar_url'] }}" alt="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @else
+                                                                                <span>{{ $member['initials'] ?? '?' }}</span>
+                                                                            @endif
+                                                                        </div>
+                                                                    @empty
+                                                                        <div class="work-card-avatar is-empty" title="No PIC">
+                                                                            <span>?</span>
+                                                                        </div>
+                                                                    @endforelse
+
+                                                                    @if($cardMembers->count() > 3)
+                                                                        <div class="work-card-avatar is-more" title="{{ $cardMembers->count() - 3 }} PIC lainnya">
+                                                                            <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+
+                                                                <div class="work-card-pic-name">
+                                                                    {{ $cardMemberNames ? \Illuminate\Support\Str::limit($cardMemberNames, 24) : 'No PIC' }}
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td>
                                                             <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
@@ -2060,6 +2130,67 @@
         color: #111827;
         font-size: 1.2rem;
         font-weight: 900;
+    }
+
+
+    .work-card-pic {
+        min-width: 112px;
+    }
+
+    .work-card-avatar-stack {
+        display: flex;
+        align-items: center;
+        margin-bottom: .35rem;
+        min-height: 30px;
+    }
+
+    .work-card-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(91, 62, 142, 0.12);
+        color: #5B3E8E;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border: 2px solid #ffffff;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+        font-size: .72rem;
+        font-weight: 900;
+        letter-spacing: .02em;
+    }
+
+    .work-card-avatar + .work-card-avatar {
+        margin-left: -8px;
+    }
+
+    .work-card-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .work-card-avatar.is-empty {
+        background: rgba(107, 114, 128, 0.12);
+        color: #6b7280;
+    }
+
+    .work-card-avatar.is-more {
+        background: #111827;
+        color: #ffffff;
+        font-size: .65rem;
+    }
+
+    .work-card-pic-name {
+        color: #6b7280;
+        font-size: .76rem;
+        font-weight: 700;
+        line-height: 1.2;
+        max-width: 132px;
+        word-break: break-word;
     }
 
     @media (max-width: 1199.98px) {

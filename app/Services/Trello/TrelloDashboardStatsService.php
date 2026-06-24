@@ -232,18 +232,71 @@ class TrelloDashboardStatsService
                         ->toArray(),
 
                     'members' => collect($card->members_json ?: [])
-                        ->map(fn ($member) => [
-                            'id' => $member['id'] ?? null,
-                            'name' => $member['fullName'] ?? null,
-                            'username' => $member['username'] ?? null,
-                            'initials' => $member['initials'] ?? null,
-                        ])
+                        ->map(fn ($member) => $this->formatMember($member))
                         ->values()
                         ->toArray(),
                 ];
             })
             ->values()
             ->toArray();
+    }
+
+    private function formatMember(array $member): array
+    {
+        $name = trim((string) (
+            $member['fullName']
+            ?? $member['name']
+            ?? $member['username']
+            ?? ''
+        ));
+
+        if ($name === '') {
+            $name = 'Unassigned';
+        }
+
+        $username = $member['username'] ?? null;
+
+        $initials = trim((string) ($member['initials'] ?? ''));
+
+        if ($initials === '') {
+            $initials = $this->makeInitials($name);
+        }
+
+        $avatarUrl = $member['avatarUrl']
+            ?? $member['avatar_url']
+            ?? null;
+
+        return [
+            'id' => $member['id'] ?? null,
+            'name' => $name,
+            'username' => $username,
+            'initials' => $initials,
+            'avatar_hash' => $member['avatarHash'] ?? $member['avatar_hash'] ?? null,
+            'avatar_url' => $avatarUrl,
+            'has_avatar' => filled($avatarUrl),
+        ];
+    }
+
+    private function makeInitials(?string $name): string
+    {
+        $name = trim((string) $name);
+
+        if ($name === '') {
+            return '?';
+        }
+
+        $words = preg_split('/\s+/', $name);
+
+        if (! $words || count($words) <= 0) {
+            return strtoupper(mb_substr($name, 0, 1));
+        }
+
+        $first = mb_substr($words[0], 0, 1);
+        $second = count($words) > 1
+            ? mb_substr($words[1], 0, 1)
+            : '';
+
+        return strtoupper($first . $second);
     }
 
     private function buildInsight(
