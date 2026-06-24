@@ -243,6 +243,8 @@ class TrelloDashboardStatsService
 
     private function formatMember(array $member): array
     {
+        $id = $member['id'] ?? null;
+
         $name = trim((string) (
             $member['fullName']
             ?? $member['name']
@@ -262,16 +264,36 @@ class TrelloDashboardStatsService
             $initials = $this->makeInitials($name);
         }
 
-        $avatarUrl = $member['avatarUrl']
-            ?? $member['avatar_url']
+        $avatarHash = $member['avatarHash']
+            ?? $member['avatar_hash']
             ?? null;
 
+        /*
+        |--------------------------------------------------------------------------
+        | Trello Avatar URL
+        |--------------------------------------------------------------------------
+        |
+        | Jangan pakai avatarUrl langsung karena sering private / AccessDenied.
+        | Kalau ada member id + avatarHash, build URL public Trello member avatar.
+        | Kalau tetap gagal di browser, Blade akan fallback ke initials.
+        |
+        */
+        $avatarUrl = null;
+
+        if ($id && $avatarHash) {
+            $avatarUrl = 'https://trello-members.s3.amazonaws.com/'
+                . rawurlencode($id)
+                . '/'
+                . rawurlencode($avatarHash)
+                . '/50.png';
+        }
+
         return [
-            'id' => $member['id'] ?? null,
+            'id' => $id,
             'name' => $name,
             'username' => $username,
             'initials' => $initials,
-            'avatar_hash' => $member['avatarHash'] ?? $member['avatar_hash'] ?? null,
+            'avatar_hash' => $avatarHash,
             'avatar_url' => $avatarUrl,
             'has_avatar' => filled($avatarUrl),
         ];

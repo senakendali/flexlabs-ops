@@ -1090,7 +1090,14 @@
                                                                     @forelse($cardMembers->take(3) as $member)
                                                                         <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
                                                                             @if(!empty($member['avatar_url']))
-                                                                                <img src="{{ $member['avatar_url'] }}" alt="{{ $member['name'] ?? 'PIC' }}">
+                                                                                <img
+                                                                                    src="{{ $member['avatar_url'] }}"
+                                                                                    alt="{{ $member['name'] ?? 'PIC' }}"
+                                                                                    loading="lazy"
+                                                                                    referrerpolicy="no-referrer"
+                                                                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                >
+                                                                                <span class="work-card-avatar-fallback">{{ $member['initials'] ?? '?' }}</span>
                                                                             @else
                                                                                 <span>{{ $member['initials'] ?? '?' }}</span>
                                                                             @endif
@@ -1192,7 +1199,14 @@
                                                                     @forelse($cardMembers->take(3) as $member)
                                                                         <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
                                                                             @if(!empty($member['avatar_url']))
-                                                                                <img src="{{ $member['avatar_url'] }}" alt="{{ $member['name'] ?? 'PIC' }}">
+                                                                                <img
+                                                                                    src="{{ $member['avatar_url'] }}"
+                                                                                    alt="{{ $member['name'] ?? 'PIC' }}"
+                                                                                    loading="lazy"
+                                                                                    referrerpolicy="no-referrer"
+                                                                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                >
+                                                                                <span class="work-card-avatar-fallback">{{ $member['initials'] ?? '?' }}</span>
                                                                             @else
                                                                                 <span>{{ $member['initials'] ?? '?' }}</span>
                                                                             @endif
@@ -2171,6 +2185,18 @@
         height: 100%;
         object-fit: cover;
         display: block;
+    }
+
+    .work-card-avatar span {
+        width: 100%;
+        height: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .work-card-avatar img + .work-card-avatar-fallback {
+        display: none;
     }
 
     .work-card-avatar.is-empty {
