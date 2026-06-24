@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TrelloList extends Model
 {
@@ -53,5 +54,10 @@ class TrelloList extends Model
     public function scopeUnmapped(Builder $query): Builder
     {
         return $query->whereNull('normalized_status');
+    }
+
+    public function cards(): HasMany
+    {
+        return $this->hasMany(TrelloCard::class, 'trello_list_record_id');
     }
 }

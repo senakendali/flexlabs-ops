@@ -119,4 +119,9 @@ class TrelloIntegration extends Model
     {
         return $this->hasMany(TrelloList::class, 'trello_integration_id');
     }
+
+    public function cards(): HasMany
+    {
+        return $this->hasMany(TrelloCard::class, 'trello_integration_id');
+    }
 }
