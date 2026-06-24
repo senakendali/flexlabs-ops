@@ -1091,18 +1091,22 @@
                         </div>
                     @endif
 
-                    <div class="row g-3">
-                        <div class="col-xl-6">
-                            <div class="trello-table-card h-100">
+                    <div class="row g-3 trello-table-row">
+                        <div class="col-xl-6 d-flex">
+                            <div class="trello-table-card h-100 flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Priority Cards</div>
                                         <div class="small text-muted">Card dengan deadline hari ini atau sudah melewati deadline.</div>
                                     </div>
+
+                                    <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                        {{ number_format($trelloAcademicPriorityCards->count()) }} card
+                                    </span>
                                 </div>
 
                                 @if($trelloAcademicPriorityCards->count())
-                                    <div class="table-responsive">
+                                    <div class="table-responsive trello-table-scroll">
                                         <table class="table table-modern align-middle mb-0">
                                             <thead>
                                                 <tr>
@@ -1114,7 +1118,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($trelloAcademicPriorityCards->take(8) as $card)
+                                                @foreach($trelloAcademicPriorityCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
                                                         $cardDueAt = $card['due_at'] ?? null;
@@ -1201,17 +1205,21 @@
                             </div>
                         </div>
 
-                        <div class="col-xl-6">
-                            <div class="trello-table-card h-100">
+                        <div class="col-xl-6 d-flex">
+                            <div class="trello-table-card h-100 flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Active Work Queue</div>
-                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, atau Review.</div>
+                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, Review, atau Scheduled.</div>
                                     </div>
+
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary">
+                                        {{ number_format($trelloAcademicActiveCards->count()) }} card
+                                    </span>
                                 </div>
 
                                 @if($trelloAcademicActiveCards->count())
-                                    <div class="table-responsive">
+                                    <div class="table-responsive trello-table-scroll">
                                         <table class="table table-modern align-middle mb-0">
                                             <thead>
                                                 <tr>
@@ -1223,7 +1231,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($trelloAcademicActiveCards->take(8) as $card)
+                                                @foreach($trelloAcademicActiveCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
                                                         $cardLastActivity = $card['last_activity_at'] ?? null;
@@ -1303,7 +1311,7 @@
                                         </div>
                                         <h5 class="empty-state-title">Tidak ada active work</h5>
                                         <p class="empty-state-text mb-0">
-                                            Belum ada card Academic di status To Do, Doing, atau Review.
+                                            Belum ada card Academic di status To Do, Doing, Review, atau Scheduled.
                                         </p>
                                     </div>
                                 @endif
@@ -1427,18 +1435,22 @@
                         </div>
                     @endif
 
-                    <div class="row g-3">
-                        <div class="col-xl-6">
-                            <div class="trello-table-card h-100">
+                    <div class="row g-3 trello-table-row">
+                        <div class="col-xl-6 d-flex">
+                            <div class="trello-table-card h-100 flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Priority Cards</div>
                                         <div class="small text-muted">Card dengan deadline hari ini atau sudah melewati deadline.</div>
                                     </div>
+
+                                    <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                        {{ number_format($trelloMarketingPriorityCards->count()) }} card
+                                    </span>
                                 </div>
 
                                 @if($trelloMarketingPriorityCards->count())
-                                    <div class="table-responsive">
+                                    <div class="table-responsive trello-table-scroll">
                                         <table class="table table-modern align-middle mb-0">
                                             <thead>
                                                 <tr>
@@ -1450,7 +1462,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($trelloMarketingPriorityCards->take(8) as $card)
+                                                @foreach($trelloMarketingPriorityCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
                                                         $cardDueAt = $card['due_at'] ?? null;
@@ -1537,17 +1549,21 @@
                             </div>
                         </div>
 
-                        <div class="col-xl-6">
-                            <div class="trello-table-card h-100">
+                        <div class="col-xl-6 d-flex">
+                            <div class="trello-table-card h-100 flex-fill">
                                 <div class="trello-table-header">
                                     <div>
                                         <div class="fw-semibold text-dark">Active Work Queue</div>
-                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, atau Review.</div>
+                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, Review, atau Scheduled.</div>
                                     </div>
+
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary">
+                                        {{ number_format($trelloMarketingActiveCards->count()) }} card
+                                    </span>
                                 </div>
 
                                 @if($trelloMarketingActiveCards->count())
-                                    <div class="table-responsive">
+                                    <div class="table-responsive trello-table-scroll">
                                         <table class="table table-modern align-middle mb-0">
                                             <thead>
                                                 <tr>
@@ -1559,7 +1575,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($trelloMarketingActiveCards->take(8) as $card)
+                                                @foreach($trelloMarketingActiveCards as $card)
                                                     @php
                                                         $cardStatus = $card['normalized_status'] ?? '-';
                                                         $cardLastActivity = $card['last_activity_at'] ?? null;
@@ -1639,7 +1655,7 @@
                                         </div>
                                         <h5 class="empty-state-title">Tidak ada active work</h5>
                                         <p class="empty-state-text mb-0">
-                                            Belum ada card Marketing di status To Do, Doing, atau Review.
+                                            Belum ada card Marketing di status To Do, Doing, Review, atau Scheduled.
                                         </p>
                                     </div>
                                 @endif
@@ -2350,19 +2366,63 @@
         font-size: .68rem;
     }
 
+    .trello-table-row > [class*="col-"] {
+        align-items: stretch;
+    }
+
     .trello-table-card {
         border: 1px solid rgba(15, 23, 42, 0.08);
         border-radius: 18px;
         background: #ffffff;
         overflow: hidden;
+        height: 100%;
+        min-height: 520px;
+        display: flex;
+        flex-direction: column;
     }
 
     .trello-table-header {
-        padding: 1rem 1rem .25rem;
+        padding: 1rem 1rem .75rem;
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         gap: 1rem;
+        flex: 0 0 auto;
+        min-height: 78px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .trello-table-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 460px;
+        overflow-y: auto;
+        overflow-x: auto;
+    }
+
+    .trello-table-scroll table {
+        min-width: 720px;
+    }
+
+    .trello-table-scroll thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #ffffff;
+        box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.08);
+    }
+
+    .trello-table-scroll tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .trello-table-card .empty-state-box {
+        flex: 1 1 auto;
+        min-height: 360px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 
     .bg-purple-subtle {
