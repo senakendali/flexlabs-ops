@@ -44,6 +44,93 @@
     $managementSummary = $managementSummary ?? [];
     $upcomingBatches = $upcomingBatches ?? collect();
 
+    /*
+    |--------------------------------------------------------------------------
+    | Academic Trello Workload
+    |--------------------------------------------------------------------------
+    | Data disiapkan dari DashboardController via TrelloDashboardStatsService.
+    | Saat ini dashboard hanya menampilkan Academic. Marketing bisa ditambahkan
+    | nanti tanpa mengubah struktur Blade utama.
+    */
+    $trelloAcademicStats = $trelloAcademicStats ?? [];
+    $trelloAcademicSummary = $trelloAcademicStats['summary'] ?? [];
+    $trelloAcademicStatuses = $trelloAcademicStats['statuses'] ?? [];
+
+    $trelloAcademicTotalOpenCards = max((int) ($trelloAcademicSummary['total_open_cards'] ?? 0), 0);
+    $trelloAcademicActiveWork = max((int) ($trelloAcademicSummary['active_work'] ?? 0), 0);
+    $trelloAcademicCompleted = max((int) ($trelloAcademicSummary['completed'] ?? 0), 0);
+    $trelloAcademicDueToday = max((int) ($trelloAcademicSummary['due_today'] ?? 0), 0);
+    $trelloAcademicOverdue = max((int) ($trelloAcademicSummary['overdue'] ?? 0), 0);
+    $trelloAcademicUnmapped = max((int) ($trelloAcademicSummary['unmapped'] ?? 0), 0);
+    $trelloAcademicCompletionRate = min(max((int) ($trelloAcademicSummary['completion_rate'] ?? 0), 0), 100);
+    $trelloAcademicActiveWorkRate = min(max((int) ($trelloAcademicSummary['active_work_rate'] ?? 0), 0), 100);
+
+    $trelloAcademicDueTodayCards = collect($trelloAcademicStats['due_today_cards'] ?? []);
+    $trelloAcademicOverdueCards = collect($trelloAcademicStats['overdue_cards'] ?? []);
+    $trelloAcademicPriorityCards = $trelloAcademicOverdueCards
+        ->merge($trelloAcademicDueTodayCards)
+        ->unique(fn ($card) => $card['trello_card_id'] ?? $card['id'] ?? $card['name'] ?? uniqid())
+        ->values();
+
+    $trelloAcademicActiveCards = collect($trelloAcademicStats['active_cards'] ?? []);
+    $trelloAcademicRecentCards = collect($trelloAcademicStats['recent_cards'] ?? []);
+
+    $trelloAcademicWebhookStatus = (string) ($trelloAcademicStats['webhook_status'] ?? 'inactive');
+    $trelloAcademicIsSynced = in_array($trelloAcademicWebhookStatus, ['active', 'synced'], true);
+    $trelloAcademicBoardName = $trelloAcademicStats['board_name'] ?? 'Academic Trello';
+    $trelloAcademicInsight = $trelloAcademicStats['insight'] ?? 'Academic Trello insight belum tersedia.';
+
+    $trelloAcademicLastSyncedRaw = $trelloAcademicStats['last_synced_at'] ?? null;
+    $trelloAcademicLastWebhookRaw = $trelloAcademicStats['last_webhook_at'] ?? null;
+
+    $trelloAcademicLastSyncedText = $trelloAcademicLastSyncedRaw
+        ? \Carbon\Carbon::parse($trelloAcademicLastSyncedRaw)->format('d M Y H:i')
+        : '-';
+
+    $trelloAcademicLastWebhookText = $trelloAcademicLastWebhookRaw
+        ? \Carbon\Carbon::parse($trelloAcademicLastWebhookRaw)->format('d M Y H:i')
+        : '-';
+
+    $trelloAcademicProgressClass = $trelloAcademicCompletionRate >= 80
+        ? 'bg-success'
+        : ($trelloAcademicCompletionRate >= 50 ? 'bg-warning' : 'bg-danger');
+
+    $trelloAcademicOverdueClass = $trelloAcademicOverdue > 0 ? 'text-danger' : 'text-success';
+    $trelloAcademicDueTodayClass = $trelloAcademicDueToday > 0 ? 'text-warning' : 'text-success';
+
+    $trelloStatusLabels = [
+        'notes' => 'Notes',
+        'todo' => 'To Do',
+        'in_progress' => 'Doing',
+        'review' => 'Review',
+        'scheduled' => 'Scheduled',
+        'done' => 'Done',
+        'archived' => 'Archived',
+        'ignored' => 'Ignored',
+    ];
+
+    $trelloStatusIcons = [
+        'notes' => 'bi-journal-text',
+        'todo' => 'bi-list-check',
+        'in_progress' => 'bi-lightning-charge-fill',
+        'review' => 'bi-eye-fill',
+        'scheduled' => 'bi-calendar-event-fill',
+        'done' => 'bi-check2-circle',
+        'archived' => 'bi-archive-fill',
+        'ignored' => 'bi-slash-circle',
+    ];
+
+    $trelloStatusBadgeClasses = [
+        'notes' => 'bg-light text-muted',
+        'todo' => 'bg-primary-subtle text-primary',
+        'in_progress' => 'bg-warning-subtle text-warning',
+        'review' => 'bg-info-subtle text-info',
+        'scheduled' => 'bg-purple-subtle text-purple',
+        'done' => 'bg-success-subtle text-success',
+        'archived' => 'bg-secondary-subtle text-secondary',
+        'ignored' => 'bg-secondary-subtle text-secondary',
+    ];
+
     $salesLeads = (int) ($salesInsight['leads'] ?? 0);
     $salesInteracted = (int) ($salesInsight['interacted'] ?? $salesInsight['trial'] ?? 0);
     $salesClosing = (int) ($salesInsight['closing'] ?? $salesInsight['closed_deal'] ?? $salesInsight['join'] ?? 0);
@@ -789,6 +876,372 @@
     </div>
 
     <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">Team Overview</div>
+        <h4 class="dashboard-section-title mb-1">Work Progress</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Pantau progres pekerjaan tiap tim berdasarkan status pengerjaan, prioritas, dan aktivitas terbaru.
+        </p>
+    </div>
+
+    {{-- Work Progress Tabs --}}
+    <div class="content-card mb-4">
+        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <h5 class="content-card-title mb-1">Work Progress</h5>
+                <p class="content-card-subtitle mb-0">
+                    Ringkasan pekerjaan operasional berdasarkan board yang sudah tersambung ke dashboard.
+                </p>
+            </div>
+
+            <ul class="nav nav-pills work-progress-tabs" id="workProgressTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button
+                        class="nav-link active"
+                        id="academic-work-tab"
+                        data-bs-toggle="pill"
+                        data-bs-target="#academic-work-pane"
+                        type="button"
+                        role="tab"
+                        aria-controls="academic-work-pane"
+                        aria-selected="true"
+                    >
+                        <i class="bi bi-mortarboard-fill me-1"></i>
+                        Academic
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button
+                        class="nav-link"
+                        id="marketing-work-tab"
+                        data-bs-toggle="pill"
+                        data-bs-target="#marketing-work-pane"
+                        type="button"
+                        role="tab"
+                        aria-controls="marketing-work-pane"
+                        aria-selected="false"
+                    >
+                        <i class="bi bi-megaphone-fill me-1"></i>
+                        Marketing
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="content-card-body">
+            <div class="tab-content" id="workProgressTabsContent">
+                <div
+                    class="tab-pane fade show active"
+                    id="academic-work-pane"
+                    role="tabpanel"
+                    aria-labelledby="academic-work-tab"
+                    tabindex="0"
+                >
+                    <div class="trello-insight-box mb-3">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="trello-insight-icon">
+                                <i class="bi bi-kanban-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold text-dark mb-1">Academic Work Insight</div>
+                                <p class="text-muted mb-0">{{ $trelloAcademicInsight }}</p>
+                                <div class="small text-muted mt-2">
+                                    Last sync: <strong>{{ $trelloAcademicLastSyncedText }}</strong>
+                                    <span class="mx-1">•</span>
+                                    Last webhook: <strong>{{ $trelloAcademicLastWebhookText }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="work-progress-completion-card mb-4">
+                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
+                            <div>
+                                <div class="work-progress-completion-eyebrow">Academic Progress</div>
+                                <div class="work-progress-completion-value">{{ number_format($trelloAcademicCompletionRate) }}%</div>
+                                <div class="work-progress-completion-label">
+                                    {{ number_format($trelloAcademicCompleted) }} dari {{ number_format($trelloAcademicTotalOpenCards) }} card sudah selesai.
+                                </div>
+                            </div>
+
+                            <div class="work-progress-completion-meta text-lg-end">
+                                <div class="small text-muted">Active Work</div>
+                                <div class="fw-semibold text-dark">
+                                    {{ number_format($trelloAcademicActiveWork) }} card berjalan
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="progress progress-modern work-progress-completion-track mb-3">
+                            <div
+                                class="progress-bar {{ $trelloAcademicProgressClass }}"
+                                role="progressbar"
+                                style="width: {{ $trelloAcademicCompletionRate }}%;"
+                                aria-valuenow="{{ $trelloAcademicCompletionRate }}"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                            ></div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Due Today</span>
+                                    <strong class="{{ $trelloAcademicDueTodayClass }}">{{ number_format($trelloAcademicDueToday) }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Overdue</span>
+                                    <strong class="{{ $trelloAcademicOverdueClass }}">{{ number_format($trelloAcademicOverdue) }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Unmapped</span>
+                                    <strong>{{ number_format($trelloAcademicUnmapped) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        @foreach(['todo', 'in_progress', 'review', 'done'] as $statusKey)
+                            @php
+                                $statusTotal = (int) ($trelloAcademicStatuses[$statusKey] ?? 0);
+                                $statusLabel = $trelloStatusLabels[$statusKey] ?? $statusKey;
+                                $statusClass = $trelloStatusBadgeClasses[$statusKey] ?? 'bg-light text-muted';
+                                $statusIcon = $trelloStatusIcons[$statusKey] ?? 'bi-circle';
+                                $statusDescription = match ($statusKey) {
+                                    'todo' => 'Task yang sudah masuk antrean kerja dan menunggu eksekusi.',
+                                    'in_progress' => 'Task yang sedang dikerjakan oleh tim Academic.',
+                                    'review' => 'Task yang sudah dikerjakan dan menunggu pengecekan.',
+                                    'done' => 'Task yang sudah selesai dan tercatat sebagai completed.',
+                                    default => 'Status pekerjaan Academic.',
+                                };
+                            @endphp
+                            <div class="col-xl-3 col-md-6">
+                                <div class="stat-card h-100 work-progress-stat-card">
+                                    <div class="stat-card-top">
+                                        <div class="stat-icon-wrap {{ $statusClass }}">
+                                            <i class="bi {{ $statusIcon }}"></i>
+                                        </div>
+                                        <div>
+                                            <div class="stat-title">{{ $statusLabel }}</div>
+                                            <div class="stat-value">{{ number_format($statusTotal) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-description">
+                                        {{ $statusDescription }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if($trelloAcademicUnmapped > 0)
+                        <div class="alert alert-warning mb-4">
+                            Ada {{ number_format($trelloAcademicUnmapped) }} card yang belum punya status dashboard. Jalankan mapping list sebelum angka dipakai untuk keputusan operasional.
+                        </div>
+                    @endif
+
+                    <div class="row g-3">
+                        <div class="col-xl-6">
+                            <div class="trello-table-card h-100">
+                                <div class="trello-table-header">
+                                    <div>
+                                        <div class="fw-semibold text-dark">Priority Cards</div>
+                                        <div class="small text-muted">Card dengan deadline hari ini atau sudah melewati deadline.</div>
+                                    </div>
+                                </div>
+
+                                @if($trelloAcademicPriorityCards->count())
+                                    <div class="table-responsive">
+                                        <table class="table table-modern align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Card</th>
+                                                    <th>Status</th>
+                                                    <th>Due</th>
+                                                    <th class="text-end">Link</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($trelloAcademicPriorityCards->take(8) as $card)
+                                                    @php
+                                                        $cardStatus = $card['normalized_status'] ?? '-';
+                                                        $cardDueAt = $card['due_at'] ?? null;
+                                                        $cardDueText = $cardDueAt ? \Carbon\Carbon::parse($cardDueAt)->format('d M H:i') : '-';
+                                                        $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                    @endphp
+                                                    <tr>
+                                                        <td>
+                                                            <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
+                                                            <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                {{ $trelloStatusLabels[$cardStatus] ?? $cardStatus }}
+                                                            </span>
+                                                        </td>
+                                                        <td>{{ $cardDueText }}</td>
+                                                        <td class="text-end">
+                                                            @if($cardUrl)
+                                                                <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
+                                                                    Open
+                                                                </a>
+                                                            @else
+                                                                <span class="text-muted">-</span>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @else
+                                    <div class="empty-state-box my-0">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-check2-circle"></i>
+                                        </div>
+                                        <h5 class="empty-state-title">Tidak ada priority card</h5>
+                                        <p class="empty-state-text mb-0">
+                                            Belum ada card Academic dengan deadline hari ini atau overdue.
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="col-xl-6">
+                            <div class="trello-table-card h-100">
+                                <div class="trello-table-header">
+                                    <div>
+                                        <div class="fw-semibold text-dark">Active Work Queue</div>
+                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, atau Review.</div>
+                                    </div>
+                                </div>
+
+                                @if($trelloAcademicActiveCards->count())
+                                    <div class="table-responsive">
+                                        <table class="table table-modern align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Card</th>
+                                                    <th>Status</th>
+                                                    <th>Last Activity</th>
+                                                    <th class="text-end">Link</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($trelloAcademicActiveCards->take(8) as $card)
+                                                    @php
+                                                        $cardStatus = $card['normalized_status'] ?? '-';
+                                                        $cardLastActivity = $card['last_activity_at'] ?? null;
+                                                        $cardLastActivityText = $cardLastActivity ? \Carbon\Carbon::parse($cardLastActivity)->format('d M H:i') : '-';
+                                                        $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                    @endphp
+                                                    <tr>
+                                                        <td>
+                                                            <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
+                                                            <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                {{ $trelloStatusLabels[$cardStatus] ?? $cardStatus }}
+                                                            </span>
+                                                        </td>
+                                                        <td>{{ $cardLastActivityText }}</td>
+                                                        <td class="text-end">
+                                                            @if($cardUrl)
+                                                                <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
+                                                                    Open
+                                                                </a>
+                                                            @else
+                                                                <span class="text-muted">-</span>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @else
+                                    <div class="empty-state-box my-0">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-kanban"></i>
+                                        </div>
+                                        <h5 class="empty-state-title">Tidak ada active work</h5>
+                                        <p class="empty-state-text mb-0">
+                                            Belum ada card Academic di status To Do, Doing, atau Review.
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="tab-pane fade"
+                    id="marketing-work-pane"
+                    role="tabpanel"
+                    aria-labelledby="marketing-work-tab"
+                    tabindex="0"
+                >
+                    <div class="work-progress-completion-card mb-4 is-empty">
+                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
+                            <div>
+                                <div class="work-progress-completion-eyebrow">Marketing Progress</div>
+                                <div class="work-progress-completion-value">0%</div>
+                                <div class="work-progress-completion-label">
+                                    Data progress Marketing akan tampil setelah board Marketing tersambung.
+                                </div>
+                            </div>
+
+                            <div class="work-progress-completion-meta text-lg-end">
+                                <div class="small text-muted">Connection</div>
+                                <div class="fw-semibold text-dark">Belum tersambung</div>
+                            </div>
+                        </div>
+
+                        <div class="progress progress-modern work-progress-completion-track mb-3">
+                            <div
+                                class="progress-bar bg-secondary"
+                                role="progressbar"
+                                style="width: 0%;"
+                                aria-valuenow="0"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                            ></div>
+                        </div>
+
+                        <div class="row g-3">
+                            @foreach(['To Do', 'Doing', 'Review', 'Done'] as $marketingStatusLabel)
+                                <div class="col-xl-3 col-md-6">
+                                    <div class="work-progress-mini-metric">
+                                        <span>{{ $marketingStatusLabel }}</span>
+                                        <strong>0</strong>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div class="empty-state-box my-0">
+                        <div class="empty-state-icon">
+                            <i class="bi bi-megaphone"></i>
+                        </div>
+                        <h5 class="empty-state-title">Marketing progress belum tersedia</h5>
+                        <p class="empty-state-text mb-0">
+                            Data progress Marketing akan tampil setelah board Marketing tersambung ke dashboard.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-section-label mb-3 mt-1">
         <div class="dashboard-section-eyebrow">Trial Overview</div>
         <h4 class="dashboard-section-title mb-1">Trial Performance This Month</h4>
         <p class="dashboard-section-subtitle mb-0">
@@ -1401,6 +1854,224 @@
         justify-content: center;
         flex-shrink: 0;
         font-size: 1.15rem;
+    }
+
+    .trello-insight-box {
+        background: linear-gradient(135deg, rgba(0, 121, 191, 0.08), rgba(91, 62, 142, 0.06));
+        border: 1px solid rgba(0, 121, 191, 0.12);
+        border-radius: 18px;
+        padding: 1rem;
+    }
+
+    .trello-insight-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: rgba(0, 121, 191, 0.12);
+        color: #0079BF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.15rem;
+    }
+
+    .trello-progress-card {
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 20px;
+        padding: 1.25rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .trello-status-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .trello-status-item {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 16px;
+        padding: .9rem;
+        background: rgba(248, 250, 252, 0.78);
+        min-height: 108px;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+
+    .trello-status-item-top {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        min-width: 0;
+    }
+
+    .trello-status-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        font-size: .95rem;
+    }
+
+    .trello-status-item span {
+        color: #6b7280;
+        font-size: .82rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .trello-status-item strong {
+        color: #111827;
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .trello-status-item em {
+        align-self: flex-start;
+        font-style: normal;
+        font-size: .68rem;
+    }
+
+    .trello-table-card {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 18px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    .trello-table-header {
+        padding: 1rem 1rem .25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .bg-purple-subtle {
+        background-color: rgba(91, 62, 142, 0.12) !important;
+    }
+
+    .text-purple {
+        color: #5B3E8E !important;
+    }
+
+
+
+    .work-progress-tabs {
+        background: rgba(91, 62, 142, 0.06);
+        border: 1px solid rgba(91, 62, 142, 0.10);
+        border-radius: 999px;
+        padding: .25rem;
+        gap: .25rem;
+    }
+
+    .work-progress-tabs .nav-link {
+        border-radius: 999px;
+        color: #6b7280;
+        font-size: .85rem;
+        font-weight: 700;
+        padding: .45rem .85rem;
+    }
+
+    .work-progress-tabs .nav-link.active {
+        background: #5B3E8E;
+        color: #ffffff;
+        box-shadow: 0 10px 20px rgba(91, 62, 142, 0.18);
+    }
+
+    .work-progress-stat-card .stat-icon-wrap {
+        background: rgba(91, 62, 142, 0.10);
+        color: #5B3E8E;
+    }
+
+    .work-progress-completion-card {
+        border: 1px solid rgba(91, 62, 142, 0.12);
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(91, 62, 142, 0.07), rgba(255, 190, 4, 0.08));
+        padding: 1.25rem;
+    }
+
+    .work-progress-completion-card.is-empty {
+        background: linear-gradient(135deg, rgba(107, 114, 128, 0.06), rgba(91, 62, 142, 0.04));
+        border-color: rgba(107, 114, 128, 0.12);
+    }
+
+    .work-progress-completion-eyebrow {
+        color: #5B3E8E;
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin-bottom: .35rem;
+    }
+
+    .work-progress-completion-value {
+        color: #111827;
+        font-size: 2.25rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .work-progress-completion-label {
+        color: #6b7280;
+        font-size: .92rem;
+        font-weight: 600;
+        margin-top: .35rem;
+    }
+
+    .work-progress-completion-meta {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        border-radius: 16px;
+        padding: .75rem 1rem;
+    }
+
+    .work-progress-completion-track {
+        height: 10px;
+        background: rgba(91, 62, 142, 0.10);
+    }
+
+    .work-progress-mini-metric {
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 16px;
+        padding: .9rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .work-progress-mini-metric span {
+        color: #6b7280;
+        font-size: .85rem;
+        font-weight: 700;
+    }
+
+    .work-progress-mini-metric strong {
+        color: #111827;
+        font-size: 1.2rem;
+        font-weight: 900;
+    }
+
+    @media (max-width: 1199.98px) {
+        .trello-status-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .trello-status-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 @endpush

@@ -8,6 +8,7 @@ use App\Models\TrialSchedule;
 use App\Models\TrialTheme;
 use App\Services\KommoService;
 use App\Services\LocalDashboardInsightService;
+use App\Services\Trello\TrelloDashboardStatsService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,7 +20,8 @@ class DashboardController extends Controller
 {
     public function index(
         LocalDashboardInsightService $localDashboardInsightService,
-        KommoService $kommoService
+        KommoService $kommoService,
+        TrelloDashboardStatsService $trelloDashboardStatsService
     ): View {
         $academicStats = $this->getAcademicStats();
         $batchCapacity = $this->getBatchCapacitySummary();
@@ -41,6 +43,10 @@ class DashboardController extends Controller
         $upcomingWorkshopSchedules = $this->getUpcomingWorkshopSchedules();
 
         $kommoTodayLeadInsight = $this->getKommoTodayLeadInsight($kommoService);
+        $trelloAcademicStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'academic');
+        $trelloDashboardStats = [
+            'academic' => $trelloAcademicStats,
+        ];
 
         $summaryContext = [
             'academic_stats' => $academicStats,
@@ -59,12 +65,18 @@ class DashboardController extends Controller
             'workshop_follow_up_progress' => $workshopFollowUpProgress,
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
             'kommo_today_lead_insight' => $kommoTodayLeadInsight,
+            'trello_academic_stats' => $trelloAcademicStats,
+            'trello_dashboard_stats' => $trelloDashboardStats,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
         $managementSummary = $this->mergeKommoTodayLeadInsightIntoManagementSummary(
             $managementSummary,
             $kommoTodayLeadInsight
+        );
+        $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
+            $managementSummary,
+            $trelloAcademicStats
         );
 
         return view('dashboard', [
@@ -88,6 +100,8 @@ class DashboardController extends Controller
             'workshopFollowUpProgress' => $workshopFollowUpProgress,
             'upcomingWorkshopSchedules' => $upcomingWorkshopSchedules,
             'kommoTodayLeadInsight' => $kommoTodayLeadInsight,
+            'trelloAcademicStats' => $trelloAcademicStats,
+            'trelloDashboardStats' => $trelloDashboardStats,
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
         ]);
@@ -821,6 +835,143 @@ class DashboardController extends Controller
     }
 
 
+
+
+    protected function getTrelloDashboardInsight(
+        TrelloDashboardStatsService $trelloDashboardStatsService,
+        string $sourceKey = 'academic'
+    ): array {
+        try {
+            return $trelloDashboardStatsService->getStats($sourceKey);
+        } catch (Throwable $exception) {
+            Log::error('Failed to fetch Trello dashboard stats.', [
+                'source_key' => $sourceKey,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $this->emptyTrelloDashboardStats(
+                sourceKey: $sourceKey,
+                insight: 'Data Trello belum bisa ditarik. Dashboard tetap aman, tapi koneksi Trello atau struktur table perlu dicek.'
+            );
+        }
+    }
+
+    protected function emptyTrelloDashboardStats(string $sourceKey, ?string $insight = null): array
+    {
+        return [
+            'source_key' => $sourceKey,
+            'integration_name' => null,
+            'department' => $sourceKey,
+            'board_id' => null,
+            'board_name' => null,
+            'webhook_status' => 'inactive',
+            'last_synced_at' => null,
+            'last_webhook_at' => null,
+
+            'summary' => [
+                'total_open_cards' => 0,
+                'active_work' => 0,
+                'completed' => 0,
+                'due_today' => 0,
+                'overdue' => 0,
+                'unmapped' => 0,
+                'completion_rate' => 0,
+                'active_work_rate' => 0,
+            ],
+
+            'statuses' => [
+                'notes' => 0,
+                'todo' => 0,
+                'in_progress' => 0,
+                'review' => 0,
+                'scheduled' => 0,
+                'done' => 0,
+                'archived' => 0,
+                'ignored' => 0,
+            ],
+
+            'due_today_cards' => [],
+            'overdue_cards' => [],
+            'active_cards' => [],
+            'recent_cards' => [],
+
+            'insight' => $insight ?: 'Trello integration belum aktif atau belum ditemukan.',
+        ];
+    }
+
+    protected function mergeTrelloDashboardStatsIntoManagementSummary(
+        array $managementSummary,
+        array $trelloStats
+    ): array {
+        $summary = $trelloStats['summary'] ?? [];
+
+        $sourceKey = (string) ($trelloStats['source_key'] ?? 'academic');
+        $boardName = trim((string) ($trelloStats['board_name'] ?? ''));
+        $webhookStatus = (string) ($trelloStats['webhook_status'] ?? 'inactive');
+
+        $totalOpenCards = (int) ($summary['total_open_cards'] ?? 0);
+        $activeWork = (int) ($summary['active_work'] ?? 0);
+        $dueToday = (int) ($summary['due_today'] ?? 0);
+        $overdue = (int) ($summary['overdue'] ?? 0);
+        $unmapped = (int) ($summary['unmapped'] ?? 0);
+        $completionRate = (int) ($summary['completion_rate'] ?? 0);
+
+        $insight = trim((string) ($trelloStats['insight'] ?? ''));
+
+        if ($insight === '') {
+            return $managementSummary;
+        }
+
+        $departmentLabel = match ($sourceKey) {
+            'academic' => 'Academic',
+            'marketing' => 'Marketing',
+            default => ucfirst($sourceKey),
+        };
+
+        $type = 'info';
+        $title = "{$departmentLabel} Trello Workload";
+
+        if ($webhookStatus !== 'active') {
+            $type = 'warning';
+            $title = "{$departmentLabel} Trello belum aktif";
+        } elseif ($unmapped > 0) {
+            $type = 'warning';
+            $title = "{$departmentLabel} Trello perlu mapping";
+            $insight = "{$departmentLabel} Trello masih memiliki {$unmapped} card tanpa mapping status. Mapping list perlu dicek sebelum angka dashboard dijadikan acuan.";
+        } elseif ($overdue > 0) {
+            $type = 'critical';
+            $title = "{$departmentLabel} Trello overdue";
+        } elseif ($dueToday > 0) {
+            $type = 'action';
+            $title = "{$departmentLabel} Trello due today";
+        } elseif ($activeWork > 0) {
+            $type = 'info';
+            $title = "{$departmentLabel} Trello aktif";
+        } elseif ($totalOpenCards > 0 && $completionRate >= 80) {
+            $type = 'good';
+            $title = "{$departmentLabel} Trello sehat";
+        }
+
+        if ($boardName !== '') {
+            $insight .= ' Board: ' . $boardName . '.';
+        }
+
+        $trelloItem = $this->summaryItem($type, $title, $insight);
+
+        $existingItems = $managementSummary['items'] ?? [];
+        $existingFocus = $managementSummary['focus'] ?? [];
+        $existingSummaryText = trim((string) ($managementSummary['summary_text'] ?? ''));
+
+        $managementSummary['items'] = array_values(array_merge([$trelloItem], $existingItems));
+        $managementSummary['focus'] = array_slice(array_values(array_merge([$trelloItem], $existingFocus)), 0, 3);
+        $managementSummary['summary_text'] = trim($insight . ' ' . $existingSummaryText);
+
+        if (! isset($managementSummary['headline']) || $overdue > 0 || $unmapped > 0 || $webhookStatus !== 'active') {
+            $managementSummary['headline'] = $title;
+        }
+
+        return $managementSummary;
+    }
 
     protected function mergeKommoTodayLeadInsightIntoManagementSummary(
         array $managementSummary,
