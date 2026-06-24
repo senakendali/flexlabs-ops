@@ -852,6 +852,10 @@ Route::middleware('auth')->group(function () {
             Route::get('/create', [MeetingMinuteController::class, 'create'])->middleware('permission:meeting_minutes.create')->name('create');
             Route::post('/', [MeetingMinuteController::class, 'store'])->middleware('permission:meeting_minutes.create')->name('store');
 
+            // AI Summary dari voice transcript
+            Route::post('/ai-summary', [MeetingMinuteController::class, 'generateAiSummary'])
+            ->middleware('permission:meeting_minutes.create')
+            ->name('ai-summary');
             // Download PDF harus sebelum route show
             Route::get('/{meetingMinute}/download-pdf', [MeetingMinuteController::class, 'downloadPdf'])
                 ->name('download-pdf');

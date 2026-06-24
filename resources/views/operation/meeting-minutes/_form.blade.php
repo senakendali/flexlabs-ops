@@ -200,6 +200,70 @@
             @method('PUT')
         @endif
 
+        <div class="content-card section-card voice-assistant-card mb-4" id="meetingVoiceAssistantCard">
+            <div class="content-card-header section-card-header align-items-start">
+                <div>
+                    <div class="voice-eyebrow">
+                        <i class="bi bi-mic-fill me-1"></i> Meeting Voice Assistant
+                    </div>
+                    <h5 class="content-card-title mb-1">Ambil Suara Meeting</h5>
+                    <p class="content-card-subtitle mb-0">
+                        Klik start saat meeting berjalan. Setelah selesai, kirim transcript ke AI untuk dibuat Summary &amp; Notes yang lebih rapi.
+                    </p>
+                </div>
+
+                <div class="voice-status-pill" id="voiceStatusPill">
+                    <span class="voice-status-dot"></span>
+                    <span id="voiceStatusText">Ready</span>
+                </div>
+            </div>
+
+            <div class="content-card-body">
+                <div class="voice-control-panel">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                        <div>
+                            <div class="voice-panel-title">Live Transcript</div>
+                            <div class="voice-panel-subtitle">
+                                Support terbaik di Chrome/Edge. Browser akan minta izin microphone saat tombol start ditekan.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-primary btn-modern" id="startVoiceBtn">
+                                <i class="bi bi-mic-fill me-1"></i> Start Listening
+                            </button>
+                            <button type="button" class="btn btn-light border btn-modern" id="stopVoiceBtn" disabled>
+                                <i class="bi bi-stop-circle me-1"></i> Stop
+                            </button>
+                        </div>
+                    </div>
+
+                    <textarea id="voiceTranscriptField" class="form-control voice-transcript-field" rows="8" placeholder="Transcript meeting akan muncul di sini..."></textarea>
+
+                    <div class="voice-interim-box mt-3" id="voiceInterimBox">
+                        <span class="voice-interim-label">Live capture:</span>
+                        <span id="voiceInterimText">Belum ada suara yang tertangkap.</span>
+                    </div>
+
+                    <div class="voice-bottom-row mt-3">
+                        <div class="voice-helper-note mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Untuk hasil AI lebih rapi, ulangi poin penting seperti: keputusan, PIC, deadline, dan next action.
+                        </div>
+
+                        <div class="voice-bottom-actions">
+                            <button type="button" class="btn btn-light border btn-modern" id="clearVoiceTranscriptBtn">
+                                <i class="bi bi-eraser me-1"></i> Clear Transcript
+                            </button>
+                            <button type="button" class="btn btn-success btn-modern" id="applyVoiceToMomBtn">
+                                <i class="bi bi-stars me-1"></i> Generate AI Summary &amp; Notes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row g-4">
             <div class="col-xl-3">
                 <div class="section-nav-card sticky-top" style="top: 92px;">
@@ -731,7 +795,167 @@
 
 @push('styles')
 <style>
-    
+
+    .voice-assistant-card {
+        overflow: hidden;
+        border: 1px solid rgba(91, 62, 142, .18);
+        background: linear-gradient(135deg, rgba(91, 62, 142, .08), rgba(255, 190, 4, .08) 55%, #ffffff 100%);
+    }
+
+    .voice-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        padding: .35rem .65rem;
+        border-radius: 999px;
+        background: rgba(91, 62, 142, .12);
+        color: #5B3E8E;
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin-bottom: .55rem;
+    }
+
+    .voice-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .55rem .85rem;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, .08);
+        color: #64748b;
+        font-size: .82rem;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+    }
+
+    .voice-status-pill.is-listening {
+        color: #b42318;
+        border-color: rgba(180, 35, 24, .22);
+        background: #fff7f6;
+    }
+
+    .voice-status-pill.is-ready {
+        color: #3B8E4D;
+        border-color: rgba(59, 142, 77, .22);
+        background: #f5fff7;
+    }
+
+    .voice-status-pill.is-warning {
+        color: #946200;
+        border-color: rgba(255, 190, 4, .35);
+        background: #fffbeb;
+    }
+
+    .voice-status-dot {
+        width: .65rem;
+        height: .65rem;
+        border-radius: 999px;
+        background: currentColor;
+        box-shadow: 0 0 0 4px rgba(100, 116, 139, .12);
+    }
+
+    .voice-status-pill.is-listening .voice-status-dot {
+        animation: voicePulse 1.15s infinite;
+        box-shadow: 0 0 0 4px rgba(180, 35, 24, .14);
+    }
+
+    @keyframes voicePulse {
+        0% { transform: scale(1); opacity: 1; }
+        70% { transform: scale(1.25); opacity: .55; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+
+    .voice-control-panel {
+        border-radius: 22px;
+        background: rgba(255, 255, 255, .88);
+        border: 1px solid rgba(15, 23, 42, .08);
+        padding: 1rem;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, .06);
+    }
+
+    .voice-panel-title {
+        color: #0f172a;
+        font-weight: 900;
+        font-size: .98rem;
+    }
+
+    .voice-panel-subtitle,
+    .voice-helper-note {
+        color: #64748b;
+        font-size: .84rem;
+        line-height: 1.55;
+    }
+
+    .voice-transcript-field {
+        min-height: 210px;
+        resize: vertical;
+        border-radius: 18px;
+        border-color: rgba(91, 62, 142, .22);
+        background: #fff;
+        line-height: 1.65;
+    }
+
+    .voice-transcript-field:focus {
+        border-color: rgba(91, 62, 142, .55);
+        box-shadow: 0 0 0 .2rem rgba(91, 62, 142, .12);
+    }
+
+    .voice-interim-box {
+        min-height: 45px;
+        padding: .75rem .9rem;
+        border-radius: 16px;
+        background: #f8fafc;
+        border: 1px dashed rgba(100, 116, 139, .35);
+        color: #334155;
+        font-size: .86rem;
+        line-height: 1.55;
+    }
+
+    .voice-interim-label {
+        color: #5B3E8E;
+        font-weight: 900;
+        margin-right: .3rem;
+    }
+
+
+    .voice-bottom-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .voice-bottom-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+        flex-wrap: wrap;
+        margin-left: auto;
+    }
+
+    @media (max-width: 767.98px) {
+        .voice-bottom-row {
+            align-items: stretch;
+        }
+
+        .voice-helper-note,
+        .voice-bottom-actions,
+        .voice-bottom-actions .btn {
+            width: 100%;
+        }
+    }
+
+    .voice-helper-note {
+        padding: .75rem .85rem;
+        border-radius: 16px;
+        background: rgba(255, 190, 4, .13);
+        border: 1px solid rgba(255, 190, 4, .25);
+        color: #7a5300;
+    }
+
 </style>
 @endpush
 
@@ -764,7 +988,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const sectionProgressBar = document.getElementById('sectionProgressBar');
     const toastContainer = document.getElementById('toastContainer');
 
+    const voiceStatusPill = document.getElementById('voiceStatusPill');
+    const voiceStatusText = document.getElementById('voiceStatusText');
+    const startVoiceBtn = document.getElementById('startVoiceBtn');
+    const stopVoiceBtn = document.getElementById('stopVoiceBtn');
+    const applyVoiceToMomBtn = document.getElementById('applyVoiceToMomBtn');
+    const clearVoiceTranscriptBtn = document.getElementById('clearVoiceTranscriptBtn');
+    const voiceTranscriptField = document.getElementById('voiceTranscriptField');
+    const voiceInterimText = document.getElementById('voiceInterimText');
+
     const csrfToken = @json(csrf_token());
+    const aiSummaryUrl = @json(route('operation.meeting-minutes.ai-summary'));
     const userOptions = @json($userOptions);
     const participantRows = @json($participants);
     const agendaRows = @json($agendas);
@@ -775,7 +1009,441 @@ document.addEventListener('DOMContentLoaded', function () {
     let actionIndex = 0;
     let redirectTimeout = null;
 
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+    let shouldKeepListening = false;
+    let finalTranscriptBuffer = '';
+
     totalSectionCount.textContent = '5';
+
+
+    function setVoiceStatus(status, text) {
+        if (!voiceStatusPill || !voiceStatusText) return;
+
+        voiceStatusPill.classList.remove('is-listening', 'is-ready', 'is-warning');
+
+        if (status) {
+            voiceStatusPill.classList.add(`is-${status}`);
+        }
+
+        voiceStatusText.textContent = text || 'Ready';
+    }
+
+    function setVoiceButtons(listening) {
+        if (startVoiceBtn) startVoiceBtn.disabled = listening;
+        if (stopVoiceBtn) stopVoiceBtn.disabled = !listening;
+    }
+
+    function appendTranscript(text) {
+        if (!voiceTranscriptField || !isFilled(text)) return;
+
+        const current = voiceTranscriptField.value.trim();
+        voiceTranscriptField.value = current ? `${current} ${text.trim()}` : text.trim();
+        voiceTranscriptField.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function splitTranscriptToChunks(transcript) {
+        const cleanTranscript = String(transcript || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!cleanTranscript) return [];
+
+        const sentenceChunks = cleanTranscript
+            .split(/(?<=[.!?])\s+|\n+/)
+            .map(function (item) { return item.trim(); })
+            .filter(Boolean);
+
+        if (sentenceChunks.length > 1) {
+            return sentenceChunks;
+        }
+
+        const words = cleanTranscript.split(' ');
+        const chunks = [];
+        let buffer = [];
+
+        words.forEach(function (word) {
+            buffer.push(word);
+
+            if (buffer.join(' ').length >= 170) {
+                chunks.push(buffer.join(' '));
+                buffer = [];
+            }
+        });
+
+        if (buffer.length > 0) {
+            chunks.push(buffer.join(' '));
+        }
+
+        return chunks;
+    }
+
+    function uniqueLimited(items, limit = 5) {
+        const seen = new Set();
+        const results = [];
+
+        items.forEach(function (item) {
+            const normalized = item.toLowerCase().replace(/[^a-z0-9\s]/gi, '').trim();
+            if (!normalized || seen.has(normalized)) return;
+
+            seen.add(normalized);
+            results.push(item);
+        });
+
+        return results.slice(0, limit);
+    }
+
+    function findImportantChunks(chunks, keywords, limit = 5) {
+        return uniqueLimited(chunks.filter(function (chunk) {
+            const lower = chunk.toLowerCase();
+            return keywords.some(function (keyword) {
+                return lower.includes(keyword);
+            });
+        }), limit);
+    }
+
+    function buildMomContentFromTranscript(transcript) {
+        const chunks = splitTranscriptToChunks(transcript);
+        const summaryChunks = uniqueLimited(chunks, 5);
+
+        const decisionChunks = findImportantChunks(chunks, [
+            'sepakat', 'disepakati', 'setuju', 'keputusan', 'diputuskan', 'jadi', 'fix', 'final', 'confirmed', 'approve', 'approved'
+        ], 5);
+
+        const actionChunks = findImportantChunks(chunks, [
+            'action', 'follow up', 'follow-up', 'todo', 'to do', 'pic', 'deadline', 'due date', 'lanjut', 'cek', 'update', 'buat', 'bikin', 'kirim', 'submit', 'perbaiki', 'revisi', 'siapkan', 'prepare', 'kerjakan', 'handle'
+        ], 7);
+
+        const issueChunks = findImportantChunks(chunks, [
+            'kendala', 'masalah', 'blocking', 'blocked', 'error', 'belum jalan', 'belum selesai', 'kurang', 'issue'
+        ], 5);
+
+        const summaryLines = [];
+        summaryLines.push('Ringkasan Meeting');
+
+        if (summaryChunks.length > 0) {
+            summaryChunks.forEach(function (chunk) {
+                summaryLines.push(`- ${chunk}`);
+            });
+        } else {
+            summaryLines.push('- Belum ada transcript yang cukup untuk diringkas.');
+        }
+
+        if (decisionChunks.length > 0) {
+            summaryLines.push('', 'Keputusan Utama');
+            decisionChunks.forEach(function (chunk) {
+                summaryLines.push(`- ${chunk}`);
+            });
+        }
+
+        if (actionChunks.length > 0) {
+            summaryLines.push('', 'Action / Follow-up');
+            actionChunks.forEach(function (chunk) {
+                summaryLines.push(`- ${chunk}`);
+            });
+        }
+
+        const notesLines = [];
+        notesLines.push('Voice Transcript');
+        notesLines.push(transcript.trim());
+
+        if (issueChunks.length > 0) {
+            notesLines.push('', 'Potential Issues / Notes');
+            issueChunks.forEach(function (chunk) {
+                notesLines.push(`- ${chunk}`);
+            });
+        }
+
+        return {
+            summary: summaryLines.join('\n'),
+            notes: notesLines.join('\n')
+        };
+    }
+
+    function appendToTextarea(textarea, content, separatorTitle = '') {
+        if (!textarea || !isFilled(content)) return;
+
+        const current = textarea.value.trim();
+        const separator = separatorTitle ? `\n\n--- ${separatorTitle} ---\n` : '\n\n';
+
+        textarea.value = current ? `${current}${separator}${content.trim()}` : content.trim();
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function moveToSummaryTab() {
+        const summaryTabTrigger = document.getElementById('tab-summary-btn');
+
+        if (summaryTabTrigger && typeof bootstrap !== 'undefined') {
+            bootstrap.Tab.getOrCreateInstance(summaryTabTrigger).show();
+        }
+    }
+
+    function buildAiNotesPayload(data, transcript) {
+        const notesBlocks = [];
+
+        if (isFilled(data.notes)) {
+            notesBlocks.push(data.notes.trim());
+        }
+
+        if (isFilled(data.decisions)) {
+            notesBlocks.push(`Decisions:\n${data.decisions.trim()}`);
+        }
+
+        if (isFilled(data.action_items)) {
+            notesBlocks.push(`Action Items:\n${data.action_items.trim()}`);
+        }
+
+        if (isFilled(transcript)) {
+            notesBlocks.push(`Raw Voice Transcript:\n${transcript.trim()}`);
+        }
+
+        return notesBlocks.join('\n\n');
+    }
+
+    function setAiButtonLoading(isLoading) {
+        if (!applyVoiceToMomBtn) return;
+
+        if (isLoading) {
+            applyVoiceToMomBtn.disabled = true;
+            applyVoiceToMomBtn.dataset.originalHtml = applyVoiceToMomBtn.innerHTML;
+            applyVoiceToMomBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Generating AI Summary...';
+            return;
+        }
+
+        applyVoiceToMomBtn.disabled = false;
+
+        if (applyVoiceToMomBtn.dataset.originalHtml) {
+            applyVoiceToMomBtn.innerHTML = applyVoiceToMomBtn.dataset.originalHtml;
+        }
+    }
+
+    async function applyVoiceTranscriptToMom() {
+        const transcript = voiceTranscriptField?.value?.trim() || '';
+
+        if (!transcript) {
+            showToast('Transcript masih kosong. Klik Start Listening dulu atau isi transcript manual.', 'warning');
+            return;
+        }
+
+        if (transcript.length < 20) {
+            showToast('Transcript terlalu pendek untuk diolah AI. Tambahkan konteks meeting dulu.', 'warning');
+            return;
+        }
+
+        if (isListening) {
+            stopVoiceRecognition();
+        }
+
+        const summaryField = form.querySelector('[name="summary"]');
+        const notesField = form.querySelector('[name="notes"]');
+
+        setAiButtonLoading(true);
+        setVoiceStatus('warning', 'AI Processing');
+
+        if (voiceInterimText) {
+            voiceInterimText.textContent = 'Transcript sedang dikirim ke AI untuk dibuat Summary & Notes...';
+        }
+
+        try {
+            const response = await fetch(aiSummaryUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    transcript: transcript,
+                }),
+            });
+
+            const data = await parseResponse(response);
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Gagal membuat summary AI.');
+            }
+
+            if (!isFilled(data.summary) && !isFilled(data.notes) && !isFilled(data.decisions) && !isFilled(data.action_items)) {
+                throw new Error('AI tidak mengembalikan hasil summary yang bisa dipakai.');
+            }
+
+            appendToTextarea(summaryField, data.summary || '', 'AI Generated Summary');
+            appendToTextarea(notesField, buildAiNotesPayload(data, transcript), 'AI Generated Notes');
+
+            refreshAll();
+            setVoiceStatus('ready', 'AI Summary Ready');
+
+            if (voiceInterimText) {
+                voiceInterimText.textContent = 'AI summary berhasil dibuat. Cek tab Summary & Notes sebelum submit MOM.';
+            }
+
+            showToast('AI Summary berhasil masuk ke Summary & Notes.', 'success');
+            moveToSummaryTab();
+        } catch (error) {
+            setVoiceStatus('warning', 'AI Failed');
+
+            if (voiceInterimText) {
+                voiceInterimText.textContent = error.message || 'Gagal memproses transcript dengan AI.';
+            }
+
+            showToast(error.message || 'Gagal memproses transcript dengan AI.', 'danger');
+        } finally {
+            setAiButtonLoading(false);
+        }
+    }
+
+    function clearVoiceTranscript() {
+        shouldKeepListening = false;
+
+        if (isListening && recognition) {
+            recognition.stop();
+        }
+
+        finalTranscriptBuffer = '';
+
+        if (voiceTranscriptField) {
+            voiceTranscriptField.value = '';
+            voiceTranscriptField.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        if (voiceInterimText) {
+            voiceInterimText.textContent = 'Belum ada suara yang tertangkap.';
+        }
+
+        setVoiceStatus('ready', 'Ready');
+        setVoiceButtons(false);
+        showToast('Transcript voice sudah dibersihkan.', 'info');
+    }
+
+    function initVoiceRecognition() {
+        if (!startVoiceBtn || !stopVoiceBtn || !voiceTranscriptField) return;
+
+        if (!SpeechRecognition) {
+            setVoiceStatus('warning', 'Not Supported');
+            startVoiceBtn.disabled = true;
+            stopVoiceBtn.disabled = true;
+
+            if (voiceInterimText) {
+                voiceInterimText.textContent = 'Browser ini belum support speech recognition. Coba pakai Chrome atau Edge.';
+            }
+
+            return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.lang = 'id-ID';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function () {
+            isListening = true;
+            setVoiceStatus('listening', 'Listening');
+            setVoiceButtons(true);
+
+            if (voiceInterimText) {
+                voiceInterimText.textContent = 'Mendengarkan suara meeting...';
+            }
+        };
+
+        recognition.onresult = function (event) {
+            let interimTranscript = '';
+            let finalTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript + ' ';
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+
+            if (finalTranscript.trim()) {
+                finalTranscriptBuffer += finalTranscript.trim() + ' ';
+                appendTranscript(finalTranscript);
+            }
+
+            if (voiceInterimText) {
+                voiceInterimText.textContent = interimTranscript.trim() || 'Mendengarkan suara meeting...';
+            }
+        };
+
+        recognition.onerror = function (event) {
+            const errorMessage = {
+                'not-allowed': 'Microphone ditolak. Izinkan akses microphone di browser.',
+                'no-speech': 'Belum ada suara yang tertangkap.',
+                'audio-capture': 'Microphone tidak terdeteksi.',
+                'network': 'Koneksi browser untuk speech recognition bermasalah.'
+            }[event.error] || `Voice recognition error: ${event.error}`;
+
+            setVoiceStatus('warning', 'Need Check');
+            setVoiceButtons(false);
+            showToast(errorMessage, 'warning');
+        };
+
+        recognition.onend = function () {
+            isListening = false;
+
+            if (shouldKeepListening) {
+                setVoiceStatus('listening', 'Listening');
+                setVoiceButtons(true);
+
+                setTimeout(function () {
+                    try {
+                        recognition.start();
+                    } catch (error) {
+                        shouldKeepListening = false;
+                        setVoiceButtons(false);
+                        setVoiceStatus('warning', 'Need Check');
+                    }
+                }, 350);
+
+                return;
+            }
+
+            setVoiceButtons(false);
+
+            if (voiceTranscriptField.value.trim()) {
+                setVoiceStatus('ready', 'Transcript Ready');
+
+                if (voiceInterimText) {
+                    voiceInterimText.textContent = 'Recording berhenti. Transcript siap dikirim ke Summary & Notes.';
+                }
+            } else {
+                setVoiceStatus('ready', 'Ready');
+
+                if (voiceInterimText) {
+                    voiceInterimText.textContent = 'Recording berhenti. Belum ada transcript final.';
+                }
+            }
+        };
+    }
+
+    function startVoiceRecognition() {
+        if (!recognition) {
+            showToast('Speech recognition belum tersedia di browser ini.', 'warning');
+            return;
+        }
+
+        shouldKeepListening = true;
+
+        try {
+            recognition.start();
+        } catch (error) {
+            showToast('Voice assistant sudah aktif atau browser belum siap.', 'warning');
+        }
+    }
+
+    function stopVoiceRecognition() {
+        shouldKeepListening = false;
+        if (!recognition || !isListening) return;
+        recognition.stop();
+    }
 
     function showToast(message, type = 'success') {
         if (!toastContainer || typeof bootstrap === 'undefined') return;
@@ -1204,6 +1872,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
         }
+    }
+
+
+    initVoiceRecognition();
+
+    if (startVoiceBtn) {
+        startVoiceBtn.addEventListener('click', startVoiceRecognition);
+    }
+
+    if (stopVoiceBtn) {
+        stopVoiceBtn.addEventListener('click', stopVoiceRecognition);
+    }
+
+    if (applyVoiceToMomBtn) {
+        applyVoiceToMomBtn.addEventListener('click', applyVoiceTranscriptToMom);
+    }
+
+    if (clearVoiceTranscriptBtn) {
+        clearVoiceTranscriptBtn.addEventListener('click', clearVoiceTranscript);
+    }
+
+    if (voiceTranscriptField) {
+        voiceTranscriptField.addEventListener('input', function () {
+            if (voiceTranscriptField.value.trim()) {
+                setVoiceStatus(isListening ? 'listening' : 'ready', isListening ? 'Listening' : 'Transcript Ready');
+            } else if (!isListening) {
+                setVoiceStatus('ready', 'Ready');
+            }
+        });
     }
 
     addParticipantBtn.addEventListener('click', function () {

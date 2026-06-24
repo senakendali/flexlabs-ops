@@ -19,6 +19,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 class MeetingMinuteController extends Controller
 {
@@ -201,6 +203,129 @@ class MeetingMinuteController extends Controller
         ];
 
         return view('operation.meeting-minutes.show', compact('meetingMinute', 'stats'));
+    }
+
+    public function generateAiSummary(Request $request)
+    {
+        $validated = $request->validate([
+            'transcript' => ['required', 'string', 'min:20'],
+        ]);
+
+        $apiKey = config('services.gemini.api_key');
+        $model = config('services.gemini.model', 'gemini-3.5-flash');
+
+        if (blank($apiKey)) {
+            return response()->json([
+                'message' => 'Gemini API key belum dikonfigurasi. Cek GEMINI_API_KEY di .env lalu jalankan php artisan optimize:clear.',
+            ], 422);
+        }
+
+        $transcript = Str::limit($validated['transcript'], 20000, '');
+
+        $prompt = <<<PROMPT
+    Kamu adalah asisten meeting untuk membuat Minutes of Meeting (MOM) internal perusahaan.
+
+    Baca transcript meeting berikut, lalu buat hasil dalam bahasa Indonesia yang rapi, profesional, jelas, dan to the point.
+
+    Format balasan HARUS JSON valid tanpa markdown, tanpa backtick, tanpa penjelasan tambahan.
+
+    Struktur JSON:
+    {
+    "summary": "Ringkasan meeting 1-3 paragraf.",
+    "notes": "Catatan meeting dalam bullet point.",
+    "decisions": "Keputusan meeting dalam bullet point. Jika tidak ada, tulis '- Belum ada keputusan final.'",
+    "action_items": "Action item dalam bullet point berisi task, PIC jika ada, dan deadline jika ada. Jika tidak ada, tulis '- Belum ada action item yang jelas.'"
+    }
+
+    Transcript:
+    {$transcript}
+    PROMPT;
+
+        try {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+
+            $response = Http::timeout(90)
+                ->retry(2, 700)
+                ->acceptJson()
+                ->asJson()
+                ->withQueryParameters([
+                    'key' => $apiKey,
+                ])
+                ->post($url, [
+                    'contents' => [
+                        [
+                            'role' => 'user',
+                            'parts' => [
+                                ['text' => $prompt],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.2,
+                        'responseMimeType' => 'application/json',
+                    ],
+                ]);
+
+            if (! $response->successful()) {
+                Log::warning('Gemini MOM summary failed', [
+                    'status' => $response->status(),
+                    'body' => $response->json() ?? $response->body(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Gagal membuat summary AI.',
+                    'status' => $response->status(),
+                    'detail' => config('app.debug') ? ($response->json() ?? $response->body()) : null,
+                ], 422);
+            }
+
+            $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+
+            if (blank($text)) {
+                Log::warning('Gemini MOM summary empty response', [
+                    'body' => $response->json(),
+                ]);
+
+                return response()->json([
+                    'message' => 'AI tidak mengembalikan hasil summary.',
+                    'detail' => config('app.debug') ? $response->json() : null,
+                ], 422);
+            }
+
+            $result = json_decode($text, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('Gemini MOM summary invalid JSON', [
+                    'raw' => $text,
+                    'json_error' => json_last_error_msg(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Format hasil AI tidak valid.',
+                    'raw' => config('app.debug') ? $text : null,
+                ], 422);
+            }
+
+            return response()->json([
+                'summary' => $result['summary'] ?? '',
+                'notes' => $result['notes'] ?? '',
+                'decisions' => $result['decisions'] ?? '',
+                'action_items' => $result['action_items'] ?? '',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Gemini MOM summary exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'message' => 'Terjadi error saat memproses summary AI.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+                'file' => config('app.debug') ? $e->getFile() : null,
+                'line' => config('app.debug') ? $e->getLine() : null,
+            ], 500);
+        }
     }
 
     public function downloadPdf(MeetingMinute $meetingMinute)
