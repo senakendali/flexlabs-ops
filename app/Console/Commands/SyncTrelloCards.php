@@ -171,7 +171,7 @@ class SyncTrelloCards extends Command
                 ]),
 
                 'members' => 'true',
-                'member_fields' => 'id,fullName,username,initials',
+                'member_fields' => 'id,fullName,username,initials,avatarHash,avatarUrl',
 
                 'labels' => 'true',
                 'label_fields' => 'id,name,color',
