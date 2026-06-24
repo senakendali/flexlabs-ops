@@ -15,3 +15,7 @@ Schedule::command('trello:sync-cards --source=academic')
 Schedule::command('trello:sync-cards --source=marketing')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('trello:sync-cards --source=sei')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

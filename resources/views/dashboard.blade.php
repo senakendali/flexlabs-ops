@@ -46,10 +46,10 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Work Progress: Academic & Marketing
+    | Work Progress: Academic, Marketing & SEI
     |--------------------------------------------------------------------------
     | Data disiapkan dari DashboardController via TrelloDashboardStatsService.
-    | Academic dan Marketing dibaca dari variable masing-masing, dengan fallback
+    | Academic, Marketing, dan SEI dibaca dari variable masing-masing, dengan fallback
     | ke array trelloDashboardStats agar Blade tetap aman kalau controller lama.
     */
     $trelloDashboardStats = $trelloDashboardStats ?? [];
@@ -144,6 +144,52 @@
 
     $trelloMarketingOverdueClass = $trelloMarketingOverdue > 0 ? 'text-danger' : 'text-success';
     $trelloMarketingDueTodayClass = $trelloMarketingDueToday > 0 ? 'text-warning' : 'text-success';
+
+    $trelloSeiStats = $trelloSeiStats ?? ($trelloDashboardStats['sei'] ?? []);
+    $trelloSeiSummary = $trelloSeiStats['summary'] ?? [];
+    $trelloSeiStatuses = $trelloSeiStats['statuses'] ?? [];
+
+    $trelloSeiTotalOpenCards = max((int) ($trelloSeiSummary['total_open_cards'] ?? 0), 0);
+    $trelloSeiActiveWork = max((int) ($trelloSeiSummary['active_work'] ?? 0), 0);
+    $trelloSeiCompleted = max((int) ($trelloSeiSummary['completed'] ?? 0), 0);
+    $trelloSeiDueToday = max((int) ($trelloSeiSummary['due_today'] ?? 0), 0);
+    $trelloSeiOverdue = max((int) ($trelloSeiSummary['overdue'] ?? 0), 0);
+    $trelloSeiUnmapped = max((int) ($trelloSeiSummary['unmapped'] ?? 0), 0);
+    $trelloSeiCompletionRate = min(max((int) ($trelloSeiSummary['completion_rate'] ?? 0), 0), 100);
+    $trelloSeiActiveWorkRate = min(max((int) ($trelloSeiSummary['active_work_rate'] ?? 0), 0), 100);
+
+    $trelloSeiDueTodayCards = collect($trelloSeiStats['due_today_cards'] ?? []);
+    $trelloSeiOverdueCards = collect($trelloSeiStats['overdue_cards'] ?? []);
+    $trelloSeiPriorityCards = $trelloSeiOverdueCards
+        ->merge($trelloSeiDueTodayCards)
+        ->unique(fn ($card) => $card['trello_card_id'] ?? $card['id'] ?? $card['name'] ?? uniqid())
+        ->values();
+
+    $trelloSeiActiveCards = collect($trelloSeiStats['active_cards'] ?? []);
+    $trelloSeiRecentCards = collect($trelloSeiStats['recent_cards'] ?? []);
+
+    $trelloSeiWebhookStatus = (string) ($trelloSeiStats['webhook_status'] ?? 'inactive');
+    $trelloSeiIsSynced = in_array($trelloSeiWebhookStatus, ['active', 'synced'], true);
+    $trelloSeiBoardName = $trelloSeiStats['board_name'] ?? 'SEI Trello';
+    $trelloSeiInsight = $trelloSeiStats['insight'] ?? 'SEI Work insight belum tersedia.';
+
+    $trelloSeiLastSyncedRaw = $trelloSeiStats['last_synced_at'] ?? null;
+    $trelloSeiLastWebhookRaw = $trelloSeiStats['last_webhook_at'] ?? null;
+
+    $trelloSeiLastSyncedText = $trelloSeiLastSyncedRaw
+        ? \Carbon\Carbon::parse($trelloSeiLastSyncedRaw)->format('d M Y H:i')
+        : '-';
+
+    $trelloSeiLastWebhookText = $trelloSeiLastWebhookRaw
+        ? \Carbon\Carbon::parse($trelloSeiLastWebhookRaw)->format('d M Y H:i')
+        : '-';
+
+    $trelloSeiProgressClass = $trelloSeiCompletionRate >= 80
+        ? 'bg-success'
+        : ($trelloSeiCompletionRate >= 50 ? 'bg-warning' : 'bg-danger');
+
+    $trelloSeiOverdueClass = $trelloSeiOverdue > 0 ? 'text-danger' : 'text-success';
+    $trelloSeiDueTodayClass = $trelloSeiDueToday > 0 ? 'text-warning' : 'text-success';
 
     $trelloStatusLabels = [
         'notes' => 'Notes',
@@ -975,6 +1021,21 @@
                         Marketing
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button
+                        class="nav-link"
+                        id="sei-work-tab"
+                        data-bs-toggle="pill"
+                        data-bs-target="#sei-work-pane"
+                        type="button"
+                        role="tab"
+                        aria-controls="sei-work-pane"
+                        aria-selected="false"
+                    >
+                        <i class="bi bi-building-fill me-1"></i>
+                        SEI
+                    </button>
+                </li>
             </ul>
         </div>
 
@@ -1678,6 +1739,357 @@
                             </div>
                             @if($trelloMarketingActiveCards->count() > 4)
                                 <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-marketing-active" aria-hidden="true"></div>
+                            @endif
+
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="tab-pane fade"
+                    id="sei-work-pane"
+                    role="tabpanel"
+                    aria-labelledby="sei-work-tab"
+                    tabindex="0"
+                >
+                    <div class="trello-insight-box mb-3">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="trello-insight-icon">
+                                <i class="bi bi-megaphone-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold text-dark mb-1">SEI Work Insight</div>
+                                <p class="text-muted mb-0">{{ $trelloSeiInsight }}</p>
+                                <div class="small text-muted mt-2">
+                                    Last sync: <strong>{{ $trelloSeiLastSyncedText }}</strong>
+                                    <span class="mx-1">•</span>
+                                    Last webhook: <strong>{{ $trelloSeiLastWebhookText }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="work-progress-completion-card mb-4">
+                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
+                            <div>
+                                <div class="work-progress-completion-eyebrow">SEI Progress</div>
+                                <div class="work-progress-completion-value">{{ number_format($trelloSeiCompletionRate) }}%</div>
+                                <div class="work-progress-completion-label">
+                                    {{ number_format($trelloSeiCompleted) }} dari {{ number_format($trelloSeiTotalOpenCards) }} card sudah selesai.
+                                </div>
+                            </div>
+
+                            <div class="work-progress-completion-meta text-lg-end">
+                                <div class="small text-muted">Active Work</div>
+                                <div class="fw-semibold text-dark">
+                                    {{ number_format($trelloSeiActiveWork) }} card berjalan
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="progress progress-modern work-progress-completion-track mb-3">
+                            <div
+                                class="progress-bar {{ $trelloSeiProgressClass }}"
+                                role="progressbar"
+                                style="width: {{ $trelloSeiCompletionRate }}%;"
+                                aria-valuenow="{{ $trelloSeiCompletionRate }}"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                            ></div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Due Today</span>
+                                    <strong class="{{ $trelloSeiDueTodayClass }}">{{ number_format($trelloSeiDueToday) }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Overdue</span>
+                                    <strong class="{{ $trelloSeiOverdueClass }}">{{ number_format($trelloSeiOverdue) }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-xl-4 col-md-4">
+                                <div class="work-progress-mini-metric">
+                                    <span>Unmapped</span>
+                                    <strong>{{ number_format($trelloSeiUnmapped) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        @foreach(['todo', 'in_progress', 'review', 'done'] as $statusKey)
+                            @php
+                                $statusTotal = (int) ($trelloSeiStatuses[$statusKey] ?? 0);
+                                $statusLabel = $trelloStatusLabels[$statusKey] ?? $statusKey;
+                                $statusClass = $trelloStatusBadgeClasses[$statusKey] ?? 'bg-light text-muted';
+                                $statusIcon = $trelloStatusIcons[$statusKey] ?? 'bi-circle';
+                                $statusDescription = match ($statusKey) {
+                                    'todo' => 'Task yang sudah masuk antrean kerja dan menunggu eksekusi.',
+                                    'in_progress' => 'Task yang sedang dikerjakan oleh tim SEI.',
+                                    'review' => 'Task yang sudah dikerjakan dan menunggu pengecekan.',
+                                    'done' => 'Task yang sudah selesai dan tercatat sebagai completed.',
+                                    default => 'Status pekerjaan SEI.',
+                                };
+                            @endphp
+                            <div class="col-xl-3 col-md-6">
+                                <div class="stat-card h-100 work-progress-stat-card">
+                                    <div class="stat-card-top">
+                                        <div class="stat-icon-wrap {{ $statusClass }}">
+                                            <i class="bi {{ $statusIcon }}"></i>
+                                        </div>
+                                        <div>
+                                            <div class="stat-title">{{ $statusLabel }}</div>
+                                            <div class="stat-value">{{ number_format($statusTotal) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-description">
+                                        {{ $statusDescription }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if($trelloSeiUnmapped > 0)
+                        <div class="alert alert-warning mb-4">
+                            Ada {{ number_format($trelloSeiUnmapped) }} card yang belum punya status dashboard. Jalankan mapping list sebelum angka dipakai untuk keputusan operasional.
+                        </div>
+                    @endif
+
+                    <div class="row g-3 trello-table-row">
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
+                                <div class="trello-table-header">
+                                    <div>
+                                        <div class="fw-semibold text-dark">Priority Cards</div>
+                                        <div class="small text-muted">Card dengan deadline hari ini atau sudah melewati deadline.</div>
+                                    </div>
+
+                                    <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                        {{ number_format($trelloSeiPriorityCards->count()) }} card
+                                    </span>
+                                </div>
+
+                                @if($trelloSeiPriorityCards->count())
+                                    <div class="table-responsive trello-table-scroll">
+                                        <table class="table table-modern align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Card</th>
+                                                    <th>PIC</th>
+                                                    <th>Status</th>
+                                                    <th>Due</th>
+                                                    <th class="text-end">Link</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
+                                                @foreach($trelloSeiPriorityCards as $card)
+                                                    @php
+                                                        $cardStatus = $card['normalized_status'] ?? '-';
+                                                        $cardDueAt = $card['due_at'] ?? null;
+                                                        $cardDueText = $cardDueAt ? \Carbon\Carbon::parse($cardDueAt)->format('d M H:i') : '-';
+                                                        $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                        $cardMembers = collect($card['members'] ?? []);
+                                                        $cardMemberNames = $cardMembers
+                                                            ->pluck('name')
+                                                            ->filter()
+                                                            ->implode(', ');
+                                                    @endphp
+                                                    <tr>
+                                                        <td>
+                                                            <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
+                                                            <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="work-card-pic">
+                                                                <div class="work-card-avatar-stack">
+                                                                    @forelse($cardMembers->take(3) as $member)
+                                                                        <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @if(!empty($member['avatar_url']))
+                                                                                <img
+                                                                                    src="{{ $member['avatar_url'] }}"
+                                                                                    alt="{{ $member['name'] ?? 'PIC' }}"
+                                                                                    loading="lazy"
+                                                                                    referrerpolicy="no-referrer"
+                                                                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                >
+                                                                                <span class="work-card-avatar-fallback">{{ $member['initials'] ?? '?' }}</span>
+                                                                            @else
+                                                                                <span>{{ $member['initials'] ?? '?' }}</span>
+                                                                            @endif
+                                                                        </div>
+                                                                    @empty
+                                                                        <div class="work-card-avatar is-empty" title="No PIC">
+                                                                            <span>?</span>
+                                                                        </div>
+                                                                    @endforelse
+
+                                                                    @if($cardMembers->count() > 3)
+                                                                        <div class="work-card-avatar is-more" title="{{ $cardMembers->count() - 3 }} PIC lainnya">
+                                                                            <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+
+                                                                <div class="work-card-pic-name">
+                                                                    {{ $cardMemberNames ? \Illuminate\Support\Str::limit($cardMemberNames, 24) : 'No PIC' }}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                {{ $trelloStatusLabels[$cardStatus] ?? $cardStatus }}
+                                                            </span>
+                                                        </td>
+                                                        <td>{{ $cardDueText }}</td>
+                                                        <td class="text-end">
+                                                            @if($cardUrl)
+                                                                <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
+                                                                    Open
+                                                                </a>
+                                                            @else
+                                                                <span class="text-muted">-</span>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @else
+                                    <div class="empty-state-box my-0">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-check2-circle"></i>
+                                        </div>
+                                        <h5 class="empty-state-title">Tidak ada priority card</h5>
+                                        <p class="empty-state-text mb-0">
+                                            Belum ada card SEI dengan deadline hari ini atau overdue.
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                            @if($trelloSeiPriorityCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-sei-priority" aria-hidden="true"></div>
+                            @endif
+
+                        </div>
+
+                        <div class="col-12 d-flex flex-column trello-table-column">
+                            <div class="trello-table-card flex-fill">
+                                <div class="trello-table-header">
+                                    <div>
+                                        <div class="fw-semibold text-dark">Active Work Queue</div>
+                                        <div class="small text-muted">Card aktif yang berada di To Do, Doing, Review, atau Scheduled.</div>
+                                    </div>
+
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary">
+                                        {{ number_format($trelloSeiActiveCards->count()) }} card
+                                    </span>
+                                </div>
+
+                                @if($trelloSeiActiveCards->count())
+                                    <div class="table-responsive trello-table-scroll">
+                                        <table class="table table-modern align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Card</th>
+                                                    <th>PIC</th>
+                                                    <th>Status</th>
+                                                    <th>Last Activity</th>
+                                                    <th class="text-end">Link</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
+                                                @foreach($trelloSeiActiveCards as $card)
+                                                    @php
+                                                        $cardStatus = $card['normalized_status'] ?? '-';
+                                                        $cardLastActivity = $card['last_activity_at'] ?? null;
+                                                        $cardLastActivityText = $cardLastActivity ? \Carbon\Carbon::parse($cardLastActivity)->format('d M H:i') : '-';
+                                                        $cardUrl = $card['short_url'] ?? $card['url'] ?? null;
+                                                        $cardMembers = collect($card['members'] ?? []);
+                                                        $cardMemberNames = $cardMembers
+                                                            ->pluck('name')
+                                                            ->filter()
+                                                            ->implode(', ');
+                                                    @endphp
+                                                    <tr>
+                                                        <td>
+                                                            <div class="fw-semibold text-dark">{{ \Illuminate\Support\Str::limit($card['name'] ?? '-', 48) }}</div>
+                                                            <div class="small text-muted">{{ $card['list_name'] ?? '-' }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="work-card-pic">
+                                                                <div class="work-card-avatar-stack">
+                                                                    @forelse($cardMembers->take(3) as $member)
+                                                                        <div class="work-card-avatar" title="{{ $member['name'] ?? 'PIC' }}">
+                                                                            @if(!empty($member['avatar_url']))
+                                                                                <img
+                                                                                    src="{{ $member['avatar_url'] }}"
+                                                                                    alt="{{ $member['name'] ?? 'PIC' }}"
+                                                                                    loading="lazy"
+                                                                                    referrerpolicy="no-referrer"
+                                                                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                >
+                                                                                <span class="work-card-avatar-fallback">{{ $member['initials'] ?? '?' }}</span>
+                                                                            @else
+                                                                                <span>{{ $member['initials'] ?? '?' }}</span>
+                                                                            @endif
+                                                                        </div>
+                                                                    @empty
+                                                                        <div class="work-card-avatar is-empty" title="No PIC">
+                                                                            <span>?</span>
+                                                                        </div>
+                                                                    @endforelse
+
+                                                                    @if($cardMembers->count() > 3)
+                                                                        <div class="work-card-avatar is-more" title="{{ $cardMembers->count() - 3 }} PIC lainnya">
+                                                                            <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+
+                                                                <div class="work-card-pic-name">
+                                                                    {{ $cardMemberNames ? \Illuminate\Support\Str::limit($cardMemberNames, 24) : 'No PIC' }}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                {{ $trelloStatusLabels[$cardStatus] ?? $cardStatus }}
+                                                            </span>
+                                                        </td>
+                                                        <td>{{ $cardLastActivityText }}</td>
+                                                        <td class="text-end">
+                                                            @if($cardUrl)
+                                                                <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
+                                                                    Open
+                                                                </a>
+                                                            @else
+                                                                <span class="text-muted">-</span>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @else
+                                    <div class="empty-state-box my-0">
+                                        <div class="empty-state-icon">
+                                            <i class="bi bi-kanban"></i>
+                                        </div>
+                                        <h5 class="empty-state-title">Tidak ada active work</h5>
+                                        <p class="empty-state-text mb-0">
+                                            Belum ada card SEI di status To Do, Doing, Review, atau Scheduled.
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                            @if($trelloSeiActiveCards->count() > 4)
+                                <div class="auto-expand-trigger trello-auto-expand-trigger" data-auto-expand-key="trello-sei-active" aria-hidden="true"></div>
                             @endif
 
                         </div>
