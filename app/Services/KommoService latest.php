@@ -99,21 +99,18 @@ class KommoService
     | Dipakai untuk dashboard dan Sales Daily Report.
     |
     | Definisi final FlexLabs:
-    | - Total Leads      = regular pipeline leads hari itu + Kommo Incoming
-    |                      Requests/Unsorted yang masih terlihat di inbox Kommo.
-    | - Incoming Leads   = regular pipeline lead di status Incoming/Lead Masuk
-    |                      + Kommo Incoming Requests/Unsorted.
+    | - Total Leads      = semua regular pipeline lead yang dibuat pada tanggal tersebut.
+    | - Incoming Leads   = regular pipeline lead yang masih berada di status Incoming/Lead Masuk.
     | - Belum Follow-up  = Incoming Leads yang masih perlu action sales.
     | - Need Action      = Incoming Leads yang masih perlu action sales.
     | - Sudah Follow-up  = Total Leads - Incoming Leads.
-    | - Filtered Out     = ignored + closed_lost + not_related + Kommo Incoming
-    |                      Requests/Unsorted sebagai bucket spam/filter diagnostic.
+    | - Filtered Out     = ignored + closed_lost + not_related, hanya untuk
+    |   breakdown/status detail, bukan untuk mengurangi total lead.
     |
     | Important:
-    | - Kommo Incoming Requests tetap dihitung walaupun kualitasnya spam, karena
-    |   request tersebut memang muncul di inbox Incoming Leads Kommo.
-    | - Jangan pakai unsorted_total dari summary untuk KPI utama, karena summary
-    |   bisa membawa accepted/declined/historical count dan bikin double count.
+    | - Closed Lost, Not Related, dan Ignore tetap dihitung sebagai Sudah Follow-up
+    |   karena lead tersebut sudah diproses/diputuskan oleh tim sales.
+    | - Satu-satunya status yang dianggap Belum Follow-up adalah Incoming Leads.
     | - Status yang dihitung adalah current status lead saat data ditarik.
     |--------------------------------------------------------------------------
     */
@@ -162,138 +159,102 @@ class KommoService
         |--------------------------------------------------------------------------
         | Kommo Incoming / Unsorted Leads
         |--------------------------------------------------------------------------
-        | Catatan penting dari hasil debug Kommo:
+        | Di Kommo, incoming bisa muncul dari 2 tempat:
+        | 1. Regular pipeline lead dengan status "Lead masuk / Incoming Leads".
+        | 2. Unsorted inbox metadata dari Kommo. Untuk KPI dashboard, unsorted
+        |    tidak ikut menambah total karena bisa double count setelah accepted.
         |
-        | - /api/v4/leads/unsorted list bisa mengembalikan category chats + forms.
-        | - Di board Kommo, angka "Incoming Leads > Requests" yang terlihat ternyata
-        |   match dengan category "chats" saja.
-        | - Category "forms" sudah ikut terbentuk sebagai regular pipeline lead
-        |   Ads Form, jadi kalau forms tetap ditambahkan ke KPI maka total dashboard
-        |   menjadi double count.
+        | Masalah yang kita cegah:
+        | - Saat unsorted lead di-accept / dipindah ke Initial Contact, lead tersebut
+        |   sudah muncul sebagai regular pipeline lead.
+        | - Tetapi summary unsorted kadang masih menyimpan total historis hari itu.
+        | - Kalau unsorted total ikut ditambahkan, dashboard bisa naik 9 -> 10
+        |   walaupun real total Kommo tetap 9.
         |
-        | Contoh real:
-        | - regular pipeline leads = 5
-        | - unsorted list total = 70
-        | - unsorted chats = 66
-        | - unsorted forms = 4
-        |
-        | Kommo kanan atas menampilkan:
-        | 71 leads = 5 regular pipeline + 66 incoming requests.
-        |
-        | Rule final dashboard FlexLabs:
-        | - total_leads = regular pipeline leads + visible Incoming Requests Kommo.
-        | - visible Incoming Requests Kommo = pending unsorted dengan category chats.
-        | - forms disimpan sebagai diagnostic, tapi tidak masuk KPI agar tidak dobel.
+        | Rule final:
+        | - total_leads = regular pipeline leads dari endpoint leads.
+        | - incoming_leads = incoming regular pipeline saja.
+        | - unsorted_* disimpan sebagai metadata/debug, bukan KPI utama.
         */
         $regularIncomingLeads = (int) $summary['incoming_leads'];
         $unsortedSummary = $this->fetchUnsortedLeadSummary($startAt, $endAt);
         $normalizedUnsortedSummary = $this->normalizeUnsortedSummary($unsortedSummary);
 
-        $unsortedPendingCounts = $this->fetchUnsortedPendingLeadCounts($startAt, $endAt);
+        $unsortedPendingFromList = $this->fetchUnsortedPendingLeadCount($startAt, $endAt);
 
         $unsortedTotal = (int) $normalizedUnsortedSummary['total'];
         $unsortedAccepted = (int) $normalizedUnsortedSummary['accepted'];
         $unsortedDeclined = (int) $normalizedUnsortedSummary['declined'];
-
-        $hasListPendingCounts = $unsortedPendingCounts !== null;
-
-        $unsortedPendingTotal = $hasListPendingCounts
-            ? (int) ($unsortedPendingCounts['total'] ?? 0)
+        $unsortedPending = $unsortedPendingFromList !== null
+            ? (int) $unsortedPendingFromList
             : (int) $normalizedUnsortedSummary['pending'];
-
-        $unsortedPendingChats = $hasListPendingCounts
-            ? (int) ($unsortedPendingCounts['chats'] ?? 0)
-            : (int) $normalizedUnsortedSummary['chats_total'];
-
-        $unsortedPendingForms = $hasListPendingCounts
-            ? (int) ($unsortedPendingCounts['forms'] ?? 0)
-            : (int) $normalizedUnsortedSummary['forms_total'];
-
-        $unsortedPendingOther = $hasListPendingCounts
-            ? (int) ($unsortedPendingCounts['other'] ?? 0)
-            : max($unsortedPendingTotal - $unsortedPendingChats - $unsortedPendingForms, 0);
 
         /*
         |--------------------------------------------------------------------------
-        | KPI incoming requests
+        | Unsorted is diagnostic only for dashboard KPI
         |--------------------------------------------------------------------------
-        | Pakai chats pending karena itu yang match dengan kolom Incoming Leads
-        | "Requests" di board Kommo.
+        | Fix final untuk kasus total 9 berubah jadi 10:
         |
-        | Fallback kalau list API gagal:
-        | - pakai chats_total dari summary kalau ada,
-        | - kalau summary juga tidak punya chats_total, baru pakai pending total.
+        | Kommo bisa tetap mengembalikan item di /leads/unsorted walaupun lead
+        | tersebut sudah accepted dan sudah muncul sebagai regular pipeline lead.
+        | Karena dashboard ingin sama dengan angka total di pipeline Kommo, maka
+        | KPI utama dashboard harus memakai regular pipeline leads saja.
+        |
+        | Rule final dashboard FlexLabs:
+        | - total_leads     = regular pipeline leads dari /api/v4/leads.
+        | - incoming_leads  = regular pipeline leads dengan status Lead Masuk.
+        | - unsorted_*      = metadata/debug/reference, tidak menambah total KPI.
+        |
+        | Dengan rule ini:
+        | - Saat 1 lead masih di Lead Masuk: total 9, incoming 1, followed up 8.
+        | - Saat lead dipindah ke Initial Contact: total tetap 9, incoming 0,
+        |   followed up 9.
         */
-        $unsortedKpiLeads = $unsortedPendingChats > 0
-            ? $unsortedPendingChats
-            : max($unsortedPendingTotal, 0);
-
-        $externalUnsortedPending = $unsortedKpiLeads;
+        $externalUnsortedPending = 0;
 
         $summary['regular_incoming_leads'] = $regularIncomingLeads;
         $summary['unsorted_total'] = $unsortedTotal;
         $summary['unsorted_accepted'] = $unsortedAccepted;
         $summary['unsorted_declined'] = $unsortedDeclined;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Unsorted diagnostics
-        |--------------------------------------------------------------------------
-        | unsorted_pending dipertahankan sebagai angka KPI visible Incoming Requests
-        | supaya output debug langsung match dengan dashboard.
-        |
-        | unsorted_pending_total menyimpan total mentah list API, termasuk forms.
-        */
-        $summary['unsorted_pending'] = $unsortedKpiLeads;
-        $summary['unsorted_pending_total'] = $unsortedPendingTotal;
-        $summary['unsorted_pending_chats'] = $unsortedPendingChats;
-        $summary['unsorted_pending_forms'] = $unsortedPendingForms;
-        $summary['unsorted_pending_other'] = $unsortedPendingOther;
-        $summary['unsorted_kpi_leads'] = $unsortedKpiLeads;
+        $summary['unsorted_pending'] = $unsortedPending;
         $summary['external_unsorted_pending'] = $externalUnsortedPending;
-        $summary['unsorted_pending_source'] = $hasListPendingCounts ? 'list_chats' : 'summary';
+        $summary['unsorted_pending_source'] = $unsortedPendingFromList !== null ? 'list' : 'summary';
         $summary['unsorted_average_sort_time'] = (int) $normalizedUnsortedSummary['average_sort_time'];
         $summary['unsorted_forms_total'] = (int) $normalizedUnsortedSummary['forms_total'];
         $summary['unsorted_chats_total'] = (int) $normalizedUnsortedSummary['chats_total'];
 
         /*
         |--------------------------------------------------------------------------
-        | Backward compatible aliases
+        | Backward compatible alias
         |--------------------------------------------------------------------------
-        | Controller/Blade lama mungkin masih baca lead_masuk/raw_kommo_leads.
+        | Controller/Blade lama mungkin masih baca lead_masuk.
         */
-        $summary['total_leads'] = $regularPipelineLeads + $unsortedKpiLeads;
-        $summary['incoming_leads'] = $regularIncomingLeads + $unsortedKpiLeads;
+        $summary['total_leads'] = $regularPipelineLeads;
+        $summary['incoming_leads'] = $regularIncomingLeads;
         $summary['lead_masuk'] = (int) $summary['incoming_leads'];
-        $summary['raw_kommo_leads'] = (int) $summary['total_leads'];
-
-        /*
-        |--------------------------------------------------------------------------
-        | Filtered out
-        |--------------------------------------------------------------------------
-        | Pending incoming/request jangan dimasukkan ke filtered_out, karena secara
-        | status dia belum diproses. Yang masuk filtered_out:
-        | - regular pipeline yang ignored / closed lost / not related,
-        | - unsorted yang sudah declined dari summary Kommo.
-        */
-        $regularFilteredOut = (int) $summary['ignored']
-            + (int) $summary['closed_lost']
-            + (int) $summary['not_related'];
-
-        $summary['regular_filtered_out'] = $regularFilteredOut;
-        $summary['spam_leads'] = $unsortedDeclined;
-        $summary['incoming_filtered_out'] = $unsortedDeclined;
-        $summary['filtered_out'] = $regularFilteredOut + (int) $summary['incoming_filtered_out'];
-        $summary['total_filtered_out'] = (int) $summary['filtered_out'];
 
         /*
         |--------------------------------------------------------------------------
         | Derived metrics
         |--------------------------------------------------------------------------
-        | Belum Follow-up / Need Action hanya Incoming Requests yang masih pending.
-        | Sudah Follow-up adalah semua regular pipeline lead yang sudah masuk status
-        | proses/filter.
+        | Definisi final dashboard FlexLabs:
+        | - Filtered Out tetap disimpan sebagai detail breakdown.
+        | - Belum Follow-up / Need Action hanya Incoming Leads.
+        | - Sudah Follow-up adalah semua lead selain Incoming Leads.
+        |
+        | Dengan rule ini:
+        | Total Leads 9, Incoming Leads 1
+        | => Sudah Follow-up 8
+        | => Belum Follow-up 1
+        | => Follow-up Rate 89%
+        |
+        | Closed Lost, Not Related, dan Ignored tetap dihitung sebagai Sudah
+        | Follow-up karena lead tersebut sudah diproses/diputuskan.
         */
+        $summary['filtered_out'] = (int) $summary['ignored']
+            + (int) $summary['closed_lost']
+            + (int) $summary['not_related'];
+
         $totalLeads = max((int) $summary['total_leads'], 0);
         $incomingLeads = max((int) $summary['incoming_leads'], 0);
 
@@ -403,15 +364,9 @@ class KommoService
         }
     }
 
-    private function fetchUnsortedPendingLeadCounts(int $startAt, int $endAt): ?array
+    private function fetchUnsortedPendingLeadCount(int $startAt, int $endAt): ?int
     {
-        $counts = [
-            'total' => 0,
-            'chats' => 0,
-            'forms' => 0,
-            'other' => 0,
-        ];
-
+        $pendingCount = 0;
         $page = 1;
         $limit = 250;
         $maxPages = 50;
@@ -452,37 +407,16 @@ class KommoService
                 }
 
                 foreach ($items as $item) {
-                    if (!$this->isPendingUnsortedLead($item)) {
-                        continue;
+                    if ($this->isPendingUnsortedLead($item)) {
+                        $pendingCount++;
                     }
-
-                    $category = Str::of((string) (
-                        Arr::get($item, 'category')
-                        ?? Arr::get($item, 'source_type')
-                        ?? Arr::get($item, 'type')
-                        ?? ''
-                    ))->lower()->trim()->toString();
-
-                    $counts['total']++;
-
-                    if (in_array($category, ['chat', 'chats'], true)) {
-                        $counts['chats']++;
-                        continue;
-                    }
-
-                    if (in_array($category, ['form', 'forms'], true)) {
-                        $counts['forms']++;
-                        continue;
-                    }
-
-                    $counts['other']++;
                 }
 
                 $hasNextPage = !empty(Arr::get($json, '_links.next.href'));
                 $page++;
             } while ($hasNextPage && $page <= $maxPages);
 
-            return $counts;
+            return $pendingCount;
         } catch (Throwable $exception) {
             Log::warning('Kommo fetch unsorted pending lead list exception occurred.', [
                 'message' => $exception->getMessage(),
@@ -676,19 +610,11 @@ class KommoService
             'unsorted_accepted' => 0,
             'unsorted_declined' => 0,
             'unsorted_pending' => 0,
-            'unsorted_pending_total' => 0,
-            'unsorted_pending_chats' => 0,
-            'unsorted_pending_forms' => 0,
-            'unsorted_pending_other' => 0,
             'external_unsorted_pending' => 0,
             'unsorted_pending_source' => null,
             'unsorted_average_sort_time' => 0,
             'unsorted_forms_total' => 0,
             'unsorted_chats_total' => 0,
-            'unsorted_kpi_leads' => 0,
-            'raw_kommo_leads' => 0,
-            'spam_leads' => 0,
-            'incoming_filtered_out' => 0,
             'initial_contact' => 0,
             'new_leads' => 0,
 
@@ -710,9 +636,7 @@ class KommoService
             | Derived metrics
             |--------------------------------------------------------------------------
             */
-            'regular_filtered_out' => 0,
             'filtered_out' => 0,
-            'total_filtered_out' => 0,
             'followed_up' => 0,
             'not_followed_up' => 0,
             'need_action' => 0,
