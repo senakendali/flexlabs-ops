@@ -324,10 +324,11 @@
 @push('styles')
 <style>
     .article-toast-container {
-        position: fixed;
-        top: 96px;
         right: 24px;
+        bottom: 24px;
+        top: auto;
         z-index: 99999;
+        min-width: 280px;
         max-width: 420px;
     }
 
@@ -339,9 +340,11 @@
 
     @media (max-width: 767.98px) {
         .article-toast-container {
-            top: 84px;
             left: 16px;
             right: 16px;
+            bottom: 20px;
+            top: auto;
+            min-width: 0;
             max-width: none;
         }
     }
