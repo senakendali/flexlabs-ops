@@ -91,55 +91,6 @@
     $allowedPurposeTags = '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><a><span>';
     $purposeHtml = trim(strip_tags((string) $memo->purpose, $allowedPurposeTags));
 
-    $linkifyPlainText = function ($value) {
-        $text = trim((string) $value);
-
-        if ($text === '') {
-            return '-';
-        }
-
-        $urlPattern = '~(https?://[^\s<]+|www\.[^\s<]+)~i';
-        $parts = preg_split($urlPattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-
-        if ($parts === false) {
-            return e($text);
-        }
-
-        $html = '';
-
-        foreach ($parts as $part) {
-            if (preg_match($urlPattern, $part)) {
-                $displayUrl = $part;
-                $trailingPunctuation = '';
-
-                while ($displayUrl !== '' && preg_match('/[\.,;:!?\)\]]$/', $displayUrl)) {
-                    $trailingPunctuation = substr($displayUrl, -1) . $trailingPunctuation;
-                    $displayUrl = substr($displayUrl, 0, -1);
-                }
-
-                if ($displayUrl === '') {
-                    $html .= e($part);
-                    continue;
-                }
-
-                $href = \Illuminate\Support\Str::startsWith(\Illuminate\Support\Str::lower($displayUrl), ['http://', 'https://'])
-                    ? $displayUrl
-                    : 'https://' . $displayUrl;
-
-                $html .= '<a href="' . e($href) . '" target="_blank" rel="noopener noreferrer" class="memo-auto-link">'
-                    . e($displayUrl)
-                    . '</a>'
-                    . e($trailingPunctuation);
-
-                continue;
-            }
-
-            $html .= e($part);
-        }
-
-        return $html;
-    };
-
     $approvalRows = $memo->relationLoaded('approvals')
         ? $memo->approvals->sortBy('step_order')->values()
         : collect();
@@ -198,23 +149,6 @@
         padding-left: 1rem;
         border-left: 4px solid rgba(91, 62, 142, .24);
         color: #64748b;
-    }
-
-    .memo-linkified-content {
-        white-space: pre-line;
-        word-break: break-word;
-        line-height: 1.65;
-    }
-
-    .memo-auto-link {
-        font-weight: 600;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-        word-break: break-all;
-    }
-
-    .memo-auto-link:hover {
-        text-decoration-thickness: 2px;
     }
 
     .memo-approval-card {
@@ -427,7 +361,7 @@
 
                         <div class="col-12">
                             <div class="text-muted small mb-1">Notes</div>
-                            <div class="border rounded-4 p-3 bg-light memo-linkified-content">{!! $linkifyPlainText($memo->notes) !!}</div>
+                            <div class="border rounded-4 p-3 bg-light" style="white-space: pre-line;">{{ $memo->notes ?: '-' }}</div>
                         </div>
                     </div>
                 </div>
@@ -603,7 +537,7 @@
                                             @if (! blank($approval->notes ?? null))
                                                 <div class="col-12">
                                                     <div class="text-muted small mb-1">Notes</div>
-                                                    <div class="border rounded-3 bg-white p-2 small memo-linkified-content">{!! $linkifyPlainText($approval->notes) !!}</div>
+                                                    <div class="border rounded-3 bg-white p-2 small" style="white-space: pre-line;">{{ $approval->notes }}</div>
                                                 </div>
                                             @endif
                                         </div>
