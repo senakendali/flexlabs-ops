@@ -860,11 +860,11 @@
                     </div>
 
                     <div class="d-flex gap-2 flex-wrap">
-                        <a href="{{ route('articles.index') }}" class="btn btn-light border">
+                        <a href="{{ route('articles.index') }}" class="btn btn-light btn-modern">
                             Back
                         </a>
 
-                        <a href="{{ route('articles.edit', $article) }}" class="btn btn-primary">
+                        <a href="{{ route('articles.edit', $article) }}" class="btn btn-primary btn-modern">
                             <i class="bi bi-pencil-square me-1"></i> Edit Brief
                         </a>
                     </div>
