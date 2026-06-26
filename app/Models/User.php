@@ -188,4 +188,29 @@ class User extends Authenticatable
 
         return false;
     }
+
+    public function createdArticles(): HasMany
+    {
+        return $this->hasMany(Article::class, 'created_by');
+    }
+
+    public function reviewedArticles(): HasMany
+    {
+        return $this->hasMany(Article::class, 'reviewed_by');
+    }
+
+    public function approvedArticles(): HasMany
+    {
+        return $this->hasMany(Article::class, 'approved_by');
+    }
+
+    public function publishedArticles(): HasMany
+    {
+        return $this->hasMany(Article::class, 'published_by');
+    }
+
+    public function articleGenerations(): HasMany
+    {
+        return $this->hasMany(ArticleGeneration::class, 'user_id');
+    }
 }

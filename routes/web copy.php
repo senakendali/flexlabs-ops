@@ -74,7 +74,8 @@ use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\PublicEventLeadController;
-
+use App\Http\Controllers\PublicSemLeadController;
+use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 
 
 /*
@@ -104,36 +105,70 @@ use App\Http\Controllers\PublicEventLeadController;
 
 if (app()->environment('production')) {
 
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation / SEM Landing Page - Production Subdomain
+    |--------------------------------------------------------------------------
+    |
+    | Production URL:
+    | - https://konsultasi.flexlabs.co.id
+    | - https://konsultasi.flexlabs.co.id/{program}
+    | - https://konsultasi.flexlabs.co.id/thank-you
+    |
+    | Route names:
+    | - consultation.index
+    | - consultation.show
+    | - consultation.store
+    | - consultation.thank-you
+    |--------------------------------------------------------------------------
+    */
+    Route::domain('konsultasi.flexlabs.co.id')
+        ->name('consultation.')
+        ->controller(PublicSemLeadController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
+
+            Route::post('/', 'store')
+                ->name('store');
+
+            Route::get('/thank-you', 'thankYou')
+                ->name('thank-you');
+
+            Route::get('/{program}', 'show')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('show');
+
+            Route::post('/{program}', 'store')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('program.store');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation - Production Legacy URL on Ops Domain
+    |--------------------------------------------------------------------------
+    |
+    | Old production URL:
+    | - https://ops.flexlabs.co.id/konsultasi-program
+    |
+    | Redirects to:
+    | - https://konsultasi.flexlabs.co.id
+    |
+    | Query string such as UTM, gclid, gbraid, and wbraid is preserved.
+    |--------------------------------------------------------------------------
+    */
     Route::get('/konsultasi-program', function () {
-        $request = request();
+        $queryString = request()->getQueryString();
 
-        $message = 'Halo FlexLabs! saya mau tahu lebih lanjut tentang program kalian ya';
+        $targetUrl = 'https://konsultasi.flexlabs.co.id';
 
-        $utmParams = collect([
-            'utm_source',
-            'utm_medium',
-            'utm_campaign',
-            'utm_content',
-            'utm_term',
-        ])
-            ->map(function (string $key) use ($request) {
-                return $request->filled($key)
-                    ? $key . '=' . $request->query($key)
-                    : null;
-            })
-            ->filter()
-            ->values();
-
-        if ($utmParams->isNotEmpty()) {
-            $message .= "\n\nSumber: " . $utmParams->implode(', ');
+        if (!empty($queryString)) {
+            $targetUrl .= '?' . $queryString;
         }
 
-        $whatsappUrl = 'https://wa.me/62811134759?' . http_build_query([
-            'text' => $message,
-        ], '', '&', PHP_QUERY_RFC3986);
-
-        return redirect()->away($whatsappUrl, 302);
-    });
+        return redirect()->away($targetUrl, 301);
+    })->name('legacy.consultation.redirect');
 
     /*
     |--------------------------------------------------------------------------
@@ -231,6 +266,63 @@ if (app()->environment('production')) {
                 ->name('show');
         });
 } else {
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation / SEM Landing Page - Local Development URL
+    |--------------------------------------------------------------------------
+    |
+    | Local URL:
+    | - /konsultasi
+    | - /konsultasi/{program}
+    | - /konsultasi/thank-you
+    |
+    | Route names:
+    | - consultation.index
+    | - consultation.show
+    | - consultation.store
+    | - consultation.thank-you
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('konsultasi')
+        ->name('consultation.')
+        ->controller(PublicSemLeadController::class)
+        ->group(function () {
+            Route::get('/', 'index')
+                ->name('index');
+
+            Route::post('/', 'store')
+                ->name('store');
+
+            Route::get('/thank-you', 'thankYou')
+                ->name('thank-you');
+
+            Route::get('/{program}', 'show')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('show');
+
+            Route::post('/{program}', 'store')
+                ->where('program', '[A-Za-z0-9\-]+')
+                ->name('program.store');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Consultation - Local Legacy URL
+    |--------------------------------------------------------------------------
+    |
+    | Old local URL:
+    | - /konsultasi-program
+    |
+    | Redirects to:
+    | - /konsultasi
+    |
+    | Query string such as UTM, gclid, gbraid, and wbraid is preserved.
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/konsultasi-program', function () {
+        return redirect()->route('consultation.index', request()->query(), 301);
+    })->name('legacy.consultation.redirect');
+
     /*
     |--------------------------------------------------------------------------
     | Public Workshop - Local Development URL
@@ -447,6 +539,15 @@ Route::get('/pay/{token}', [PublicPaymentController::class, 'show'])
 Route::post('/webhooks/xendit/invoice', [XenditWebhookController::class, 'handle'])
     ->name('webhooks.xendit.invoice');
 
+
+/*
+|--------------------------------------------------------------------------
+| Webhooks - Meta Leads from Google Sheet
+|--------------------------------------------------------------------------
+*/
+Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookController::class, 'store'])
+    ->name('webhooks.meta-leads.google-sheet');
+
 /*
 |--------------------------------------------------------------------------
 | Dashboard
@@ -636,6 +737,29 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [SalesDailyReportController::class, 'index'])->name('index');
             Route::get('/create', [SalesDailyReportController::class, 'create'])->middleware('permission:sales_daily_reports.create')->name('create');
             Route::post('/', [SalesDailyReportController::class, 'store'])->middleware('permission:sales_daily_reports.create')->name('store');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Kommo Daily Lead Summary
+            |--------------------------------------------------------------------------
+            |
+            | Used by Sales Daily Report form to auto-fill lead metrics from Kommo
+            | based on selected report date.
+            |
+            | URL:
+            | - /sales-tools/daily-reports/kommo-summary?date=2026-06-22
+            |
+            | Route name:
+            | - sales-daily-reports.kommo-summary
+            |
+            | Important:
+            | Must stay before /{salesDailyReport}, otherwise Laravel may treat
+            | "kommo-summary" as the {salesDailyReport} route parameter.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/kommo-summary', [SalesDailyReportController::class, 'kommoSummary'])
+                ->name('kommo-summary');
+
             Route::get('/{salesDailyReport}', [SalesDailyReportController::class, 'show'])->name('show');
             Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->middleware('permission:sales_daily_reports.update')->name('edit');
             Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->middleware('permission:sales_daily_reports.update')->name('update');
@@ -728,6 +852,10 @@ Route::middleware('auth')->group(function () {
             Route::get('/create', [MeetingMinuteController::class, 'create'])->middleware('permission:meeting_minutes.create')->name('create');
             Route::post('/', [MeetingMinuteController::class, 'store'])->middleware('permission:meeting_minutes.create')->name('store');
 
+            // AI Summary dari voice transcript
+            Route::post('/ai-summary', [MeetingMinuteController::class, 'generateAiSummary'])
+            ->middleware('permission:meeting_minutes.create')
+            ->name('ai-summary');
             // Download PDF harus sebelum route show
             Route::get('/{meetingMinute}/download-pdf', [MeetingMinuteController::class, 'downloadPdf'])
                 ->name('download-pdf');

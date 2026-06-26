@@ -9,6 +9,7 @@ return [
     */
 
     'roles' => [
+        'super_admin' => 'Super Admin',
         'admin' => 'Admin',
         'academic' => 'Academic',
         'marketing' => 'Marketing',
@@ -38,6 +39,10 @@ return [
     */
 
     'permissions' => [
+
+        'super_admin' => [
+            '*',
+        ],
 
         'admin' => [
             '*',
@@ -214,6 +219,13 @@ return [
             'internal_memos.approve',
             'internal_memos.reject',
             'internal_memos.export',
+
+            'articles.view',
+            'articles.create',
+            'articles.update',
+            'articles.generate',
+            'articles.archive',
+            'articles.submit_review',
 
             'academic.view',
 
@@ -927,6 +939,7 @@ return [
                 'marketing.*',
                 'marketing.setup.*',
                 'quiz.*',
+                'articles.*',
             ],
             'sections' => [
                 [
@@ -970,6 +983,15 @@ return [
                 [
                     'title' => 'Tools',
                     'items' => [
+                        [
+                            'label' => 'Article Generator',
+                            'route' => 'articles.index',
+                            'active' => ['articles.*'],
+                            'icon' => 'bi bi-file-earmark-richtext-fill',
+                            'permission' => 'articles.view',
+                            'desc' => 'Generate draft artikel, SEO meta, creative brief, dan caption untuk website FlexLabs.',
+                            'missing_label' => 'Article Generator belum tersedia',
+                        ],
                         [
                             'label' => 'Quiz Management',
                             'route' => 'quiz.index',
