@@ -148,15 +148,7 @@
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 @if($canCreateArticle)
-                    <button
-                        type="button"
-                        class="btn btn-light btn-modern"
-                        data-bs-toggle="modal"
-                        data-bs-target="#generateFromWorkshopModal"
-                    >
-                        <i class="bi bi-easel2-fill me-2"></i>Generate from Workshop
-                    </button>
-
+                    
                     <a href="{{ route('articles.create') }}" class="btn btn-light btn-modern">
                         <i class="bi bi-plus-lg me-2"></i>New Article
                     </a>
