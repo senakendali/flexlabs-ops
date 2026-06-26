@@ -16,8 +16,7 @@
 
     $canCreateArticle = $isAdminArticleUser || $isMarketingArticleUser;
     $canUpdateArticle = $isAdminArticleUser || $isMarketingArticleUser;
-    $canArchiveArticle = $isAdminArticleUser || $isMarketingArticleUser;
-    $canDeleteArticle = $isAdminArticleUser;
+    $canDeleteArticle = $isAdminArticleUser || $isMarketingArticleUser;
 
     $articleItems = method_exists($articles, 'items')
         ? collect($articles->items())
@@ -49,10 +48,6 @@
         ->whereIn('status', $readyStatuses)
         ->count();
 
-    $pageGeneratingCount = $articleItems
-        ->where('status', 'generating')
-        ->count();
-
     $pageFailedCount = $articleItems
         ->where('status', 'generation_failed')
         ->count();
@@ -68,7 +63,6 @@
         'edited' => 'Edited',
         'ready_to_copy' => 'Ready to Copy',
         'generation_failed' => 'AI Failed',
-        'archived' => 'Archived',
     ];
 
     $statusMeta = [
@@ -101,11 +95,6 @@
             'label' => 'AI Failed',
             'class' => 'bg-danger-subtle text-danger border border-danger-subtle',
             'icon' => 'bi bi-exclamation-triangle',
-        ],
-        'archived' => [
-            'label' => 'Archived',
-            'class' => 'bg-dark-subtle text-dark border border-dark-subtle',
-            'icon' => 'bi bi-archive',
         ],
 
         // Legacy statuses dari workflow lama, ditampilkan sebagai Ready to Copy.
@@ -148,7 +137,6 @@
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 @if($canCreateArticle)
-                    
                     <a href="{{ route('articles.create') }}" class="btn btn-light btn-modern">
                         <i class="bi bi-plus-lg me-2"></i>New Article
                     </a>
@@ -182,7 +170,7 @@
         <div class="dashboard-section-eyebrow">Content Generation</div>
         <h4 class="dashboard-section-title mb-1">Article Result Summary</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Pantau hasil artikel yang sudah siap dicopy, sedang digenerate, atau perlu dicoba ulang.
+            Pantau hasil artikel yang sudah siap dicopy, sudah digenerate, atau perlu dicoba ulang.
         </p>
     </div>
 
@@ -565,45 +553,16 @@
                                                     </li>
                                                 @endif
 
-                                                @if(
-                                                    ($canArchiveArticle && $article->status !== 'archived')
-                                                    || $canDeleteArticle
-                                                )
-                                                    <li><hr class="dropdown-divider"></li>
-                                                @endif
-
-                                                @if($canArchiveArticle && $article->status !== 'archived')
-                                                    <li>
-                                                        <button
-                                                            type="button"
-                                                            class="dropdown-item js-confirm-article-action"
-                                                            data-action="archive"
-                                                            data-method="PATCH"
-                                                            data-url="{{ route('articles.archive', $article) }}"
-                                                            data-title="Archive artikel?"
-                                                            data-message="Artikel akan dipindahkan ke arsip dan tidak ditampilkan sebagai hasil aktif."
-                                                            data-confirm-label="Archive"
-                                                            data-confirm-class="btn-warning"
-                                                            data-row-id="article-row-{{ $article->id }}"
-                                                        >
-                                                            <i class="bi bi-archive me-2"></i>Archive
-                                                        </button>
-                                                    </li>
-                                                @endif
-
                                                 @if($canDeleteArticle)
+                                                    <li><hr class="dropdown-divider"></li>
+
                                                     <li>
                                                         <button
                                                             type="button"
-                                                            class="dropdown-item text-danger js-confirm-article-action"
-                                                            data-action="delete"
-                                                            data-method="DELETE"
+                                                            class="dropdown-item text-danger js-confirm-article-delete"
                                                             data-url="{{ route('articles.destroy', $article) }}"
-                                                            data-title="Delete artikel?"
-                                                            data-message="Artikel akan dihapus dari daftar Article Generator."
-                                                            data-confirm-label="Delete"
-                                                            data-confirm-class="btn-danger"
                                                             data-row-id="article-row-{{ $article->id }}"
+                                                            data-title="{{ $article->title ?: 'Untitled Article' }}"
                                                         >
                                                             <i class="bi bi-trash me-2"></i>Delete
                                                         </button>
@@ -631,7 +590,7 @@
 
                     <h5 class="empty-state-title">Belum ada hasil artikel</h5>
                     <p class="empty-state-text mb-0">
-                        Mulai dengan membuat artikel baru atau gunakan data workshop sebagai bahan awal.
+                        Mulai dengan membuat artikel baru dari brief marketing.
                     </p>
 
                     @if($canCreateArticle)
@@ -639,8 +598,6 @@
                             <a href="{{ route('articles.create') }}" class="btn btn-primary btn-modern">
                                 <i class="bi bi-plus-lg me-2"></i>Create & Generate Article
                             </a>
-
-                           
                         </div>
                     @endif
                 </div>
@@ -649,58 +606,16 @@
     </div>
 </div>
 
-<div class="modal fade" id="generateFromWorkshopModal" tabindex="-1" aria-labelledby="generateFromWorkshopModalLabel" aria-hidden="true">
+<div class="modal fade" id="articleDeleteDialog" tabindex="-1" aria-labelledby="articleDeleteDialogLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header border-0 pb-0">
                 <div>
-                    <h5 class="modal-title fw-bold" id="generateFromWorkshopModalLabel">
-                        Generate from Workshop
+                    <h5 class="modal-title fw-bold" id="articleDeleteDialogLabel">
+                        Delete artikel?
                     </h5>
                     <div class="small text-muted">
-                        Gunakan data workshop sebagai bahan awal artikel. Setelah form dibuka, submit akan langsung generate seluruh hasil AI.
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <div class="modal-body">
-                <label for="workshopIdInput" class="form-label">Workshop ID</label>
-                <input
-                    type="number"
-                    min="1"
-                    id="workshopIdInput"
-                    class="form-control"
-                    placeholder="Contoh: 12"
-                >
-
-                <div class="alert alert-warning rounded-4 small mt-3 mb-0">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Masukkan ID workshop yang ingin dijadikan bahan artikel.
-                </div>
-            </div>
-
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-primary btn-modern" id="goGenerateFromWorkshopBtn">
-                    Continue
-                    <i class="bi bi-arrow-right ms-1"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="articleConfirmModal" tabindex="-1" aria-labelledby="articleConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header border-0 pb-0">
-                <div>
-                    <h5 class="modal-title fw-bold" id="articleConfirmModalLabel">Confirm action</h5>
-                    <div class="small text-muted" id="articleConfirmModalSubtitle">
-                        Please confirm this action.
+                        Aksi ini membutuhkan konfirmasi agar artikel tidak terhapus tanpa sengaja.
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -708,15 +623,15 @@
 
             <div class="modal-body">
                 <div class="d-flex align-items-start gap-3">
-                    <div class="stat-icon-wrap flex-shrink-0">
-                        <i class="bi bi-exclamation-triangle"></i>
+                    <div class="delete-dialog-icon flex-shrink-0">
+                        <i class="bi bi-trash"></i>
                     </div>
                     <div>
-                        <div class="fw-bold text-dark mb-1" id="articleConfirmMessage">
-                            Are you sure?
+                        <div class="fw-bold text-dark mb-1" id="deleteArticleTitle">
+                            Artikel ini akan dihapus.
                         </div>
                         <div class="small text-muted">
-                            Pastikan aksi ini sudah sesuai sebelum dilanjutkan.
+                            Hasil artikel, SEO, creative brief, dan caption yang tersimpan tidak akan tampil lagi di daftar Article Generator.
                         </div>
                     </div>
                 </div>
@@ -726,8 +641,8 @@
                 <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
                     Cancel
                 </button>
-                <button type="button" class="btn btn-primary btn-modern" id="articleConfirmBtn">
-                    Confirm
+                <button type="button" class="btn btn-danger btn-modern" id="confirmDeleteArticleBtn">
+                    Delete
                 </button>
             </div>
         </div>
@@ -737,8 +652,9 @@
 @push('styles')
 <style>
     .article-toast {
-        top: 96px;
         right: 24px;
+        bottom: 24px;
+        top: auto;
         z-index: 99999;
         min-width: 280px;
         max-width: 420px;
@@ -764,11 +680,24 @@
         color: #3B8E4D;
     }
 
+    .delete-dialog-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(220, 53, 69, .1);
+        color: #dc3545;
+        font-size: 1.15rem;
+    }
+
     @media (max-width: 767.98px) {
         .article-toast {
-            top: 84px;
             left: 16px;
             right: 16px;
+            bottom: 20px;
+            top: auto;
             min-width: 0;
             max-width: none;
         }
@@ -776,148 +705,138 @@
 </style>
 @endpush
 
+@push('scripts')
 <script>
-    (() => {
-        const csrfToken = '{{ csrf_token() }}';
+document.addEventListener('DOMContentLoaded', function () {
+    const csrfToken = '{{ csrf_token() }}';
 
-        const toastEl = document.getElementById('articleToast');
+    const toastEl = document.getElementById('articleToast');
 
-        const escapeHtml = (value) => {
-            const div = document.createElement('div');
-            div.textContent = value || '';
-            return div.innerHTML;
-        };
+    const escapeHtml = (value) => {
+        const div = document.createElement('div');
+        div.textContent = value || '';
+        return div.innerHTML;
+    };
 
-        const showToast = (message, type = 'success') => {
-            if (!toastEl) return;
+    const showToast = (message, type = 'success') => {
+        if (!toastEl) return;
 
-            const className = type === 'success'
-                ? 'alert-success'
-                : type === 'warning'
-                    ? 'alert-warning'
-                    : 'alert-danger';
+        const className = type === 'success'
+            ? 'alert-success'
+            : type === 'warning'
+                ? 'alert-warning'
+                : 'alert-danger';
 
-            toastEl.className = `alert ${className} rounded-4 shadow-sm position-fixed article-toast`;
-            toastEl.innerHTML = `
-                <div class="d-flex align-items-start gap-2">
-                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'} mt-1"></i>
-                    <div class="fw-semibold">${escapeHtml(message)}</div>
-                </div>
-            `;
+        toastEl.className = `alert ${className} rounded-4 shadow-sm position-fixed article-toast`;
+        toastEl.innerHTML = `
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'} mt-1"></i>
+                <div class="fw-semibold">${escapeHtml(message)}</div>
+            </div>
+        `;
 
-            toastEl.classList.remove('d-none');
+        toastEl.classList.remove('d-none');
 
-            window.setTimeout(() => {
-                toastEl.classList.add('d-none');
-            }, 3200);
-        };
+        window.setTimeout(() => {
+            toastEl.classList.add('d-none');
+        }, 3200);
+    };
 
-        const confirmModalEl = document.getElementById('articleConfirmModal');
-        const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+    const deleteDialogEl = document.getElementById('articleDeleteDialog');
 
-        const confirmTitleEl = document.getElementById('articleConfirmModalLabel');
-        const confirmSubtitleEl = document.getElementById('articleConfirmModalSubtitle');
-        const confirmMessageEl = document.getElementById('articleConfirmMessage');
-        const confirmBtn = document.getElementById('articleConfirmBtn');
+    if (!deleteDialogEl) {
+        console.warn('Article delete dialog element not found.');
+        return;
+    }
 
-        let pendingAction = null;
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+        console.warn('Bootstrap Modal is not available.');
+        showToast('Bootstrap modal belum kebaca. Coba refresh halaman.', 'danger');
+        return;
+    }
 
-        document.querySelectorAll('.js-confirm-article-action').forEach((button) => {
-            button.addEventListener('click', () => {
-                pendingAction = {
-                    url: button.dataset.url,
-                    method: button.dataset.method || 'POST',
-                    rowId: button.dataset.rowId,
-                    action: button.dataset.action,
-                };
+    const deleteDialog = new bootstrap.Modal(deleteDialogEl);
 
-                if (confirmTitleEl) {
-                    confirmTitleEl.textContent = button.dataset.title || 'Confirm action';
-                }
+    const deleteArticleTitle = document.getElementById('deleteArticleTitle');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteArticleBtn');
 
-                if (confirmSubtitleEl) {
-                    confirmSubtitleEl.textContent = button.dataset.confirmLabel || 'Please confirm this action.';
-                }
+    let pendingDelete = null;
 
-                if (confirmMessageEl) {
-                    confirmMessageEl.textContent = button.dataset.message || 'Are you sure?';
-                }
+    document.querySelectorAll('.js-confirm-article-delete').forEach((button) => {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
 
-                if (confirmBtn) {
-                    confirmBtn.textContent = button.dataset.confirmLabel || 'Confirm';
-                    confirmBtn.className = `btn btn-modern ${button.dataset.confirmClass || 'btn-primary'}`;
-                    confirmBtn.disabled = false;
-                }
+            pendingDelete = {
+                url: button.dataset.url,
+                rowId: button.dataset.rowId,
+                title: button.dataset.title || 'Artikel ini',
+            };
 
-                confirmModal?.show();
+            if (deleteArticleTitle) {
+                deleteArticleTitle.textContent = `Hapus "${pendingDelete.title}"?`;
+            }
+
+            if (confirmDeleteBtn) {
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.innerHTML = 'Delete';
+            }
+
+            deleteDialog.show();
+        });
+    });
+
+    confirmDeleteBtn?.addEventListener('click', async function () {
+        if (!pendingDelete?.url) return;
+
+        const originalText = confirmDeleteBtn.innerHTML;
+
+        confirmDeleteBtn.disabled = true;
+        confirmDeleteBtn.innerHTML = `
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+            Deleting...
+        `;
+
+        try {
+            const response = await fetch(pendingDelete.url, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
             });
-        });
 
-        confirmBtn?.addEventListener('click', async () => {
-            if (!pendingAction?.url) return;
+            const data = await response.json().catch(() => ({}));
 
-            const originalText = confirmBtn.textContent;
-
-            confirmBtn.disabled = true;
-            confirmBtn.innerHTML = `
-                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-                Processing...
-            `;
-
-            try {
-                const response = await fetch(pendingAction.url, {
-                    method: pendingAction.method,
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                });
-
-                const data = await response.json().catch(() => ({}));
-
-                if (!response.ok || data.success === false) {
-                    throw new Error(data.message || 'Action gagal diproses.');
-                }
-
-                confirmModal?.hide();
-
-                if (pendingAction.action === 'delete') {
-                    const row = document.getElementById(pendingAction.rowId);
-                    row?.remove();
-                    showToast(data.message || 'Artikel berhasil dihapus.', 'success');
-                    return;
-                }
-
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                    return;
-                }
-
-                window.location.reload();
-            } catch (error) {
-                showToast(error.message || 'Terjadi kesalahan.', 'danger');
-            } finally {
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = originalText;
-                pendingAction = null;
-            }
-        });
-
-        const goGenerateFromWorkshopBtn = document.getElementById('goGenerateFromWorkshopBtn');
-        const workshopIdInput = document.getElementById('workshopIdInput');
-
-        goGenerateFromWorkshopBtn?.addEventListener('click', () => {
-            const workshopId = String(workshopIdInput?.value || '').trim();
-
-            if (!workshopId || Number(workshopId) < 1) {
-                showToast('Masukkan Workshop ID yang valid.', 'warning');
-                workshopIdInput?.focus();
-                return;
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Artikel gagal dihapus.');
             }
 
-            window.location.href = `{{ url('/articles/create/from-workshop') }}/${workshopId}`;
-        });
-    })();
+            deleteDialog.hide();
+
+            const row = document.getElementById(pendingDelete.rowId);
+            row?.remove();
+
+            showToast(data.message || 'Artikel berhasil dihapus.', 'success');
+
+            const remainingRows = document.querySelectorAll('tbody tr[id^="article-row-"]').length;
+
+            if (remainingRows === 0) {
+                window.setTimeout(() => {
+                    window.location.reload();
+                }, 900);
+            }
+        } catch (error) {
+            showToast(error.message || 'Terjadi kesalahan saat menghapus artikel.', 'danger');
+        } finally {
+            confirmDeleteBtn.disabled = false;
+            confirmDeleteBtn.innerHTML = originalText;
+            pendingDelete = null;
+        }
+    });
+});
 </script>
+@endpush
+
 @endsection
