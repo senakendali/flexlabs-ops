@@ -16,12 +16,7 @@
 
     $canCreateArticle = $isAdminArticleUser || $isMarketingArticleUser;
     $canUpdateArticle = $isAdminArticleUser || $isMarketingArticleUser;
-    $canSubmitReviewArticle = $isAdminArticleUser || $isMarketingArticleUser;
     $canArchiveArticle = $isAdminArticleUser || $isMarketingArticleUser;
-
-    $canApproveArticle = $isAdminArticleUser;
-    $canPublishArticle = $isAdminArticleUser;
-    $canScheduleArticle = $isAdminArticleUser;
     $canDeleteArticle = $isAdminArticleUser;
 
     $articleItems = method_exists($articles, 'items')
@@ -32,26 +27,63 @@
         ? (int) $articles->total()
         : $articleItems->count();
 
-    $pageDraftCount = $articleItems
-        ->whereIn('status', ['draft', 'ai_generated', 'edited'])
+    $readyStatuses = [
+        'ready_to_copy',
+        'ready_for_review',
+        'approved',
+        'scheduled',
+        'published',
+    ];
+
+    $generatedStatuses = [
+        'ai_generated',
+        'edited',
+        'ready_to_copy',
+        'ready_for_review',
+        'approved',
+        'scheduled',
+        'published',
+    ];
+
+    $pageReadyToCopyCount = $articleItems
+        ->whereIn('status', $readyStatuses)
         ->count();
 
-    $pageReviewCount = $articleItems
-        ->whereIn('status', ['ready_for_review', 'approved'])
+    $pageGeneratingCount = $articleItems
+        ->where('status', 'generating')
         ->count();
 
-    $pagePublishedCount = $articleItems
-        ->where('status', 'published')
+    $pageFailedCount = $articleItems
+        ->where('status', 'generation_failed')
         ->count();
+
+    $pageGeneratedCount = $articleItems
+        ->whereIn('status', $generatedStatuses)
+        ->count();
+
+    $statusFilterOptions = [
+        'draft' => 'Brief Only',
+        'generating' => 'Generating',
+        'ai_generated' => 'Generated',
+        'edited' => 'Edited',
+        'ready_to_copy' => 'Ready to Copy',
+        'generation_failed' => 'AI Failed',
+        'archived' => 'Archived',
+    ];
 
     $statusMeta = [
         'draft' => [
-            'label' => 'Draft',
+            'label' => 'Brief Only',
             'class' => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
             'icon' => 'bi bi-pencil-square',
         ],
+        'generating' => [
+            'label' => 'Generating',
+            'class' => 'bg-warning-subtle text-warning border border-warning-subtle',
+            'icon' => 'bi bi-hourglass-split',
+        ],
         'ai_generated' => [
-            'label' => 'AI Draft',
+            'label' => 'Generated',
             'class' => 'bg-primary-subtle text-primary border border-primary-subtle',
             'icon' => 'bi bi-stars',
         ],
@@ -60,42 +92,49 @@
             'class' => 'bg-info-subtle text-info border border-info-subtle',
             'icon' => 'bi bi-brush',
         ],
-        'ready_for_review' => [
-            'label' => 'Ready for Review',
-            'class' => 'bg-warning-subtle text-warning border border-warning-subtle',
-            'icon' => 'bi bi-eye',
-        ],
-        'approved' => [
-            'label' => 'Approved',
+        'ready_to_copy' => [
+            'label' => 'Ready to Copy',
             'class' => 'bg-success-subtle text-success border border-success-subtle',
-            'icon' => 'bi bi-check2-circle',
+            'icon' => 'bi bi-clipboard-check',
         ],
-        'scheduled' => [
-            'label' => 'Scheduled',
-            'class' => 'bg-info-subtle text-info border border-info-subtle',
-            'icon' => 'bi bi-calendar-event',
-        ],
-        'published' => [
-            'label' => 'Published',
-            'class' => 'bg-success text-white',
-            'icon' => 'bi bi-globe2',
+        'generation_failed' => [
+            'label' => 'AI Failed',
+            'class' => 'bg-danger-subtle text-danger border border-danger-subtle',
+            'icon' => 'bi bi-exclamation-triangle',
         ],
         'archived' => [
             'label' => 'Archived',
             'class' => 'bg-dark-subtle text-dark border border-dark-subtle',
             'icon' => 'bi bi-archive',
         ],
+
+        // Legacy statuses dari workflow lama, ditampilkan sebagai Ready to Copy.
+        'ready_for_review' => [
+            'label' => 'Ready to Copy',
+            'class' => 'bg-success-subtle text-success border border-success-subtle',
+            'icon' => 'bi bi-clipboard-check',
+        ],
+        'approved' => [
+            'label' => 'Ready to Copy',
+            'class' => 'bg-success-subtle text-success border border-success-subtle',
+            'icon' => 'bi bi-clipboard-check',
+        ],
+        'scheduled' => [
+            'label' => 'Ready to Copy',
+            'class' => 'bg-success-subtle text-success border border-success-subtle',
+            'icon' => 'bi bi-clipboard-check',
+        ],
+        'published' => [
+            'label' => 'Ready to Copy',
+            'class' => 'bg-success-subtle text-success border border-success-subtle',
+            'icon' => 'bi bi-clipboard-check',
+        ],
     ];
 @endphp
 
-<div class="container-fluid px-4 py-4">
+<div class="container-fluid px-4 py-4 article-index-page">
 
-    <div
-        id="articleToast"
-        class="alert rounded-4 shadow-sm position-fixed d-none"
-        style="top: 92px; right: 22px; z-index: 1080; min-width: 280px; max-width: 420px;"
-        role="alert"
-    ></div>
+    <div id="articleToast" class="alert rounded-4 shadow-sm position-fixed d-none article-toast" role="alert"></div>
 
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -103,8 +142,7 @@
                 <div class="page-eyebrow">Marketing Tools</div>
                 <h1 class="page-title mb-2">Article Generator</h1>
                 <p class="page-subtitle mb-0">
-                    Buat dan kelola artikel siap publikasi untuk website FlexLabs, lengkap dengan arahan SEO,
-                    ide visual, dan caption pendukung.
+                    Buat bahan artikel, SEO, creative direction, dan caption untuk dicopy manual ke website FlexLabs.
                 </p>
             </div>
 
@@ -129,30 +167,30 @@
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show rounded-4" role="alert">
-            {{ session('success') }}
+            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if(session('warning'))
         <div class="alert alert-warning alert-dismissible fade show rounded-4" role="alert">
-            {{ session('warning') }}
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('warning') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show rounded-4" role="alert">
-            {{ session('error') }}
+            <i class="bi bi-x-circle-fill me-2"></i>{{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     <div class="dashboard-section-label mb-3">
-        <div class="dashboard-section-eyebrow">Content Operations</div>
-        <h4 class="dashboard-section-title mb-1">Article Summary</h4>
+        <div class="dashboard-section-eyebrow">Content Generation</div>
+        <h4 class="dashboard-section-title mb-1">Article Result Summary</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Pantau jumlah artikel, draft yang sedang dikerjakan, antrean review, dan artikel yang sudah dipublikasikan.
+            Pantau hasil artikel yang sudah siap dicopy, sedang digenerate, atau perlu dicoba ulang.
         </p>
     </div>
 
@@ -176,14 +214,14 @@
             <div class="stat-card h-100">
                 <div class="stat-card-top">
                     <div class="stat-icon-wrap">
-                        <i class="bi bi-pencil-square"></i>
+                        <i class="bi bi-clipboard-check"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Draft Queue</div>
-                        <div class="stat-value">{{ number_format($pageDraftCount) }}</div>
+                        <div class="stat-title">Ready to Copy</div>
+                        <div class="stat-value">{{ number_format($pageReadyToCopyCount) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Artikel yang masih dalam proses penulisan di halaman ini.</div>
+                <div class="stat-description">Artikel di halaman ini yang sudah siap dipindahkan ke website.</div>
             </div>
         </div>
 
@@ -191,14 +229,14 @@
             <div class="stat-card h-100">
                 <div class="stat-card-top">
                     <div class="stat-icon-wrap">
-                        <i class="bi bi-shield-check"></i>
+                        <i class="bi bi-stars"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Review Queue</div>
-                        <div class="stat-value">{{ number_format($pageReviewCount) }}</div>
+                        <div class="stat-title">Generated</div>
+                        <div class="stat-value">{{ number_format($pageGeneratedCount) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Artikel yang menunggu pengecekan sebelum publish.</div>
+                <div class="stat-description">Artikel yang sudah punya hasil AI pada halaman ini.</div>
             </div>
         </div>
 
@@ -206,23 +244,23 @@
             <div class="stat-card h-100">
                 <div class="stat-card-top">
                     <div class="stat-icon-wrap">
-                        <i class="bi bi-globe2"></i>
+                        <i class="bi bi-exclamation-triangle"></i>
                     </div>
                     <div>
-                        <div class="stat-title">Published</div>
-                        <div class="stat-value">{{ number_format($pagePublishedCount) }}</div>
+                        <div class="stat-title">Need Retry</div>
+                        <div class="stat-value">{{ number_format($pageFailedCount) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">Artikel yang sudah berstatus published di halaman ini.</div>
+                <div class="stat-description">Artikel yang gagal digenerate dan perlu dicoba ulang.</div>
             </div>
         </div>
     </div>
 
     <div class="dashboard-section-label mb-3 mt-1">
-        <div class="dashboard-section-eyebrow">Publishing Workflow</div>
-        <h4 class="dashboard-section-title mb-1">Content Readiness</h4>
+        <div class="dashboard-section-eyebrow">Marketing Workspace</div>
+        <h4 class="dashboard-section-title mb-1">How This Tool Works</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Pastikan setiap artikel punya struktur yang jelas, SEO yang siap, dan arahan visual sebelum dipublikasikan.
+            FlexOps membantu menyiapkan bahan konten. Publikasi final tetap dilakukan manual di website FlexLabs.
         </p>
     </div>
 
@@ -232,12 +270,12 @@
                 <div class="content-card-body">
                     <div class="d-flex align-items-start gap-3">
                         <div class="stat-icon-wrap flex-shrink-0">
-                            <i class="bi bi-stars"></i>
+                            <i class="bi bi-lightning-charge"></i>
                         </div>
                         <div>
-                            <div class="fw-bold text-dark mb-1">Smart Drafting</div>
+                            <div class="fw-bold text-dark mb-1">Generate dari Brief</div>
                             <div class="small text-muted">
-                                Buat draft artikel dari brief, keyword, atau data workshop agar proses penulisan lebih cepat dan konsisten.
+                                Isi judul, keyword, target pembaca, tone, dan arahan utama. Sistem akan membuat artikel lengkap secara otomatis.
                             </div>
                         </div>
                     </div>
@@ -253,9 +291,9 @@
                             <i class="bi bi-search-heart"></i>
                         </div>
                         <div>
-                            <div class="fw-bold text-dark mb-1">SEO Preparation</div>
+                            <div class="fw-bold text-dark mb-1">SEO & Creative Ready</div>
                             <div class="small text-muted">
-                                Lengkapi focus keyword, SEO title, meta description, tags, dan image alt text untuk mendukung performa pencarian.
+                                Setiap hasil artikel dilengkapi meta description, OG copy, tags, alt text, image prompt, dan caption sosial.
                             </div>
                         </div>
                     </div>
@@ -268,16 +306,12 @@
                 <div class="content-card-body">
                     <div class="d-flex align-items-start gap-3">
                         <div class="stat-icon-wrap flex-shrink-0">
-                            <i class="bi bi-person-check"></i>
+                            <i class="bi bi-clipboard-check"></i>
                         </div>
                         <div>
-                            <div class="fw-bold text-dark mb-1">Publish Approval</div>
+                            <div class="fw-bold text-dark mb-1">Copy to Website</div>
                             <div class="small text-muted">
-                                @if($isAdminArticleUser)
-                                    Akun ini dapat mempublikasikan, mengarsipkan, dan menghapus artikel sesuai kebutuhan.
-                                @else
-                                    Artikel dapat dibuat dan diajukan untuk review. Proses publish akan dilakukan oleh admin.
-                                @endif
+                                Buka result artikel, copy HTML artikel atau SEO bundle, lalu masukkan manual ke flexlabs.co.id.
                             </div>
                         </div>
                     </div>
@@ -291,7 +325,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Filter Articles</h5>
                 <p class="content-card-subtitle mb-0">
-                    Temukan artikel berdasarkan judul, status, kategori, atau tipe konten.
+                    Temukan hasil artikel berdasarkan judul, status, kategori, atau tipe konten.
                 </p>
             </div>
         </div>
@@ -315,7 +349,7 @@
                         <label for="status" class="form-label">Status</label>
                         <select name="status" id="status" class="form-select">
                             <option value="">All Status</option>
-                            @foreach($statuses as $value => $label)
+                            @foreach($statusFilterOptions as $value => $label)
                                 <option value="{{ $value }}" @selected(($filters['status'] ?? request('status')) === $value)>
                                     {{ $label }}
                                 </option>
@@ -368,15 +402,15 @@
     <div class="content-card">
         <div class="content-card-header">
             <div>
-                <h5 class="content-card-title mb-1">Article List</h5>
+                <h5 class="content-card-title mb-1">Article Results</h5>
                 <p class="content-card-subtitle mb-0">
-                    Kelola artikel, cek status penulisan, dan lanjutkan proses review atau publish.
+                    Kelola hasil artikel yang sudah digenerate dan siap dipindahkan ke website FlexLabs.
                 </p>
             </div>
 
             @if($canCreateArticle)
                 <a href="{{ route('articles.create') }}" class="btn btn-primary btn-modern">
-                    <i class="bi bi-plus-lg me-2"></i>Create Draft
+                    <i class="bi bi-plus-lg me-2"></i>Create & Generate
                 </a>
             @endif
         </div>
@@ -388,9 +422,9 @@
                         <thead>
                             <tr>
                                 <th class="text-nowrap">No</th>
-                                <th class="text-nowrap">Article</th>
+                                <th class="text-nowrap">Article Result</th>
                                 <th class="text-nowrap">Source</th>
-                                <th class="text-nowrap">SEO Keyword</th>
+                                <th class="text-nowrap">SEO Snapshot</th>
                                 <th class="text-nowrap">Status</th>
                                 <th class="text-nowrap">Updated</th>
                                 <th class="text-end text-nowrap">Action</th>
@@ -414,9 +448,9 @@
                                     $typeLabel = $articleTypes[$article->article_type] ?? ($article->article_type ? ucfirst(str_replace('_', ' ', $article->article_type)) : 'Article');
                                     $sourceLabel = $sourceTypes[$article->source_type] ?? ($article->source_type ? ucfirst(str_replace('_', ' ', $article->source_type)) : 'Manual');
 
-                                    $canMoveToReview = in_array($article->status, ['draft', 'ai_generated', 'edited'], true);
-                                    $canMoveToApprove = in_array($article->status, ['ready_for_review', 'edited', 'ai_generated'], true);
-                                    $canMoveToPublish = in_array($article->status, ['ai_generated', 'edited', 'ready_for_review', 'approved'], true);
+                                    $hasArticleBody = filled($article->body_html);
+                                    $hasSeo = filled($article->seo_title) || filled($article->meta_description);
+                                    $hasCreative = ! empty($article->creative_brief) || filled($article->hero_image_alt);
                                 @endphp
 
                                 <tr id="article-row-{{ $article->id }}">
@@ -424,10 +458,10 @@
                                         {{ $rowNumber }}
                                     </td>
 
-                                    <td style="min-width: 320px;">
+                                    <td style="min-width: 340px;">
                                         <div class="fw-bold text-dark">
                                             <a href="{{ route('articles.show', $article) }}" class="text-decoration-none text-dark">
-                                                {{ $article->title }}
+                                                {{ $article->title ?: 'Untitled Article' }}
                                             </a>
                                         </div>
 
@@ -435,8 +469,25 @@
                                             {{ $categoryLabel }} · {{ $typeLabel }}
                                         </div>
 
+                                        <div class="d-flex gap-2 flex-wrap mt-2">
+                                            <span class="article-mini-badge {{ $hasArticleBody ? 'is-ready' : '' }}">
+                                                <i class="bi {{ $hasArticleBody ? 'bi-check-circle-fill' : 'bi-circle' }}"></i>
+                                                Article
+                                            </span>
+
+                                            <span class="article-mini-badge {{ $hasSeo ? 'is-ready' : '' }}">
+                                                <i class="bi {{ $hasSeo ? 'bi-check-circle-fill' : 'bi-circle' }}"></i>
+                                                SEO
+                                            </span>
+
+                                            <span class="article-mini-badge {{ $hasCreative ? 'is-ready' : '' }}">
+                                                <i class="bi {{ $hasCreative ? 'bi-check-circle-fill' : 'bi-circle' }}"></i>
+                                                Creative
+                                            </span>
+                                        </div>
+
                                         @if($article->excerpt)
-                                            <div class="text-muted small mt-1 text-truncate" style="max-width: 520px;">
+                                            <div class="text-muted small mt-2 text-truncate" style="max-width: 560px;">
                                                 {{ $article->excerpt }}
                                             </div>
                                         @endif
@@ -453,12 +504,12 @@
                                             </div>
                                         @else
                                             <div class="text-muted small">
-                                                Manual draft
+                                                Manual brief
                                             </div>
                                         @endif
                                     </td>
 
-                                    <td style="min-width: 220px;">
+                                    <td style="min-width: 250px;">
                                         @if($article->primary_keyword)
                                             <div class="fw-semibold text-dark">
                                                 {{ $article->primary_keyword }}
@@ -470,12 +521,12 @@
                                         @endif
 
                                         @if($article->meta_description)
-                                            <div class="text-muted small text-truncate" style="max-width: 260px;">
+                                            <div class="text-muted small text-truncate" style="max-width: 300px;">
                                                 {{ $article->meta_description }}
                                             </div>
                                         @else
                                             <div class="text-muted small">
-                                                Meta description belum diisi.
+                                                Meta description belum tersedia.
                                             </div>
                                         @endif
                                     </td>
@@ -510,78 +561,21 @@
                                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                                 <li>
                                                     <a href="{{ route('articles.show', $article) }}" class="dropdown-item">
-                                                        <i class="bi bi-eye me-2"></i>Show Detail
+                                                        <i class="bi bi-eye me-2"></i>View Result
                                                     </a>
                                                 </li>
 
                                                 @if($canUpdateArticle && $article->canBeEdited())
                                                     <li>
                                                         <a href="{{ route('articles.edit', $article) }}" class="dropdown-item">
-                                                            <i class="bi bi-pencil-square me-2"></i>Edit Article
+                                                            <i class="bi bi-stars me-2"></i>Edit & Regenerate
                                                         </a>
-                                                    </li>
-                                                @endif
-
-                                                @if($canSubmitReviewArticle && $canMoveToReview)
-                                                    <li>
-                                                        <button
-                                                            type="button"
-                                                            class="dropdown-item js-confirm-article-action"
-                                                            data-action="status"
-                                                            data-method="PATCH"
-                                                            data-url="{{ route('articles.ready-for-review', $article) }}"
-                                                            data-title="Submit artikel untuk review?"
-                                                            data-message="Artikel ini akan masuk ke antrean review sebelum dipublikasikan."
-                                                            data-confirm-label="Submit Review"
-                                                            data-confirm-class="btn-primary"
-                                                            data-row-id="article-row-{{ $article->id }}"
-                                                        >
-                                                            <i class="bi bi-send-check me-2"></i>Submit Review
-                                                        </button>
-                                                    </li>
-                                                @endif
-
-                                                @if($canApproveArticle && $canMoveToApprove)
-                                                    <li>
-                                                        <button
-                                                            type="button"
-                                                            class="dropdown-item js-confirm-article-action"
-                                                            data-action="status"
-                                                            data-method="PATCH"
-                                                            data-url="{{ route('articles.approve', $article) }}"
-                                                            data-title="Approve artikel?"
-                                                            data-message="Artikel ini akan ditandai approved dan siap dipublikasikan."
-                                                            data-confirm-label="Approve"
-                                                            data-confirm-class="btn-success"
-                                                            data-row-id="article-row-{{ $article->id }}"
-                                                        >
-                                                            <i class="bi bi-check2-circle me-2"></i>Approve
-                                                        </button>
-                                                    </li>
-                                                @endif
-
-                                                @if($canPublishArticle && $canMoveToPublish)
-                                                    <li>
-                                                        <button
-                                                            type="button"
-                                                            class="dropdown-item js-confirm-article-action"
-                                                            data-action="publish"
-                                                            data-method="PATCH"
-                                                            data-url="{{ route('articles.publish', $article) }}"
-                                                            data-title="Publish artikel?"
-                                                            data-message="Artikel akan dipublikasikan. Pastikan isi, SEO, dan arahan visual sudah sesuai."
-                                                            data-confirm-label="Publish"
-                                                            data-confirm-class="btn-success"
-                                                            data-row-id="article-row-{{ $article->id }}"
-                                                        >
-                                                            <i class="bi bi-globe2 me-2"></i>Publish
-                                                        </button>
                                                     </li>
                                                 @endif
 
                                                 @if(
                                                     ($canArchiveArticle && $article->status !== 'archived')
-                                                    || ($canDeleteArticle && $article->status !== 'published')
+                                                    || $canDeleteArticle
                                                 )
                                                     <li><hr class="dropdown-divider"></li>
                                                 @endif
@@ -595,7 +589,7 @@
                                                             data-method="PATCH"
                                                             data-url="{{ route('articles.archive', $article) }}"
                                                             data-title="Archive artikel?"
-                                                            data-message="Artikel akan dipindahkan ke arsip dan tidak masuk antrean aktif."
+                                                            data-message="Artikel akan dipindahkan ke arsip dan tidak ditampilkan sebagai hasil aktif."
                                                             data-confirm-label="Archive"
                                                             data-confirm-class="btn-warning"
                                                             data-row-id="article-row-{{ $article->id }}"
@@ -605,7 +599,7 @@
                                                     </li>
                                                 @endif
 
-                                                @if($canDeleteArticle && $article->status !== 'published')
+                                                @if($canDeleteArticle)
                                                     <li>
                                                         <button
                                                             type="button"
@@ -614,7 +608,7 @@
                                                             data-method="DELETE"
                                                             data-url="{{ route('articles.destroy', $article) }}"
                                                             data-title="Delete artikel?"
-                                                            data-message="Artikel akan dihapus dari daftar. Untuk artikel yang sudah published, gunakan archive."
+                                                            data-message="Artikel akan dihapus dari daftar Article Generator."
                                                             data-confirm-label="Delete"
                                                             data-confirm-class="btn-danger"
                                                             data-row-id="article-row-{{ $article->id }}"
@@ -643,25 +637,18 @@
                         <i class="bi bi-file-earmark-richtext"></i>
                     </div>
 
-                    <h5 class="empty-state-title">Belum ada artikel</h5>
+                    <h5 class="empty-state-title">Belum ada hasil artikel</h5>
                     <p class="empty-state-text mb-0">
-                        Mulai dengan membuat draft artikel baru atau gunakan data workshop sebagai bahan awal.
+                        Mulai dengan membuat artikel baru atau gunakan data workshop sebagai bahan awal.
                     </p>
 
                     @if($canCreateArticle)
                         <div class="mt-3 d-flex justify-content-center gap-2 flex-wrap">
                             <a href="{{ route('articles.create') }}" class="btn btn-primary btn-modern">
-                                <i class="bi bi-plus-lg me-2"></i>Create First Article
+                                <i class="bi bi-plus-lg me-2"></i>Create & Generate Article
                             </a>
 
-                            <button
-                                type="button"
-                                class="btn btn-outline-secondary btn-modern"
-                                data-bs-toggle="modal"
-                                data-bs-target="#generateFromWorkshopModal"
-                            >
-                                <i class="bi bi-easel2-fill me-2"></i>Generate from Workshop
-                            </button>
+                           
                         </div>
                     @endif
                 </div>
@@ -679,7 +666,7 @@
                         Generate from Workshop
                     </h5>
                     <div class="small text-muted">
-                        Gunakan data workshop sebagai bahan awal untuk membuat draft artikel.
+                        Gunakan data workshop sebagai bahan awal artikel. Setelah form dibuka, submit akan langsung generate seluruh hasil AI.
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -755,6 +742,48 @@
     </div>
 </div>
 
+@push('styles')
+<style>
+    .article-toast {
+        top: 96px;
+        right: 24px;
+        z-index: 99999;
+        min-width: 280px;
+        max-width: 420px;
+    }
+
+    .article-mini-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .28rem .55rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid rgba(15, 23, 42, .08);
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .article-mini-badge.is-ready {
+        background: rgba(59, 142, 77, .1);
+        border-color: rgba(59, 142, 77, .18);
+        color: #3B8E4D;
+    }
+
+    @media (max-width: 767.98px) {
+        .article-toast {
+            top: 84px;
+            left: 16px;
+            right: 16px;
+            min-width: 0;
+            max-width: none;
+        }
+    }
+</style>
+@endpush
+
 <script>
     (() => {
         const csrfToken = '{{ csrf_token() }}';
@@ -776,13 +805,7 @@
                     ? 'alert-warning'
                     : 'alert-danger';
 
-            toastEl.className = `alert ${className} rounded-4 shadow-sm position-fixed`;
-            toastEl.style.top = '92px';
-            toastEl.style.right = '22px';
-            toastEl.style.zIndex = '1080';
-            toastEl.style.minWidth = '280px';
-            toastEl.style.maxWidth = '420px';
-
+            toastEl.className = `alert ${className} rounded-4 shadow-sm position-fixed article-toast`;
             toastEl.innerHTML = `
                 <div class="d-flex align-items-start gap-2">
                     <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'} mt-1"></i>

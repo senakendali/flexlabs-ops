@@ -54,7 +54,7 @@
                     </a>
                 @endif
 
-                <button type="button" id="submitArticleBtn" class="btn btn-primary">
+                <button type="button" id="submitArticleBtn" class="btn btn-light btn-modern">
                     <i class="bi {{ $primarySubmitIcon }} me-1"></i> {{ $primarySubmitLabel }}
                 </button>
             </div>
@@ -308,9 +308,9 @@
                         </div>
 
                         <div class="d-flex gap-2 flex-wrap">
-                            <a href="{{ $backUrl }}" class="btn btn-light border">Cancel</a>
+                            <a href="{{ $backUrl }}" class="btn btn-light btn-modern">Cancel</a>
 
-                            <button type="button" id="submitArticleBtnBottom" class="btn btn-primary">
+                            <button type="button" id="submitArticleBtnBottom" class="btn btn-primary btn-modern">
                                 <i class="bi {{ $primarySubmitIcon }} me-1"></i> {{ $primarySubmitLabel }}
                             </button>
                         </div>
