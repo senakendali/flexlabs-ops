@@ -77,6 +77,7 @@ use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\Feedback\FeedbackResponseLinkController;
 
 
 /*
@@ -565,6 +566,37 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Feedback - Response Link Generator
+    |--------------------------------------------------------------------------
+    |
+    | Internal route untuk generate token/link feedback student.
+    |
+    | URL:
+    | - POST /feedback/responses/generate-link
+    |
+    | Route name:
+    | - feedback.responses.generate-link
+    |
+    | Notes:
+    | - Link public-nya akan dibentuk oleh FeedbackLinkService.
+    | - Contoh output:
+    |   https://feedback.flexlabs.co.id/f/{token}
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('feedback')
+        ->name('feedback.')
+        ->group(function () {
+            Route::post('/responses/generate-link', [FeedbackResponseLinkController::class, 'store'])
+                ->name('responses.generate-link');
+
+            Route::post('/batches/{batch}/generate-links', [FeedbackResponseLinkController::class, 'storeForBatch'])
+            ->whereNumber('batch')
+            ->middleware('permission:batches.view')
+            ->name('batches.generate-links');
+    });
 
     /*
     |--------------------------------------------------------------------------

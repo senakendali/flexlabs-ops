@@ -162,6 +162,16 @@
                                                 </li>
 
                                                 <li>
+                                                    <button
+                                                        type="button"
+                                                        class="dropdown-item"
+                                                        onclick="generateFeedbackLinks({{ $batch->id }}, @js($batch->name))"
+                                                    >
+                                                        <i class="bi bi-chat-square-heart me-2"></i>Generate Feedback Links
+                                                    </button>
+                                                </li>
+
+                                                <li>
                                                     <hr class="dropdown-divider">
                                                 </li>
 
@@ -428,6 +438,80 @@
         </div>
     </div>
 </div>
+
+{{-- Feedback Links Modal --}}
+<div class="modal fade" id="feedbackLinksModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold mb-1">Feedback Links</h5>
+                    <div class="small text-muted">
+                        Generate dan copy link feedback untuk student dalam batch ini.
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="feedbackLinksLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+                    <div class="fw-semibold">Generating feedback links...</div>
+                    <div class="small text-muted mt-1">Please wait a moment.</div>
+                </div>
+
+                <div id="feedbackLinksContent" class="d-none">
+                    <div id="feedbackLinksAlert" class="alert d-none mb-3"></div>
+
+                    <div class="content-card mb-3">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1" id="feedbackLinksBatchName">-</h5>
+                                <p class="content-card-subtitle mb-0" id="feedbackLinksFormName">
+                                    Program Feedback - Default
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary btn-modern"
+                                id="copyAllFeedbackLinksBtn"
+                                disabled
+                            >
+                                <i class="bi bi-copy me-2"></i>Copy All Links
+                            </button>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div class="row g-3" id="feedbackLinksSummary"></div>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <div>
+                                <h5 class="content-card-title mb-1">Student Links</h5>
+                                <p class="content-card-subtitle mb-0">
+                                    Copy link lalu kirim ke student via WhatsApp atau email.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="content-card-body">
+                            <div id="feedbackLinksList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-modern" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -443,6 +527,18 @@
     const deleteModal = new bootstrap.Modal(deleteModalEl);
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
     const deleteBatchNameEl = document.getElementById('deleteBatchName');
+
+    const feedbackBatchBaseUrl = @json(url('/feedback/batches'));
+    const feedbackLinksModalEl = document.getElementById('feedbackLinksModal');
+    const feedbackLinksModal = new bootstrap.Modal(feedbackLinksModalEl);
+    const feedbackLinksLoading = document.getElementById('feedbackLinksLoading');
+    const feedbackLinksContent = document.getElementById('feedbackLinksContent');
+    const feedbackLinksAlert = document.getElementById('feedbackLinksAlert');
+    const feedbackLinksBatchName = document.getElementById('feedbackLinksBatchName');
+    const feedbackLinksFormName = document.getElementById('feedbackLinksFormName');
+    const feedbackLinksSummary = document.getElementById('feedbackLinksSummary');
+    const feedbackLinksList = document.getElementById('feedbackLinksList');
+    const copyAllFeedbackLinksBtn = document.getElementById('copyAllFeedbackLinksBtn');
 
     const fields = {
         id: document.getElementById('batch_id'),
@@ -461,6 +557,7 @@
     let autoSlug = true;
     let deleteBatchId = null;
     let reloadTimeout = null;
+    let feedbackLinks = [];
 
     function showToast(message, type = 'success') {
         const container = document.getElementById('toastContainer');
@@ -589,6 +686,64 @@
         confirmDeleteBtn.querySelector('.loading-delete-text').classList.toggle('d-none', !isLoading);
     }
 
+    function setFeedbackLinksLoading(isLoading) {
+        feedbackLinksLoading.classList.toggle('d-none', !isLoading);
+        feedbackLinksContent.classList.toggle('d-none', isLoading);
+    }
+
+    function resetFeedbackLinksModal() {
+        feedbackLinks = [];
+
+        feedbackLinksAlert.classList.add('d-none');
+        feedbackLinksAlert.className = 'alert d-none mb-3';
+        feedbackLinksAlert.innerHTML = '';
+
+        feedbackLinksBatchName.textContent = '-';
+        feedbackLinksFormName.textContent = 'Program Feedback - Default';
+        feedbackLinksSummary.innerHTML = '';
+        feedbackLinksList.innerHTML = '';
+
+        copyAllFeedbackLinksBtn.disabled = true;
+
+        setFeedbackLinksLoading(true);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    async function copyText(text) {
+        if (!text) {
+            showToast('No text to copy.', 'warning');
+            return;
+        }
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+
+            showToast('Link copied.', 'success');
+        } catch (error) {
+            showToast('Failed to copy link.', 'danger');
+        }
+    }
+
     function slugify(text) {
         return String(text || '')
             .toLowerCase()
@@ -652,6 +807,168 @@
         deleteBatchNameEl.textContent = name || '-';
         setDeleteLoading(false);
         deleteModal.show();
+    }
+
+    function renderFeedbackLinks(data) {
+        feedbackLinks = data.links || [];
+
+        feedbackLinksBatchName.textContent = data.batch?.name || '-';
+        feedbackLinksFormName.textContent = data.form?.title || 'Program Feedback - Default';
+
+        const totalStudents = data.total_students ?? 0;
+        const totalLinks = data.total_links ?? 0;
+        const submittedCount = data.submitted_count ?? 0;
+        const pendingCount = data.pending_count ?? 0;
+        const skippedCount = data.skipped_count ?? 0;
+
+        feedbackLinksSummary.innerHTML = `
+            <div class="col-md-3">
+                <div class="border rounded-4 p-3 h-100">
+                    <div class="small text-muted">Active Students</div>
+                    <div class="fs-4 fw-bold text-dark">${totalStudents}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded-4 p-3 h-100">
+                    <div class="small text-muted">Generated Links</div>
+                    <div class="fs-4 fw-bold text-dark">${totalLinks}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded-4 p-3 h-100">
+                    <div class="small text-muted">Submitted</div>
+                    <div class="fs-4 fw-bold text-success">${submittedCount}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded-4 p-3 h-100">
+                    <div class="small text-muted">Pending</div>
+                    <div class="fs-4 fw-bold text-warning">${pendingCount}</div>
+                </div>
+            </div>
+        `;
+
+        if (skippedCount > 0) {
+            feedbackLinksAlert.className = 'alert alert-warning mb-3';
+            feedbackLinksAlert.classList.remove('d-none');
+            feedbackLinksAlert.innerHTML = `
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                ${skippedCount} enrollment dilewati karena data student tidak ditemukan.
+            `;
+        }
+
+        if (!feedbackLinks.length) {
+            feedbackLinksList.innerHTML = `
+                <div class="empty-state-box">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-chat-square-heart"></i>
+                    </div>
+                    <h5 class="empty-state-title">No active students found</h5>
+                    <p class="empty-state-text mb-0">
+                        Belum ada active student enrollment di batch ini, jadi link feedback belum bisa dibuat.
+                    </p>
+                </div>
+            `;
+
+            copyAllFeedbackLinksBtn.disabled = true;
+            return;
+        }
+
+        copyAllFeedbackLinksBtn.disabled = false;
+
+        feedbackLinksList.innerHTML = feedbackLinks.map((item, index) => {
+            const student = item.student || {};
+            const studentName = escapeHtml(student.name || 'Unnamed Student');
+            const studentEmail = escapeHtml(student.email || '-');
+            const studentPhone = escapeHtml(student.phone || '-');
+            const link = escapeHtml(item.link || '-');
+            const status = item.status || 'draft';
+            const statusClass = status === 'submitted'
+                ? 'bg-success-subtle text-success-emphasis border border-success-subtle'
+                : 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+
+            return `
+                <div class="border rounded-4 p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                <div class="fw-bold text-dark">${studentName}</div>
+                                <span class="badge rounded-pill ${statusClass}">
+                                    ${escapeHtml(status)}
+                                </span>
+                            </div>
+
+                            <div class="small text-muted mb-2">
+                                ${studentEmail} · ${studentPhone}
+                            </div>
+
+                            <div class="input-group">
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    value="${link}"
+                                    readonly
+                                >
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-primary"
+                                    data-copy-feedback-index="${index}"
+                                >
+                                    <i class="bi bi-copy me-1"></i>Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function generateFeedbackLinks(batchId, batchName) {
+        resetFeedbackLinksModal();
+        feedbackLinksBatchName.textContent = batchName || '-';
+        feedbackLinksModal.show();
+
+        try {
+            const response = await fetch(`${feedbackBatchBaseUrl}/${batchId}/generate-links`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    feedback_form_slug: 'default-program-feedback',
+                }),
+            });
+
+            const result = await response.json();
+
+            if (response.status === 422) {
+                throw new Error(result.message || 'Validation failed.');
+            }
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Failed to generate feedback links.');
+            }
+
+            renderFeedbackLinks(result.data || {});
+            setFeedbackLinksLoading(false);
+
+            showToast(result.message || 'Feedback links generated successfully.', 'success');
+        } catch (error) {
+            setFeedbackLinksLoading(false);
+
+            feedbackLinksAlert.className = 'alert alert-danger mb-3';
+            feedbackLinksAlert.classList.remove('d-none');
+            feedbackLinksAlert.innerHTML = error.message || 'Failed to generate feedback links.';
+
+            feedbackLinksList.innerHTML = '';
+            copyAllFeedbackLinksBtn.disabled = true;
+
+            showToast(error.message || 'Failed to generate feedback links.', 'danger');
+        }
     }
 
     fields.name.addEventListener('input', function () {
@@ -756,6 +1073,40 @@
         }
     });
 
+    feedbackLinksList.addEventListener('click', function (event) {
+        const button = event.target.closest('[data-copy-feedback-index]');
+
+        if (!button) return;
+
+        const index = Number(button.dataset.copyFeedbackIndex);
+        const item = feedbackLinks[index];
+
+        if (!item || !item.link) {
+            showToast('Feedback link not found.', 'warning');
+            return;
+        }
+
+        copyText(item.link);
+    });
+
+    copyAllFeedbackLinksBtn.addEventListener('click', function () {
+        if (!feedbackLinks.length) {
+            showToast('No feedback links to copy.', 'warning');
+            return;
+        }
+
+        const text = feedbackLinks
+            .map(item => {
+                const studentName = item.student?.name || 'Unnamed Student';
+                const link = item.link || '-';
+
+                return `${studentName}: ${link}`;
+            })
+            .join('\n');
+
+        copyText(text);
+    });
+
     batchModalEl.addEventListener('hidden.bs.modal', function () {
         resetForm();
     });
@@ -764,6 +1115,10 @@
         deleteBatchId = null;
         deleteBatchNameEl.textContent = '';
         setDeleteLoading(false);
+    });
+
+    feedbackLinksModalEl.addEventListener('hidden.bs.modal', function () {
+        resetFeedbackLinksModal();
     });
 </script>
 @endpush
