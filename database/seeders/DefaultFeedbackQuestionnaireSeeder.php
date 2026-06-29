@@ -15,8 +15,8 @@ class DefaultFeedbackQuestionnaireSeeder extends Seeder
                 'slug' => 'default-program-feedback',
             ],
             [
-                'title' => 'Program Feedback - Default',
-                'description' => 'Template feedback default untuk menilai kualitas program, materi, instructor, platform, support, dan hasil belajar student.',
+                'title' => 'Feedback Program Belajar FlexLabs',
+                'description' => 'Bantu kami memahami pengalaman belajar kamu selama mengikuti program ini. Jawaban kamu akan digunakan untuk meningkatkan kualitas materi, instructor, platform, support, dan pengalaman belajar student berikutnya.',
                 'type' => 'program',
                 'program_id' => null,
                 'batch_id' => null,

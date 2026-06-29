@@ -78,6 +78,46 @@ use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\Feedback\FeedbackResponseLinkController;
+use App\Http\Controllers\Feedback\PublicFeedbackController;
+
+/*
+|--------------------------------------------------------------------------
+| Public Feedback Routes
+|--------------------------------------------------------------------------
+|
+| Local:
+| - http://127.0.0.1:8007/f/{token}
+|
+| Production:
+| - https://feedback.flexlabs.co.id/f/{token}
+|--------------------------------------------------------------------------
+*/
+if (app()->environment('production')) {
+    Route::domain('feedback.flexlabs.co.id')
+        ->name('feedback.public.')
+        ->controller(PublicFeedbackController::class)
+        ->group(function () {
+            Route::get('/f/{token}', 'show')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('show');
+
+            Route::post('/f/{token}', 'store')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('store');
+        });
+} else {
+    Route::name('feedback.public.')
+        ->controller(PublicFeedbackController::class)
+        ->group(function () {
+            Route::get('/f/{token}', 'show')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('show');
+
+            Route::post('/f/{token}', 'store')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('store');
+        });
+}
 
 
 /*
@@ -104,6 +144,7 @@ use App\Http\Controllers\Feedback\FeedbackResponseLinkController;
 |   URL aneh seperti webinar.flexlabs.co.id:8007/{slug}.
 |--------------------------------------------------------------------------
 */
+
 
 if (app()->environment('production')) {
 
