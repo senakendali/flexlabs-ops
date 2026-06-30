@@ -652,7 +652,7 @@
 
                 <h5 class="content-card-title mb-1">Meta Ads Performance</h5>
                 <p class="content-card-subtitle mb-0">
-                    Satu campaign menjadi satu tab supaya owner bisa membaca campaign mana yang sehat, mana yang bocor, dan langkah optimasi berikutnya.
+                    Analisis performa campaign secara terpisah untuk membantu owner melihat campaign yang berjalan efektif, area yang perlu diperbaiki, dan prioritas optimasi berikutnya.
                 </p>
             </div>
 
