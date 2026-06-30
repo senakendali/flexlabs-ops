@@ -62,4 +62,10 @@ return [
         'webhook_secret' => env('META_LEADS_WEBHOOK_SECRET'),
     ],
 
+    'meta_ads' => [
+        'graph_version' => env('META_GRAPH_VERSION', 'v25.0'),
+        'access_token' => env('META_ACCESS_TOKEN'),
+        'ad_account_id' => env('META_AD_ACCOUNT_ID'),
+    ],
+
 ];

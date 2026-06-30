@@ -53,6 +53,8 @@ class DashboardController extends Controller
             'sei' => $trelloSeiStats,
         ];
 
+        $metaAdsDashboardInsight = $this->getMetaAdsDashboardInsight();
+
         $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
@@ -74,6 +76,7 @@ class DashboardController extends Controller
             'trello_marketing_stats' => $trelloMarketingStats,
             'trello_dashboard_stats' => $trelloDashboardStats,
             'trelloSeiStats' => $trelloSeiStats,
+            'meta_ads_dashboard_insight' => $metaAdsDashboardInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
@@ -92,6 +95,11 @@ class DashboardController extends Controller
         $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
             $managementSummary,
             $trelloSeiStats
+        );
+
+        $managementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
+            $managementSummary,
+            $metaAdsDashboardInsight
         );
 
         return view('dashboard', [
@@ -120,6 +128,7 @@ class DashboardController extends Controller
             'trelloDashboardStats' => $trelloDashboardStats,
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
+            'metaAdsDashboardInsight' => $metaAdsDashboardInsight,
         ]);
     }
 
@@ -1041,6 +1050,535 @@ class DashboardController extends Controller
         }
 
         return $managementSummary;
+    }
+
+    protected function getMetaAdsDashboardInsight(): array
+    {
+        $table = 'meta_ads_campaign_insights';
+
+        $empty = $this->emptyMetaAdsDashboardInsight();
+
+        if (! Schema::hasTable($table)) {
+            return array_merge($empty, [
+                'summary_text' => 'Data Meta Ads belum tersedia karena table meta_ads_campaign_insights belum dibuat.',
+                'error_message' => 'Table meta_ads_campaign_insights belum tersedia.',
+            ]);
+        }
+
+        try {
+            $latestDateStop = DB::table($table)->max('date_stop');
+
+            if (! $latestDateStop) {
+                return array_merge($empty, [
+                    'summary_text' => 'Data Meta Ads belum tersedia. Jalankan sync Meta Ads terlebih dulu.',
+                ]);
+            }
+
+            $rows = DB::table($table)
+                ->whereDate('date_stop', $latestDateStop)
+                ->orderByDesc('spend')
+                ->get();
+
+            if ($rows->isEmpty()) {
+                return array_merge($empty, [
+                    'summary_text' => 'Data Meta Ads belum tersedia untuk periode terbaru.',
+                ]);
+            }
+
+            $campaigns = $rows
+                ->map(fn ($row) => $this->mapMetaAdsCampaignInsightRow($row))
+                ->values();
+
+            $overview = $this->buildMetaAdsOverview($campaigns->all());
+
+            return [
+                'is_available' => true,
+                'source' => 'meta_ads',
+                'period' => [
+                    'date_start' => $campaigns->min('date_start'),
+                    'date_stop' => $campaigns->max('date_stop'),
+                ],
+                'overview' => $overview,
+                'campaigns' => $campaigns->all(),
+                'summary_text' => $overview['summary_text'] ?? 'Data Meta Ads berhasil ditarik.',
+                'last_synced_at' => optional(
+                    DB::table($table)->max('updated_at')
+                        ? Carbon::parse(DB::table($table)->max('updated_at'))
+                        : null
+                )->format('d M Y H:i'),
+                'error_message' => null,
+            ];
+        } catch (Throwable $exception) {
+            Log::error('Failed to build Meta Ads dashboard insight.', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return array_merge($empty, [
+                'summary_text' => 'Data Meta Ads belum bisa dibaca. Dashboard tetap aman, tapi table/sync Meta Ads perlu dicek.',
+                'error_message' => app()->hasDebugModeEnabled()
+                    ? $exception->getMessage()
+                    : 'Data Meta Ads belum bisa dibaca.',
+                'last_synced_at' => now()->format('d M Y H:i'),
+            ]);
+        }
+    }
+
+    protected function emptyMetaAdsDashboardInsight(): array
+    {
+        return [
+            'is_available' => false,
+            'source' => 'meta_ads',
+            'period' => [
+                'date_start' => null,
+                'date_stop' => null,
+            ],
+            'overview' => [
+                'campaign_count' => 0,
+                'total_spend' => 0,
+                'total_reach' => 0,
+                'total_impressions' => 0,
+                'total_engagement' => 0,
+                'total_link_click' => 0,
+                'total_lead_form_submission' => 0,
+                'total_whatsapp_chat' => 0,
+                'cost_per_lead' => null,
+                'cost_per_whatsapp_chat' => null,
+                'best_campaign' => null,
+                'attention_campaigns' => [],
+                'critical_count' => 0,
+                'attention_count' => 0,
+                'healthy_count' => 0,
+                'summary_text' => 'Data Meta Ads belum tersedia.',
+            ],
+            'campaigns' => [],
+            'summary_text' => 'Data Meta Ads belum tersedia.',
+            'last_synced_at' => null,
+            'error_message' => null,
+        ];
+    }
+
+    protected function mapMetaAdsCampaignInsightRow(object $row): array
+    {
+        $spend = (float) ($row->spend ?? 0);
+        $reach = (int) ($row->reach ?? 0);
+        $impressions = (int) ($row->impressions ?? 0);
+        $frequency = (float) ($row->frequency ?? 0);
+
+        $clicks = (int) ($row->clicks ?? 0);
+        $inlineLinkClicks = (int) ($row->inline_link_clicks ?? 0);
+
+        $engagement = (int) ($row->engagement ?? 0);
+        $linkClick = (int) ($row->link_click ?? 0);
+
+        if ($linkClick <= 0) {
+            $linkClick = $inlineLinkClicks;
+        }
+
+        $leadFormSubmission = (int) ($row->lead_form_submission ?? 0);
+        $whatsappChat = (int) ($row->whatsapp_chat ?? 0);
+
+        $costPerLead = $leadFormSubmission > 0
+            ? (float) (($row->cost_per_lead ?? null) ?: round($spend / $leadFormSubmission, 2))
+            : null;
+
+        $costPerWhatsappChat = $whatsappChat > 0
+            ? (float) (($row->cost_per_whatsapp_chat ?? null) ?: round($spend / $whatsappChat, 2))
+            : null;
+
+        $leadConversionRate = $linkClick > 0
+            ? round(($leadFormSubmission / $linkClick) * 100, 1)
+            : 0;
+
+        $whatsappConversionRate = $linkClick > 0
+            ? round(($whatsappChat / $linkClick) * 100, 1)
+            : 0;
+
+        $engagementRate = $reach > 0
+            ? round(($engagement / $reach) * 100, 1)
+            : 0;
+
+        $linkClickRate = $impressions > 0
+            ? round(($linkClick / $impressions) * 100, 2)
+            : 0;
+
+        $health = $this->getMetaAdsCampaignHealth(
+            spend: $spend,
+            reach: $reach,
+            impressions: $impressions,
+            frequency: $frequency,
+            linkClick: $linkClick,
+            leadFormSubmission: $leadFormSubmission,
+            whatsappChat: $whatsappChat
+        );
+
+        $campaign = [
+            'id' => (int) ($row->id ?? 0),
+            'ad_account_id' => $row->ad_account_id ?? null,
+            'campaign_id' => $row->campaign_id ?? null,
+            'campaign_name' => $row->campaign_name ?? 'Untitled Campaign',
+
+            'date_start' => $row->date_start ?? null,
+            'date_stop' => $row->date_stop ?? null,
+
+            'spend' => $spend,
+            'spend_label' => $this->formatMetaAdsCurrency($spend),
+
+            'reach' => $reach,
+            'impressions' => $impressions,
+            'frequency' => round($frequency, 2),
+
+            'clicks' => $clicks,
+            'inline_link_clicks' => $inlineLinkClicks,
+
+            'ctr' => round((float) ($row->ctr ?? 0), 2),
+            'cpc' => (float) ($row->cpc ?? 0),
+            'cpm' => (float) ($row->cpm ?? 0),
+
+            'engagement' => $engagement,
+            'link_click' => $linkClick,
+            'lead_form_submission' => $leadFormSubmission,
+            'whatsapp_chat' => $whatsappChat,
+
+            'cost_per_lead' => $costPerLead,
+            'cost_per_lead_label' => $costPerLead !== null
+                ? $this->formatMetaAdsCurrency($costPerLead)
+                : '-',
+
+            'cost_per_whatsapp_chat' => $costPerWhatsappChat,
+            'cost_per_whatsapp_chat_label' => $costPerWhatsappChat !== null
+                ? $this->formatMetaAdsCurrency($costPerWhatsappChat)
+                : '-',
+
+            'engagement_rate' => $engagementRate,
+            'link_click_rate' => $linkClickRate,
+            'lead_conversion_rate' => $leadConversionRate,
+            'whatsapp_conversion_rate' => $whatsappConversionRate,
+
+            'health_status' => $health['status'],
+            'health_label' => $health['label'],
+            'health_type' => $health['type'],
+            'health_badge_class' => $this->getMetaAdsHealthBadgeClass($health['type']),
+
+            'actions' => is_string($row->actions ?? null)
+                ? json_decode($row->actions, true)
+                : ($row->actions ?? []),
+
+            'cost_per_action_type' => is_string($row->cost_per_action_type ?? null)
+                ? json_decode($row->cost_per_action_type, true)
+                : ($row->cost_per_action_type ?? []),
+
+            'raw_payload' => is_string($row->raw_payload ?? null)
+                ? json_decode($row->raw_payload, true)
+                : ($row->raw_payload ?? []),
+        ];
+
+        $campaign['ai_summary'] = $this->buildMetaAdsCampaignSummary($campaign);
+
+        return $campaign;
+    }
+
+    protected function buildMetaAdsOverview(array $campaigns): array
+    {
+        $campaignCollection = collect($campaigns);
+
+        $totalSpend = (float) $campaignCollection->sum('spend');
+        $totalReach = (int) $campaignCollection->sum('reach');
+        $totalImpressions = (int) $campaignCollection->sum('impressions');
+        $totalEngagement = (int) $campaignCollection->sum('engagement');
+        $totalLinkClick = (int) $campaignCollection->sum('link_click');
+        $totalLead = (int) $campaignCollection->sum('lead_form_submission');
+        $totalWhatsapp = (int) $campaignCollection->sum('whatsapp_chat');
+
+        $costPerLead = $totalLead > 0
+            ? round($totalSpend / $totalLead, 2)
+            : null;
+
+        $costPerWhatsappChat = $totalWhatsapp > 0
+            ? round($totalSpend / $totalWhatsapp, 2)
+            : null;
+
+        $bestCampaign = $campaignCollection
+            ->filter(fn ($campaign) => (int) ($campaign['lead_form_submission'] ?? 0) > 0)
+            ->sortBy(fn ($campaign) => $campaign['cost_per_lead'] ?? PHP_INT_MAX)
+            ->first();
+
+        if (! $bestCampaign) {
+            $bestCampaign = $campaignCollection
+                ->filter(fn ($campaign) => (int) ($campaign['whatsapp_chat'] ?? 0) > 0)
+                ->sortBy(fn ($campaign) => $campaign['cost_per_whatsapp_chat'] ?? PHP_INT_MAX)
+                ->first();
+        }
+
+        $attentionCampaigns = $campaignCollection
+            ->filter(fn ($campaign) => in_array($campaign['health_type'] ?? null, ['critical', 'warning', 'action'], true))
+            ->sortBy(fn ($campaign) => $this->summarySeverityRank($campaign['health_type'] ?? 'info'))
+            ->values()
+            ->all();
+
+        $criticalCount = $campaignCollection
+            ->filter(fn ($campaign) => ($campaign['health_type'] ?? null) === 'critical')
+            ->count();
+
+        $attentionCount = $campaignCollection
+            ->filter(fn ($campaign) => in_array($campaign['health_type'] ?? null, ['warning', 'action'], true))
+            ->count();
+
+        $healthyCount = $campaignCollection
+            ->filter(fn ($campaign) => ($campaign['health_type'] ?? null) === 'good')
+            ->count();
+
+        $summaryText = match (true) {
+            $campaignCollection->isEmpty() => 'Data Meta Ads belum tersedia.',
+            $totalLead <= 0 && $totalWhatsapp <= 0 => 'Meta Ads sudah mengeluarkan spend ' . $this->formatMetaAdsCurrency($totalSpend) . ', tapi belum menghasilkan lead form atau WhatsApp chat pada periode terbaru. Prioritasnya cek objective, audience, offer, dan CTA.',
+            $criticalCount > 0 => 'Meta Ads menghasilkan ' . number_format($totalLead) . ' lead form dan ' . number_format($totalWhatsapp) . ' WhatsApp chat dari spend ' . $this->formatMetaAdsCurrency($totalSpend) . '. Ada ' . number_format($criticalCount) . ' campaign yang perlu dicek karena performa konversinya lemah.',
+            $attentionCount > 0 => 'Meta Ads menghasilkan ' . number_format($totalLead) . ' lead form dan ' . number_format($totalWhatsapp) . ' WhatsApp chat. Ada beberapa campaign yang perlu diperbaiki agar spend tidak bocor.',
+            default => 'Meta Ads terlihat sehat. Total spend ' . $this->formatMetaAdsCurrency($totalSpend) . ' menghasilkan ' . number_format($totalLead) . ' lead form dan ' . number_format($totalWhatsapp) . ' WhatsApp chat pada periode terbaru.',
+        };
+
+        if ($bestCampaign) {
+            $summaryText .= ' Campaign terbaik sementara: ' . ($bestCampaign['campaign_name'] ?? '-') . '.';
+        }
+
+        return [
+            'campaign_count' => $campaignCollection->count(),
+
+            'total_spend' => $totalSpend,
+            'total_spend_label' => $this->formatMetaAdsCurrency($totalSpend),
+
+            'total_reach' => $totalReach,
+            'total_impressions' => $totalImpressions,
+            'total_engagement' => $totalEngagement,
+            'total_link_click' => $totalLinkClick,
+            'total_lead_form_submission' => $totalLead,
+            'total_whatsapp_chat' => $totalWhatsapp,
+
+            'cost_per_lead' => $costPerLead,
+            'cost_per_lead_label' => $costPerLead !== null
+                ? $this->formatMetaAdsCurrency($costPerLead)
+                : '-',
+
+            'cost_per_whatsapp_chat' => $costPerWhatsappChat,
+            'cost_per_whatsapp_chat_label' => $costPerWhatsappChat !== null
+                ? $this->formatMetaAdsCurrency($costPerWhatsappChat)
+                : '-',
+
+            'best_campaign' => $bestCampaign,
+            'attention_campaigns' => $attentionCampaigns,
+
+            'critical_count' => $criticalCount,
+            'attention_count' => $attentionCount,
+            'healthy_count' => $healthyCount,
+
+            'summary_text' => $summaryText,
+        ];
+    }
+
+    protected function getMetaAdsCampaignHealth(
+        float $spend,
+        int $reach,
+        int $impressions,
+        float $frequency,
+        int $linkClick,
+        int $leadFormSubmission,
+        int $whatsappChat
+    ): array {
+        $conversionTotal = $leadFormSubmission + $whatsappChat;
+
+        if ($spend > 0 && $linkClick <= 0 && $conversionTotal <= 0) {
+            return [
+                'status' => 'critical',
+                'label' => 'Critical',
+                'type' => 'critical',
+            ];
+        }
+
+        if ($spend > 0 && $linkClick > 0 && $conversionTotal <= 0) {
+            return [
+                'status' => 'conversion_bottleneck',
+                'label' => 'Conversion Bottleneck',
+                'type' => 'critical',
+            ];
+        }
+
+        if ($frequency >= 3 && $conversionTotal <= 0) {
+            return [
+                'status' => 'possible_fatigue',
+                'label' => 'Possible Fatigue',
+                'type' => 'warning',
+            ];
+        }
+
+        if ($linkClick > 0 && $conversionTotal > 0) {
+            return [
+                'status' => 'healthy',
+                'label' => 'Healthy',
+                'type' => 'good',
+            ];
+        }
+
+        if ($reach > 0 || $impressions > 0) {
+            return [
+                'status' => 'monitor',
+                'label' => 'Monitor',
+                'type' => 'info',
+            ];
+        }
+
+        return [
+            'status' => 'no_data',
+            'label' => 'No Data',
+            'type' => 'info',
+        ];
+    }
+
+    protected function buildMetaAdsCampaignSummary(array $campaign): array
+    {
+        $campaignName = $campaign['campaign_name'] ?? 'Campaign';
+        $spendLabel = $campaign['spend_label'] ?? 'Rp 0';
+        $lead = (int) ($campaign['lead_form_submission'] ?? 0);
+        $whatsapp = (int) ($campaign['whatsapp_chat'] ?? 0);
+        $linkClick = (int) ($campaign['link_click'] ?? 0);
+        $engagement = (int) ($campaign['engagement'] ?? 0);
+        $frequency = (float) ($campaign['frequency'] ?? 0);
+        $healthType = $campaign['health_type'] ?? 'info';
+
+        $blockingFactors = [];
+        $recommendedSteps = [];
+
+        if ($linkClick > 0 && ($lead + $whatsapp) <= 0) {
+            $blockingFactors[] = [
+                'factor' => 'Klik belum berubah menjadi lead/chat',
+                'evidence' => 'Campaign mendapatkan ' . number_format($linkClick) . ' link click, tapi belum menghasilkan lead form atau WhatsApp chat.',
+                'severity' => 'high',
+            ];
+
+            $recommendedSteps[] = 'Periksa landing page/form/CTA WhatsApp karena user sudah klik tapi belum lanjut konversi.';
+            $recommendedSteps[] = 'Perjelas offer utama di caption dan landing/form.';
+            $recommendedSteps[] = 'Sederhanakan form atau ubah CTA menjadi lebih spesifik.';
+        }
+
+        if ($linkClick <= 0 && (float) ($campaign['spend'] ?? 0) > 0) {
+            $blockingFactors[] = [
+                'factor' => 'Iklan belum cukup menarik untuk diklik',
+                'evidence' => 'Campaign sudah mengeluarkan spend ' . $spendLabel . ', tapi link click masih 0.',
+                'severity' => 'high',
+            ];
+
+            $recommendedSteps[] = 'Ganti hook creative dan headline agar alasan klik lebih jelas.';
+            $recommendedSteps[] = 'Test angle problem-solution, benefit, dan urgency.';
+        }
+
+        if ($frequency >= 3) {
+            $blockingFactors[] = [
+                'factor' => 'Potensi audience fatigue',
+                'evidence' => 'Frequency sudah mencapai ' . number_format($frequency, 2) . '.',
+                'severity' => 'medium',
+            ];
+
+            $recommendedSteps[] = 'Siapkan variasi creative baru dan pantau CTR harian.';
+        }
+
+        if (($lead + $whatsapp) > 0) {
+            $recommendedSteps[] = 'Pertahankan campaign ini dan breakdown ke level adset/ad untuk mencari creative terbaik.';
+            $recommendedSteps[] = 'Jika CPL/Cost per WhatsApp masih masuk target, naikkan budget bertahap 15–25%.';
+        }
+
+        if (empty($blockingFactors)) {
+            $blockingFactors[] = [
+                'factor' => 'Belum ada bottleneck berat dari data utama.',
+                'evidence' => 'Campaign menghasilkan ' . number_format($lead) . ' lead form dan ' . number_format($whatsapp) . ' WhatsApp chat.',
+                'severity' => 'low',
+            ];
+        }
+
+        if (empty($recommendedSteps)) {
+            $recommendedSteps[] = 'Pantau performa harian dan bandingkan dengan campaign lain.';
+            $recommendedSteps[] = 'Lanjutkan analisa ke level adset/ad agar keputusan budget lebih akurat.';
+        }
+
+        $summary = match ($healthType) {
+            'critical' => $campaignName . ' perlu perhatian. Spend ' . $spendLabel . ' belum menghasilkan konversi yang sepadan. Fokus utama adalah memperbaiki bottleneck dari klik menuju lead/chat.',
+            'warning' => $campaignName . ' perlu dipantau. Ada sinyal potensi fatigue atau performa belum stabil.',
+            'good' => $campaignName . ' terlihat sehat. Campaign menghasilkan ' . number_format($lead) . ' lead form dan ' . number_format($whatsapp) . ' WhatsApp chat dari spend ' . $spendLabel . '.',
+            default => $campaignName . ' sudah memiliki data performa. Lanjutkan pemantauan untuk memastikan arah optimasi.',
+        };
+
+        return [
+            'summary' => $summary,
+            'main_bottleneck' => $blockingFactors[0]['factor'] ?? 'Belum ada bottleneck utama.',
+            'blocking_factors' => $blockingFactors,
+            'recommended_steps' => array_values(array_unique($recommendedSteps)),
+        ];
+    }
+
+    protected function mergeMetaAdsDashboardInsightIntoManagementSummary(
+        array $managementSummary,
+        array $metaAdsDashboardInsight
+    ): array {
+        $summaryText = trim((string) ($metaAdsDashboardInsight['summary_text'] ?? ''));
+
+        if ($summaryText === '') {
+            return $managementSummary;
+        }
+
+        $overview = $metaAdsDashboardInsight['overview'] ?? [];
+
+        $criticalCount = (int) ($overview['critical_count'] ?? 0);
+        $attentionCount = (int) ($overview['attention_count'] ?? 0);
+        $totalLead = (int) ($overview['total_lead_form_submission'] ?? 0);
+        $totalWhatsapp = (int) ($overview['total_whatsapp_chat'] ?? 0);
+        $isAvailable = (bool) ($metaAdsDashboardInsight['is_available'] ?? false);
+
+        $type = 'info';
+        $title = 'Meta Ads Performance';
+
+        if (! $isAvailable) {
+            $type = 'warning';
+            $title = 'Meta Ads belum tersedia';
+        } elseif ($criticalCount > 0) {
+            $type = 'critical';
+            $title = 'Meta Ads perlu perhatian';
+        } elseif ($attentionCount > 0) {
+            $type = 'action';
+            $title = 'Meta Ads perlu optimasi';
+        } elseif (($totalLead + $totalWhatsapp) > 0) {
+            $type = 'good';
+            $title = 'Meta Ads menghasilkan lead';
+        }
+
+        $metaAdsItem = $this->summaryItem($type, $title, $summaryText);
+
+        $existingItems = $managementSummary['items'] ?? [];
+        $existingFocus = $managementSummary['focus'] ?? [];
+
+        $managementSummary['items'] = array_values(array_merge([$metaAdsItem], $existingItems));
+        $managementSummary['focus'] = array_slice(array_values(array_merge([$metaAdsItem], $existingFocus)), 0, 3);
+        $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+            $summaryText,
+            ...$this->managementSummaryParagraphs($managementSummary),
+        ]);
+
+        if (! isset($managementSummary['headline']) || $criticalCount > 0 || ! $isAvailable) {
+            $managementSummary['headline'] = $title;
+        }
+
+        return $managementSummary;
+    }
+
+    protected function getMetaAdsHealthBadgeClass(string $type): string
+    {
+        return match ($type) {
+            'critical' => 'bg-danger-subtle text-danger',
+            'warning' => 'bg-warning-subtle text-warning',
+            'action' => 'bg-primary-subtle text-primary',
+            'good' => 'bg-success-subtle text-success',
+            default => 'bg-light text-muted',
+        };
+    }
+
+    protected function formatMetaAdsCurrency(float $amount): string
+    {
+        return 'Rp ' . number_format($amount, 0, ',', '.');
     }
 
 
