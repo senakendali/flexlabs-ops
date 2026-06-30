@@ -1272,9 +1272,46 @@ class DashboardController extends Controller
                 : ($row->raw_payload ?? []),
         ];
 
-        $campaign['ai_summary'] = $this->buildMetaAdsCampaignSummary($campaign);
+        $campaign['ai_summary'] = $this->getMetaAdsCampaignAiSummary($campaign)
+        ?? $this->buildMetaAdsCampaignSummary($campaign);
 
         return $campaign;
+    }
+
+    protected function getMetaAdsCampaignAiSummary(array $campaign): ?array
+    {
+        if (! Schema::hasTable('meta_ads_ai_reports')) {
+            return null;
+        }
+
+        $report = DB::table('meta_ads_ai_reports')
+            ->where('report_type', 'campaign')
+            ->where('campaign_id', $campaign['campaign_id'] ?? null)
+            ->whereDate('date_start', $campaign['date_start'] ?? null)
+            ->whereDate('date_stop', $campaign['date_stop'] ?? null)
+            ->latest('generated_at')
+            ->first();
+
+        if (! $report) {
+            return null;
+        }
+
+        $output = is_string($report->output ?? null)
+            ? json_decode($report->output, true)
+            : ($report->output ?? null);
+
+        if (! is_array($output)) {
+            return null;
+        }
+
+        return [
+            'summary' => $output['summary'] ?? $report->summary_text ?? null,
+            'main_bottleneck' => $output['main_bottleneck'] ?? $report->main_bottleneck ?? null,
+            'blocking_factors' => $output['blocking_factors'] ?? [],
+            'recommended_steps' => $output['recommended_steps'] ?? [],
+            'source' => 'gemini',
+            'generated_at' => $report->generated_at ?? null,
+        ];
     }
 
     protected function buildMetaAdsOverview(array $campaigns): array
