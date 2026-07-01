@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Throwable;
+use App\Models\GoogleAdsDashboardSnapshot;
 
 class DashboardController extends Controller
 {
@@ -67,6 +68,7 @@ class DashboardController extends Controller
         | php artisan google-analytics:sync-dashboard
         */
         $googleAnalyticsDashboardInsight = $this->getGoogleAnalyticsDashboardInsight();
+        $googleAdsDashboardInsight = $this->getGoogleAdsDashboardInsight();
 
         $summaryContext = [
             'academic_stats' => $academicStats,
@@ -102,6 +104,7 @@ class DashboardController extends Controller
 
             'meta_ads_dashboard_insight' => $metaAdsDashboardInsight,
             'google_analytics_dashboard_insight' => $googleAnalyticsDashboardInsight,
+            'google_ads_dashboard_insight' => $googleAdsDashboardInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
@@ -134,6 +137,11 @@ class DashboardController extends Controller
         $managementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
             $managementSummary,
             $googleAnalyticsDashboardInsight
+        );
+
+        $managementSummary = $this->mergeGoogleAdsDashboardInsightIntoManagementSummary(
+            $managementSummary,
+            $googleAdsDashboardInsight
         );
 
         return view('dashboard', [
@@ -171,6 +179,7 @@ class DashboardController extends Controller
 
             'metaAdsDashboardInsight' => $metaAdsDashboardInsight,
             'googleAnalyticsDashboardInsight' => $googleAnalyticsDashboardInsight,
+            'googleAdsDashboardInsight' => $googleAdsDashboardInsight,
         ]);
     }
 
@@ -1194,6 +1203,208 @@ class DashboardController extends Controller
         }
 
         return $managementSummary;
+    }
+
+    protected function mergeGoogleAdsDashboardInsightIntoManagementSummary(
+        array $managementSummary,
+        array $googleAdsDashboardInsight
+    ): array {
+        $isAvailable = (bool) ($googleAdsDashboardInsight['is_available'] ?? false);
+        $errorMessage = trim((string) ($googleAdsDashboardInsight['error_message'] ?? ''));
+
+        if (! $isAvailable) {
+            if ($errorMessage === '') {
+                return $managementSummary;
+            }
+
+            $summaryText = 'Google Ads belum berhasil disinkronkan: ' . $errorMessage;
+
+            $googleAdsItem = $this->summaryItem(
+                'warning',
+                'Google Ads belum tersambung',
+                $summaryText
+            );
+
+            $existingItems = $managementSummary['items'] ?? [];
+            $existingFocus = $managementSummary['focus'] ?? [];
+
+            $managementSummary['items'] = array_values(array_merge([$googleAdsItem], $existingItems));
+            $managementSummary['focus'] = array_slice(array_values(array_merge([$googleAdsItem], $existingFocus)), 0, 3);
+            $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+                $summaryText,
+                ...$this->managementSummaryParagraphs($managementSummary),
+            ]);
+
+            return $managementSummary;
+        }
+
+        $overview = $googleAdsDashboardInsight['overview'] ?? [];
+        $summaryText = trim((string) ($googleAdsDashboardInsight['summary_text'] ?? ($overview['summary_text'] ?? '')));
+
+        $totalCost = (float) ($overview['total_cost'] ?? 0);
+        $clicks = (int) ($overview['total_clicks'] ?? 0);
+        $conversions = (float) ($overview['total_conversions'] ?? 0);
+        $criticalCount = (int) ($overview['critical_count'] ?? 0);
+        $attentionCount = (int) ($overview['attention_count'] ?? 0);
+
+        if ($summaryText === '') {
+            $summaryText = sprintf(
+                'Google Ads mencatat spend %s, %s clicks, %s conversions, CTR %s%%, dan cost/conv %s pada periode terbaru.',
+                $overview['total_cost_label'] ?? 'Rp 0',
+                number_format($clicks),
+                number_format($conversions, 2),
+                number_format((float) ($overview['ctr'] ?? 0), 2),
+                $overview['cost_per_conversion_label'] ?? '-'
+            );
+        }
+
+        $type = 'info';
+        $title = 'Google Ads Performance';
+
+        if ($totalCost > 0 && $clicks <= 0) {
+            $type = 'warning';
+            $title = 'Google Ads spend belum menghasilkan klik';
+        } elseif ($clicks > 0 && $conversions <= 0) {
+            $type = 'warning';
+            $title = 'Google Ads conversion bottleneck';
+        } elseif ($criticalCount > 0) {
+            $type = 'warning';
+            $title = 'Google Ads ada campaign kritis';
+        } elseif ($attentionCount > 0) {
+            $type = 'info';
+            $title = 'Google Ads perlu optimasi';
+        } elseif ($conversions > 0) {
+            $type = 'good';
+            $title = 'Google Ads mulai menghasilkan conversion';
+        }
+
+        $googleAdsItem = $this->summaryItem(
+            $type,
+            $title,
+            $summaryText
+        );
+
+        $existingItems = $managementSummary['items'] ?? [];
+        $existingFocus = $managementSummary['focus'] ?? [];
+
+        $managementSummary['items'] = array_values(array_merge([$googleAdsItem], $existingItems));
+        $managementSummary['focus'] = array_slice(array_values(array_merge([$googleAdsItem], $existingFocus)), 0, 3);
+
+        $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+            $summaryText,
+            ...$this->managementSummaryParagraphs($managementSummary),
+        ]);
+
+        $managementSummary['google_ads'] = [
+            'label' => 'Google Ads',
+            'is_available' => true,
+            'summary_text' => $summaryText,
+            'overview' => $overview,
+        ];
+
+        return $managementSummary;
+    }
+
+    protected function getGoogleAdsDashboardInsight(): array
+    {
+        $empty = $this->emptyGoogleAdsDashboardInsight();
+
+        if (! Schema::hasTable('google_ads_dashboard_snapshots')) {
+            return array_merge($empty, [
+                'summary_text' => 'Google Ads snapshot belum tersedia karena table google_ads_dashboard_snapshots belum dibuat.',
+                'error_message' => 'Table google_ads_dashboard_snapshots belum tersedia.',
+            ]);
+        }
+
+        $datePreset = (string) config('services.google_ads.default_date_preset', 'last_7d');
+        $customerId = preg_replace('/\D+/', '', (string) config('services.google_ads.customer_id'));
+
+        $snapshot = GoogleAdsDashboardSnapshot::query()
+            ->where('date_preset', $datePreset)
+            ->when($customerId !== '', fn ($query) => $query->where('customer_id', $customerId))
+            ->latest('synced_at')
+            ->first();
+
+        if (! $snapshot) {
+            return array_merge($empty, [
+                'summary_text' => 'Google Ads belum memiliki snapshot. Jalankan sync Google Ads terlebih dulu.',
+                'error_message' => null,
+            ]);
+        }
+
+        $payload = is_array($snapshot->payload)
+            ? $snapshot->payload
+            : [];
+
+        if (empty($payload)) {
+            return array_merge($empty, [
+                'is_available' => false,
+                'summary_text' => $snapshot->summary_text ?: 'Google Ads snapshot belum memiliki payload.',
+                'last_synced_at' => optional($snapshot->synced_at)->format('d M Y H:i'),
+                'error_message' => $snapshot->error_message,
+            ]);
+        }
+
+        $aiPayload = is_array($snapshot->ai_payload)
+            ? $snapshot->ai_payload
+            : ($payload['ai_summary'] ?? null);
+
+        if (is_array($aiPayload)) {
+            $payload['ai_summary'] = $aiPayload;
+        }
+
+        if (! empty($snapshot->ai_summary_text)) {
+            $payload['summary_text'] = $snapshot->ai_summary_text;
+        }
+
+        return array_replace_recursive($empty, $payload, [
+            'is_available' => (bool) $snapshot->is_available,
+            'last_synced_at' => optional($snapshot->synced_at)->format('d M Y H:i'),
+            'error_message' => $snapshot->error_message,
+        ]);
+    }
+
+    protected function emptyGoogleAdsDashboardInsight(): array
+    {
+        return [
+            'is_available' => false,
+            'source' => 'google_ads',
+            'customer_id' => null,
+            'login_customer_id' => null,
+            'period' => [
+                'date_preset' => null,
+                'date_start' => null,
+                'date_stop' => null,
+            ],
+            'overview' => [
+                'campaign_count' => 0,
+                'enabled_campaign_count' => 0,
+                'paused_campaign_count' => 0,
+                'total_cost' => 0,
+                'total_cost_label' => 'Rp 0',
+                'total_impressions' => 0,
+                'total_clicks' => 0,
+                'ctr' => 0,
+                'average_cpc' => 0,
+                'average_cpc_label' => 'Rp 0',
+                'total_conversions' => 0,
+                'total_conversion_value' => 0,
+                'cost_per_conversion' => null,
+                'cost_per_conversion_label' => '-',
+                'conversion_rate' => 0,
+                'roas' => 0,
+                'critical_count' => 0,
+                'attention_count' => 0,
+                'healthy_count' => 0,
+                'best_campaign' => null,
+                'summary_text' => 'Data Google Ads belum tersedia.',
+            ],
+            'campaigns' => [],
+            'summary_text' => 'Data Google Ads belum tersedia.',
+            'ai_summary' => [],
+            'last_synced_at' => null,
+            'error_message' => null,
+        ];
     }
 
     protected function getMetaAdsDashboardInsight(): array

@@ -60,3 +60,20 @@ Schedule::command('google-analytics:sync-dashboard --date-preset=last_7d --with-
 Schedule::command('google-analytics:sync-dashboard --date-preset=last_30d --with-ai')
     ->dailyAt('07:20')
     ->withoutOverlapping();
+
+Schedule::command('google-ads:sync-dashboard --date-preset=last_7d')
+    ->everyThreeHours()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/google-ads-sync.log'));
+
+Schedule::command('google-ads:sync-dashboard --date-preset=last_7d --with-ai')
+    ->dailyAt('07:30')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/google-ads-ai-last-7d.log'));
+
+Schedule::command('google-ads:sync-dashboard --date-preset=last_30d --with-ai')
+    ->dailyAt('07:40')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/google-ads-ai-last-30d.log'));

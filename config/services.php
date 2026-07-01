@@ -83,4 +83,21 @@ return [
         'default_date_preset' => env('GOOGLE_ANALYTICS_DEFAULT_DATE_PRESET', 'last_7d'),
     ],
 
+    'google_ads' => [
+        'enabled' => filter_var(env('GOOGLE_ADS_ENABLED', false), FILTER_VALIDATE_BOOL),
+
+        'developer_token' => env('GOOGLE_ADS_DEVELOPER_TOKEN'),
+
+        'client_id' => env('GOOGLE_ADS_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_ADS_CLIENT_SECRET'),
+        'refresh_token' => env('GOOGLE_ADS_REFRESH_TOKEN'),
+
+        'customer_id' => env('GOOGLE_ADS_CUSTOMER_ID'),
+        'login_customer_id' => env('GOOGLE_ADS_LOGIN_CUSTOMER_ID'),
+
+        'default_date_preset' => env('GOOGLE_ADS_DEFAULT_DATE_PRESET', 'last_7d'),
+
+        'ai_model' => env('GEMINI_MODEL', 'gemini-2.5-flash-lite'),
+    ],
+
 ];
