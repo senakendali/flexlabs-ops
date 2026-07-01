@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "924064fb97f34e31dec63a5b8d817748",
+    "content-hash": "734e3f21f4a7f32181ee26f0d407c090",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1514,6 +1514,70 @@
                 "source": "https://github.com/protocolbuffers/protobuf-php/tree/v5.35.1"
             },
             "time": "2026-06-11T21:19:23+00:00"
+        },
+        {
+            "name": "googleads/google-ads-php",
+            "version": "v33.5.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/googleads/google-ads-php.git",
+                "reference": "1282f5d45910678c220ed4172fc4918a2d0e055c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/googleads/google-ads-php/zipball/1282f5d45910678c220ed4172fc4918a2d0e055c",
+                "reference": "1282f5d45910678c220ed4172fc4918a2d0e055c",
+                "shasum": ""
+            },
+            "require": {
+                "google/auth": "^1.30 || ^2.0",
+                "google/gax": "^1.36.1",
+                "google/protobuf": "^3.21.5 || ^4.26.1 || ^5.34",
+                "grpc/grpc": ">=1.57.0",
+                "monolog/monolog": "^1.26 || ^2.0 || ^3.0",
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "composer/composer": "^2.0",
+                "ext-bcmath": "*",
+                "ext-grpc": "*",
+                "ext-protobuf": "^3.21.5 || ^4.26",
+                "phpunit/phpunit": "^9.5",
+                "react/http": "^1.2.0",
+                "squizlabs/php_codesniffer": "^3.5",
+                "ulrichsg/getopt-php": "^3.4"
+            },
+            "suggest": {
+                "ext-grpc": "To be able to use the gRPC transport, use the C implementation of gRPC",
+                "ext-protobuf": "For better performance, use the C implementation of Protobuf",
+                "google/protobuf": "In case the C implementation of Protobuf is not suitable, use the PHP one",
+                "grpc/grpc": "In case the C implementation of gRPC is not suitable, use the PHP one to enable other transports",
+                "react/http": "To run the AuthenticateInWebApplication.php example"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Google\\Ads\\GoogleAds\\": "src/Google/Ads/GoogleAds",
+                    "GPBMetadata\\Google\\Ads\\GoogleAds\\": "metadata/Google/Ads/GoogleAds"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Google",
+                    "homepage": "https://github.com/googleads/google-ads-php/contributors"
+                }
+            ],
+            "description": "Google Ads API client for PHP",
+            "homepage": "https://github.com/googleads/google-ads-php",
+            "support": {
+                "issues": "https://github.com/googleads/google-ads-php/issues",
+                "source": "https://github.com/googleads/google-ads-php/tree/v33.5.0"
+            },
+            "time": "2026-06-24T22:08:28+00:00"
         },
         {
             "name": "graham-campbell/result-type",
