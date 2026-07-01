@@ -47,3 +47,16 @@ Schedule::command('meta-ads:sync-campaign-insights --date-preset=last_7d --with-
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/meta-ads-sync.log'));
+
+
+Schedule::command('google-analytics:sync-dashboard --date-preset=last_7d')
+    ->everyThreeHours()
+    ->withoutOverlapping();
+
+Schedule::command('google-analytics:sync-dashboard --date-preset=last_7d --with-ai')
+    ->dailyAt('07:10')
+    ->withoutOverlapping();
+
+Schedule::command('google-analytics:sync-dashboard --date-preset=last_30d --with-ai')
+    ->dailyAt('07:20')
+    ->withoutOverlapping();

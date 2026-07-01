@@ -68,4 +68,19 @@ return [
         'ad_account_id' => env('META_AD_ACCOUNT_ID'),
     ],
 
+    'google_analytics' => [
+        'enabled' => env('GOOGLE_ANALYTICS_ENABLED', false),
+
+        'property_id' => env('GOOGLE_ANALYTICS_PROPERTY_ID'),
+
+        'credentials_path' => storage_path(
+            'app/' . ltrim(
+                env('GOOGLE_ANALYTICS_CREDENTIALS_PATH', 'private/google/analytics-service-account.json'),
+                '/'
+            )
+        ),
+
+        'default_date_preset' => env('GOOGLE_ANALYTICS_DEFAULT_DATE_PRESET', 'last_7d'),
+    ],
+
 ];

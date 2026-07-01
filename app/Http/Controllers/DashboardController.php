@@ -6,6 +6,7 @@ use App\Models\SalesDailyReport;
 use App\Models\TrialParticipant;
 use App\Models\TrialSchedule;
 use App\Models\TrialTheme;
+use App\Models\GoogleAnalyticsDashboardSnapshot;
 use App\Services\KommoService;
 use App\Services\LocalDashboardInsightService;
 use App\Services\Trello\TrelloDashboardStatsService;
@@ -43,6 +44,7 @@ class DashboardController extends Controller
         $upcomingWorkshopSchedules = $this->getUpcomingWorkshopSchedules();
 
         $kommoTodayLeadInsight = $this->getKommoTodayLeadInsight($kommoService);
+
         $trelloAcademicStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'academic');
         $trelloMarketingStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'marketing');
         $trelloSeiStats = $this->getTrelloDashboardInsight($trelloDashboardStatsService, 'sei');
@@ -55,43 +57,70 @@ class DashboardController extends Controller
 
         $metaAdsDashboardInsight = $this->getMetaAdsDashboardInsight();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Google Analytics Dashboard Snapshot
+        |--------------------------------------------------------------------------
+        | Dashboard sekarang baca dari table snapshot, bukan hit GA4 API langsung.
+        | Sync dilakukan via:
+        |
+        | php artisan google-analytics:sync-dashboard
+        */
+        $googleAnalyticsDashboardInsight = $this->getGoogleAnalyticsDashboardInsight();
+
         $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
             'revenue_chart' => $revenueChart,
             'upcoming_batches' => $upcomingBatches,
+
             'sales_insight' => $salesInsight,
+
             'trial_stats' => $trialStats,
             'trial_status_counts' => $trialParticipantStatusCounts,
             'trial_follow_up_progress' => $trialFollowUpProgress,
+
             'finance_insight' => $financeInsight,
             'order_insight' => $orderInsight,
+
             'workshop_insight' => $workshopInsight,
             'workshop_stats' => $workshopStats,
             'workshop_status_counts' => $workshopParticipantStatusCounts,
             'workshop_follow_up_progress' => $workshopFollowUpProgress,
             'upcoming_workshop_schedules' => $upcomingWorkshopSchedules,
+
             'kommo_today_lead_insight' => $kommoTodayLeadInsight,
+
             'trello_academic_stats' => $trelloAcademicStats,
             'trello_marketing_stats' => $trelloMarketingStats,
-            'trello_dashboard_stats' => $trelloDashboardStats,
+            'trello_sei_stats' => $trelloSeiStats,
+
+            // Backward compatibility kalau service/widget lama masih baca camelCase.
             'trelloSeiStats' => $trelloSeiStats,
+
+            'trello_dashboard_stats' => $trelloDashboardStats,
+
             'meta_ads_dashboard_insight' => $metaAdsDashboardInsight,
+            'google_analytics_dashboard_insight' => $googleAnalyticsDashboardInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
+
         $managementSummary = $this->mergeKommoTodayLeadInsightIntoManagementSummary(
             $managementSummary,
             $kommoTodayLeadInsight
         );
+
         $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
             $managementSummary,
             $trelloAcademicStats
         );
+
         $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
             $managementSummary,
             $trelloMarketingStats
         );
+
         $managementSummary = $this->mergeTrelloDashboardStatsIntoManagementSummary(
             $managementSummary,
             $trelloSeiStats
@@ -100,6 +129,11 @@ class DashboardController extends Controller
         $managementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
             $managementSummary,
             $metaAdsDashboardInsight
+        );
+
+        $managementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
+            $managementSummary,
+            $googleAnalyticsDashboardInsight
         );
 
         return view('dashboard', [
@@ -112,23 +146,31 @@ class DashboardController extends Controller
             'upcomingTrialSchedules' => $upcomingTrialSchedules,
             'trialParticipantStatusCounts' => $trialParticipantStatusCounts,
             'trialFollowUpProgress' => $trialFollowUpProgress,
+
             'salesInsight' => $salesInsight,
 
             // Data tambahan untuk reusable insight widget / management insight lokal.
             'financeInsight' => $financeInsight,
             'orderInsight' => $orderInsight,
+
             'workshopInsight' => $workshopInsight,
             'workshopStats' => $workshopStats,
             'workshopParticipantStatusCounts' => $workshopParticipantStatusCounts,
             'workshopFollowUpProgress' => $workshopFollowUpProgress,
             'upcomingWorkshopSchedules' => $upcomingWorkshopSchedules,
+
             'kommoTodayLeadInsight' => $kommoTodayLeadInsight,
+
             'trelloAcademicStats' => $trelloAcademicStats,
             'trelloMarketingStats' => $trelloMarketingStats,
+            'trelloSeiStats' => $trelloSeiStats,
             'trelloDashboardStats' => $trelloDashboardStats,
+
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
+
             'metaAdsDashboardInsight' => $metaAdsDashboardInsight,
+            'googleAnalyticsDashboardInsight' => $googleAnalyticsDashboardInsight,
         ]);
     }
 
@@ -857,6 +899,108 @@ class DashboardController extends Controller
             'Followed Up' => 'bg-success-subtle text-success',
             default => 'bg-light text-muted',
         };
+    }
+
+    protected function getGoogleAnalyticsDashboardInsight(): array
+    {
+        $empty = $this->emptyGoogleAnalyticsDashboardInsight();
+
+        if (! Schema::hasTable('google_analytics_dashboard_snapshots')) {
+            return array_merge($empty, [
+                'summary_text' => 'Google Analytics snapshot belum tersedia karena table google_analytics_dashboard_snapshots belum dibuat.',
+                'error_message' => 'Table google_analytics_dashboard_snapshots belum tersedia.',
+            ]);
+        }
+
+        $datePreset = (string) config('services.google_analytics.default_date_preset', 'last_7d');
+        $propertyId = (string) config('services.google_analytics.property_id');
+
+        $snapshot = GoogleAnalyticsDashboardSnapshot::query()
+            ->where('date_preset', $datePreset)
+            ->when($propertyId !== '', fn ($query) => $query->where('property_id', $propertyId))
+            ->latest('synced_at')
+            ->first();
+
+        if (! $snapshot) {
+            return array_merge($empty, [
+                'summary_text' => 'Google Analytics belum memiliki snapshot. Jalankan sync Google Analytics terlebih dulu.',
+                'error_message' => null,
+            ]);
+        }
+
+        $payload = is_array($snapshot->payload)
+            ? $snapshot->payload
+            : [];
+
+        if (empty($payload)) {
+            return array_merge($empty, [
+                'is_available' => false,
+                'summary_text' => $snapshot->summary_text ?: 'Google Analytics snapshot belum memiliki payload.',
+                'last_synced_at' => optional($snapshot->synced_at)->format('d M Y H:i'),
+                'error_message' => $snapshot->error_message,
+            ]);
+        }
+
+        /*
+        * Payload tetap jadi source of truth untuk Blade karena semua section
+        * sudah lengkap di sana: kpis, acquisition, landing_pages, funnel, content,
+        * devices, locations.
+        */
+        $aiPayload = is_array($snapshot->ai_payload)
+            ? $snapshot->ai_payload
+            : ($payload['ai_summary'] ?? null);
+
+        if (is_array($aiPayload)) {
+            $payload['ai_summary'] = $aiPayload;
+        }
+
+        if (! empty($snapshot->ai_summary_text)) {
+            $payload['summary_text'] = $snapshot->ai_summary_text;
+        }
+
+        return array_replace_recursive($empty, $payload, [
+            'is_available' => (bool) $snapshot->is_available,
+            'last_synced_at' => optional($snapshot->synced_at)->format('d M Y H:i'),
+            'error_message' => $snapshot->error_message,
+        ]);
+    }
+
+    protected function emptyGoogleAnalyticsDashboardInsight(): array
+    {
+        return [
+            'is_available' => false,
+            'period' => [
+                'date_start' => null,
+                'date_stop' => null,
+            ],
+            'last_synced_at' => null,
+            'summary_text' => 'Data Google Analytics belum tersedia.',
+            'error_message' => null,
+
+            'kpis' => [
+                'total_users' => 0,
+                'new_users' => 0,
+                'sessions' => 0,
+                'engaged_sessions' => 0,
+                'engagement_rate' => 0,
+                'bounce_rate' => 0,
+                'average_engagement_time_label' => '0s',
+                'key_events' => 0,
+                'key_event_rate' => 0,
+            ],
+
+            'acquisition' => [
+                'channels' => [],
+                'sources' => [],
+                'campaigns' => [],
+            ],
+
+            'landing_pages' => [],
+            'conversion_funnel' => [],
+            'content_pages' => [],
+            'devices' => [],
+            'locations' => [],
+        ];
     }
 
 
@@ -1598,6 +1742,134 @@ class DashboardController extends Controller
         if (! isset($managementSummary['headline']) || $criticalCount > 0 || ! $isAvailable) {
             $managementSummary['headline'] = $title;
         }
+
+        return $managementSummary;
+    }
+
+    protected function mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
+        array $managementSummary,
+        array $googleAnalyticsDashboardInsight
+    ): array {
+        $isAvailable = (bool) ($googleAnalyticsDashboardInsight['is_available'] ?? false);
+        $errorMessage = trim((string) ($googleAnalyticsDashboardInsight['error_message'] ?? ''));
+
+        if (! $isAvailable) {
+            if ($errorMessage === '') {
+                return $managementSummary;
+            }
+
+            $summaryText = 'Google Analytics belum berhasil disinkronkan: ' . $errorMessage;
+
+            $googleAnalyticsItem = $this->summaryItem(
+                'warning',
+                'Google Analytics belum tersambung',
+                $summaryText
+            );
+
+            $existingItems = $managementSummary['items'] ?? [];
+            $existingFocus = $managementSummary['focus'] ?? [];
+
+            $managementSummary['items'] = array_values(array_merge([$googleAnalyticsItem], $existingItems));
+            $managementSummary['focus'] = array_slice(array_values(array_merge([$googleAnalyticsItem], $existingFocus)), 0, 3);
+            $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+                $summaryText,
+                ...$this->managementSummaryParagraphs($managementSummary),
+            ]);
+
+            if (! isset($managementSummary['headline'])) {
+                $managementSummary['headline'] = 'Google Analytics belum tersambung';
+            }
+
+            $managementSummary['google_analytics'] = [
+                'label' => 'Google Analytics',
+                'is_available' => false,
+                'summary_text' => $summaryText,
+                'error_message' => $errorMessage,
+            ];
+
+            return $managementSummary;
+        }
+
+        $kpis = $googleAnalyticsDashboardInsight['kpis'] ?? [];
+        $gaSummaryText = trim((string) ($googleAnalyticsDashboardInsight['summary_text'] ?? ''));
+
+        $sessions = (int) ($kpis['sessions'] ?? 0);
+        $totalUsers = (int) ($kpis['total_users'] ?? 0);
+        $newUsers = (int) ($kpis['new_users'] ?? 0);
+        $engagedSessions = (int) ($kpis['engaged_sessions'] ?? 0);
+        $engagementRate = (float) ($kpis['engagement_rate'] ?? 0);
+        $bounceRate = (float) ($kpis['bounce_rate'] ?? 0);
+        $keyEvents = (int) ($kpis['key_events'] ?? 0);
+        $keyEventRate = (float) ($kpis['key_event_rate'] ?? 0);
+        $averageEngagementTimeLabel = (string) ($kpis['average_engagement_time_label'] ?? '0s');
+
+        $googleAnalyticsText = $gaSummaryText !== ''
+            ? $gaSummaryText
+            : sprintf(
+                'Google Analytics mencatat %s sessions, %s users, %s new users, %s engaged sessions, engagement rate %s%%, bounce rate %s%%, average engagement %s, dan %s total events pada periode terbaru.',
+                number_format($sessions),
+                number_format($totalUsers),
+                number_format($newUsers),
+                number_format($engagedSessions),
+                number_format($engagementRate, 1),
+                number_format($bounceRate, 1),
+                $averageEngagementTimeLabel,
+                number_format($keyEvents)
+            );
+
+        $type = 'info';
+        $title = 'Google Analytics Performance';
+
+        if ($sessions <= 0) {
+            $type = 'warning';
+            $title = 'Google Analytics belum ada traffic';
+            $googleAnalyticsText = 'Google Analytics sudah tersambung, tetapi belum ada traffic website pada periode terbaru.';
+        } elseif ($engagementRate < 20) {
+            $type = 'warning';
+            $title = 'Google Analytics engagement rendah';
+        } elseif ($engagementRate >= 50) {
+            $type = 'good';
+            $title = 'Google Analytics traffic sehat';
+        } else {
+            $type = 'info';
+            $title = 'Google Analytics traffic terbaca';
+        }
+
+        $googleAnalyticsItem = $this->summaryItem(
+            $type,
+            $title,
+            $googleAnalyticsText
+        );
+
+        $existingItems = $managementSummary['items'] ?? [];
+        $existingFocus = $managementSummary['focus'] ?? [];
+
+        $managementSummary['items'] = array_values(array_merge([$googleAnalyticsItem], $existingItems));
+        $managementSummary['focus'] = array_slice(array_values(array_merge([$googleAnalyticsItem], $existingFocus)), 0, 3);
+
+        $managementSummary['summary_text'] = $this->joinSummaryParagraphs([
+            $googleAnalyticsText,
+            ...$this->managementSummaryParagraphs($managementSummary),
+        ]);
+
+        if (! isset($managementSummary['headline']) || $engagementRate < 20 || $sessions <= 0) {
+            $managementSummary['headline'] = $title;
+        }
+
+        $managementSummary['google_analytics'] = [
+            'label' => 'Google Analytics',
+            'is_available' => true,
+            'sessions' => $sessions,
+            'total_users' => $totalUsers,
+            'new_users' => $newUsers,
+            'engaged_sessions' => $engagedSessions,
+            'engagement_rate' => $engagementRate,
+            'bounce_rate' => $bounceRate,
+            'average_engagement_time_label' => $averageEngagementTimeLabel,
+            'key_events' => $keyEvents,
+            'key_event_rate' => $keyEventRate,
+            'summary_text' => $googleAnalyticsText,
+        ];
 
         return $managementSummary;
     }
