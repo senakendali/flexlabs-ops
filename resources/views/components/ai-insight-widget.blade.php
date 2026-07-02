@@ -30,10 +30,12 @@
     $widgetTitle = (string) ($title ?: 'AI Insight');
     $widgetHeadline = (string) ($headline ?? ($insightData['headline'] ?? 'Insight Summary'));
     $widgetSummary = trim((string) ($summary ?? ($insightData['summary_text'] ?? 'Insight belum tersedia untuk halaman ini.')));
+
     $widgetSummaryParagraphs = collect(preg_split('/\R{2,}/', $widgetSummary) ?: [])
         ->map(fn ($paragraph) => trim((string) $paragraph))
         ->filter()
         ->values();
+
     $sourceLabel = trim((string) ($source ?? ($insightData['source_label'] ?? 'Smart Local Insight')));
     $generatedAt = trim((string) ($insightData['generated_at'] ?? ''));
 
@@ -226,11 +228,13 @@
                 font-weight: 800;
                 color: #111827;
                 line-height: 1.35;
-                margin-bottom: 7px;
+                margin-bottom: 9px;
                 padding-right: 26px;
             }
 
             .ai-insight-text {
+                display: grid;
+                gap: 8px;
                 font-size: 14px;
                 line-height: 1.62;
                 color: #374151;
@@ -239,12 +243,26 @@
             .ai-insight-text p {
                 margin: 0;
                 white-space: pre-line;
+                padding: 9px 11px;
+                border-radius: 14px;
+                border: 1px solid rgba(15, 23, 42, 0.06);
+                background: rgba(248, 250, 252, 0.88);
+            }
+
+            .ai-insight-text p:nth-child(odd) {
+                background: linear-gradient(135deg, rgba(91, 62, 142, 0.055), rgba(91, 62, 142, 0.025));
+                border-color: rgba(91, 62, 142, 0.10);
+            }
+
+            .ai-insight-text p:nth-child(even) {
+                background: linear-gradient(135deg, rgba(255, 190, 4, 0.075), rgba(255, 255, 255, 0.86));
+                border-color: rgba(255, 190, 4, 0.16);
             }
 
             .ai-insight-text p + p {
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px dashed rgba(91, 62, 142, 0.14);
+                margin-top: 0;
+                padding-top: 9px;
+                border-top-style: solid;
             }
 
             .ai-insight-focus-list {
@@ -426,6 +444,11 @@
                 .ai-insight-text {
                     font-size: 13px;
                     line-height: 1.55;
+                }
+
+                .ai-insight-text p {
+                    padding: 8px 10px;
+                    border-radius: 12px;
                 }
             }
 
