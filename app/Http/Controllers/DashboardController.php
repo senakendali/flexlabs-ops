@@ -60,22 +60,13 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Marketing Platform Snapshots
+        | Google Analytics & Google Ads Dashboard Snapshots
         |--------------------------------------------------------------------------
-        | Meta Ads, Google Analytics, dan Google Ads sengaja dipisah dari global
-        | management summary supaya robot AI tidak mencampur konteks antar platform.
+        | Dashboard membaca snapshot lokal, bukan hit API langsung.
         */
         $googleAnalyticsDashboardInsight = $this->getGoogleAnalyticsDashboardInsight();
         $googleAdsDashboardInsight = $this->getGoogleAdsDashboardInsight();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Global Management Summary Context
-        |--------------------------------------------------------------------------
-        | Context ini khusus untuk dashboard umum. Marketing platform insights tidak
-        | dimasukkan ke summary global supaya AI robot utama tidak mencampur Meta Ads,
-        | Google Analytics, dan Google Ads dalam satu paragraf.
-        */
         $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
@@ -107,6 +98,18 @@ class DashboardController extends Controller
             'trelloSeiStats' => $trelloSeiStats,
 
             'trello_dashboard_stats' => $trelloDashboardStats,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Marketing Context
+            |--------------------------------------------------------------------------
+            | Tetap dikirim ke summary context supaya global AI robot punya gambaran
+            | marketing lengkap. Setelah merge, headline akan dinetralisir menjadi
+            | "Marketing Performance", bukan kebawa salah satu platform.
+            */
+            'meta_ads_dashboard_insight' => $metaAdsDashboardInsight,
+            'google_analytics_dashboard_insight' => $googleAnalyticsDashboardInsight,
+            'google_ads_dashboard_insight' => $googleAdsDashboardInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
@@ -133,61 +136,101 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Context-specific Marketing Summaries
+        | Marketing Platform Merges
         |--------------------------------------------------------------------------
-        | Summary ini untuk robot/card per tab:
-        | - Meta Ads tab
-        | - Google Analytics tab
-        | - Google Ads tab
-        |
-        | Jangan digabung ke $managementSummary global.
+        | Merge tetap satu ke managementSummary agar robot dashboard global bisa
+        | membaca Meta Ads + Google Analytics + Google Ads sekaligus.
         */
-        $emptyMarketingSummary = [
-            'headline' => '',
-            'summary_text' => '',
-            'items' => [],
-            'focus' => [],
-        ];
-
-        $metaAdsManagementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
-            $emptyMarketingSummary,
+        $managementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
+            $managementSummary,
             $metaAdsDashboardInsight
         );
 
-        $googleAnalyticsManagementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
-            $emptyMarketingSummary,
+        $managementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
+            $managementSummary,
             $googleAnalyticsDashboardInsight
         );
 
-        $googleAdsManagementSummary = $this->mergeGoogleAdsDashboardInsightIntoManagementSummary(
-            $emptyMarketingSummary,
+        $managementSummary = $this->mergeGoogleAdsDashboardInsightIntoManagementSummary(
+            $managementSummary,
             $googleAdsDashboardInsight
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Text Fallbacks
+        | Normalize Marketing Robot Context
         |--------------------------------------------------------------------------
-        | Kalau method merge tidak menghasilkan summary_text karena data kosong,
-        | tetap fallback ke summary_text dari masing-masing insight.
+        | Setelah semua platform marketing digabung, jangan biarkan headline/focus
+        | robot kebawa salah satu platform seperti "Meta Ads perlu perhatian".
+        | Karena isi summary sekarang gabungan Meta Ads + GA + Google Ads.
         */
-        $metaAdsAiSummaryText = trim((string) (
-            $metaAdsManagementSummary['summary_text']
-            ?? $metaAdsDashboardInsight['summary_text']
-            ?? ''
-        ));
+        $metaAdsOverview = $metaAdsDashboardInsight['overview'] ?? [];
+        $googleAnalyticsKpis = $googleAnalyticsDashboardInsight['kpis'] ?? [];
+        $googleAdsOverview = $googleAdsDashboardInsight['overview'] ?? [];
 
-        $googleAnalyticsAiSummaryText = trim((string) (
-            $googleAnalyticsManagementSummary['summary_text']
-            ?? $googleAnalyticsDashboardInsight['summary_text']
-            ?? ''
-        ));
+        $metaAdsHasAttention = (
+            ((int) ($metaAdsOverview['critical_count'] ?? 0)) > 0
+            || ((int) ($metaAdsOverview['attention_count'] ?? 0)) > 0
+        );
 
-        $googleAdsAiSummaryText = trim((string) (
-            $googleAdsManagementSummary['summary_text']
-            ?? $googleAdsDashboardInsight['summary_text']
-            ?? ''
-        ));
+        $googleAnalyticsHasAttention = (
+            (bool) ($googleAnalyticsDashboardInsight['is_available'] ?? false)
+            && (
+                ((float) ($googleAnalyticsKpis['engagement_rate'] ?? 0)) > 0
+                && ((float) ($googleAnalyticsKpis['engagement_rate'] ?? 0)) < 50
+            )
+        );
+
+        $googleAdsHasAttention = (
+            ((int) ($googleAdsOverview['critical_count'] ?? 0)) > 0
+            || ((int) ($googleAdsOverview['attention_count'] ?? 0)) > 0
+            || (
+                ((float) ($googleAdsOverview['total_cost'] ?? 0)) > 0
+                && ((float) ($googleAdsOverview['total_conversions'] ?? 0)) <= 0
+            )
+        );
+
+        $marketingHasAttention = $metaAdsHasAttention
+            || $googleAnalyticsHasAttention
+            || $googleAdsHasAttention;
+
+        $marketingPlatformsAvailable = collect([
+            (bool) ($metaAdsDashboardInsight['is_available'] ?? false),
+            (bool) ($googleAnalyticsDashboardInsight['is_available'] ?? false),
+            (bool) ($googleAdsDashboardInsight['is_available'] ?? false),
+        ])->filter()->count();
+
+        if ($marketingPlatformsAvailable > 0) {
+            $marketingHeadline = $marketingHasAttention
+                ? 'Marketing performance perlu perhatian'
+                : 'Marketing performance terpantau';
+
+            $marketingContextText = $marketingHasAttention
+                ? 'Ringkasan marketing mencakup Meta Ads, Google Analytics, dan Google Ads. Ada sinyal yang perlu dicek dari sisi campaign, traffic website, atau conversion tracking.'
+                : 'Ringkasan marketing mencakup Meta Ads, Google Analytics, dan Google Ads. Performa utama sudah terpantau dan bisa dilihat detailnya pada masing-masing tab.';
+
+            $marketingContextItem = $this->summaryItem(
+                $marketingHasAttention ? 'warning' : 'info',
+                $marketingHeadline,
+                $marketingContextText
+            );
+
+            $existingItems = $managementSummary['items'] ?? [];
+            $existingFocus = $managementSummary['focus'] ?? [];
+
+            /*
+            | Taruh konteks marketing netral di paling depan supaya AI robot tidak
+            | mengambil headline dari salah satu platform saja.
+            */
+            $managementSummary['items'] = array_values(array_merge([$marketingContextItem], $existingItems));
+            $managementSummary['focus'] = array_slice(
+                array_values(array_merge([$marketingContextItem], $existingFocus)),
+                0,
+                3
+            );
+
+            $managementSummary['headline'] = $marketingHeadline;
+        }
 
         return view('dashboard', [
             'academicStats' => $academicStats,
@@ -219,61 +262,12 @@ class DashboardController extends Controller
             'trelloSeiStats' => $trelloSeiStats,
             'trelloDashboardStats' => $trelloDashboardStats,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Global Dashboard Robot
-            |--------------------------------------------------------------------------
-            | Ini summary umum dashboard, tidak mencampur Meta Ads / GA / Google Ads.
-            */
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
 
-            /*
-            |--------------------------------------------------------------------------
-            | Marketing Platform Insights
-            |--------------------------------------------------------------------------
-            | Raw insight untuk masing-masing tab.
-            */
             'metaAdsDashboardInsight' => $metaAdsDashboardInsight,
             'googleAnalyticsDashboardInsight' => $googleAnalyticsDashboardInsight,
             'googleAdsDashboardInsight' => $googleAdsDashboardInsight,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Context-specific AI Robot Summaries
-            |--------------------------------------------------------------------------
-            | Pakai variable ini di tab masing-masing supaya robot/card AI tidak nyampur.
-            */
-            'metaAdsManagementSummary' => $metaAdsManagementSummary,
-            'metaAdsAiSummaryText' => $metaAdsAiSummaryText,
-
-            'googleAnalyticsManagementSummary' => $googleAnalyticsManagementSummary,
-            'googleAnalyticsAiSummaryText' => $googleAnalyticsAiSummaryText,
-
-            'googleAdsManagementSummary' => $googleAdsManagementSummary,
-            'googleAdsAiSummaryText' => $googleAdsAiSummaryText,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Convenience Map
-            |--------------------------------------------------------------------------
-            | Enak kalau nanti marketing-performance-tabs.blade.php mau ambil summary
-            | berdasarkan active tab.
-            */
-            'marketingPlatformSummaries' => [
-                'meta_ads' => [
-                    'management_summary' => $metaAdsManagementSummary,
-                    'summary_text' => $metaAdsAiSummaryText,
-                ],
-                'google_analytics' => [
-                    'management_summary' => $googleAnalyticsManagementSummary,
-                    'summary_text' => $googleAnalyticsAiSummaryText,
-                ],
-                'google_ads' => [
-                    'management_summary' => $googleAdsManagementSummary,
-                    'summary_text' => $googleAdsAiSummaryText,
-                ],
-            ],
         ]);
     }
 
