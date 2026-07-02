@@ -802,6 +802,81 @@ class PaymentController extends Controller
             'sourceTypeLabel' => $sourceContext['source_type_label'],
             'sourceItemName' => $sourceContext['source_item_name'],
             'sourceDescription' => $sourceContext['source_description'],
+
+            'isWorkshopDocument' => (bool) ($summary['is_workshop_document'] ?? false),
+            'isSimpleWorkshopDocument' => (bool) ($summary['is_simple_workshop_document'] ?? false),
+            'shouldShowPaymentBreakdown' => (bool) ($summary['should_show_breakdown'] ?? true),
+            'showRemainingBalance' => (bool) ($summary['show_remaining_balance'] ?? true),
+            'workshopName' => $summary['workshop_name'] ?? null,
+
+            'items' => $summary['items'],
+            'financialSummaryRows' => $summary['rows'],
+            'financialRows' => $summary['rows'],
+            'invoiceBreakdownRows' => $summary['rows'],
+            'pricingRows' => $summary['pricing_rows'],
+            'paymentSummaryRows' => $summary['payment_rows'],
+
+            'normalProgramFee' => $summary['normal_program_fee'],
+            'programDiscount' => $summary['program_discount'],
+            'finalTuitionFee' => $summary['final_tuition_fee'],
+            'previousPaymentReceived' => $summary['previous_payment_received'],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Invoice amount and VAT breakdown
+            |--------------------------------------------------------------------------
+            | Tax is borne by FlexLabs, not added on top of student payment.
+            | Total Due remains the amount the student has to pay.
+            */
+            'currentInvoiceAmount' => $summary['current_amount'],
+            'totalDue' => $summary['total_due'] ?? $summary['current_amount'],
+
+            // Displayed "Outstanding Balance" for tax breakdown.
+            'remainingBalance' => $summary['remaining_balance'],
+            'remainingBalanceLabel' => $summary['remaining_balance_label'],
+
+            // Real remaining order balance, kept separately for internal/display fallback.
+            'actualRemainingBalance' => $summary['actual_remaining_balance'] ?? 0,
+
+            'taxOutstandingBalance' => $summary['tax_outstanding_balance'] ?? 0,
+            'vatCalculationBase' => $summary['vat_calculation_base'] ?? 0,
+            'vatAmount' => $summary['vat_amount'] ?? 0,
+
+            'subtotal' => $summary['current_amount'],
+            'tax' => $summary['vat_amount'] ?? 0,
+            'grandTotal' => $summary['total_due'] ?? $summary['current_amount'],
+
+            'invoiceDate' => $payment->payment_date ?: $payment->created_at,
+            'documentNote' => $this->buildDocumentNote($sourceContext, 'invoice'),
+            'companyName' => 'FlexLabs',
+            'companyAddressLines' => $this->flexlabsAddressLines(),
+        ];
+    }
+
+    private function buildInvoiceViewData_(Payment $payment): array
+    {
+        $payment->load($this->paymentDocumentRelations());
+
+        $student = $payment->order?->student;
+        $batch = $payment->order?->batch;
+        $program = $batch?->program;
+        $schedule = $payment->paymentSchedule;
+        $order = $payment->order;
+        $summary = $this->buildPaymentFinancialSummary($payment, 'invoice');
+        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
+
+        return [
+            'payment' => $payment,
+            'order' => $order,
+            'student' => $student,
+            'batch' => $batch,
+            'program' => $program,
+            'schedule' => $schedule,
+            'sourceContext' => $sourceContext,
+            'sourceType' => $sourceContext['source_type'],
+            'sourceTypeLabel' => $sourceContext['source_type_label'],
+            'sourceItemName' => $sourceContext['source_item_name'],
+            'sourceDescription' => $sourceContext['source_description'],
             'isWorkshopDocument' => (bool) ($summary['is_workshop_document'] ?? false),
             'isSimpleWorkshopDocument' => (bool) ($summary['is_simple_workshop_document'] ?? false),
             'shouldShowPaymentBreakdown' => (bool) ($summary['should_show_breakdown'] ?? true),
@@ -831,6 +906,84 @@ class PaymentController extends Controller
     }
 
     private function buildReceiptViewData(Payment $payment): array
+    {
+        $payment->load($this->paymentDocumentRelations());
+
+        $student = $payment->order?->student;
+        $batch = $payment->order?->batch;
+        $program = $batch?->program;
+        $schedule = $payment->paymentSchedule;
+        $order = $payment->order;
+        $summary = $this->buildPaymentFinancialSummary($payment, 'receipt');
+        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
+
+        return [
+            'payment' => $payment,
+            'order' => $order,
+            'student' => $student,
+            'batch' => $batch,
+            'program' => $program,
+            'schedule' => $schedule,
+            'sourceContext' => $sourceContext,
+            'sourceType' => $sourceContext['source_type'],
+            'sourceTypeLabel' => $sourceContext['source_type_label'],
+            'sourceItemName' => $sourceContext['source_item_name'],
+            'sourceDescription' => $sourceContext['source_description'],
+
+            'isWorkshopDocument' => (bool) ($summary['is_workshop_document'] ?? false),
+            'isSimpleWorkshopDocument' => (bool) ($summary['is_simple_workshop_document'] ?? false),
+            'shouldShowPaymentBreakdown' => (bool) ($summary['should_show_breakdown'] ?? true),
+            'showRemainingBalance' => (bool) ($summary['show_remaining_balance'] ?? true),
+            'workshopName' => $summary['workshop_name'] ?? null,
+
+            'items' => $summary['items'],
+            'financialSummaryRows' => $summary['rows'],
+            'financialRows' => $summary['rows'],
+            'invoiceBreakdownRows' => $summary['rows'],
+            'receiptBreakdownRows' => $summary['rows'],
+            'pricingRows' => $summary['pricing_rows'],
+            'paymentSummaryRows' => $summary['payment_rows'],
+
+            'receiptNumber' => $this->resolveReceiptNumber($payment),
+            'normalProgramFee' => $summary['normal_program_fee'],
+            'programDiscount' => $summary['program_discount'],
+            'finalTuitionFee' => $summary['final_tuition_fee'],
+            'previousPaymentReceived' => $summary['previous_payment_received'],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Receipt amount and VAT breakdown
+            |--------------------------------------------------------------------------
+            | Tax is borne by FlexLabs, not added on top of student payment.
+            | Total Paid remains the amount received from the student.
+            */
+            'currentPaymentReceived' => $summary['current_amount'],
+            'totalPaid' => $summary['total_due'] ?? $summary['current_amount'],
+
+            // Displayed "Outstanding Balance" for tax breakdown.
+            'remainingBalance' => $summary['remaining_balance'],
+            'remainingBalanceLabel' => $summary['remaining_balance_label'],
+
+            // Real remaining order balance, kept separately for internal/display fallback.
+            'actualRemainingBalance' => $summary['actual_remaining_balance'] ?? 0,
+
+            'taxOutstandingBalance' => $summary['tax_outstanding_balance'] ?? 0,
+            'vatCalculationBase' => $summary['vat_calculation_base'] ?? 0,
+            'vatAmount' => $summary['vat_amount'] ?? 0,
+
+            'subtotal' => $summary['current_amount'],
+            'tax' => $summary['vat_amount'] ?? 0,
+            'grandTotal' => $summary['total_due'] ?? $summary['current_amount'],
+
+            'paymentDate' => $payment->payment_date ?: $payment->updated_at,
+            'paidAt' => $payment->payment_date ?: $payment->updated_at,
+            'documentNote' => $this->buildDocumentNote($sourceContext, 'receipt'),
+            'companyName' => 'FlexLabs',
+            'companyAddressLines' => $this->flexlabsAddressLines(),
+        ];
+    }
+
+    private function buildReceiptViewData_(Payment $payment): array
     {
         $payment->load($this->paymentDocumentRelations());
 
@@ -886,6 +1039,234 @@ class PaymentController extends Controller
     }
 
     private function buildPaymentFinancialSummary(Payment $payment, string $documentType = 'invoice'): array
+    {
+        $order = $this->resolveFullOrderForPayment($payment);
+        $schedule = $this->resolveFullPaymentScheduleForPayment($payment);
+        $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $schedule);
+
+        // Khusus workshop: jangan tampilkan breakdown normal fee / discount / final fee.
+        // Invoice/receipt cukup menjelaskan peserta ikut workshop apa dan nominal yang harus dibayar/dibayar.
+        if ($this->isWorkshopSourceContext($sourceContext, $order)) {
+            return $this->buildWorkshopFinancialSummary($payment, $documentType, $order, $schedule, $sourceContext);
+        }
+
+        $sourceTypeLabel = $sourceContext['source_type_label'] ?: 'Order';
+        $normalFeeLabel = $this->buildSourceMoneyLabel('Normal', $sourceTypeLabel, 'Fee');
+        $discountLabel = $this->buildSourceDiscountLabel($sourceTypeLabel);
+
+        $normalProgramFee = $this->moneyValue($order?->original_price);
+        $explicitDiscount = $this->moneyValue($order?->discount);
+        $finalTuitionFee = $this->moneyValue($order?->final_price);
+        $currentAmount = $this->moneyValue($payment->amount);
+
+        // Guard tambahan:
+        // - original_price kadang kosong, tapi discount + final_price ada
+        // - discount kadang kosong, tapi original_price > final_price
+        // - final_price kadang kosong pada data lama, fallback ke amount/payment schedule
+        if ($finalTuitionFee <= 0) {
+            $finalTuitionFee = $this->moneyValue($schedule?->amount) ?: $currentAmount;
+        }
+
+        if ($normalProgramFee <= 0) {
+            $normalProgramFee = $finalTuitionFee + $explicitDiscount;
+        }
+
+        if ($normalProgramFee <= 0) {
+            $normalProgramFee = $finalTuitionFee ?: $currentAmount;
+        }
+
+        $derivedDiscount = 0;
+
+        if ($normalProgramFee > $finalTuitionFee && $finalTuitionFee > 0) {
+            $derivedDiscount = $normalProgramFee - $finalTuitionFee;
+        }
+
+        $programDiscount = max($explicitDiscount, $derivedDiscount, 0);
+
+        if ($finalTuitionFee <= 0 && $normalProgramFee > 0) {
+            $finalTuitionFee = max($normalProgramFee - $programDiscount, 0);
+        }
+
+        if ($finalTuitionFee <= 0) {
+            $finalTuitionFee = $currentAmount;
+        }
+
+        $previousPaymentReceived = $this->resolvePreviousPaidAmount($payment);
+
+        $currentAmountAppliedToBalance = $documentType === 'receipt' && $payment->status !== 'paid'
+            ? 0
+            : $currentAmount;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Actual remaining balance
+        |--------------------------------------------------------------------------
+        | Ini balance bisnis asli terhadap total order.
+        | Sengaja dipisah dari displayed outstanding balance karena kebutuhan pajak
+        | memakai rumus khusus dari Total Due.
+        */
+        $actualRemainingBalance = max(
+            $finalTuitionFee - $previousPaymentReceived - $currentAmountAppliedToBalance,
+            0
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VAT Breakdown - Tax Borne by FlexLabs
+        |--------------------------------------------------------------------------
+        | Student tidak ditagihkan pajak tambahan.
+        | Total Due tetap sama dengan current payment/invoice amount.
+        |
+        | Formula:
+        | - Outstanding Balance = Total Due / 1.11
+        | - VAT Calculation base = Outstanding Balance * 11 / 12
+        | - VAT (12%) = VAT Calculation base * 12%
+        */
+        $totalDue = $currentAmount;
+
+        $taxOutstandingBalance = $totalDue > 0
+            ? $this->moneyValue($totalDue / 1.11)
+            : 0;
+
+        $vatCalculationBase = $taxOutstandingBalance > 0
+            ? $this->moneyValue($taxOutstandingBalance * 11 / 12)
+            : 0;
+
+        $vatAmount = $vatCalculationBase > 0
+            ? $this->moneyValue($vatCalculationBase * 0.12)
+            : 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Display labels
+        |--------------------------------------------------------------------------
+        | remaining_balance sekarang dipakai untuk tampilan "Outstanding Balance"
+        | sesuai rumus pajak, bukan actual remaining order balance.
+        */
+        $remainingBalance = $taxOutstandingBalance;
+        $remainingLabel = 'Outstanding Balance';
+
+        $totalDueLabel = $documentType === 'receipt'
+            ? 'Total Paid'
+            : 'Total Due';
+
+        $currentDescription = $schedule?->title
+            ? trim($schedule->title . ($schedule->due_date ? ' · Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
+            : $this->buildGenericInstallmentDescription($sourceContext);
+
+        $programDescription = $sourceContext['source_description'] ?: $this->resolveProgramDescription($payment);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Financial rows
+        |--------------------------------------------------------------------------
+        | Rows ini dipakai invoice/receipt HTML dan PDF selama view looping dari:
+        | financialSummaryRows / financialRows / invoiceBreakdownRows / receiptBreakdownRows.
+        */
+        $rows = [
+            $this->makeFinancialRow(
+                label: $normalFeeLabel,
+                details: $programDescription,
+                amount: $normalProgramFee,
+                type: 'normal_fee'
+            ),
+            $this->makeFinancialRow(
+                label: $discountLabel,
+                details: 'Approved discount or payment adjustment for this order source',
+                amount: -1 * abs($programDiscount),
+                type: 'discount',
+                isNegative: $programDiscount > 0
+            ),
+            $this->makeFinancialRow(
+                label: 'Subtotal',
+                details: $sourceTypeLabel . ' fee after discount or adjustment',
+                amount: $finalTuitionFee,
+                type: 'subtotal',
+                isEmphasis: true
+            ),
+            $this->makeFinancialRow(
+                label: 'Previous Payment',
+                details: 'Confirmed paid amount recorded before this document',
+                amount: -1 * abs($previousPaymentReceived),
+                type: 'previous_payment',
+                isNegative: $previousPaymentReceived > 0
+            ),
+            $this->makeFinancialRow(
+                label: 'Outstanding Balance',
+                details: 'Total due divided by 1.11 because VAT is borne by FlexLabs',
+                amount: $taxOutstandingBalance,
+                type: 'tax_outstanding_balance',
+                isEmphasis: true
+            ),
+            $this->makeFinancialRow(
+                label: 'VAT Calculation base',
+                details: 'Outstanding Balance × 11 / 12',
+                amount: $vatCalculationBase,
+                type: 'vat_calculation_base'
+            ),
+            $this->makeFinancialRow(
+                label: 'VAT (12%)',
+                details: 'VAT Calculation base × 12%',
+                amount: $vatAmount,
+                type: 'vat_amount'
+            ),
+            $this->makeFinancialRow(
+                label: $totalDueLabel,
+                details: $currentDescription,
+                amount: $totalDue,
+                type: $documentType === 'receipt' ? 'total_paid' : 'total_due',
+                isEmphasis: true
+            ),
+        ];
+
+        return [
+            'normal_program_fee' => $normalProgramFee,
+            'program_discount' => $programDiscount,
+            'final_tuition_fee' => $finalTuitionFee,
+
+            'normal_source_fee' => $normalProgramFee,
+            'source_discount' => $programDiscount,
+            'final_source_fee' => $finalTuitionFee,
+
+            'source_context' => $sourceContext,
+            'source_type_label' => $sourceTypeLabel,
+
+            'previous_payment_received' => $previousPaymentReceived,
+
+            // Amount yang dibayar student.
+            'current_amount' => $currentAmount,
+            'total_due' => $totalDue,
+
+            // Display balance untuk invoice/receipt sesuai rumus pajak.
+            'remaining_balance' => $remainingBalance,
+            'remaining_balance_label' => $remainingLabel,
+
+            // Balance bisnis asli untuk fallback/internal.
+            'actual_remaining_balance' => $actualRemainingBalance,
+
+            // VAT breakdown.
+            'tax_outstanding_balance' => $taxOutstandingBalance,
+            'vat_calculation_base' => $vatCalculationBase,
+            'vat_amount' => $vatAmount,
+
+            'rows' => $rows,
+
+            // 3 row pertama: normal fee, discount, subtotal.
+            'pricing_rows' => array_slice($rows, 0, 3),
+
+            // Sisanya: previous payment, outstanding, VAT base, VAT, total due/paid.
+            'payment_rows' => array_slice($rows, 3),
+
+            'items' => $this->financialRowsToDocumentItems($rows),
+
+            'is_workshop_document' => false,
+            'is_simple_workshop_document' => false,
+            'should_show_breakdown' => true,
+            'show_remaining_balance' => true,
+        ];
+    }
+
+    private function buildPaymentFinancialSummary_(Payment $payment, string $documentType = 'invoice'): array
     {
         $order = $this->resolveFullOrderForPayment($payment);
         $schedule = $this->resolveFullPaymentScheduleForPayment($payment);
