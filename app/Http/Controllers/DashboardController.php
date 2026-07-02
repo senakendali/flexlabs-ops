@@ -20,7 +20,7 @@ use App\Models\GoogleAdsDashboardSnapshot;
 
 class DashboardController extends Controller
 {
-    public function index(
+   public function index(
         LocalDashboardInsightService $localDashboardInsightService,
         KommoService $kommoService,
         TrelloDashboardStatsService $trelloDashboardStatsService
@@ -60,16 +60,22 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Google Analytics Dashboard Snapshot
+        | Marketing Platform Snapshots
         |--------------------------------------------------------------------------
-        | Dashboard sekarang baca dari table snapshot, bukan hit GA4 API langsung.
-        | Sync dilakukan via:
-        |
-        | php artisan google-analytics:sync-dashboard
+        | Meta Ads, Google Analytics, dan Google Ads sengaja dipisah dari global
+        | management summary supaya robot AI tidak mencampur konteks antar platform.
         */
         $googleAnalyticsDashboardInsight = $this->getGoogleAnalyticsDashboardInsight();
         $googleAdsDashboardInsight = $this->getGoogleAdsDashboardInsight();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Global Management Summary Context
+        |--------------------------------------------------------------------------
+        | Context ini khusus untuk dashboard umum. Marketing platform insights tidak
+        | dimasukkan ke summary global supaya AI robot utama tidak mencampur Meta Ads,
+        | Google Analytics, dan Google Ads dalam satu paragraf.
+        */
         $summaryContext = [
             'academic_stats' => $academicStats,
             'batch_capacity' => $batchCapacity,
@@ -101,10 +107,6 @@ class DashboardController extends Controller
             'trelloSeiStats' => $trelloSeiStats,
 
             'trello_dashboard_stats' => $trelloDashboardStats,
-
-            'meta_ads_dashboard_insight' => $metaAdsDashboardInsight,
-            'google_analytics_dashboard_insight' => $googleAnalyticsDashboardInsight,
-            'google_ads_dashboard_insight' => $googleAdsDashboardInsight,
         ];
 
         $managementSummary = $localDashboardInsightService->generate($summaryContext);
@@ -129,20 +131,63 @@ class DashboardController extends Controller
             $trelloSeiStats
         );
 
-        $managementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
-            $managementSummary,
+        /*
+        |--------------------------------------------------------------------------
+        | Context-specific Marketing Summaries
+        |--------------------------------------------------------------------------
+        | Summary ini untuk robot/card per tab:
+        | - Meta Ads tab
+        | - Google Analytics tab
+        | - Google Ads tab
+        |
+        | Jangan digabung ke $managementSummary global.
+        */
+        $emptyMarketingSummary = [
+            'headline' => '',
+            'summary_text' => '',
+            'items' => [],
+            'focus' => [],
+        ];
+
+        $metaAdsManagementSummary = $this->mergeMetaAdsDashboardInsightIntoManagementSummary(
+            $emptyMarketingSummary,
             $metaAdsDashboardInsight
         );
 
-        $managementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
-            $managementSummary,
+        $googleAnalyticsManagementSummary = $this->mergeGoogleAnalyticsDashboardInsightIntoManagementSummary(
+            $emptyMarketingSummary,
             $googleAnalyticsDashboardInsight
         );
 
-        $managementSummary = $this->mergeGoogleAdsDashboardInsightIntoManagementSummary(
-            $managementSummary,
+        $googleAdsManagementSummary = $this->mergeGoogleAdsDashboardInsightIntoManagementSummary(
+            $emptyMarketingSummary,
             $googleAdsDashboardInsight
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Text Fallbacks
+        |--------------------------------------------------------------------------
+        | Kalau method merge tidak menghasilkan summary_text karena data kosong,
+        | tetap fallback ke summary_text dari masing-masing insight.
+        */
+        $metaAdsAiSummaryText = trim((string) (
+            $metaAdsManagementSummary['summary_text']
+            ?? $metaAdsDashboardInsight['summary_text']
+            ?? ''
+        ));
+
+        $googleAnalyticsAiSummaryText = trim((string) (
+            $googleAnalyticsManagementSummary['summary_text']
+            ?? $googleAnalyticsDashboardInsight['summary_text']
+            ?? ''
+        ));
+
+        $googleAdsAiSummaryText = trim((string) (
+            $googleAdsManagementSummary['summary_text']
+            ?? $googleAdsDashboardInsight['summary_text']
+            ?? ''
+        ));
 
         return view('dashboard', [
             'academicStats' => $academicStats,
@@ -174,12 +219,61 @@ class DashboardController extends Controller
             'trelloSeiStats' => $trelloSeiStats,
             'trelloDashboardStats' => $trelloDashboardStats,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Global Dashboard Robot
+            |--------------------------------------------------------------------------
+            | Ini summary umum dashboard, tidak mencampur Meta Ads / GA / Google Ads.
+            */
             'managementSummary' => $managementSummary,
             'dashboardAiSummaryText' => $managementSummary['summary_text'] ?? '',
 
+            /*
+            |--------------------------------------------------------------------------
+            | Marketing Platform Insights
+            |--------------------------------------------------------------------------
+            | Raw insight untuk masing-masing tab.
+            */
             'metaAdsDashboardInsight' => $metaAdsDashboardInsight,
             'googleAnalyticsDashboardInsight' => $googleAnalyticsDashboardInsight,
             'googleAdsDashboardInsight' => $googleAdsDashboardInsight,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Context-specific AI Robot Summaries
+            |--------------------------------------------------------------------------
+            | Pakai variable ini di tab masing-masing supaya robot/card AI tidak nyampur.
+            */
+            'metaAdsManagementSummary' => $metaAdsManagementSummary,
+            'metaAdsAiSummaryText' => $metaAdsAiSummaryText,
+
+            'googleAnalyticsManagementSummary' => $googleAnalyticsManagementSummary,
+            'googleAnalyticsAiSummaryText' => $googleAnalyticsAiSummaryText,
+
+            'googleAdsManagementSummary' => $googleAdsManagementSummary,
+            'googleAdsAiSummaryText' => $googleAdsAiSummaryText,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Convenience Map
+            |--------------------------------------------------------------------------
+            | Enak kalau nanti marketing-performance-tabs.blade.php mau ambil summary
+            | berdasarkan active tab.
+            */
+            'marketingPlatformSummaries' => [
+                'meta_ads' => [
+                    'management_summary' => $metaAdsManagementSummary,
+                    'summary_text' => $metaAdsAiSummaryText,
+                ],
+                'google_analytics' => [
+                    'management_summary' => $googleAnalyticsManagementSummary,
+                    'summary_text' => $googleAnalyticsAiSummaryText,
+                ],
+                'google_ads' => [
+                    'management_summary' => $googleAdsManagementSummary,
+                    'summary_text' => $googleAdsAiSummaryText,
+                ],
+            ],
         ]);
     }
 
