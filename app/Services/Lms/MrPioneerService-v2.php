@@ -66,7 +66,6 @@ class MrPioneerService
         }
 
         $answer = $this->extractGeminiText($response->json());
-        $answer = $this->cleanAnswerText($answer);
 
         if (!$answer) {
             throw new HttpException(502, 'Mr. Pioneer tidak mengembalikan jawaban.');
@@ -249,12 +248,6 @@ class MrPioneerService
             8. Do not invent FlexLabs curriculum details, schedules, assessment rules, links, or internal data that are not provided in the context.
             9. If code is needed, include short beginner-friendly examples only.
             10. End with one short follow-up suggestion related to the current topic.
-            11. Return the answer as plain text only.
-            12. Do not use Markdown formatting.
-            13. Do not use asterisks for bold or italic text.
-            14. Do not wrap words with *, **, _, __, or backticks unless it is actual code.
-            15. Do not use Markdown headings, Markdown tables, or Markdown links.
-            16. Use normal numbered lists like 1., 2., 3. when listing steps.
 
             CURRENT MATERIAL CONTEXT:
 
@@ -301,68 +294,6 @@ class MrPioneerService
             ->map(fn ($part) => is_array($part) ? ($part['text'] ?? '') : '')
             ->filter()
             ->implode("\n");
-
-        return trim($text);
-    }
-
-    private function cleanAnswerText(string $text): string
-    {
-        $text = trim($text);
-
-        if ($text === '') {
-            return '';
-        }
-
-        $text = str_replace(["\r\n", "\r"], "\n", $text);
-
-        $codeBlocks = [];
-
-        $text = preg_replace_callback(
-            '/```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)```/m',
-            function (array $matches) use (&$codeBlocks): string {
-                $placeholder = '@@MRPIONEERCODEBLOCK' . count($codeBlocks) . '@@';
-                $codeBlocks[$placeholder] = trim($matches[1]);
-
-                return "\n" . $placeholder . "\n";
-            },
-            $text
-        );
-
-        // Convert Markdown links into readable plain text.
-        $text = preg_replace('/\[([^\]]+)\]\(([^\)]+)\)/', '$1 ($2)', $text);
-
-        // Remove Markdown headings and blockquote markers.
-        $text = preg_replace('/^\s{0,3}#{1,6}\s+/m', '', $text);
-        $text = preg_replace('/^\s*>\s?/m', '', $text);
-
-        // Remove Markdown bold/italic markers while keeping the content.
-        for ($i = 0; $i < 2; $i++) {
-            $text = preg_replace('/\*\*([^*\n]+)\*\*/', '$1', $text);
-            $text = preg_replace('/__([^_\n]+)__/', '$1', $text);
-            $text = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/', '$1', $text);
-            $text = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/', '$1', $text);
-        }
-
-        // Remove inline code backticks while keeping the content.
-        $text = preg_replace('/`([^`\n]+)`/', '$1', $text);
-
-        // Convert Markdown bullets into simple dash bullets.
-        $text = preg_replace('/^\s*[\*\+]\s+/m', '- ', $text);
-
-        // Clean common leftover Markdown horizontal rules.
-        $text = preg_replace('/^\s*[-*_]{3,}\s*$/m', '', $text);
-
-        foreach ($codeBlocks as $placeholder => $code) {
-            $text = str_replace($placeholder, $code, $text);
-        }
-
-        // Trim every line without collapsing intentional line breaks.
-        $text = collect(explode("\n", $text))
-            ->map(fn (string $line) => rtrim($line))
-            ->implode("\n");
-
-        // Remove excessive blank lines.
-        $text = preg_replace("/\n{3,}/", "\n\n", $text);
 
         return trim($text);
     }
