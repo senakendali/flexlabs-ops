@@ -7,7 +7,9 @@ use App\Models\FeedbackAnswer;
 use App\Models\FeedbackResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PublicFeedbackController extends Controller
@@ -63,9 +65,14 @@ class PublicFeedbackController extends Controller
                 'rating_0_10' => [$requiredRule, 'integer', 'min:0', 'max:10'],
                 'text' => [$requiredRule, 'string', 'max:500'],
                 'textarea' => [$requiredRule, 'string', 'max:5000'],
+                'single_choice' => $this->singleChoiceValidationRules($question, $requiredRule),
                 'checkbox' => [$requiredRule, 'array'],
                 default => [$requiredRule, 'string', 'max:1000'],
             };
+
+            if ($question->question_type === 'checkbox') {
+                $rules[$field . '.*'] = ['string', 'max:1000'];
+            }
         }
 
         $validated = $request->validate($rules, [
@@ -73,6 +80,8 @@ class PublicFeedbackController extends Controller
             'answers.*.integer' => 'Jawaban rating harus berupa angka.',
             'answers.*.min' => 'Nilai jawaban terlalu kecil.',
             'answers.*.max' => 'Nilai jawaban terlalu besar.',
+            'answers.*.in' => 'Pilihan jawaban tidak valid.',
+            'answers.*.array' => 'Format jawaban tidak valid.',
         ]);
 
         $answers = $validated['answers'] ?? [];
@@ -86,7 +95,7 @@ class PublicFeedbackController extends Controller
             foreach ($questions as $question) {
                 $rawAnswer = $answers[$question->id] ?? null;
 
-                if ($rawAnswer === null || $rawAnswer === '') {
+                if ($rawAnswer === null || $rawAnswer === '' || $rawAnswer === []) {
                     continue;
                 }
 
@@ -116,8 +125,15 @@ class PublicFeedbackController extends Controller
                     }
                 } elseif (in_array($question->question_type, ['text', 'textarea'], true)) {
                     $payload['answer_text'] = trim((string) $rawAnswer);
+                } elseif ($question->question_type === 'single_choice') {
+                    $answer = trim((string) $rawAnswer);
+
+                    $payload['answer_value'] = $answer;
+                    $payload['answer_text'] = $answer;
                 } elseif ($question->question_type === 'checkbox') {
-                    $payload['answer_json'] = is_array($rawAnswer) ? $rawAnswer : [$rawAnswer];
+                    $payload['answer_json'] = is_array($rawAnswer)
+                        ? array_values($rawAnswer)
+                        : [$rawAnswer];
                 } else {
                     $payload['answer_value'] = is_array($rawAnswer)
                         ? json_encode($rawAnswer)
@@ -142,5 +158,51 @@ class PublicFeedbackController extends Controller
         return redirect()
             ->route('feedback.public.show', $response->token)
             ->with('success', 'Terima kasih! Feedback kamu sudah kami terima.');
+    }
+
+    private function singleChoiceValidationRules($question, string $requiredRule): array
+    {
+        $optionValues = $this->normalizeOptionValues($question->options);
+
+        if (empty($optionValues)) {
+            return [$requiredRule, 'string', 'max:1000'];
+        }
+
+        return [
+            $requiredRule,
+            'string',
+            'max:1000',
+            Rule::in($optionValues),
+        ];
+    }
+
+    private function normalizeOptionValues(mixed $options): array
+    {
+        if ($options instanceof Collection) {
+            $options = $options->all();
+        }
+
+        if (is_string($options)) {
+            $decoded = json_decode($options, true);
+
+            $options = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
+        }
+
+        if (! is_array($options)) {
+            return [];
+        }
+
+        return collect($options)
+            ->map(function ($option) {
+                if (is_array($option)) {
+                    return $option['value'] ?? $option['label'] ?? null;
+                }
+
+                return $option;
+            })
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->values()
+            ->all();
     }
 }

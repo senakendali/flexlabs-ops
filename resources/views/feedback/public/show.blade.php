@@ -170,15 +170,34 @@
                             <div class="rounded-[2rem] border border-slate-200 bg-slate-50/70 p-5 sm:p-6 lg:p-7">
                                 <div class="mb-5 flex items-center gap-3">
                                     <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-flex-primary/10 text-xl text-flex-primary">
-                                        <i class="bi bi-ui-checks"></i>
+                                        @if($section === 'Next Step')
+                                            <i class="bi bi-arrow-up-right-circle"></i>
+                                        @elseif($section === 'NPS')
+                                            <i class="bi bi-megaphone"></i>
+                                        @elseif($section === 'Testimonial')
+                                            <i class="bi bi-chat-quote"></i>
+                                        @elseif($section === 'Insight')
+                                            <i class="bi bi-lightbulb"></i>
+                                        @else
+                                            <i class="bi bi-ui-checks"></i>
+                                        @endif
                                     </div>
 
                                     <div>
                                         <h3 class="text-xl font-black tracking-[-0.03em] text-slate-950">
                                             {{ $section }}
                                         </h3>
+
                                         <p class="mt-1 text-sm font-semibold text-slate-500">
-                                            Isi bagian ini sesuai pengalaman belajar kamu.
+                                            @if($section === 'Next Step')
+                                                Bantu kami memahami kebutuhan belajar kamu berikutnya.
+                                            @elseif($section === 'NPS')
+                                                Beri penilaian seberapa besar kemungkinan kamu merekomendasikan FlexLabs.
+                                            @elseif($section === 'Testimonial')
+                                                Bagikan pengalaman belajar kamu secara singkat.
+                                            @else
+                                                Isi bagian ini sesuai pengalaman belajar kamu.
+                                            @endif
                                         </p>
                                     </div>
                                 </div>
@@ -191,6 +210,19 @@
                                             $oldValue = old("answers.{$question->id}");
                                             $scale = (int) ($question->rating_scale ?: ($question->question_type === 'rating_0_10' ? 10 : 5));
                                             $minRating = $question->question_type === 'rating_0_10' ? 0 : 1;
+
+                                            $choiceOptions = $question->options;
+
+                                            if ($choiceOptions instanceof \Illuminate\Support\Collection) {
+                                                $choiceOptions = $choiceOptions->all();
+                                            }
+
+                                            if (is_string($choiceOptions)) {
+                                                $decodedOptions = json_decode($choiceOptions, true);
+                                                $choiceOptions = json_last_error() === JSON_ERROR_NONE ? $decodedOptions : [];
+                                            }
+
+                                            $choiceOptions = is_array($choiceOptions) ? array_values($choiceOptions) : [];
                                         @endphp
 
                                         <div class="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
@@ -228,6 +260,99 @@
                                                             </label>
                                                         @endfor
                                                     </div>
+                                                @elseif($question->question_type === 'single_choice')
+                                                    @if(count($choiceOptions))
+                                                        <div class="grid gap-3">
+                                                            @foreach($choiceOptions as $option)
+                                                                @php
+                                                                    $optionValue = is_array($option)
+                                                                        ? ($option['value'] ?? $option['label'] ?? $loop->iteration)
+                                                                        : $option;
+
+                                                                    $optionLabel = is_array($option)
+                                                                        ? ($option['label'] ?? $option['value'] ?? $loop->iteration)
+                                                                        : $option;
+
+                                                                    $optionId = 'question_' . $question->id . '_option_' . $loop->index;
+                                                                @endphp
+
+                                                                <label
+                                                                    for="{{ $optionId }}"
+                                                                    class="group flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-flex-primary/40 hover:bg-flex-primary/5"
+                                                                >
+                                                                    <input
+                                                                        id="{{ $optionId }}"
+                                                                        type="radio"
+                                                                        name="{{ $fieldName }}"
+                                                                        value="{{ $optionValue }}"
+                                                                        class="peer mt-1 h-4 w-4 shrink-0 border-slate-300 text-flex-primary focus:ring-flex-primary"
+                                                                        {{ (string) $oldValue === (string) $optionValue ? 'checked' : '' }}
+                                                                        {{ $question->is_required ? 'required' : '' }}
+                                                                    >
+
+                                                                    <span class="text-sm font-bold leading-6 text-slate-700 transition group-hover:text-flex-primary peer-checked:text-flex-primary">
+                                                                        {{ $optionLabel }}
+                                                                    </span>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
+                                                    @else
+                                                        <input
+                                                            type="text"
+                                                            name="{{ $fieldName }}"
+                                                            value="{{ $oldValue }}"
+                                                            placeholder="Tulis jawaban kamu di sini..."
+                                                            class="w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold leading-7 text-slate-700 outline-none transition duration-200 placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                                            {{ $question->is_required ? 'required' : '' }}
+                                                        >
+                                                    @endif
+                                                @elseif($question->question_type === 'checkbox')
+                                                    @if(count($choiceOptions))
+                                                        <div class="grid gap-3">
+                                                            @foreach($choiceOptions as $option)
+                                                                @php
+                                                                    $optionValue = is_array($option)
+                                                                        ? ($option['value'] ?? $option['label'] ?? $loop->iteration)
+                                                                        : $option;
+
+                                                                    $optionLabel = is_array($option)
+                                                                        ? ($option['label'] ?? $option['value'] ?? $loop->iteration)
+                                                                        : $option;
+
+                                                                    $optionId = 'question_' . $question->id . '_checkbox_' . $loop->index;
+                                                                    $oldArrayValue = old("answers.{$question->id}", []);
+                                                                    $oldArrayValue = is_array($oldArrayValue) ? $oldArrayValue : [];
+                                                                @endphp
+
+                                                                <label
+                                                                    for="{{ $optionId }}"
+                                                                    class="group flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 transition duration-200 hover:-translate-y-0.5 hover:border-flex-primary/40 hover:bg-flex-primary/5"
+                                                                >
+                                                                    <input
+                                                                        id="{{ $optionId }}"
+                                                                        type="checkbox"
+                                                                        name="{{ $fieldName }}[]"
+                                                                        value="{{ $optionValue }}"
+                                                                        class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-flex-primary focus:ring-flex-primary"
+                                                                        {{ in_array((string) $optionValue, array_map('strval', $oldArrayValue), true) ? 'checked' : '' }}
+                                                                    >
+
+                                                                    <span class="text-sm font-bold leading-6 text-slate-700 transition group-hover:text-flex-primary">
+                                                                        {{ $optionLabel }}
+                                                                    </span>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
+                                                    @else
+                                                        <input
+                                                            type="text"
+                                                            name="{{ $fieldName }}"
+                                                            value="{{ $oldValue }}"
+                                                            placeholder="Tulis jawaban kamu di sini..."
+                                                            class="w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold leading-7 text-slate-700 outline-none transition duration-200 placeholder:text-slate-400 focus:border-flex-primary focus:ring-4 focus:ring-flex-primary/10"
+                                                            {{ $question->is_required ? 'required' : '' }}
+                                                        >
+                                                    @endif
                                                 @elseif($question->question_type === 'textarea')
                                                     <textarea
                                                         name="{{ $fieldName }}"

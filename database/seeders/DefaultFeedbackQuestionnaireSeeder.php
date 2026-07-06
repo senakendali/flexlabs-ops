@@ -174,6 +174,30 @@ class DefaultFeedbackQuestionnaireSeeder extends Seeder
                 'is_required' => false,
                 'sort_order' => 14,
             ],
+            [
+                'section' => 'Next Step',
+                'question_text' => 'Apakah kamu tertarik untuk mengikuti program lanjutan di FlexLabs setelah program ini selesai?',
+                'help_text' => 'Jawaban ini tidak mengikat. Kami hanya ingin memahami kebutuhan belajar kamu selanjutnya.',
+                'question_type' => 'single_choice',
+                'rating_scale' => null,
+                'options' => [
+                    'Ya, saya tertarik',
+                    'Mungkin, saya ingin tahu dulu program yang cocok',
+                    'Belum tertarik saat ini',
+                ],
+                'is_required' => true,
+                'sort_order' => 15,
+            ],
+            [
+                'section' => 'Next Step',
+                'question_text' => 'Skill atau program apa yang ingin kamu pelajari selanjutnya?',
+                'help_text' => 'Opsional. Contoh: Laravel lanjutan, UI/UX, AI tools, project portfolio, career preparation, dan lainnya.',
+                'question_type' => 'textarea',
+                'rating_scale' => null,
+                'options' => null,
+                'is_required' => false,
+                'sort_order' => 16,
+            ],
         ];
 
         foreach ($questions as $question) {
