@@ -62,8 +62,6 @@ return [
             'academic.view',
             'academic.dashboard.view',
 
-            'feedback_responses.view',
-
             'programs.view',
             'programs.create',
             'programs.update',
@@ -564,7 +562,6 @@ return [
                 'enrollments.*',
                 'students.*',
                 'academic.student-progress.*',
-                'feedback.responses.*',
                 'curriculum.*',
                 'public-learning-materials.*',
                 'academic.learning-videos.*',
@@ -661,14 +658,6 @@ return [
                             'icon' => 'bi bi-graph-up-arrow',
                             'permission' => 'student_progress.view',
                             'desc' => 'Monitoring progress belajar, materi selesai, last activity, dan student yang butuh follow up.',
-                        ],
-                        [
-                            'label' => 'Feedback Survey',
-                            'route' => 'feedback.responses.index',
-                            'active' => ['feedback.responses.*'],
-                            'icon' => 'bi bi-chat-square-heart',
-                            'permission' => 'feedback_responses.view',
-                            'desc' => 'Lihat hasil survey, NPS, testimonial, dan minat lanjut program student.',
                         ],
                         [
                             'label' => 'Announcements',
@@ -908,7 +897,7 @@ return [
                 'sales.*',
                 'sales-daily-reports.*',
                 'sales-performance.*',
-                //'feedback.responses.*',
+                'feedback.responses.*',
                 'sales-orders.*',
                 'orders.*',
             ],
@@ -930,13 +919,13 @@ return [
                             'icon' => 'bi bi-bar-chart-line',
                             'permission' => 'sales_performance.view',
                         ],
-                        /*[
+                        [
                             'label' => 'Feedback Survey',
                             'route' => 'feedback.responses.index',
                             'active' => ['feedback.responses.*'],
                             'icon' => 'bi bi-chat-square-heart',
                             'permission' => 'feedback_responses.view',
-                        ],*/
+                        ],
                         [
                             'label' => 'Sales Orders',
                             'route' => 'orders.index',

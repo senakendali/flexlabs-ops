@@ -76,6 +76,48 @@ use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
+use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\Feedback\FeedbackResponseLinkController;
+use App\Http\Controllers\Feedback\PublicFeedbackController;
+
+/*
+|--------------------------------------------------------------------------
+| Public Feedback Routes
+|--------------------------------------------------------------------------
+|
+| Local:
+| - http://127.0.0.1:8007/f/{token}
+|
+| Production:
+| - https://feedback.flexlabs.co.id/f/{token}
+|--------------------------------------------------------------------------
+*/
+if (app()->environment('production')) {
+    Route::domain('feedback.flexlabs.co.id')
+        ->name('feedback.public.')
+        ->controller(PublicFeedbackController::class)
+        ->group(function () {
+            Route::get('/f/{token}', 'show')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('show');
+
+            Route::post('/f/{token}', 'store')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('store');
+        });
+} else {
+    Route::name('feedback.public.')
+        ->controller(PublicFeedbackController::class)
+        ->group(function () {
+            Route::get('/f/{token}', 'show')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('show');
+
+            Route::post('/f/{token}', 'store')
+                ->where('token', '[A-Za-z0-9]+')
+                ->name('store');
+        });
+}
 
 
 /*
@@ -102,6 +144,7 @@ use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 |   URL aneh seperti webinar.flexlabs.co.id:8007/{slug}.
 |--------------------------------------------------------------------------
 */
+
 
 if (app()->environment('production')) {
 
@@ -564,6 +607,37 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Feedback - Response Link Generator
+    |--------------------------------------------------------------------------
+    |
+    | Internal route untuk generate token/link feedback student.
+    |
+    | URL:
+    | - POST /feedback/responses/generate-link
+    |
+    | Route name:
+    | - feedback.responses.generate-link
+    |
+    | Notes:
+    | - Link public-nya akan dibentuk oleh FeedbackLinkService.
+    | - Contoh output:
+    |   https://feedback.flexlabs.co.id/f/{token}
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('feedback')
+        ->name('feedback.')
+        ->group(function () {
+            Route::post('/responses/generate-link', [FeedbackResponseLinkController::class, 'store'])
+                ->name('responses.generate-link');
+
+            Route::post('/batches/{batch}/generate-links', [FeedbackResponseLinkController::class, 'storeForBatch'])
+            ->whereNumber('batch')
+            ->middleware('permission:batches.view')
+            ->name('batches.generate-links');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -2043,6 +2117,144 @@ Route::middleware('auth')->group(function () {
                 ->whereNumber('schedule')
                 ->name('check-out');
         });
+    
+    /*
+|--------------------------------------------------------------------------
+| Marketing - Article Generator
+|--------------------------------------------------------------------------
+|
+| URL:
+| - /articles
+|
+| Route names:
+| - articles.index
+| - articles.create
+| - articles.create.from-workshop
+| - articles.store
+| - articles.show
+| - articles.edit
+| - articles.update
+| - articles.patch
+| - articles.ready-for-review
+| - articles.approve
+| - articles.publish
+| - articles.schedule
+| - articles.archive
+| - articles.destroy
+|
+| Notes:
+| - Menu Marketing → Tools pakai route articles.index.
+| - Store/update/delete sudah support async JSON dari controller.
+| - AI generate route belum ditambahkan dulu karena service Gemini belum dibuat.
+|--------------------------------------------------------------------------
+*/
+    Route::prefix('articles')
+    ->name('articles.')
+    ->middleware('permission:articles.view')
+    ->controller(ArticleController::class)
+    ->group(function () {
+        Route::get('/', 'index')
+            ->name('index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create
+        |--------------------------------------------------------------------------
+        | Harus sebelum /{article} routes.
+        */
+        Route::get('/create', 'create')
+            ->middleware('permission:articles.create')
+            ->name('create');
+
+        Route::get('/create/from-workshop/{workshopId}', 'createFromWorkshop')
+            ->whereNumber('workshopId')
+            ->middleware('permission:articles.create')
+            ->name('create.from-workshop');
+
+        Route::post('/', 'store')
+            ->middleware('permission:articles.create')
+            ->name('store');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workflow Actions
+        |--------------------------------------------------------------------------
+        | Harus sebelum /{article} show route.
+        */
+        Route::patch('/{article}/ready-for-review', 'markReadyForReview')
+            ->whereNumber('article')
+            ->middleware('permission:articles.submit_review')
+            ->name('ready-for-review');
+
+        Route::patch('/{article}/approve', 'approve')
+            ->whereNumber('article')
+            ->middleware('permission:articles.approve')
+            ->name('approve');
+
+        Route::patch('/{article}/publish', 'publish')
+            ->whereNumber('article')
+            ->middleware('permission:articles.publish')
+            ->name('publish');
+
+        Route::patch('/{article}/schedule', 'schedule')
+            ->whereNumber('article')
+            ->middleware('permission:articles.schedule')
+            ->name('schedule');
+
+        Route::patch('/{article}/archive', 'archive')
+            ->whereNumber('article')
+            ->middleware('permission:articles.archive')
+            ->name('archive');
+
+        /*
+        |--------------------------------------------------------------------------
+        | CRUD
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/{article}/edit', 'edit')
+            ->whereNumber('article')
+            ->middleware('permission:articles.update')
+            ->name('edit');
+
+        Route::put('/{article}', 'update')
+            ->whereNumber('article')
+            ->middleware('permission:articles.update')
+            ->name('update');
+
+        Route::patch('/{article}', 'update')
+            ->whereNumber('article')
+            ->middleware('permission:articles.update')
+            ->name('patch');
+
+        Route::delete('/{article}', 'destroy')
+            ->whereNumber('article')
+            ->middleware('permission:articles.delete')
+            ->name('destroy');
+
+        Route::get('/{article}', 'show')
+            ->whereNumber('article')
+            ->name('show');
+
+        Route::post('/{article}/generate-outline', 'generateOutline')
+            ->whereNumber('article')
+            ->middleware('permission:articles.generate')
+            ->name('generate-outline');
+
+        Route::post('/{article}/generate-full-article', 'generateFullArticle')
+            ->whereNumber('article')
+            ->middleware('permission:articles.generate')
+            ->name('generate-full-article');
+
+        Route::post('/{article}/improve-seo', 'improveSeo')
+            ->whereNumber('article')
+            ->middleware('permission:articles.generate')
+            ->name('improve-seo');
+
+        Route::post('/{article}/suggest-creative', 'suggestCreative')
+            ->whereNumber('article')
+            ->middleware('permission:articles.generate')
+            ->name('suggest-creative');
+    });
 
     /*
     |--------------------------------------------------------------------------

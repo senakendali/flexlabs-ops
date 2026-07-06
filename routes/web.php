@@ -77,6 +77,7 @@ use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\Feedback\AdminFeedbackResponseController;
 use App\Http\Controllers\Feedback\FeedbackResponseLinkController;
 use App\Http\Controllers\Feedback\PublicFeedbackController;
 
@@ -630,13 +631,48 @@ Route::middleware('auth')->group(function () {
     Route::prefix('feedback')
         ->name('feedback.')
         ->group(function () {
+            /*
+            |--------------------------------------------------------------------------
+            | Feedback - Survey Responses
+            |--------------------------------------------------------------------------
+            |
+            | Internal admin route untuk melihat hasil survey student.
+            |
+            | Access:
+            | - super_admin: via *
+            | - admin: via *
+            | - academic: feedback_responses.view
+            | - sales: feedback_responses.view
+            |
+            | URL:
+            | - GET /feedback/responses
+            | - GET /feedback/responses/{response}
+            |
+            | Route names:
+            | - feedback.responses.index
+            | - feedback.responses.show
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('responses')
+                ->name('responses.')
+                ->middleware('permission:feedback_responses.view')
+                ->controller(AdminFeedbackResponseController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::get('/{response}', 'show')
+                        ->whereNumber('response')
+                        ->name('show');
+                });
+
             Route::post('/responses/generate-link', [FeedbackResponseLinkController::class, 'store'])
                 ->name('responses.generate-link');
 
             Route::post('/batches/{batch}/generate-links', [FeedbackResponseLinkController::class, 'storeForBatch'])
-            ->whereNumber('batch')
-            ->middleware('permission:batches.view')
-            ->name('batches.generate-links');
+                ->whereNumber('batch')
+                ->middleware('permission:batches.view')
+                ->name('batches.generate-links');
     });
 
     /*
