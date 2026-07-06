@@ -78,6 +78,14 @@
         };
     };
 
+    $statusLabel = function (?string $status): string {
+        return match ($status) {
+            'submitted' => 'Submitted',
+            'draft' => 'Belum Submitted',
+            default => 'Belum Submitted',
+        };
+    };
+
     $npsBadgeClass = function ($score): string {
         if ($score === null || $score === '') {
             return 'bg-secondary-subtle text-secondary border border-secondary-subtle';
@@ -224,7 +232,7 @@
                         <div class="stat-value">{{ number_format($submittedResponses) }}</div>
                     </div>
                 </div>
-                <div class="stat-description">{{ number_format($draftResponses) }} feedback belum diisi atau masih draft.</div>
+                <div class="stat-description">{{ number_format($draftResponses) }} feedback belum submitted oleh student.</div>
             </div>
         </div>
 
@@ -505,7 +513,7 @@
             <div>
                 <h5 class="content-card-title mb-1">Filter Feedback Responses</h5>
                 <p class="content-card-subtitle mb-0">
-                    Filter berdasarkan nama/email student, status pengisian, dan minat program lanjutan.
+                    Filter berdasarkan nama/email student, status submitted, dan minat program lanjutan.
                 </p>
             </div>
         </div>
@@ -529,7 +537,7 @@
                         <label for="status" class="form-label">Status</label>
                         <select name="status" id="status" class="form-select">
                             <option value="">All Status</option>
-                            <option value="draft" {{ $statusValue === 'draft' ? 'selected' : '' }}>Draft</option>
+                            <option value="draft" {{ $statusValue === 'draft' ? 'selected' : '' }}>Belum Submitted</option>
                             <option value="submitted" {{ $statusValue === 'submitted' ? 'selected' : '' }}>Submitted</option>
                         </select>
                     </div>
@@ -557,7 +565,7 @@
 
                     <div class="col-xl-2 col-md-12">
                         <div class="d-flex gap-2 justify-content-xl-end flex-wrap">
-                            <a href="{{ route('feedback.responses.index') }}" class="btn btn-outline-secondary btn-modern">
+                            <a href="{{ route('feedback.responses.index') }}" class="btn btn-secondary btn-modern">
                                 <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                             </a>
 
@@ -659,7 +667,7 @@
 
                                     <td>
                                         <span class="badge rounded-pill px-3 py-2 {{ $statusBadgeClass($status) }}">
-                                            {{ ucfirst($status) }}
+                                            {{ $statusLabel($status) }}
                                         </span>
                                     </td>
 
