@@ -68,10 +68,9 @@ class AssessmentScoreController extends Controller
                 |--------------------------------------------------------------------------
                 | Sync Auto Calculated Components
                 |--------------------------------------------------------------------------
-                | Attendance, VOD/progress, quiz, dan Coding Practice/Assignment
-                | disync ke student_assessment_scores sebagai snapshot assessment.
-                |
-                | Mini Project dan Professional Attitude sengaja tetap manual.
+                | Attendance, VOD/progress, dan quiz tidak diinput manual.
+                | Saat halaman dibuka, sistem sync score dari source data ke
+                | student_assessment_scores sebagai snapshot assessment.
                 */
                 $this->syncAutoCalculatedScores(
                     batch: $selectedBatch,
@@ -230,11 +229,8 @@ class AssessmentScoreController extends Controller
             |--------------------------------------------------------------------------
             | Auto Calculated Components
             |--------------------------------------------------------------------------
-            | Attendance, progress/VOD, quiz, dan Coding Practice/Assignment dihitung
-            | dari source data. Raw score dari request diabaikan.
-            |
-            | Mini Project dan Professional Attitude dipaksa tetap manual lewat
-            | isManualInputComponent().
+            | Attendance, progress/VOD, dan quiz selalu dihitung dari source data.
+            | raw_score dari request akan diabaikan supaya tidak bisa diisi manual.
             */
             if ($this->isAutoCalculatedComponent($component)) {
                 $autoScore = $this->calculateAutoScore(
@@ -243,61 +239,29 @@ class AssessmentScoreController extends Controller
                     component: $component
                 );
 
-                if ($autoScore !== null) {
-                    return $this->saveAssessmentScore(
-                        studentId: (int) $validated['student_id'],
-                        batch: $batch,
-                        template: $template,
-                        component: $component,
-                        rawScore: $autoScore,
-                        feedback: $validated['feedback'] ?? $this->autoFeedbackLabel($component),
-                        status: $validated['status'] ?? 'reviewed',
-                        assessedBy: $request->user()?->id
-                    );
+                if ($autoScore === null) {
+                    throw ValidationException::withMessages([
+                        'raw_score' => 'Auto score belum bisa dihitung karena source data belum tersedia.',
+                    ]);
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Quiz Manual Fallback
-                |--------------------------------------------------------------------------
-                | Quiz tetap auto-first. Kalau source quiz/attempt belum tersedia,
-                | instructor boleh isi manual supaya report card tidak blocked.
-                |
-                | Attendance, progress/VOD, dan assignment submission tetap tidak fallback
-                | manual karena source-nya harus berasal dari sistem.
-                */
-                if ($this->isQuizComponent($component)) {
-                    $manualRawScore = $validated['raw_score'] ?? null;
-
-                    if ($manualRawScore === null) {
-                        throw ValidationException::withMessages([
-                            'raw_score' => 'Nilai quiz belum tersedia dari sistem. Silakan isi raw score manual.',
-                        ]);
-                    }
-
-                    return $this->saveAssessmentScore(
-                        studentId: (int) $validated['student_id'],
-                        batch: $batch,
-                        template: $template,
-                        component: $component,
-                        rawScore: (float) $manualRawScore,
-                        feedback: $validated['feedback'] ?? 'Manual quiz score because quiz source data is not available yet.',
-                        status: $validated['status'] ?? 'reviewed',
-                        assessedBy: $request->user()?->id
-                    );
-                }
-
-                throw ValidationException::withMessages([
-                    'raw_score' => 'Auto score belum bisa dihitung karena source data belum tersedia.',
-                ]);
+                return $this->saveAssessmentScore(
+                    studentId: (int) $validated['student_id'],
+                    batch: $batch,
+                    template: $template,
+                    component: $component,
+                    rawScore: $autoScore,
+                    feedback: $validated['feedback'] ?? $this->autoFeedbackLabel($component),
+                    status: $validated['status'] ?? 'reviewed',
+                    assessedBy: $request->user()?->id
+                );
             }
 
             /*
             |--------------------------------------------------------------------------
             | Manual / Rubric Components
             |--------------------------------------------------------------------------
-            | Mini Project, Professional Attitude, dan component manual lain tetap bisa
-            | diinput langsung dari modal.
+            | Component manual bisa diisi langsung raw_score atau dari rubric criteria.
             */
             $rawScore = $validated['raw_score'] ?? null;
 
@@ -392,20 +356,12 @@ class AssessmentScoreController extends Controller
                     continue;
                 }
 
-                $isAutoComponent = $this->isAutoCalculatedComponent($component);
-                $usedManualQuizFallback = false;
-
-                if ($isAutoComponent) {
+                if ($this->isAutoCalculatedComponent($component)) {
                     $rawScore = $this->calculateAutoScore(
                         studentId: (int) $row['student_id'],
                         batch: $batch,
                         component: $component
                     );
-
-                    if ($rawScore === null && $this->isQuizComponent($component)) {
-                        $rawScore = $row['raw_score'] ?? null;
-                        $usedManualQuizFallback = $rawScore !== null;
-                    }
 
                     if ($rawScore === null) {
                         continue;
@@ -424,11 +380,7 @@ class AssessmentScoreController extends Controller
                     template: $template,
                     component: $component,
                     rawScore: (float) $rawScore,
-                    feedback: $row['feedback'] ?? (
-                        $usedManualQuizFallback
-                            ? 'Manual quiz score because quiz source data is not available yet.'
-                            : ($isAutoComponent ? $this->autoFeedbackLabel($component) : null)
-                    ),
+                    feedback: $row['feedback'] ?? ($this->isAutoCalculatedComponent($component) ? $this->autoFeedbackLabel($component) : null),
                     status: $row['status'] ?? 'reviewed',
                     assessedBy: $request->user()?->id
                 );
@@ -472,8 +424,6 @@ class AssessmentScoreController extends Controller
         |--------------------------------------------------------------------------
         | Ensure auto score is fresh before preview.
         |--------------------------------------------------------------------------
-        | Preview tetap baca student_assessment_scores. Jadi sebelum preview dibuka,
-        | auto component termasuk Coding Practice harus disync dulu.
         */
         $this->syncAutoCalculatedScores(
             batch: $batch,
@@ -530,7 +480,6 @@ class AssessmentScoreController extends Controller
                     'id' => $component->id,
                     'name' => $component->name,
                     'type' => $component->type,
-                    'weight' => (float) $component->weight,
                     'is_auto_calculated' => $this->isAutoCalculatedComponent($component),
                 ];
             })->values(),
@@ -709,10 +658,6 @@ class AssessmentScoreController extends Controller
         Batch $batch,
         AssessmentComponent $component
     ): ?float {
-        if ($this->isAssignmentSubmissionComponent($component)) {
-            return $this->calculateAssignmentSubmissionScore($studentId, $batch);
-        }
-
         return match ($component->type) {
             'attendance' => $this->calculateAttendanceScore($studentId, $batch),
             'progress' => $this->calculateVodProgressScore($studentId, $batch),
@@ -764,6 +709,15 @@ class AssessmentScoreController extends Controller
             return null;
         }
 
+        $query = DB::table($table)
+            ->where('student_id', $studentId);
+
+        if (Schema::hasColumn($table, 'batch_id')) {
+            $query->where('batch_id', $batch->id);
+        } elseif (Schema::hasColumn($table, 'program_id') && ! empty($batch->program_id)) {
+            $query->where('program_id', $batch->program_id);
+        }
+
         $progressColumn = $this->firstExistingColumn($table, [
             'progress_percent',
             'progress_percentage',
@@ -773,94 +727,14 @@ class AssessmentScoreController extends Controller
             'completion_percentage',
         ]);
 
-        $lessonColumn = $this->firstExistingColumn($table, [
-            'sub_topic_id',
-            'subtopic_id',
-            'lesson_id',
-            'learning_lesson_id',
-            'topic_lesson_id',
-            'video_id',
-        ]);
-
-        $lessonIds = $this->resolveVodLessonIds($batch);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Match Student Progress Monitoring Calculation
-        |--------------------------------------------------------------------------
-        | Jangan pakai AVG(progress rows) karena itu cuma menghitung lesson yang
-        | pernah dibuka. Untuk assessment/report card, semua VOD lesson yang
-        | assigned ke batch/program harus jadi pembagi.
-        |
-        | Contoh:
-        | - Total VOD lesson = 6
-        | - Student baru nonton 1 lesson sampai 95%
-        | - Score yang benar = 95 / 6 = 15.83
-        */
-        if (! empty($lessonIds) && $lessonColumn) {
-            $query = DB::table($table)
-                ->where("{$table}.student_id", $studentId)
-                ->whereIn("{$table}.{$lessonColumn}", $lessonIds);
-
-            $this->applyProgressBatchScope($query, $table, $batch);
-
-            if ($progressColumn) {
-                $progressRows = (clone $query)
-                    ->select([
-                        "{$table}.{$lessonColumn}",
-                        DB::raw("MAX({$table}.{$progressColumn}) as progress_value"),
-                    ])
-                    ->groupBy("{$table}.{$lessonColumn}")
-                    ->pluck('progress_value', $lessonColumn);
-
-                $totalProgressPercentage = 0;
-
-                foreach ($lessonIds as $lessonId) {
-                    $totalProgressPercentage += $this->normalizeScore(
-                        (float) ($progressRows[$lessonId] ?? 0)
-                    );
-                }
-
-                return $this->normalizeScore($totalProgressPercentage / count($lessonIds));
-            }
-
-            if (Schema::hasColumn($table, 'is_completed')) {
-                $completedLessonIds = (clone $query)
-                    ->where("{$table}.is_completed", true)
-                    ->pluck("{$table}.{$lessonColumn}")
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                return $this->normalizeScore(
-                    (count($completedLessonIds) / count($lessonIds)) * 100
-                );
-            }
-
-            return null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Fallback
-        |--------------------------------------------------------------------------
-        | Dipakai hanya kalau struktur lesson tidak bisa di-resolve. Ini bukan jalur
-        | utama, tapi tetap dipertahankan supaya tidak mematikan data lama.
-        */
-        $query = DB::table($table)
-            ->where("{$table}.student_id", $studentId);
-
-        $this->applyProgressBatchScope($query, $table, $batch);
-
         if ($progressColumn) {
-            $averageProgress = (float) (clone $query)->avg("{$table}.{$progressColumn}");
+            $averageProgress = (float) (clone $query)->avg($progressColumn);
 
             return $this->normalizeScore($averageProgress);
         }
 
         if (Schema::hasColumn($table, 'is_completed')) {
-            $completed = (clone $query)->where("{$table}.is_completed", true)->count();
+            $completed = (clone $query)->where('is_completed', true)->count();
             $total = $this->resolveTotalVodLessons($batch);
 
             if ($total <= 0) {
@@ -877,163 +751,10 @@ class AssessmentScoreController extends Controller
         return null;
     }
 
-    private function applyProgressBatchScope($query, string $table, Batch $batch): void
-    {
-        if (Schema::hasColumn($table, 'batch_id')) {
-            $query->where("{$table}.batch_id", $batch->id);
-
-            return;
-        }
-
-        if (Schema::hasColumn($table, 'program_id') && ! empty($batch->program_id)) {
-            $query->where("{$table}.program_id", $batch->program_id);
-        }
-    }
-
-    private function resolveVodLessonIds(Batch $batch): array
-    {
-        if (! Schema::hasTable('sub_topics')) {
-            return [];
-        }
-
-        $query = DB::table('sub_topics')
-            ->select('sub_topics.id');
-
-        /*
-        |--------------------------------------------------------------------------
-        | VOD only
-        |--------------------------------------------------------------------------
-        | Kalau lesson_type tersedia, VOD progress hanya menghitung video.
-        | Kalau kolomnya tidak ada, fallback ke semua sub_topics aktif.
-        */
-        if (Schema::hasColumn('sub_topics', 'lesson_type')) {
-            $query->where(function ($query) {
-                $query
-                    ->where('sub_topics.lesson_type', 'video')
-                    ->orWhere('sub_topics.lesson_type', 'vod')
-                    ->orWhere('sub_topics.lesson_type', 'recorded_video');
-            });
-        }
-
-        if (Schema::hasColumn('sub_topics', 'is_active')) {
-            $query->where('sub_topics.is_active', true);
-        }
-
-        if (Schema::hasColumn('sub_topics', 'status')) {
-            $query->whereIn('sub_topics.status', [
-                'active',
-                'published',
-                'open',
-            ]);
-        }
-
-        $this->applyVodLessonProgramScope($query, $batch);
-
-        return $query
-            ->pluck('sub_topics.id')
-            ->filter()
-            ->unique()
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-    }
-
-    private function applyVodLessonProgramScope($query, Batch $batch): void
-    {
-        if (empty($batch->program_id)) {
-            if (Schema::hasColumn('sub_topics', 'batch_id')) {
-                $query->where('sub_topics.batch_id', $batch->id);
-            }
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Direct program scope
-        |--------------------------------------------------------------------------
-        */
-        if (Schema::hasColumn('sub_topics', 'program_id')) {
-            $query->where('sub_topics.program_id', $batch->program_id);
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> modules -> program_id
-        |--------------------------------------------------------------------------
-        */
-        if (
-            Schema::hasTable('topics')
-            && Schema::hasTable('modules')
-            && Schema::hasColumn('sub_topics', 'topic_id')
-            && Schema::hasColumn('topics', 'module_id')
-            && Schema::hasColumn('modules', 'program_id')
-        ) {
-            $query
-                ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
-                ->join('modules', 'topics.module_id', '=', 'modules.id')
-                ->where('modules.program_id', $batch->program_id);
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> modules -> stages -> program_id
-        |--------------------------------------------------------------------------
-        | Ini handle struktur curriculum Program → Stage → Module → Topic → Sub Topic.
-        */
-        if (
-            Schema::hasTable('topics')
-            && Schema::hasTable('modules')
-            && Schema::hasTable('stages')
-            && Schema::hasColumn('sub_topics', 'topic_id')
-            && Schema::hasColumn('topics', 'module_id')
-            && Schema::hasColumn('modules', 'stage_id')
-            && Schema::hasColumn('stages', 'program_id')
-        ) {
-            $query
-                ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
-                ->join('modules', 'topics.module_id', '=', 'modules.id')
-                ->join('stages', 'modules.stage_id', '=', 'stages.id')
-                ->where('stages.program_id', $batch->program_id);
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> program_id
-        |--------------------------------------------------------------------------
-        */
-        if (
-            Schema::hasTable('topics')
-            && Schema::hasColumn('sub_topics', 'topic_id')
-            && Schema::hasColumn('topics', 'program_id')
-        ) {
-            $query
-                ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
-                ->where('topics.program_id', $batch->program_id);
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Last safe fallback
-        |--------------------------------------------------------------------------
-        */
-        if (Schema::hasColumn('sub_topics', 'batch_id')) {
-            $query->where('sub_topics.batch_id', $batch->id);
-        }
-    }
-
     private function calculateQuizScore(int $studentId, Batch $batch): ?float
     {
         $table = $this->firstExistingTable([
-            'learning_quiz_attempts',
+            'learning_quiz_attempts'
         ]);
 
         if (! $table) {
@@ -1055,6 +776,12 @@ class AssessmentScoreController extends Controller
                 ->where('batch_learning_quizzes.batch_id', $batch->id);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Only graded / submitted attempts
+        |--------------------------------------------------------------------------
+        | Percentage baru valid setelah quiz selesai dihitung.
+        */
         if (Schema::hasColumn($table, 'status')) {
             $query->where("{$table}.status", 'graded');
         }
@@ -1067,101 +794,23 @@ class AssessmentScoreController extends Controller
         |--------------------------------------------------------------------------
         | Main Source: percentage
         |--------------------------------------------------------------------------
-        | Jangan cast null ke float.
-        | Kalau avg null, artinya belum ada quiz score valid,
-        | jadi biarkan return null / fallback ke score-total_score.
+        | Dari quiz controller:
+        | - score       = raw point
+        | - total_score = max point
+        | - percentage  = nilai final 0-100
         */
-        if (Schema::hasColumn($table, 'percentage')) {
-            $averagePercentage = (clone $query)->avg("{$table}.percentage");
-
-            if ($averagePercentage !== null) {
-                return $this->normalizeScore((float) $averagePercentage);
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Fallback: score / total_score
-        |--------------------------------------------------------------------------
-        */
-        if (
-            Schema::hasColumn($table, 'score')
-            && Schema::hasColumn($table, 'total_score')
-        ) {
-            $attempts = (clone $query)
-                ->select([
-                    "{$table}.score",
-                    "{$table}.total_score",
-                ])
-                ->get();
-
-            if ($attempts->isEmpty()) {
-                return null;
-            }
-
-            $percentages = $attempts
-                ->map(function ($attempt) {
-                    $score = (float) ($attempt->score ?? 0);
-                    $totalScore = (float) ($attempt->total_score ?? 0);
-
-                    if ($totalScore <= 0) {
-                        return null;
-                    }
-
-                    return ($score / $totalScore) * 100;
-                })
-                ->filter(fn ($value) => $value !== null)
-                ->values();
-
-            if ($percentages->isEmpty()) {
-                return null;
-            }
-
-            return $this->normalizeScore((float) $percentages->avg());
-        }
-
-        return null;
-    }
-
-    private function calculateQuizScore_(int $studentId, Batch $batch): ?float
-    {
-        $table = $this->firstExistingTable([
-            'learning_quiz_attempts',
-        ]);
-
-        if (! $table) {
-            return null;
-        }
-
-        $query = DB::table($table)
-            ->where("{$table}.student_id", $studentId);
-
-        if (Schema::hasColumn($table, 'batch_id')) {
-            $query->where("{$table}.batch_id", $batch->id);
-        } elseif (
-            Schema::hasColumn($table, 'batch_learning_quiz_id')
-            && Schema::hasTable('batch_learning_quizzes')
-            && Schema::hasColumn('batch_learning_quizzes', 'batch_id')
-        ) {
-            $query
-                ->join('batch_learning_quizzes', "{$table}.batch_learning_quiz_id", '=', 'batch_learning_quizzes.id')
-                ->where('batch_learning_quizzes.batch_id', $batch->id);
-        }
-
-        if (Schema::hasColumn($table, 'status')) {
-            $query->where("{$table}.status", 'graded');
-        }
-
-        if (Schema::hasColumn($table, 'submitted_at')) {
-            $query->whereNotNull("{$table}.submitted_at");
-        }
-
         if (Schema::hasColumn($table, 'percentage')) {
             $averagePercentage = (float) $query->avg("{$table}.percentage");
 
             return $this->normalizeScore($averagePercentage);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback: hitung dari score / total_score
+        |--------------------------------------------------------------------------
+        | Dipakai kalau kolom percentage belum ada.
+        */
         if (
             Schema::hasColumn($table, 'score')
             && Schema::hasColumn($table, 'total_score')
@@ -1201,202 +850,41 @@ class AssessmentScoreController extends Controller
         return null;
     }
 
-   private function calculateAssignmentSubmissionScore(int $studentId, Batch $batch): ?float
-    {
-        $submissionTable = 'assignment_submissions';
-        $batchAssignmentTable = 'batch_assignments';
-
-        if (! Schema::hasTable($submissionTable)) {
-            return null;
-        }
-
-        if (! Schema::hasColumn($submissionTable, 'score')) {
-            return null;
-        }
-
-        if (! Schema::hasTable($batchAssignmentTable)) {
-            return null;
-        }
-
-        if (! Schema::hasColumn($batchAssignmentTable, 'id')) {
-            return null;
-        }
-
-        if (! Schema::hasColumn($batchAssignmentTable, 'batch_id')) {
-            return null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve All Assigned Assignments for This Batch
-        |--------------------------------------------------------------------------
-        | Ini jadi denominator utama. Assignment yang tidak dikerjakan / belum punya
-        | score akan dihitung sebagai 0 supaya Coding Practice tidak terlalu tinggi.
-        */
-        $batchAssignmentsQuery = DB::table($batchAssignmentTable)
-            ->where("{$batchAssignmentTable}.batch_id", $batch->id);
-
-        if (Schema::hasColumn($batchAssignmentTable, 'is_active')) {
-            $batchAssignmentsQuery->where("{$batchAssignmentTable}.is_active", true);
-        }
-
-        if (Schema::hasColumn($batchAssignmentTable, 'status')) {
-            $batchAssignmentsQuery->whereNotIn("{$batchAssignmentTable}.status", [
-                'draft',
-                'archived',
-                'cancelled',
-                'inactive',
-            ]);
-        }
-
-        $batchAssignmentIds = $batchAssignmentsQuery
-            ->pluck("{$batchAssignmentTable}.id")
-            ->filter()
-            ->unique()
-            ->map(fn ($id) => (int) $id)
-            ->values();
-
-        if ($batchAssignmentIds->isEmpty()) {
-            return null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Preferred Scope: batch_assignment_id
-        |--------------------------------------------------------------------------
-        | Ambil score per assigned assignment. Kalau ada multiple submission untuk
-        | assignment yang sama, pakai score tertinggi supaya tidak double count.
-        */
-        if (Schema::hasColumn($submissionTable, 'batch_assignment_id')) {
-            $submissionScoresQuery = DB::table($submissionTable)
-                ->select([
-                    "{$submissionTable}.batch_assignment_id",
-                    DB::raw("MAX({$submissionTable}.score) as score"),
-                ])
-                ->where("{$submissionTable}.student_id", $studentId)
-                ->whereIn("{$submissionTable}.batch_assignment_id", $batchAssignmentIds->all())
-                ->whereNotNull("{$submissionTable}.score")
-                ->whereNotNull("{$submissionTable}.batch_assignment_id");
-
-            if (Schema::hasColumn($submissionTable, 'status')) {
-                $submissionScoresQuery->whereIn("{$submissionTable}.status", [
-                    'submitted',
-                    'late',
-                    'reviewed',
-                    'returned',
-                ]);
-            }
-
-            if (Schema::hasColumn($submissionTable, 'batch_id')) {
-                $submissionScoresQuery->where("{$submissionTable}.batch_id", $batch->id);
-            }
-
-            $submissionScores = $submissionScoresQuery
-                ->groupBy("{$submissionTable}.batch_assignment_id")
-                ->pluck('score', 'batch_assignment_id');
-
-            $totalScore = 0;
-
-            foreach ($batchAssignmentIds as $batchAssignmentId) {
-                $score = $submissionScores->get($batchAssignmentId);
-
-                $totalScore += $score !== null
-                    ? $this->normalizeScore((float) $score)
-                    : 0;
-            }
-
-            return $this->normalizeScore($totalScore / $batchAssignmentIds->count());
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Fallback Scope: assignment_id
-        |--------------------------------------------------------------------------
-        | Dipakai hanya kalau schema lama tidak punya batch_assignment_id.
-        */
-        if (
-            Schema::hasColumn($submissionTable, 'assignment_id')
-            && Schema::hasColumn($batchAssignmentTable, 'assignment_id')
-        ) {
-            $assignmentIds = DB::table($batchAssignmentTable)
-                ->where("{$batchAssignmentTable}.batch_id", $batch->id)
-                ->pluck("{$batchAssignmentTable}.assignment_id")
-                ->filter()
-                ->unique()
-                ->map(fn ($id) => (int) $id)
-                ->values();
-
-            if ($assignmentIds->isEmpty()) {
-                return null;
-            }
-
-            $submissionScoresQuery = DB::table($submissionTable)
-                ->select([
-                    "{$submissionTable}.assignment_id",
-                    DB::raw("MAX({$submissionTable}.score) as score"),
-                ])
-                ->where("{$submissionTable}.student_id", $studentId)
-                ->whereIn("{$submissionTable}.assignment_id", $assignmentIds->all())
-                ->whereNotNull("{$submissionTable}.score")
-                ->whereNotNull("{$submissionTable}.assignment_id");
-
-            if (Schema::hasColumn($submissionTable, 'status')) {
-                $submissionScoresQuery->whereIn("{$submissionTable}.status", [
-                    'submitted',
-                    'late',
-                    'reviewed',
-                    'returned',
-                ]);
-            }
-
-            if (Schema::hasColumn($submissionTable, 'batch_id')) {
-                $submissionScoresQuery->where("{$submissionTable}.batch_id", $batch->id);
-            }
-
-            $submissionScores = $submissionScoresQuery
-                ->groupBy("{$submissionTable}.assignment_id")
-                ->pluck('score', 'assignment_id');
-
-            $totalScore = 0;
-
-            foreach ($assignmentIds as $assignmentId) {
-                $score = $submissionScores->get($assignmentId);
-
-                $totalScore += $score !== null
-                    ? $this->normalizeScore((float) $score)
-                    : 0;
-            }
-
-            return $this->normalizeScore($totalScore / $assignmentIds->count());
-        }
-
-        return null;
-    }
-
     private function resolveTotalVodLessons(Batch $batch): int
     {
-        $lessonIds = $this->resolveVodLessonIds($batch);
+        if (! Schema::hasTable('sub_topics')) {
+            return 0;
+        }
 
-        return count($lessonIds);
+        $query = DB::table('sub_topics');
+
+        if (Schema::hasColumn('sub_topics', 'lesson_type')) {
+            $query->where('sub_topics.lesson_type', 'video');
+        }
+
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('sub_topics.is_active', true);
+        }
+
+        if (
+            ! empty($batch->program_id)
+            && Schema::hasTable('topics')
+            && Schema::hasTable('modules')
+            && Schema::hasColumn('sub_topics', 'topic_id')
+            && Schema::hasColumn('topics', 'module_id')
+            && Schema::hasColumn('modules', 'program_id')
+        ) {
+            $query
+                ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
+                ->join('modules', 'topics.module_id', '=', 'modules.id')
+                ->where('modules.program_id', $batch->program_id);
+        }
+
+        return (int) $query->count();
     }
 
     private function isAutoCalculatedComponent(AssessmentComponent $component): bool
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Manual Override
-        |--------------------------------------------------------------------------
-        | Mini Project dan Professional Attitude harus tetap bisa diinput manual,
-        | walaupun type/code/is_auto_calculated di data lama kurang rapi.
-        */
-        if ($this->isManualInputComponent($component)) {
-            return false;
-        }
-
-        if ($this->isAssignmentSubmissionComponent($component)) {
-            return true;
-        }
-
         if ((bool) $component->is_auto_calculated) {
             return true;
         }
@@ -1408,50 +896,8 @@ class AssessmentScoreController extends Controller
         ], true);
     }
 
-    private function isQuizComponent(AssessmentComponent $component): bool
-    {
-        $text = $this->normalizedComponentText($component);
-
-        return str_contains($text, 'quiz')
-            || $this->normalizedComponentKey($component->type) === 'quiz'
-            || $this->normalizedComponentKey($component->code) === 'quiz';
-    }
-
-    private function isAssignmentSubmissionComponent(AssessmentComponent $component): bool
-    {
-        if ($this->isManualInputComponent($component)) {
-            return false;
-        }
-
-        $text = $this->normalizedComponentText($component);
-
-        return str_contains($text, 'coding practice')
-            || str_contains($text, 'coding assignment')
-            || str_contains($text, 'assignment submission')
-            || str_contains($text, 'assignment submissions')
-            || $this->normalizedComponentKey($component->type) === 'assignment'
-            || $this->normalizedComponentKey($component->code) === 'assignment'
-            || $this->normalizedComponentKey($component->type) === 'coding_practice'
-            || $this->normalizedComponentKey($component->code) === 'coding_practice';
-    }
-
-    private function isManualInputComponent(AssessmentComponent $component): bool
-    {
-        $text = $this->normalizedComponentText($component);
-
-        return str_contains($text, 'mini project')
-            || str_contains($text, 'professional attitude')
-            || str_contains($text, 'proffesional attitude')
-            || str_contains($text, 'professionalism')
-            || str_contains($text, 'attitude');
-    }
-
     private function autoSourceLabel(AssessmentComponent $component): string
     {
-        if ($this->isAssignmentSubmissionComponent($component)) {
-            return 'Assignment submissions';
-        }
-
         return match ($component->type) {
             'attendance' => 'Student attendance records',
             'progress' => 'VOD / learning progress',
@@ -1473,26 +919,6 @@ class AssessmentScoreController extends Controller
     private function normalizeScore(float $score): float
     {
         return round(max(0, min(100, $score)), 2);
-    }
-
-    private function normalizedComponentText(AssessmentComponent $component): string
-    {
-        $text = implode(' ', [
-            (string) ($component->type ?? ''),
-            (string) ($component->code ?? ''),
-            (string) ($component->name ?? ''),
-        ]);
-
-        $text = strtolower($text);
-
-        return trim(preg_replace('/[^a-z0-9]+/', ' ', $text) ?? '');
-    }
-
-    private function normalizedComponentKey($value): string
-    {
-        $value = strtolower((string) ($value ?? ''));
-
-        return trim(preg_replace('/[^a-z0-9]+/', '_', $value) ?? '', '_');
     }
 
     private function resolveTemplate(Batch $batch): ?AssessmentTemplate

@@ -120,7 +120,7 @@
 
                     <div class="col-xl-4 col-md-4">
                         <div class="d-flex gap-2 justify-content-xl-end flex-wrap">
-                            <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-secondary btn-modern">
+                            <a href="{{ route('academic.assessment-scores.index') }}" class="btn btn-outline-secondary btn-modern">
                                 <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                             </a>
                             <button type="submit" class="btn btn-primary btn-modern">
@@ -266,44 +266,16 @@
                                                 $scoreValue = $existingScore['raw_score'] ?? null;
                                                 $weightedScore = $existingScore['weighted_score'] ?? null;
                                                 $chipClass = $existingScore ? 'is-filled' : 'is-empty';
-
-                                                $componentText = strtolower(trim(preg_replace(
-                                                    '/[^a-z0-9]+/',
-                                                    ' ',
-                                                    implode(' ', [
-                                                        $component->type ?? '',
-                                                        $component->code ?? '',
-                                                        $component->name ?? '',
-                                                    ])
-                                                )));
-
-                                                $componentTypeKey = strtolower(trim(preg_replace('/[^a-z0-9]+/', '_', $component->type ?? ''), '_'));
-                                                $componentCodeKey = strtolower(trim(preg_replace('/[^a-z0-9]+/', '_', $component->code ?? ''), '_'));
-
-                                                $isAssignmentSubmissionComponent =
-                                                    str_contains($componentText, 'coding practice')
-                                                    || str_contains($componentText, 'coding assignment')
-                                                    || str_contains($componentText, 'assignment submission')
-                                                    || str_contains($componentText, 'assignment submissions')
-                                                    || $componentTypeKey === 'assignment'
-                                                    || $componentCodeKey === 'assignment'
-                                                    || $componentTypeKey === 'coding_practice'
-                                                    || $componentCodeKey === 'coding_practice';
                                             @endphp
 
                                             <button
                                                 type="button"
-                                                class="assessment-component-chip {{ $chipClass }} {{ $isAssignmentSubmissionComponent ? 'is-readonly-chip' : '' }}"
-                                                @unless($isAssignmentSubmissionComponent)
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#scoreModal"
-                                                    data-mode="{{ $existingScore ? 'edit' : 'create' }}"
-                                                    data-student-id="{{ $student->id }}"
-                                                    data-component-id="{{ $component->id }}"
-                                                @endunless
-                                                @if($isAssignmentSubmissionComponent)
-                                                    title="Nilai Coding Practice dihitung otomatis dari assignment submissions."
-                                                @endif
+                                                class="assessment-component-chip {{ $chipClass }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#scoreModal"
+                                                data-mode="{{ $existingScore ? 'edit' : 'create' }}"
+                                                data-student-id="{{ $student->id }}"
+                                                data-component-id="{{ $component->id }}"
                                             >
                                                 <span class="component-chip-name">{{ $component->name }}</span>
                                                 <span class="component-chip-score">
@@ -411,7 +383,7 @@
                                 step="0.01"
                                 placeholder="0 - 100"
                             >
-                            <div class="form-text" id="rawScoreHelp">
+                            <div class="form-text">
                                 Nilai mentah 0 - 100. Jika memakai rubric, nilai ini dihitung otomatis dari criteria.
                             </div>
                         </div>
@@ -628,61 +600,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return scoreMap?.[studentId]?.[componentId] || null;
     }
 
-    function normalizedComponentText(component) {
-        const text = [
-            component?.type || '',
-            component?.code || '',
-            component?.name || '',
-        ].join(' ').toLowerCase();
-
-        return text.replace(/[^a-z0-9]+/g, ' ').trim();
-    }
-
-    function normalizedComponentKey(value) {
-        return String(value || '')
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '');
-    }
-
-    function isManualInputComponent(component) {
-        const text = normalizedComponentText(component);
-
-        return text.includes('mini project')
-            || text.includes('professional attitude')
-            || text.includes('proffesional attitude')
-            || text.includes('professionalism')
-            || text.includes('attitude');
-    }
-
-    function isSystemCalculatedComponent(component) {
-        if (!component || isManualInputComponent(component)) {
-            return false;
-        }
-
-        const text = normalizedComponentText(component);
-        const typeKey = normalizedComponentKey(component?.type);
-        const codeKey = normalizedComponentKey(component?.code);
-
-        const isSubmissionComponent = text.includes('coding practice')
-            || text.includes('coding assignment')
-            || text.includes('assignment submission')
-            || text.includes('assignment submissions')
-            || typeKey === 'assignment'
-            || codeKey === 'assignment'
-            || typeKey === 'coding_practice'
-            || codeKey === 'coding_practice';
-
-        if (isSubmissionComponent) {
-            return true;
-        }
-
-        return Boolean(component?.is_auto_calculated)
-            || component?.is_auto_calculated === 1
-            || component?.is_auto_calculated === '1'
-            || ['attendance', 'progress', 'quiz'].includes(typeKey);
-    }
-
     function showErrors(form, errors) {
         const alertBox = form.querySelector('.form-alert');
         if (!alertBox) return;
@@ -727,17 +644,6 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('modalComponentName').textContent = '-';
         document.getElementById('modalComponentWeight').textContent = '-';
         document.getElementById('weightedPreview').value = '-';
-
-        const rawInput = form.querySelector('input[name="raw_score"]');
-        const rawScoreHelp = document.getElementById('rawScoreHelp');
-
-        if (rawInput) {
-            rawInput.readOnly = false;
-        }
-
-        if (rawScoreHelp) {
-            rawScoreHelp.textContent = 'Nilai mentah 0 - 100. Jika memakai rubric, nilai ini dihitung otomatis dari criteria.';
-        }
 
         document.getElementById('rubricScoreWrapper').classList.add('d-none');
         document.getElementById('rubricCriteriaList').innerHTML = '';
@@ -792,7 +698,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         wrapper.classList.remove('d-none');
-        //rawInput.readOnly = true;
+        rawInput.readOnly = true;
 
         const existingRubricMap = {};
 
@@ -895,32 +801,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             renderRubricCriteria(form, component, existingScore);
-
-            const rawScoreHelp = document.getElementById('rawScoreHelp');
-            const submitBtn = form.querySelector('.submit-btn');
-            const systemCalculated = isSystemCalculatedComponent(component);
-
-            if (systemCalculated) {
-                /*rawInput.readOnly = true;
-
-                if (rawScoreHelp) {
-                    rawScoreHelp.textContent = 'Nilai ini dihitung dari data terkait. Klik Save Score untuk refresh nilai.';
-                }*/
-            } else {
-                rawInput.readOnly = Boolean(component?.rubric?.criteria?.length);
-
-                if (rawScoreHelp) {
-                    rawScoreHelp.textContent = component?.rubric?.criteria?.length
-                        ? 'Raw score dihitung otomatis dari rubric criteria.'
-                        : 'Nilai mentah 0 - 100 untuk component ini.';
-                }
-            }
-
-            if (submitBtn) {
-                submitBtn.innerHTML = 'Save Score';
-                submitBtn.dataset.defaultText = 'Save Score';
-            }
-
             updateWeightedPreview(form, component);
 
             rawInput.addEventListener('input', function () {
