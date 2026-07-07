@@ -19,7 +19,7 @@
                 @if($selectedBatch && $template)
                     <button
                         type="button"
-                        class="btn btn-primary btn-modern"
+                        class="btn btn-light btn-modern"
                         data-bs-toggle="modal"
                         data-bs-target="#scoreModal"
                         data-mode="create"
