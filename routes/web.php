@@ -11,6 +11,10 @@ use App\Http\Controllers\Trial\TrialScheduleController;
 use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Sales\SalesDashboardController;
+use App\Http\Controllers\Finance\FinanceDashboardController;
+use App\Http\Controllers\Hr\HrDashboardController;
+use App\Http\Controllers\Hr\AttendanceController as HrAttendanceController;
 use App\Http\Controllers\Operation\QuizController;
 use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
@@ -594,12 +598,56 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 
 /*
 |--------------------------------------------------------------------------
-| Dashboard
+| Division Dashboards
+|--------------------------------------------------------------------------
+|
+| Route names used by the role/menu configuration:
+| - dashboard
+| - super-admin.dashboard
+| - academic.dashboard
+| - sales.dashboard
+| - marketing.dashboard
+| - finance.dashboard
+| - hr.dashboard
+|
+| Notes:
+| - /dashboard remains the legacy/global dashboard during the migration.
+| - /super-admin/dashboard explicitly exposes the management dashboard.
+| - Each division dashboard has its own permission.
+| - The controllers for Sales, Finance, and HR can initially render placeholder
+|   views, then be completed role by role.
 |--------------------------------------------------------------------------
 */
-Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'permission:dashboard.view'])
-    ->name('dashboard');
+Route::middleware(['auth', 'verified'])
+    ->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index'])
+            ->middleware('permission:dashboard.view')
+            ->name('dashboard');
+
+        Route::get('/super-admin/dashboard', [DashboardController::class, 'index'])
+            ->middleware('permission:dashboard.view')
+            ->name('super-admin.dashboard');
+
+        Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
+            ->middleware('permission:academic.dashboard.view')
+            ->name('academic.dashboard');
+
+        Route::get('/sales/dashboard', [SalesDashboardController::class, 'index'])
+            ->middleware('permission:sales.dashboard.view')
+            ->name('sales.dashboard');
+
+        Route::get('/marketing/dashboard', [MarketingDashboardController::class, 'index'])
+            ->middleware('permission:marketing.dashboard.view')
+            ->name('marketing.dashboard');
+
+        Route::get('/finance/dashboard', [FinanceDashboardController::class, 'index'])
+            ->middleware('permission:finance.dashboard.view')
+            ->name('finance.dashboard');
+
+        Route::get('/hr/dashboard', [HrDashboardController::class, 'index'])
+            ->middleware('permission:hr.dashboard.view')
+            ->name('hr.dashboard');
+    });
 
 
 /*
@@ -677,12 +725,27 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Academic Dashboard
+    | HR - Attendance
+    |--------------------------------------------------------------------------
+    |
+    | Initial HR module route used by the HR navigation.
+    | The attendance feature can be expanded later with create, store, approval,
+    | correction, export, and monthly recap endpoints.
     |--------------------------------------------------------------------------
     */
-    Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
-        ->middleware('permission:academic.dashboard.view')
-        ->name('academic.dashboard');
+    Route::prefix('hr')
+        ->name('hr.')
+        ->middleware('permission:hr.view')
+        ->group(function () {
+            Route::prefix('attendances')
+                ->name('attendances.')
+                ->middleware('permission:hr.attendances.view')
+                ->controller(HrAttendanceController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+                });
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -2298,8 +2361,6 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('marketing')->name('marketing.')->middleware('permission:marketing.view')->group(function () {
-        Route::get('/dashboard', [MarketingDashboardController::class, 'index'])->middleware('permission:marketing.dashboard.view')->name('dashboard');
-
         Route::prefix('plans')->name('plans.')->group(function () {
             Route::get('/', [MarketingPlanController::class, 'index'])->name('index');
             Route::post('/', [MarketingPlanController::class, 'store'])->name('store');

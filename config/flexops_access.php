@@ -357,6 +357,7 @@ return [
             'public_learning_materials.delete',
 
             'sales.view',
+            'sales.dashboard.view',
 
             'sales_daily_reports.view',
             'sales_daily_reports.create',
@@ -425,6 +426,7 @@ return [
             'workshop_participants.delete',
 
             'finance.view',
+            'finance.dashboard.view',
 
             'sales_orders.view',
             'sales_orders.create',
@@ -464,6 +466,11 @@ return [
             'internal_memos.export',
 
             'hr.view',
+            'hr.dashboard.view',
+
+            'hr.attendances.view',
+            'hr.attendances.create',
+            'hr.attendances.update',
 
             'instructors.view',
             'instructor_availability.view',
@@ -917,6 +924,14 @@ return [
                     'title' => null,
                     'items' => [
                         [
+                            'label' => 'Dashboard',
+                            'route' => 'sales.dashboard',
+                            'active' => ['sales.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'sales.dashboard.view',
+                            'missing_label' => 'Sales Dashboard belum tersedia',
+                        ],
+                        [
                             'label' => 'Daily Report',
                             'route' => 'sales-daily-reports.index',
                             'active' => ['sales-daily-reports.*'],
@@ -969,9 +984,10 @@ return [
                         [
                             'label' => 'Dashboard',
                             'route' => 'marketing.dashboard',
-                            'active' => ['marketing.dashboard'],
+                            'active' => ['marketing.dashboard*'],
                             'icon' => 'bi bi-speedometer2',
                             'permission' => 'marketing.dashboard.view',
+                            'missing_label' => 'Marketing Dashboard belum tersedia',
                         ],
                         [
                             'label' => 'Reports',
@@ -1041,6 +1057,14 @@ return [
                     'title' => null,
                     'items' => [
                         [
+                            'label' => 'Dashboard',
+                            'route' => 'finance.dashboard',
+                            'active' => ['finance.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'finance.dashboard.view',
+                            'missing_label' => 'Finance Dashboard belum tersedia',
+                        ],
+                        [
                             'label' => 'Sales Orders',
                             'route' => 'sales-orders.index',
                             'active' => ['sales-orders.*'],
@@ -1060,6 +1084,41 @@ return [
                             'active' => ['payments.*'],
                             'icon' => 'bi bi-credit-card',
                             'permission' => 'payments.view',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'type' => 'dropdown',
+            'label' => 'HR',
+            'icon' => 'bi bi-person-badge-fill',
+            'permission' => 'hr.view',
+            'dropdown_class' => 'dropdown-menu-hr',
+            'active' => [
+                'hr.*',
+            ],
+            'sections' => [
+                [
+                    'title' => 'People Operations',
+                    'items' => [
+                        [
+                            'label' => 'Dashboard',
+                            'route' => 'hr.dashboard',
+                            'active' => ['hr.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'hr.dashboard.view',
+                            'missing_label' => 'HR Dashboard belum tersedia',
+                        ],
+                        [
+                            'label' => 'Attendance',
+                            'route' => 'hr.attendances.index',
+                            'active' => ['hr.attendances.*'],
+                            'icon' => 'bi bi-calendar2-check-fill',
+                            'permission' => 'hr.attendances.view',
+                            'desc' => 'Kelola absensi staff, keterlambatan, izin, dan rekap kehadiran.',
+                            'missing_label' => 'HR Attendance belum tersedia',
                         ],
                     ],
                 ],
