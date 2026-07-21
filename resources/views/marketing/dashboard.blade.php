@@ -21,6 +21,7 @@
     $googleAnalyticsDashboardInsight = $googleAnalyticsDashboardInsight ?? [];
     $googleAdsDashboardInsight = $googleAdsDashboardInsight ?? [];
     $trelloMarketingStats = $trelloMarketingStats ?? [];
+    $trelloSeiStats = $trelloSeiStats ?? [];
     $trelloDashboardStats = $trelloDashboardStats ?? [];
     $platformStatuses = collect($platformStatuses ?? []);
     $marketingOverview = $marketingOverview ?? [];
@@ -59,6 +60,55 @@
             'good', 'healthy', 'success', 'low' => 'bg-success-subtle text-success-emphasis border border-success-subtle',
             default => 'bg-primary-subtle text-primary-emphasis border border-primary-subtle',
         };
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI Paragraph Formatter
+    |--------------------------------------------------------------------------
+    | Mempertahankan jeda paragraf dari response AI seperti AI robot.
+    | Juga menangani literal "\n" yang kadang tersimpan di snapshot JSON.
+    */
+    $aiParagraphs = function ($value) {
+        if (is_array($value) || $value instanceof \Illuminate\Support\Collection) {
+            $value = collect($value)
+                ->flatten()
+                ->filter(fn ($item) => is_scalar($item))
+                ->implode("\n\n");
+        }
+
+        $text = trim((string) ($value ?? ''));
+
+        if ($text === '') {
+            return collect();
+        }
+
+        $text = str_replace(
+            ['\\r\\n', '\\n', '\\r', "\r\n", "\r"],
+            ["\n", "\n", "\n", "\n", "\n"],
+            $text
+        );
+
+        // Beri paragraph break sebelum label platform bila AI menggabungkannya.
+        $text = preg_replace(
+            '/(?<!^)(?=\b(?:Meta Ads|Google Analytics|Google Ads|Trello Marketing|Trello SEI|Marketing|SEI)\s*[:\-])/u',
+            "\n\n",
+            $text
+        ) ?? $text;
+
+        $blocks = preg_split('/\n\s*\n+/u', $text) ?: [];
+
+        return collect($blocks)
+            ->map(function ($block) {
+                $block = trim((string) $block);
+
+                // Pertahankan line break dalam bullet/numbered list.
+                $block = preg_replace('/^[\t ]+/m', '', $block) ?? $block;
+
+                return $block;
+            })
+            ->filter()
+            ->values();
     };
 
     $safePercent = function ($value) {
@@ -105,6 +155,7 @@
         'google_analytics' => 'bi-bar-chart-fill',
         'google_ads' => 'bi-google',
         'trello_marketing' => 'bi-trello',
+        'trello_sei' => 'bi-building-fill',
     ];
 
     $platformDescriptionMap = [
@@ -112,6 +163,7 @@
         'google_analytics' => 'Website traffic, engagement, acquisition, dan conversion event.',
         'google_ads' => 'Paid search campaign, clicks, conversion, dan cost efficiency.',
         'trello_marketing' => 'Marketing workload, deadline, PIC, dan progress eksekusi.',
+        'trello_sei' => 'SEI workload, deadline, PIC, dan progress eksekusi.',
     ];
 
     /*
@@ -164,64 +216,14 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Marketing Trello
+    | Work Progress: Marketing & SEI
     |--------------------------------------------------------------------------
     */
     $trelloMarketingStats = $trelloMarketingStats
         ?: ($trelloDashboardStats['marketing'] ?? []);
 
-    $trelloMarketingSummary = $trelloMarketingStats['summary'] ?? [];
-    $trelloMarketingStatuses = $trelloMarketingStats['statuses'] ?? [];
-
-    $trelloMarketingTotalOpenCards = max((int) ($trelloMarketingSummary['total_open_cards'] ?? 0), 0);
-    $trelloMarketingActiveWork = max((int) ($trelloMarketingSummary['active_work'] ?? 0), 0);
-    $trelloMarketingCompleted = max((int) ($trelloMarketingSummary['completed'] ?? 0), 0);
-    $trelloMarketingDueToday = max((int) ($trelloMarketingSummary['due_today'] ?? 0), 0);
-    $trelloMarketingOverdue = max((int) ($trelloMarketingSummary['overdue'] ?? 0), 0);
-    $trelloMarketingUnmapped = max((int) ($trelloMarketingSummary['unmapped'] ?? 0), 0);
-    $trelloMarketingCompletionRate = $safePercent($trelloMarketingSummary['completion_rate'] ?? 0);
-
-    $trelloMarketingDueTodayCards = collect($trelloMarketingStats['due_today_cards'] ?? []);
-    $trelloMarketingOverdueCards = collect($trelloMarketingStats['overdue_cards'] ?? []);
-
-    $trelloMarketingPriorityCards = $trelloMarketingOverdueCards
-        ->merge($trelloMarketingDueTodayCards)
-        ->unique(function ($card) {
-            return data_get($card, 'trello_card_id')
-                ?: data_get($card, 'id')
-                ?: data_get($card, 'name')
-                ?: data_get($card, 'title')
-                ?: uniqid('marketing-card-', true);
-        })
-        ->values();
-
-    $trelloMarketingActiveCards = collect($trelloMarketingStats['active_cards'] ?? []);
-
-    $trelloMarketingWebhookStatus = strtolower((string) ($trelloMarketingStats['webhook_status'] ?? 'inactive'));
-    $trelloMarketingIsSynced = in_array($trelloMarketingWebhookStatus, ['active', 'synced'], true);
-
-    $trelloMarketingBoardName = filled($trelloMarketingStats['board_name'] ?? null)
-        ? (string) $trelloMarketingStats['board_name']
-        : 'Marketing Trello';
-
-    $trelloMarketingInsight = filled($trelloMarketingStats['insight'] ?? null)
-        ? (string) $trelloMarketingStats['insight']
-        : 'Marketing Trello insight belum tersedia.';
-
-    $trelloMarketingLastSyncedText = $formatDate($trelloMarketingStats['last_synced_at'] ?? null);
-    $trelloMarketingLastWebhookText = $formatDate($trelloMarketingStats['last_webhook_at'] ?? null);
-
-    $trelloMarketingProgressClass = $trelloMarketingCompletionRate >= 80
-        ? 'bg-success'
-        : ($trelloMarketingCompletionRate >= 50 ? 'bg-warning' : 'bg-danger');
-
-    $trelloMarketingDueTodayClass = $trelloMarketingDueToday > 0
-        ? 'text-warning'
-        : 'text-success';
-
-    $trelloMarketingOverdueClass = $trelloMarketingOverdue > 0
-        ? 'text-danger'
-        : 'text-success';
+    $trelloSeiStats = $trelloSeiStats
+        ?: ($trelloDashboardStats['sei'] ?? []);
 
     $trelloStatusLabels = [
         'notes' => 'Notes',
@@ -258,6 +260,131 @@
         'ignored' => 'bg-secondary-subtle text-secondary',
         'unmapped' => 'bg-secondary-subtle text-secondary',
     ];
+
+    $normalizeTrelloWorkProgress = function (
+        array $stats,
+        string $key,
+        string $label,
+        string $icon
+    ) use ($safePercent, $formatDate) {
+        $summary = $stats['summary'] ?? [];
+        $statuses = $stats['statuses'] ?? [];
+
+        $dueTodayCards = collect($stats['due_today_cards'] ?? []);
+        $overdueCards = collect($stats['overdue_cards'] ?? []);
+
+        $priorityCards = $overdueCards
+            ->merge($dueTodayCards)
+            ->unique(function ($card) use ($key) {
+                return data_get($card, 'trello_card_id')
+                    ?: data_get($card, 'id')
+                    ?: data_get($card, 'name')
+                    ?: data_get($card, 'title')
+                    ?: uniqid($key . '-card-', true);
+            })
+            ->values();
+
+        $webhookStatus = strtolower((string) ($stats['webhook_status'] ?? 'inactive'));
+        $isSynced = in_array($webhookStatus, ['active', 'synced'], true);
+        $completionRate = $safePercent($summary['completion_rate'] ?? 0);
+
+        return [
+            'key' => $key,
+            'label' => $label,
+            'icon' => $icon,
+            'board_name' => filled($stats['board_name'] ?? null)
+                ? (string) $stats['board_name']
+                : $label . ' Trello',
+            'insight' => filled($stats['insight'] ?? null)
+                ? (string) $stats['insight']
+                : $label . ' Work insight belum tersedia.',
+            'is_synced' => $isSynced,
+            'last_synced_text' => $formatDate($stats['last_synced_at'] ?? null),
+            'last_webhook_text' => $formatDate($stats['last_webhook_at'] ?? null),
+            'summary' => [
+                'total_open_cards' => max((int) ($summary['total_open_cards'] ?? 0), 0),
+                'active_work' => max((int) ($summary['active_work'] ?? 0), 0),
+                'completed' => max((int) ($summary['completed'] ?? 0), 0),
+                'due_today' => max((int) ($summary['due_today'] ?? 0), 0),
+                'overdue' => max((int) ($summary['overdue'] ?? 0), 0),
+                'unmapped' => max((int) ($summary['unmapped'] ?? 0), 0),
+                'completion_rate' => $completionRate,
+            ],
+            'statuses' => $statuses,
+            'priority_cards' => $priorityCards,
+            'active_cards' => collect($stats['active_cards'] ?? []),
+            'progress_class' => $completionRate >= 80
+                ? 'bg-success'
+                : ($completionRate >= 50 ? 'bg-warning' : 'bg-danger'),
+        ];
+    };
+
+    $workProgressTabs = collect([
+        'marketing' => $normalizeTrelloWorkProgress(
+            $trelloMarketingStats,
+            'marketing',
+            'Marketing',
+            'bi-megaphone-fill'
+        ),
+        'sei' => $normalizeTrelloWorkProgress(
+            $trelloSeiStats,
+            'sei',
+            'SEI',
+            'bi-building-fill'
+        ),
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Grouped Integration Health
+    |--------------------------------------------------------------------------
+    | Trello Marketing dan SEI ditampilkan sebagai satu platform card,
+    | tetapi status masing-masing board tetap terlihat di dalam card.
+    */
+    $standardPlatformStatuses = $platformStatuses
+        ->reject(fn ($platform, $key) => in_array(
+            $platform['key'] ?? $key,
+            ['trello_marketing', 'trello_sei'],
+            true
+        ));
+
+    $trelloWorkPlatformStatuses = collect([
+        'marketing' => array_merge(
+            [
+                'key' => 'trello_marketing',
+                'label' => 'Marketing',
+                'is_available' => false,
+                'last_synced_at' => null,
+                'error_message' => null,
+            ],
+            (array) $platformStatuses->get('trello_marketing', [])
+        ),
+        'sei' => array_merge(
+            [
+                'key' => 'trello_sei',
+                'label' => 'SEI',
+                'is_available' => false,
+                'last_synced_at' => null,
+                'error_message' => null,
+            ],
+            (array) $platformStatuses->get('trello_sei', [])
+        ),
+    ]);
+
+    $trelloWorkSyncedCount = $trelloWorkPlatformStatuses
+        ->filter(fn ($platform) => (bool) ($platform['is_available'] ?? false))
+        ->count();
+
+    $trelloWorkAllSynced = $trelloWorkSyncedCount === $trelloWorkPlatformStatuses->count();
+    $trelloWorkPartiallySynced = $trelloWorkSyncedCount > 0 && ! $trelloWorkAllSynced;
+
+    $displayPlatformCount = $standardPlatformStatuses->count() + 1;
+
+    $displayAvailablePlatformCount = $standardPlatformStatuses
+        ->filter(fn ($platform) => (bool) ($platform['is_available'] ?? false))
+        ->count()
+        + ($trelloWorkAllSynced ? 1 : 0);
+
 @endphp
 
 <div class="container-fluid px-4 py-4 marketing-api-dashboard">
@@ -270,8 +397,6 @@
                     Pantau paid media, website performance, conversion, dan workload Marketing berdasarkan data terbaru dari Meta Ads, Google Analytics, Google Ads, dan Trello.
                 </p>
             </div>
-
-           
         </div>
     </div>
 
@@ -284,7 +409,7 @@
     </div>
 
     <div class="row g-3 mb-4">
-        @forelse($platformStatuses as $platformKey => $platform)
+        @foreach($standardPlatformStatuses as $platformKey => $platform)
             @php
                 $platformAvailable = (bool) ($platform['is_available'] ?? false);
                 $resolvedKey = $platform['key'] ?? $platformKey;
@@ -293,7 +418,7 @@
             <div class="col-xl-3 col-md-6">
                 <div class="platform-status-card h-100">
                     <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div class="platform-status-icon">
+                        <div class="platform-status-icon platform-status-icon-{{ $resolvedKey }}">
                             <i class="bi {{ $platformIconMap[$resolvedKey] ?? 'bi-database-fill' }}"></i>
                         </div>
 
@@ -313,8 +438,11 @@
                     </div>
 
                     <div class="platform-status-meta mt-3">
-                        Last sync:
-                        <strong>{{ $formatDate($platform['last_synced_at'] ?? null) }}</strong>
+                        <span class="last-sync-badge {{ $platformAvailable ? 'is-synced' : 'is-not-synced' }}">
+                            <i class="bi bi-clock-history"></i>
+                            <span>Last Sync</span>
+                            <strong>{{ $formatDate($platform['last_synced_at'] ?? null) }}</strong>
+                        </span>
                     </div>
 
                     @if(! $platformAvailable && filled($platform['error_message'] ?? null))
@@ -324,17 +452,87 @@
                     @endif
                 </div>
             </div>
-        @empty
-            <div class="col-12">
-                <div class="empty-state-box">
-                    <div class="empty-state-icon"><i class="bi bi-cloud-slash"></i></div>
-                    <h5 class="empty-state-title">Belum ada status integrasi</h5>
-                    <p class="empty-state-text mb-0">
-                        Status sumber data Marketing belum tersedia.
-                    </p>
+        @endforeach
+
+        <div class="col-xl-3 col-md-6">
+            <div class="platform-status-card platform-status-card-trello h-100">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                    <div class="platform-status-icon platform-status-icon-trello_marketing">
+                        <i class="bi bi-trello"></i>
+                    </div>
+
+                    <span class="badge rounded-pill {{
+                        $trelloWorkAllSynced
+                            ? 'bg-success-subtle text-success-emphasis border border-success-subtle'
+                            : (
+                                $trelloWorkPartiallySynced
+                                    ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
+                                    : 'bg-danger-subtle text-danger-emphasis border border-danger-subtle'
+                            )
+                    }}">
+                        @if($trelloWorkAllSynced)
+                            Synced
+                        @elseif($trelloWorkPartiallySynced)
+                            Partial Sync
+                        @else
+                            Not Synced
+                        @endif
+                    </span>
+                </div>
+
+                <div class="platform-status-title mt-3">
+                    Trello Work Progress
+                </div>
+
+                <div class="platform-status-description">
+                    Status koneksi workload Marketing dan SEI dalam satu integrasi Trello.
+                </div>
+
+                <div class="trello-combined-status-list mt-3">
+                    @foreach($trelloWorkPlatformStatuses as $trelloKey => $trelloPlatform)
+                        @php
+                            $trelloAvailable = (bool) ($trelloPlatform['is_available'] ?? false);
+                        @endphp
+
+                        <div class="trello-combined-status-item">
+                            <div class="trello-combined-status-main">
+                                <span class="trello-combined-status-icon">
+                                    <i class="bi {{
+                                        $trelloKey === 'marketing'
+                                            ? 'bi-megaphone-fill'
+                                            : 'bi-building-fill'
+                                    }}"></i>
+                                </span>
+
+                                <div>
+                                    <div class="trello-combined-status-name">
+                                        {{ $trelloPlatform['label'] ?? \Illuminate\Support\Str::headline($trelloKey) }}
+                                    </div>
+                                    <div class="trello-combined-status-sync">
+                                        <span class="last-sync-badge last-sync-badge-compact {{ $trelloAvailable ? 'is-synced' : 'is-not-synced' }}">
+                                            <i class="bi bi-clock-history"></i>
+                                            <strong>{{ $formatDate($trelloPlatform['last_synced_at'] ?? null) }}</strong>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <span class="trello-combined-status-dot {{
+                                $trelloAvailable ? 'is-synced' : 'is-not-synced'
+                            }}"
+                                  title="{{ $trelloAvailable ? 'Synced' : 'Not Synced' }}">
+                            </span>
+                        </div>
+
+                        @if(! $trelloAvailable && filled($trelloPlatform['error_message'] ?? null))
+                            <div class="small text-danger px-1">
+                                {{ $trelloPlatform['error_message'] }}
+                            </div>
+                        @endif
+                    @endforeach
                 </div>
             </div>
-        @endforelse
+        </div>
     </div>
 
     <div class="dashboard-section-label mb-3">
@@ -413,7 +611,309 @@
         </div>
     </div>
 
-    
+    <div class="dashboard-section-label mb-3 mt-1">
+        <div class="dashboard-section-eyebrow">AI Decision Support</div>
+        <h4 class="dashboard-section-title mb-1">Marketing AI Action Center</h4>
+        <p class="dashboard-section-subtitle mb-0">
+            Ringkasan lintas platform untuk membaca faktor penghambat, rekomendasi, dan urutan tindakan yang paling penting.
+        </p>
+    </div>
+
+    <div class="content-card mb-4 marketing-ai-action-center">
+        <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <h5 class="content-card-title mb-1">AI Marketing Recommendations</h5>
+                <p class="content-card-subtitle mb-0">
+                    Analisis Meta Ads, Google Analytics, Google Ads, Trello Marketing, dan Trello SEI dalam satu action plan.
+                </p>
+            </div>
+
+            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                <i class="bi bi-stars me-1"></i>
+                AI Analyst
+            </span>
+        </div>
+
+        <div class="content-card-body">
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="marketing-ai-executive-card h-100">
+                        <div class="marketing-ai-card-icon">
+                            <i class="bi bi-robot"></i>
+                        </div>
+
+                        <div class="flex-grow-1">
+                            <div class="marketing-ai-card-label">Executive Summary</div>
+                            <div class="marketing-ai-paragraphs">
+                                @forelse(
+                                    $aiParagraphs(
+                                        $marketingExecutiveSummary
+                                            ?: 'AI Marketing summary belum tersedia.'
+                                    ) as $paragraph
+                                )
+                                    <p class="marketing-ai-card-text">
+                                        {!! nl2br(e($paragraph)) !!}
+                                    </p>
+                                @empty
+                                    <p class="marketing-ai-card-text mb-0">
+                                        AI Marketing summary belum tersedia.
+                                    </p>
+                                @endforelse
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-xl-6">
+                    <div class="marketing-ai-panel h-100">
+                        <div class="marketing-ai-panel-header">
+                            <div>
+                                <div class="fw-bold text-dark">Blocking Factors</div>
+                                <div class="small text-muted">Masalah dan bukti yang menghambat performa.</div>
+                            </div>
+
+                            <span class="badge rounded-pill bg-light text-dark border">
+                                {{ number_format($marketingBlockingFactors->count()) }}
+                            </span>
+                        </div>
+
+                        <div class="marketing-ai-factor-list">
+                            @forelse($marketingBlockingFactors->take(8) as $factor)
+                                <div class="marketing-ai-factor-item">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div>
+                                            <div class="fw-semibold text-dark marketing-ai-inline-paragraphs">
+                                                @foreach(
+                                                    $aiParagraphs(
+                                                        data_get($factor, 'factor', 'Faktor penghambat')
+                                                    ) as $paragraph
+                                                )
+                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                @endforeach
+                                            </div>
+
+                                            @if(filled(data_get($factor, 'evidence')))
+                                                <div class="small text-muted mt-1 marketing-ai-inline-paragraphs">
+                                                    @foreach(
+                                                        $aiParagraphs(data_get($factor, 'evidence')) as $paragraph
+                                                    )
+                                                        <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+
+                                            <div class="small text-primary fw-semibold mt-2">
+                                                {{ data_get($factor, 'platform_label', 'Marketing') }}
+                                                @if(filled(data_get($factor, 'campaign_name')))
+                                                    · {{ data_get($factor, 'campaign_name') }}
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <span class="badge rounded-pill {{ $aiSeverityBadgeClass(data_get($factor, 'severity', 'medium')) }}">
+                                            {{ \Illuminate\Support\Str::headline(data_get($factor, 'severity', 'medium')) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="empty-state-box compact-empty-state">
+                                    <div class="empty-state-icon"><i class="bi bi-check2-circle"></i></div>
+                                    <h5 class="empty-state-title">Belum ada blocking factor</h5>
+                                    <p class="empty-state-text mb-0">
+                                        AI belum menemukan penghambat utama pada data terbaru.
+                                    </p>
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-6">
+                    <div class="marketing-ai-panel h-100">
+                        <div class="marketing-ai-panel-header">
+                            <div>
+                                <div class="fw-bold text-dark">Recommended Actions</div>
+                                <div class="small text-muted">Langkah optimasi yang disarankan AI.</div>
+                            </div>
+
+                            <span class="badge rounded-pill bg-light text-dark border">
+                                {{ number_format($marketingRecommendedSteps->count()) }}
+                            </span>
+                        </div>
+
+                        <div class="marketing-ai-step-list">
+                            @forelse($marketingRecommendedSteps->take(10) as $index => $step)
+                                <div class="marketing-ai-step-item">
+                                    <span class="marketing-ai-step-number">{{ $index + 1 }}</span>
+                                    <div>
+                                        <div class="fw-semibold text-dark marketing-ai-inline-paragraphs">
+                                            @foreach(
+                                                $aiParagraphs(
+                                                    data_get(
+                                                        $step,
+                                                        'action',
+                                                        is_string($step) ? $step : '-'
+                                                    )
+                                                ) as $paragraph
+                                            )
+                                                <p>{!! nl2br(e($paragraph)) !!}</p>
+                                            @endforeach
+                                        </div>
+                                        <div class="small text-primary fw-semibold mt-1">
+                                            {{ data_get($step, 'platform_label', 'Marketing') }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="empty-state-box compact-empty-state">
+                                    <div class="empty-state-icon"><i class="bi bi-lightbulb"></i></div>
+                                    <h5 class="empty-state-title">Belum ada rekomendasi</h5>
+                                    <p class="empty-state-text mb-0">
+                                        Rekomendasi akan muncul setelah AI analysis tersedia.
+                                    </p>
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="marketing-ai-panel mb-4">
+                <div class="marketing-ai-panel-header">
+                    <div>
+                        <div class="fw-bold text-dark">Priority Action Plan</div>
+                        <div class="small text-muted">
+                            Urutan tindakan berdasarkan tingkat urgensi dan bottleneck lintas platform.
+                        </div>
+                    </div>
+
+                    <span class="badge rounded-pill bg-danger-subtle text-danger-emphasis border border-danger-subtle">
+                        {{ number_format($marketingPriorityActions->count()) }} actions
+                    </span>
+                </div>
+
+                @if($marketingPriorityActions->count())
+                    <div class="table-responsive">
+                        <table class="table table-modern align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="90">Priority</th>
+                                    <th>Platform</th>
+                                    <th>Recommended Action</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($marketingPriorityActions->take(10) as $action)
+                                    <tr>
+                                        <td>
+                                            <span class="badge rounded-pill {{ $aiSeverityBadgeClass(data_get($action, 'priority', 'medium')) }}">
+                                                {{ \Illuminate\Support\Str::headline(data_get($action, 'priority', 'medium')) }}
+                                            </span>
+                                        </td>
+                                        <td class="fw-semibold text-dark">
+                                            {{ data_get($action, 'platform_label', 'Marketing') }}
+                                            @if(filled(data_get($action, 'campaign_name')))
+                                                <div class="small text-muted">
+                                                    {{ data_get($action, 'campaign_name') }}
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div class="marketing-ai-table-paragraphs">
+                                                @foreach(
+                                                    $aiParagraphs(data_get($action, 'action', '-')) as $paragraph
+                                                )
+                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                @endforeach
+                                            </div>
+                                        </td>
+                                        <td class="text-muted">
+                                            <div class="marketing-ai-table-paragraphs">
+                                                @foreach(
+                                                    $aiParagraphs(data_get($action, 'reason', '-')) as $paragraph
+                                                )
+                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                @endforeach
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="empty-state-box compact-empty-state">
+                        <div class="empty-state-icon"><i class="bi bi-list-check"></i></div>
+                        <h5 class="empty-state-title">Priority action belum tersedia</h5>
+                    </div>
+                @endif
+            </div>
+
+            <div class="row g-3">
+                @foreach([
+                    'meta_ads' => ['label' => 'Meta Ads', 'icon' => 'bi-meta'],
+                    'google_analytics' => ['label' => 'Google Analytics', 'icon' => 'bi-bar-chart-fill'],
+                    'google_ads' => ['label' => 'Google Ads', 'icon' => 'bi-google'],
+                    'trello_marketing' => ['label' => 'Trello Marketing', 'icon' => 'bi-trello'],
+                    'trello_sei' => ['label' => 'Trello SEI', 'icon' => 'bi-building-fill'],
+                ] as $platformKey => $platformMeta)
+                    @php
+                        $platformAi = $marketingPlatformAi[$platformKey] ?? [];
+                        $platformFactors = collect($platformAi['blocking_factors'] ?? []);
+                        $platformSteps = collect($platformAi['recommended_steps'] ?? []);
+                    @endphp
+
+                    <div class="col-xl col-lg-4 col-md-6">
+                        <div class="marketing-platform-ai-card h-100">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                <span class="marketing-platform-ai-icon">
+                                    <i class="bi {{ $platformMeta['icon'] }}"></i>
+                                </span>
+
+                                <span class="badge rounded-pill {{ $aiSeverityBadgeClass($platformAi['severity'] ?? 'info') }}">
+                                    {{ \Illuminate\Support\Str::headline($platformAi['severity'] ?? 'Info') }}
+                                </span>
+                            </div>
+
+                            <div class="fw-bold text-dark mb-2">{{ $platformMeta['label'] }}</div>
+                            <div class="small text-muted mb-3 marketing-ai-paragraphs">
+                                @foreach(
+                                    $aiParagraphs(
+                                        $platformAi['summary']
+                                            ?? 'AI insight belum tersedia.'
+                                    ) as $paragraph
+                                )
+                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                @endforeach
+                            </div>
+
+                            <div class="marketing-platform-ai-bottleneck">
+                                <div class="small text-muted fw-semibold mb-1">Bottleneck</div>
+                                <div class="fw-semibold text-dark marketing-ai-inline-paragraphs">
+                                    @foreach(
+                                        $aiParagraphs(
+                                            $platformAi['main_bottleneck']
+                                                ?? 'Belum terdeteksi.'
+                                        ) as $paragraph
+                                    )
+                                        <p>{!! nl2br(e($paragraph)) !!}</p>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="small text-muted mt-3">
+                                {{ $platformFactors->count() }} factors
+                                · {{ $platformSteps->count() }} recommendations
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
 
     <div class="dashboard-section-label mb-3 mt-1">
         <div class="dashboard-section-eyebrow">Paid Social</div>
@@ -426,7 +926,13 @@
     <div class="content-card mb-4">
         <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-                <h5 class="content-card-title mb-1">Meta Ads Summary</h5>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="badge rounded-pill bg-primary-subtle text-primary">
+                        <i class="bi bi-meta me-1"></i> Meta Ads
+                    </span>
+                </div>
+
+                <h5 class="content-card-title mb-1">Meta Ads Campaign Performance</h5>
                 <p class="content-card-subtitle mb-0">
                     Periode {{ $formatDate($metaPeriod['date_start'] ?? null, 'd M Y') }}
                     - {{ $formatDate($metaPeriod['date_stop'] ?? null, 'd M Y') }}
@@ -451,8 +957,12 @@
                         <p class="text-muted mb-0">
                             {{ $metaAdsDashboardInsight['summary_text'] ?? 'Meta Ads insight belum tersedia.' }}
                         </p>
-                        <div class="small text-muted mt-2">
-                            Last sync: <strong>{{ $formatDate($metaAdsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                        <div class="mt-3">
+                            <span class="last-sync-badge {{ $metaAvailable ? 'is-synced' : 'is-not-synced' }}">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Last Sync</span>
+                                <strong>{{ $formatDate($metaAdsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -500,52 +1010,179 @@
                 <div class="col-xl-4">
                     <div class="marketing-detail-card h-100">
                         <div class="marketing-detail-label">Campaign Health</div>
+
                         <div class="marketing-health-grid mt-3">
                             <div class="marketing-health-item">
                                 <span>Healthy</span>
-                                <strong class="text-success">{{ $formatNumber($metaOverview['healthy_count'] ?? 0) }}</strong>
+                                <strong class="text-success">
+                                    {{ $formatNumber($metaOverview['healthy_count'] ?? 0) }}
+                                </strong>
                             </div>
+
                             <div class="marketing-health-item">
                                 <span>Attention</span>
-                                <strong class="text-warning">{{ $formatNumber($metaOverview['attention_count'] ?? 0) }}</strong>
+                                <strong class="text-warning">
+                                    {{ $formatNumber($metaOverview['attention_count'] ?? 0) }}
+                                </strong>
                             </div>
+
                             <div class="marketing-health-item">
                                 <span>Critical</span>
-                                <strong class="text-danger">{{ $formatNumber($metaOverview['critical_count'] ?? 0) }}</strong>
+                                <strong class="text-danger">
+                                    {{ $formatNumber($metaOverview['critical_count'] ?? 0) }}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <div class="campaign-health-guide mt-3">
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-healthy"></span>
+                                <div>
+                                    <strong>Healthy</strong>
+                                    <p>
+                                        Campaign menghasilkan conversion dengan efisiensi biaya yang masih baik.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-attention"></span>
+                                <div>
+                                    <strong>Attention</strong>
+                                    <p>
+                                        Campaign sudah berjalan, tetapi ada metrik yang perlu dioptimalkan.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-critical"></span>
+                                <div>
+                                    <strong>Critical</strong>
+                                    <p>
+                                        Spend atau traffic sudah ada, tetapi conversion lemah atau belum terbentuk.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="col-xl-8">
-                    <div class="marketing-detail-card h-100">
-                        <div class="marketing-detail-label">Best Campaign</div>
-
+                    <div class="marketing-detail-card best-campaign-card h-100">
                         @if($metaBestCampaign)
-                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mt-3">
-                                <div>
-                                    <div class="fw-bold text-dark">
-                                        {{ data_get($metaBestCampaign, 'campaign_name', '-') }}
+                            @php
+                                $bestCampaignLead = max(
+                                    (int) data_get($metaBestCampaign, 'lead_form_submission', 0),
+                                    0
+                                );
+
+                                $bestCampaignWhatsApp = max(
+                                    (int) data_get($metaBestCampaign, 'whatsapp_chat', 0),
+                                    0
+                                );
+
+                                $bestCampaignLinkClicks = max(
+                                    (int) data_get($metaBestCampaign, 'link_click', 0),
+                                    0
+                                );
+
+                                $bestCampaignConversions = $bestCampaignLead + $bestCampaignWhatsApp;
+                            @endphp
+
+                            <div class="best-campaign-header">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="marketing-kpi-icon best-campaign-icon">
+                                        <i class="bi bi-trophy-fill"></i>
                                     </div>
-                                    <div class="small text-muted mt-1">
-                                        {{ data_get($metaBestCampaign, 'lead_form_submission', 0) }} lead
-                                        · {{ data_get($metaBestCampaign, 'whatsapp_chat', 0) }} WhatsApp
-                                        · {{ data_get($metaBestCampaign, 'link_click', 0) }} link clicks
+
+                                    <div>
+                                        <div class="marketing-detail-label">Best Campaign</div>
+                                        <div class="best-campaign-title mt-1">
+                                            {{ data_get($metaBestCampaign, 'campaign_name', '-') }}
+                                        </div>
+                                        <div class="best-campaign-subtitle">
+                                            Campaign dengan conversion action terbaik pada periode aktif.
+                                        </div>
                                     </div>
                                 </div>
 
-                                <span class="badge rounded-pill {{ data_get($metaBestCampaign, 'health_badge_class', 'bg-light text-muted') }}">
+                                <span class="badge rounded-pill best-campaign-health {{ data_get($metaBestCampaign, 'health_badge_class', 'bg-light text-muted') }}">
                                     {{ data_get($metaBestCampaign, 'health_label', 'Tracked') }}
                                 </span>
                             </div>
 
-                            <div class="small text-muted mt-3">
-                                Spend {{ data_get($metaBestCampaign, 'spend_label', 'Rp 0') }}
-                                · CPL {{ data_get($metaBestCampaign, 'cost_per_lead_label', '-') }}
-                                · Cost/WA {{ data_get($metaBestCampaign, 'cost_per_whatsapp_chat_label', '-') }}
+                            <div class="best-campaign-highlight-grid mt-3">
+                                <div class="best-campaign-highlight-item">
+                                    <span>Total Conversion Actions</span>
+                                    <strong>{{ number_format($bestCampaignConversions) }}</strong>
+                                    <small>Lead form + WhatsApp chat</small>
+                                </div>
+
+                                <div class="best-campaign-highlight-item">
+                                    <span>Spend</span>
+                                    <strong>{{ data_get($metaBestCampaign, 'spend_label', 'Rp 0') }}</strong>
+                                    <small>Total biaya campaign</small>
+                                </div>
+                            </div>
+
+                            <div class="best-campaign-metric-grid">
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-ui-checks"></i>
+                                    </span>
+                                    <div>
+                                        <span>Lead Form</span>
+                                        <strong>{{ number_format($bestCampaignLead) }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-whatsapp"></i>
+                                    </span>
+                                    <div>
+                                        <span>WhatsApp</span>
+                                        <strong>{{ number_format($bestCampaignWhatsApp) }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-cursor-fill"></i>
+                                    </span>
+                                    <div>
+                                        <span>Link Clicks</span>
+                                        <strong>{{ number_format($bestCampaignLinkClicks) }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="best-campaign-efficiency-grid">
+                                <div class="best-campaign-efficiency-item">
+                                    <span>Cost per Lead</span>
+                                    <strong>
+                                        {{ data_get($metaBestCampaign, 'cost_per_lead_label', '-') }}
+                                    </strong>
+                                </div>
+
+                                <div class="best-campaign-efficiency-item">
+                                    <span>Cost per WhatsApp</span>
+                                    <strong>
+                                        {{ data_get($metaBestCampaign, 'cost_per_whatsapp_chat_label', '-') }}
+                                    </strong>
+                                </div>
                             </div>
                         @else
-                            <div class="text-muted mt-3">Belum ada campaign terbaik yang bisa ditentukan.</div>
+                            <div class="empty-state-box compact-empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="bi bi-trophy"></i>
+                                </div>
+                                <h5 class="empty-state-title">Best campaign belum tersedia</h5>
+                                <p class="empty-state-text mb-0">
+                                    Belum ada campaign dengan data conversion yang cukup untuk ditetapkan sebagai top performer.
+                                </p>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -627,13 +1264,27 @@
                                                     <div class="col-xl-5">
                                                         <div class="campaign-ai-summary-box h-100">
                                                             <div class="campaign-ai-box-label">Summary</div>
-                                                            <p class="text-muted mb-3">
-                                                                {{ $campaignAiSummary['summary'] ?? 'Summary campaign belum tersedia.' }}
-                                                            </p>
+                                                            <div class="text-muted mb-3 marketing-ai-paragraphs">
+                                                                @foreach(
+                                                                    $aiParagraphs(
+                                                                        $campaignAiSummary['summary']
+                                                                            ?? 'Summary campaign belum tersedia.'
+                                                                    ) as $paragraph
+                                                                )
+                                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                                @endforeach
+                                                            </div>
 
                                                             <div class="campaign-ai-box-label">Main Bottleneck</div>
-                                                            <div class="campaign-ai-bottleneck-box">
-                                                                {{ $campaignAiSummary['main_bottleneck'] ?? 'Belum ada bottleneck utama.' }}
+                                                            <div class="campaign-ai-bottleneck-box marketing-ai-paragraphs">
+                                                                @foreach(
+                                                                    $aiParagraphs(
+                                                                        $campaignAiSummary['main_bottleneck']
+                                                                            ?? 'Belum ada bottleneck utama.'
+                                                                    ) as $paragraph
+                                                                )
+                                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                                @endforeach
                                                             </div>
                                                         </div>
                                                     </div>
@@ -653,8 +1304,12 @@
                                                                                             {{ data_get($factor, 'factor', 'Faktor penghambat') }}
                                                                                         </div>
                                                                                         @if(filled(data_get($factor, 'evidence')))
-                                                                                            <div class="small text-muted mt-1">
-                                                                                                {{ data_get($factor, 'evidence') }}
+                                                                                            <div class="small text-muted mt-1 marketing-ai-inline-paragraphs">
+                                                                                                @foreach(
+                                                                                                    $aiParagraphs(data_get($factor, 'evidence')) as $paragraph
+                                                                                                )
+                                                                                                    <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                                                                @endforeach
                                                                                             </div>
                                                                                         @endif
                                                                                     </div>
@@ -675,9 +1330,23 @@
 
                                                                     <ol class="campaign-ai-step-list mb-0">
                                                                         @forelse($campaignRecommendedSteps as $step)
-                                                                            <li>{{ is_array($step)
-                                                                                ? data_get($step, 'action', data_get($step, 'step', '-'))
-                                                                                : $step }}</li>
+                                                                            <li>
+                                                                                <div class="marketing-ai-inline-paragraphs">
+                                                                                    @foreach(
+                                                                                        $aiParagraphs(
+                                                                                            is_array($step)
+                                                                                                ? data_get(
+                                                                                                    $step,
+                                                                                                    'action',
+                                                                                                    data_get($step, 'step', '-')
+                                                                                                )
+                                                                                                : $step
+                                                                                        ) as $paragraph
+                                                                                    )
+                                                                                        <p>{!! nl2br(e($paragraph)) !!}</p>
+                                                                                    @endforeach
+                                                                                </div>
+                                                                            </li>
                                                                         @empty
                                                                             <li class="text-muted">Belum ada rekomendasi.</li>
                                                                         @endforelse
@@ -743,8 +1412,12 @@
                         <p class="text-muted mb-0">
                             {{ $googleAnalyticsDashboardInsight['summary_text'] ?? 'Google Analytics insight belum tersedia.' }}
                         </p>
-                        <div class="small text-muted mt-2">
-                            Last sync: <strong>{{ $formatDate($googleAnalyticsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                        <div class="mt-3">
+                            <span class="last-sync-badge {{ $gaAvailable ? 'is-synced' : 'is-not-synced' }}">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Last Sync</span>
+                                <strong>{{ $formatDate($googleAnalyticsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -1096,8 +1769,12 @@
                         <p class="text-muted mb-0">
                             {{ $googleAdsDashboardInsight['summary_text'] ?? 'Google Ads insight belum tersedia.' }}
                         </p>
-                        <div class="small text-muted mt-2">
-                            Last sync: <strong>{{ $formatDate($googleAdsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                        <div class="mt-3">
+                            <span class="last-sync-badge {{ $googleAdsAvailable ? 'is-synced' : 'is-not-synced' }}">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Last Sync</span>
+                                <strong>{{ $formatDate($googleAdsDashboardInsight['last_synced_at'] ?? null) }}</strong>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -1145,55 +1822,200 @@
                 <div class="col-xl-4">
                     <div class="marketing-detail-card h-100">
                         <div class="marketing-detail-label">Campaign Health</div>
+
                         <div class="marketing-health-grid mt-3">
                             <div class="marketing-health-item">
                                 <span>Healthy</span>
-                                <strong class="text-success">{{ $formatNumber($googleAdsOverview['healthy_count'] ?? 0) }}</strong>
+                                <strong class="text-success">
+                                    {{ $formatNumber($googleAdsOverview['healthy_count'] ?? 0) }}
+                                </strong>
                             </div>
+
                             <div class="marketing-health-item">
                                 <span>Attention</span>
-                                <strong class="text-warning">{{ $formatNumber($googleAdsOverview['attention_count'] ?? 0) }}</strong>
+                                <strong class="text-warning">
+                                    {{ $formatNumber($googleAdsOverview['attention_count'] ?? 0) }}
+                                </strong>
                             </div>
+
                             <div class="marketing-health-item">
                                 <span>Critical</span>
-                                <strong class="text-danger">{{ $formatNumber($googleAdsOverview['critical_count'] ?? 0) }}</strong>
+                                <strong class="text-danger">
+                                    {{ $formatNumber($googleAdsOverview['critical_count'] ?? 0) }}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <div class="campaign-health-guide mt-3">
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-healthy"></span>
+                                <div>
+                                    <strong>Healthy</strong>
+                                    <p>
+                                        Campaign menghasilkan conversion dengan cost yang masih efisien.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-attention"></span>
+                                <div>
+                                    <strong>Attention</strong>
+                                    <p>
+                                        Campaign punya traffic atau conversion, tetapi efisiensinya perlu ditingkatkan.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="campaign-health-guide-row">
+                                <span class="campaign-health-guide-dot is-critical"></span>
+                                <div>
+                                    <strong>Critical</strong>
+                                    <p>
+                                        Cost sudah keluar, tetapi conversion tidak terbentuk atau terlalu mahal.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="col-xl-8">
-                    <div class="marketing-detail-card h-100">
-                        <div class="marketing-detail-label">Best Campaign</div>
-
+                    <div class="marketing-detail-card best-campaign-card h-100">
                         @if($googleAdsBestCampaign)
-                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mt-3">
-                                <div>
-                                    <div class="fw-bold text-dark">
-                                        {{ data_get($googleAdsBestCampaign, 'campaign_name')
-                                            ?: data_get($googleAdsBestCampaign, 'name')
-                                            ?: '-' }}
+                            @php
+                                $googleBestClicks = max(
+                                    (int) data_get($googleAdsBestCampaign, 'clicks', 0),
+                                    0
+                                );
+
+                                $googleBestImpressions = max(
+                                    (int) data_get($googleAdsBestCampaign, 'impressions', 0),
+                                    0
+                                );
+
+                                $googleBestConversions = max(
+                                    (float) data_get($googleAdsBestCampaign, 'conversions', 0),
+                                    0
+                                );
+
+                                $googleBestCtr = $safePercent(
+                                    data_get($googleAdsBestCampaign, 'ctr', 0)
+                                );
+                            @endphp
+
+                            <div class="best-campaign-header">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="marketing-kpi-icon google-ads-kpi-icon best-campaign-icon">
+                                        <i class="bi bi-trophy-fill"></i>
                                     </div>
-                                    <div class="small text-muted mt-1">
-                                        {{ $formatNumber(data_get($googleAdsBestCampaign, 'clicks', 0)) }} clicks
-                                        · {{ $formatNumber(data_get($googleAdsBestCampaign, 'conversions', 0), 1) }} conversions
+
+                                    <div>
+                                        <div class="marketing-detail-label">Best Campaign</div>
+                                        <div class="best-campaign-title mt-1">
+                                            {{ data_get($googleAdsBestCampaign, 'campaign_name')
+                                                ?: data_get($googleAdsBestCampaign, 'name')
+                                                ?: '-' }}
+                                        </div>
+                                        <div class="best-campaign-subtitle">
+                                            Campaign Google Ads dengan hasil conversion terbaik pada periode aktif.
+                                        </div>
                                     </div>
                                 </div>
 
-                                <span class="badge rounded-pill {{ data_get($googleAdsBestCampaign, 'health_badge_class')
+                                <span class="badge rounded-pill best-campaign-health {{ data_get($googleAdsBestCampaign, 'health_badge_class')
                                     ?: $healthBadgeClass(data_get($googleAdsBestCampaign, 'health_type')) }}">
                                     {{ data_get($googleAdsBestCampaign, 'health_label')
-                                        ?: \Illuminate\Support\Str::headline(data_get($googleAdsBestCampaign, 'health_type', 'tracked')) }}
+                                        ?: \Illuminate\Support\Str::headline(
+                                            data_get($googleAdsBestCampaign, 'health_type', 'tracked')
+                                        ) }}
                                 </span>
                             </div>
 
-                            <div class="small text-muted mt-3">
-                                Cost {{ data_get($googleAdsBestCampaign, 'cost_label')
-                                    ?: $formatCurrency(data_get($googleAdsBestCampaign, 'cost', 0)) }}
-                                · Cost/conversion {{ data_get($googleAdsBestCampaign, 'cost_per_conversion_label', '-') }}
+                            <div class="best-campaign-highlight-grid mt-3">
+                                <div class="best-campaign-highlight-item">
+                                    <span>Conversions</span>
+                                    <strong>{{ $formatNumber($googleBestConversions, 1) }}</strong>
+                                    <small>Total conversion campaign</small>
+                                </div>
+
+                                <div class="best-campaign-highlight-item">
+                                    <span>Cost</span>
+                                    <strong>
+                                        {{ data_get($googleAdsBestCampaign, 'cost_label')
+                                            ?: $formatCurrency(
+                                                data_get($googleAdsBestCampaign, 'cost', 0)
+                                            ) }}
+                                    </strong>
+                                    <small>Total biaya campaign</small>
+                                </div>
+                            </div>
+
+                            <div class="best-campaign-metric-grid">
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon google-ads-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-cursor-fill"></i>
+                                    </span>
+                                    <div>
+                                        <span>Clicks</span>
+                                        <strong>{{ $formatNumber($googleBestClicks) }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon google-ads-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </span>
+                                    <div>
+                                        <span>Impressions</span>
+                                        <strong>{{ $formatNumber($googleBestImpressions) }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="best-campaign-metric">
+                                    <span class="marketing-kpi-icon google-ads-kpi-icon best-campaign-metric-icon">
+                                        <i class="bi bi-percent"></i>
+                                    </span>
+                                    <div>
+                                        <span>CTR</span>
+                                        <strong>{{ $formatNumber($googleBestCtr, 2) }}%</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="best-campaign-efficiency-grid">
+                                <div class="best-campaign-efficiency-item">
+                                    <span>Cost per Conversion</span>
+                                    <strong>
+                                        {{ data_get(
+                                            $googleAdsBestCampaign,
+                                            'cost_per_conversion_label',
+                                            '-'
+                                        ) }}
+                                    </strong>
+                                </div>
+
+                                <div class="best-campaign-efficiency-item">
+                                    <span>Average CPC</span>
+                                    <strong>
+                                        {{ data_get(
+                                            $googleAdsBestCampaign,
+                                            'average_cpc_label',
+                                            data_get($googleAdsBestCampaign, 'avg_cpc_label', '-')
+                                        ) }}
+                                    </strong>
+                                </div>
                             </div>
                         @else
-                            <div class="text-muted mt-3">Belum ada campaign terbaik yang bisa ditentukan.</div>
+                            <div class="empty-state-box compact-empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="bi bi-trophy"></i>
+                                </div>
+                                <h5 class="empty-state-title">Best campaign belum tersedia</h5>
+                                <p class="empty-state-text mb-0">
+                                    Belum ada campaign Google Ads dengan data conversion yang cukup untuk ditetapkan sebagai top performer.
+                                </p>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -1279,426 +2101,570 @@
 
     <div class="dashboard-section-label mb-3 mt-1">
         <div class="dashboard-section-eyebrow">Team Overview</div>
-        <h4 class="dashboard-section-title mb-1">Marketing Work Progress</h4>
+        <h4 class="dashboard-section-title mb-1">Work Progress</h4>
         <p class="dashboard-section-subtitle mb-0">
-            Pantau progres pekerjaan Marketing berdasarkan status, deadline, PIC, dan aktivitas terbaru dari Trello.
+            Pantau progres pekerjaan Marketing dan SEI berdasarkan status, deadline, PIC, serta aktivitas terbaru dari Trello.
         </p>
     </div>
 
     <div class="content-card mb-4">
         <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-                <h5 class="content-card-title mb-1">Marketing Work Progress</h5>
+                <h5 class="content-card-title mb-1">Work Progress</h5>
                 <p class="content-card-subtitle mb-0">
-                    Ringkasan pekerjaan operasional dari board {{ $trelloMarketingBoardName }}.
+                    Ringkasan pekerjaan operasional berdasarkan board Marketing dan SEI.
                 </p>
             </div>
 
-            <span class="badge rounded-pill {{ $trelloMarketingIsSynced
-                ? 'bg-success-subtle text-success'
-                : 'bg-warning-subtle text-warning' }}">
-                <i class="bi {{ $trelloMarketingIsSynced ? 'bi-cloud-check-fill' : 'bi-cloud-slash-fill' }} me-1"></i>
-                {{ $trelloMarketingIsSynced ? 'Synced' : 'Not Synced' }}
-            </span>
+            <ul class="nav nav-pills work-progress-tabs" id="marketingWorkProgressTabs" role="tablist">
+                @foreach($workProgressTabs as $workKey => $work)
+                    <li class="nav-item" role="presentation">
+                        <button
+                            class="nav-link {{ $loop->first ? 'active' : '' }}"
+                            id="{{ $workKey }}-work-tab"
+                            data-bs-toggle="pill"
+                            data-bs-target="#{{ $workKey }}-work-pane"
+                            type="button"
+                            role="tab"
+                            aria-controls="{{ $workKey }}-work-pane"
+                            aria-selected="{{ $loop->first ? 'true' : 'false' }}"
+                        >
+                            <i class="bi {{ $work['icon'] }} me-1"></i>
+                            {{ $work['label'] }}
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
         </div>
 
         <div class="content-card-body">
-            <div class="trello-insight-box mb-3">
-                <div class="d-flex align-items-start gap-3">
-                    <div class="trello-insight-icon"><i class="bi bi-megaphone-fill"></i></div>
-                    <div>
-                        <div class="fw-semibold text-dark mb-1">Marketing Work Insight</div>
-                        <p class="text-muted mb-0">{{ $trelloMarketingInsight }}</p>
-                        <div class="small text-muted mt-2">
-                            Last sync: <strong>{{ $trelloMarketingLastSyncedText }}</strong>
-                            <span class="mx-1">•</span>
-                            Last webhook: <strong>{{ $trelloMarketingLastWebhookText }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="work-progress-completion-card mb-4">
-                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
-                    <div>
-                        <div class="work-progress-completion-eyebrow">Marketing Progress</div>
-                        <div class="work-progress-completion-value">
-                            {{ $formatNumber($trelloMarketingCompletionRate) }}%
-                        </div>
-                        <div class="work-progress-completion-label">
-                            {{ $formatNumber($trelloMarketingCompleted) }}
-                            dari
-                            {{ $formatNumber($trelloMarketingTotalOpenCards) }}
-                            card sudah selesai.
-                        </div>
-                    </div>
-
-                    <div class="work-progress-completion-meta text-lg-end">
-                        <div class="small text-muted">Active Work</div>
-                        <div class="fw-semibold text-dark">
-                            {{ $formatNumber($trelloMarketingActiveWork) }} card berjalan
-                        </div>
-                    </div>
-                </div>
-
-                <div class="progress progress-modern work-progress-completion-track mb-3">
-                    <div
-                        class="progress-bar {{ $trelloMarketingProgressClass }}"
-                        role="progressbar"
-                        style="width: {{ $trelloMarketingCompletionRate }}%;"
-                        aria-valuenow="{{ $trelloMarketingCompletionRate }}"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                    ></div>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-xl-4 col-md-4">
-                        <div class="work-progress-mini-metric">
-                            <span>Due Today</span>
-                            <strong class="{{ $trelloMarketingDueTodayClass }}">
-                                {{ $formatNumber($trelloMarketingDueToday) }}
-                            </strong>
-                        </div>
-                    </div>
-
-                    <div class="col-xl-4 col-md-4">
-                        <div class="work-progress-mini-metric">
-                            <span>Overdue</span>
-                            <strong class="{{ $trelloMarketingOverdueClass }}">
-                                {{ $formatNumber($trelloMarketingOverdue) }}
-                            </strong>
-                        </div>
-                    </div>
-
-                    <div class="col-xl-4 col-md-4">
-                        <div class="work-progress-mini-metric">
-                            <span>Unmapped</span>
-                            <strong>{{ $formatNumber($trelloMarketingUnmapped) }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row g-3 mb-4">
-                @foreach(['todo', 'in_progress', 'review', 'done'] as $statusKey)
+            <div class="tab-content" id="marketingWorkProgressTabsContent">
+                @foreach($workProgressTabs as $workKey => $work)
                     @php
-                        $statusTotal = (int) ($trelloMarketingStatuses[$statusKey] ?? 0);
-                        $statusLabel = $trelloStatusLabels[$statusKey] ?? \Illuminate\Support\Str::headline($statusKey);
-                        $statusClass = $trelloStatusBadgeClasses[$statusKey] ?? 'bg-light text-muted';
-                        $statusIcon = $trelloStatusIcons[$statusKey] ?? 'bi-circle';
+                        $workSummary = $work['summary'];
+                        $workStatuses = $work['statuses'];
+                        $workPriorityCards = $work['priority_cards'];
+                        $workActiveCards = $work['active_cards'];
 
-                        $statusDescription = match ($statusKey) {
-                            'todo' => 'Task yang sudah masuk antrean kerja dan menunggu eksekusi.',
-                            'in_progress' => 'Task yang sedang dikerjakan oleh tim Marketing.',
-                            'review' => 'Task yang sudah dikerjakan dan menunggu pengecekan.',
-                            'done' => 'Task yang sudah selesai dan tercatat sebagai completed.',
-                            default => 'Status pekerjaan Marketing.',
-                        };
+                        $dueTodayClass = $workSummary['due_today'] > 0
+                            ? 'text-warning'
+                            : 'text-success';
+
+                        $overdueClass = $workSummary['overdue'] > 0
+                            ? 'text-danger'
+                            : 'text-success';
                     @endphp
 
-                    <div class="col-xl-3 col-md-6">
-                        <div class="stat-card h-100 work-progress-stat-card">
-                            <div class="stat-card-top">
-                                <div class="stat-icon-wrap {{ $statusClass }}">
-                                    <i class="bi {{ $statusIcon }}"></i>
+                    <div
+                        class="tab-pane fade {{ $loop->first ? 'show active' : '' }}"
+                        id="{{ $workKey }}-work-pane"
+                        role="tabpanel"
+                        aria-labelledby="{{ $workKey }}-work-tab"
+                        tabindex="0"
+                    >
+                        <div class="trello-insight-box mb-3">
+                            <div class="d-flex align-items-start gap-3">
+                                <div class="trello-insight-icon">
+                                    <i class="bi {{ $work['icon'] }}"></i>
                                 </div>
+
                                 <div>
-                                    <div class="stat-title">{{ $statusLabel }}</div>
-                                    <div class="stat-value">{{ $formatNumber($statusTotal) }}</div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                        <div class="fw-semibold text-dark">
+                                            {{ $work['label'] }} Work Insight
+                                        </div>
+
+                                        <span class="badge rounded-pill {{ $work['is_synced']
+                                            ? 'bg-success-subtle text-success'
+                                            : 'bg-warning-subtle text-warning' }}">
+                                            <i class="bi {{ $work['is_synced']
+                                                ? 'bi-cloud-check-fill'
+                                                : 'bi-cloud-slash-fill' }} me-1"></i>
+                                            {{ $work['is_synced'] ? 'Synced' : 'Not Synced' }}
+                                        </span>
+                                    </div>
+
+                                    <p class="text-muted mb-0">{{ $work['insight'] }}</p>
+
+                                    <div class="trello-sync-meta mt-3">
+                                        <span class="trello-board-name">
+                                            <i class="bi bi-kanban me-1"></i>
+                                            {{ $work['board_name'] }}
+                                        </span>
+
+                                        <span class="last-sync-badge {{ $work['is_synced'] ? 'is-synced' : 'is-not-synced' }}">
+                                            <i class="bi bi-clock-history"></i>
+                                            <span>Last Sync</span>
+                                            <strong>{{ $work['last_synced_text'] }}</strong>
+                                        </span>
+
+                                        <span class="last-webhook-text">
+                                            Last webhook:
+                                            <strong>{{ $work['last_webhook_text'] }}</strong>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="stat-description">{{ $statusDescription }}</div>
+                        </div>
+
+                        <div class="work-progress-completion-card mb-4">
+                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-3">
+                                <div>
+                                    <div class="work-progress-completion-eyebrow">
+                                        {{ $work['label'] }} Progress
+                                    </div>
+
+                                    <div class="work-progress-completion-value">
+                                        {{ $formatNumber($workSummary['completion_rate']) }}%
+                                    </div>
+
+                                    <div class="work-progress-completion-label">
+                                        {{ $formatNumber($workSummary['completed']) }}
+                                        dari
+                                        {{ $formatNumber($workSummary['total_open_cards']) }}
+                                        card sudah selesai.
+                                    </div>
+                                </div>
+
+                                <div class="work-progress-completion-meta text-lg-end">
+                                    <div class="small text-muted">Active Work</div>
+                                    <div class="fw-semibold text-dark">
+                                        {{ $formatNumber($workSummary['active_work']) }} card berjalan
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="progress progress-modern work-progress-completion-track mb-3">
+                                <div
+                                    class="progress-bar {{ $work['progress_class'] }}"
+                                    role="progressbar"
+                                    style="width: {{ $workSummary['completion_rate'] }}%;"
+                                    aria-valuenow="{{ $workSummary['completion_rate'] }}"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                ></div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-xl-4 col-md-4">
+                                    <div class="work-progress-mini-metric">
+                                        <span>Due Today</span>
+                                        <strong class="{{ $dueTodayClass }}">
+                                            {{ $formatNumber($workSummary['due_today']) }}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-4 col-md-4">
+                                    <div class="work-progress-mini-metric">
+                                        <span>Overdue</span>
+                                        <strong class="{{ $overdueClass }}">
+                                            {{ $formatNumber($workSummary['overdue']) }}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-4 col-md-4">
+                                    <div class="work-progress-mini-metric">
+                                        <span>Unmapped</span>
+                                        <strong>{{ $formatNumber($workSummary['unmapped']) }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            @foreach(['todo', 'in_progress', 'review', 'done'] as $statusKey)
+                                @php
+                                    $statusTotal = (int) ($workStatuses[$statusKey] ?? 0);
+                                    $statusLabel = $trelloStatusLabels[$statusKey]
+                                        ?? \Illuminate\Support\Str::headline($statusKey);
+                                    $statusClass = $trelloStatusBadgeClasses[$statusKey]
+                                        ?? 'bg-light text-muted';
+                                    $statusIcon = $trelloStatusIcons[$statusKey]
+                                        ?? 'bi-circle';
+
+                                    $statusDescription = match ($statusKey) {
+                                        'todo' => 'Task yang sudah masuk antrean kerja dan menunggu eksekusi.',
+                                        'in_progress' => 'Task yang sedang dikerjakan oleh tim ' . $work['label'] . '.',
+                                        'review' => 'Task yang sudah dikerjakan dan menunggu pengecekan.',
+                                        'done' => 'Task yang sudah selesai dan tercatat sebagai completed.',
+                                        default => 'Status pekerjaan ' . $work['label'] . '.',
+                                    };
+                                @endphp
+
+                                <div class="col-xl-3 col-md-6">
+                                    <div class="stat-card h-100 work-progress-stat-card">
+                                        <div class="stat-card-top">
+                                            <div class="stat-icon-wrap {{ $statusClass }}">
+                                                <i class="bi {{ $statusIcon }}"></i>
+                                            </div>
+
+                                            <div>
+                                                <div class="stat-title">{{ $statusLabel }}</div>
+                                                <div class="stat-value">{{ $formatNumber($statusTotal) }}</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="stat-description">
+                                            {{ $statusDescription }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        @if($workSummary['unmapped'] > 0)
+                            <div class="alert alert-warning mb-4">
+                                Ada {{ $formatNumber($workSummary['unmapped']) }}
+                                card {{ $work['label'] }} yang belum punya status dashboard.
+                                Jalankan mapping list sebelum angka dipakai untuk keputusan operasional.
+                            </div>
+                        @endif
+
+                        <div class="row g-3 trello-table-row">
+                            <div class="col-12 d-flex flex-column trello-table-column">
+                                <div class="trello-table-card flex-fill">
+                                    <div class="trello-table-header">
+                                        <div>
+                                            <div class="fw-semibold text-dark">Priority Cards</div>
+                                            <div class="small text-muted">
+                                                Card dengan deadline hari ini atau sudah melewati deadline.
+                                            </div>
+                                        </div>
+
+                                        <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                            {{ $formatNumber($workPriorityCards->count()) }} card
+                                        </span>
+                                    </div>
+
+                                    @if($workPriorityCards->count())
+                                        <div class="table-responsive trello-table-scroll">
+                                            <table class="table table-modern align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Card</th>
+                                                        <th>PIC</th>
+                                                        <th>Status</th>
+                                                        <th>Due</th>
+                                                        <th class="text-end">Link</th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody
+                                                    class="trello-load-more-list auto-expand-list is-collapsed"
+                                                    data-initial-visible="4"
+                                                >
+                                                    @foreach($workPriorityCards as $card)
+                                                        @php
+                                                            $cardStatus = \Illuminate\Support\Str::of(
+                                                                data_get($card, 'normalized_status')
+                                                                    ?: data_get($card, 'status')
+                                                                    ?: 'unmapped'
+                                                            )
+                                                                ->lower()
+                                                                ->replace([' ', '-'], '_')
+                                                                ->toString();
+
+                                                            $cardDueAt = data_get($card, 'due_at')
+                                                                ?: data_get($card, 'due')
+                                                                ?: data_get($card, 'due_date');
+
+                                                            $cardUrl = data_get($card, 'short_url')
+                                                                ?: data_get($card, 'url')
+                                                                ?: data_get($card, 'card_url');
+
+                                                            $cardMembers = collect(data_get($card, 'members', []));
+                                                            $cardMemberNames = $cardMembers
+                                                                ->pluck('name')
+                                                                ->filter()
+                                                                ->implode(', ');
+                                                        @endphp
+
+                                                        <tr>
+                                                            <td>
+                                                                <div class="fw-semibold text-dark">
+                                                                    {{ \Illuminate\Support\Str::limit(
+                                                                        data_get($card, 'name')
+                                                                            ?: data_get($card, 'title')
+                                                                            ?: '-',
+                                                                        48
+                                                                    ) }}
+                                                                </div>
+
+                                                                <div class="small text-muted">
+                                                                    {{ data_get($card, 'list_name')
+                                                                        ?: data_get($card, 'trello_list_name')
+                                                                        ?: '-' }}
+                                                                </div>
+                                                            </td>
+
+                                                            <td>
+                                                                <div class="work-card-pic">
+                                                                    <div class="work-card-avatar-stack">
+                                                                        @forelse($cardMembers->take(3) as $member)
+                                                                            <div
+                                                                                class="work-card-avatar"
+                                                                                title="{{ data_get($member, 'name', 'PIC') }}"
+                                                                            >
+                                                                                @if(filled(data_get($member, 'avatar_url')))
+                                                                                    <img
+                                                                                        src="{{ data_get($member, 'avatar_url') }}"
+                                                                                        alt="{{ data_get($member, 'name', 'PIC') }}"
+                                                                                        loading="lazy"
+                                                                                        referrerpolicy="no-referrer"
+                                                                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                    >
+                                                                                    <span class="work-card-avatar-fallback">
+                                                                                        {{ data_get($member, 'initials', '?') }}
+                                                                                    </span>
+                                                                                @else
+                                                                                    <span>{{ data_get($member, 'initials', '?') }}</span>
+                                                                                @endif
+                                                                            </div>
+                                                                        @empty
+                                                                            <div class="work-card-avatar is-empty" title="No PIC">
+                                                                                <span>?</span>
+                                                                            </div>
+                                                                        @endforelse
+
+                                                                        @if($cardMembers->count() > 3)
+                                                                            <div class="work-card-avatar is-more">
+                                                                                <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+
+                                                                    <div class="work-card-pic-name">
+                                                                        {{ $cardMemberNames
+                                                                            ? \Illuminate\Support\Str::limit($cardMemberNames, 24)
+                                                                            : 'No PIC' }}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>
+                                                                <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                    {{ $trelloStatusLabels[$cardStatus]
+                                                                        ?? \Illuminate\Support\Str::headline($cardStatus) }}
+                                                                </span>
+                                                            </td>
+
+                                                            <td>{{ $formatDate($cardDueAt, 'd M H:i') }}</td>
+
+                                                            <td class="text-end">
+                                                                @if($cardUrl)
+                                                                    <a
+                                                                        href="{{ $cardUrl }}"
+                                                                        target="_blank"
+                                                                        rel="noopener"
+                                                                        class="btn btn-sm btn-light"
+                                                                    >
+                                                                        Open
+                                                                    </a>
+                                                                @else
+                                                                    <span class="text-muted">-</span>
+                                                                @endif
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @else
+                                        <div class="empty-state-box my-0">
+                                            <div class="empty-state-icon">
+                                                <i class="bi bi-check2-circle"></i>
+                                            </div>
+                                            <h5 class="empty-state-title">Tidak ada priority card</h5>
+                                            <p class="empty-state-text mb-0">
+                                                Belum ada card {{ $work['label'] }} dengan deadline hari ini atau overdue.
+                                            </p>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                @if($workPriorityCards->count() > 4)
+                                    <div
+                                        class="auto-expand-trigger trello-auto-expand-trigger"
+                                        data-auto-expand-key="trello-{{ $workKey }}-priority"
+                                        aria-hidden="true"
+                                    ></div>
+                                @endif
+                            </div>
+
+                            <div class="col-12 d-flex flex-column trello-table-column">
+                                <div class="trello-table-card flex-fill">
+                                    <div class="trello-table-header">
+                                        <div>
+                                            <div class="fw-semibold text-dark">Active Work Queue</div>
+                                            <div class="small text-muted">
+                                                Card aktif di To Do, Doing, Review, atau Scheduled.
+                                            </div>
+                                        </div>
+
+                                        <span class="badge rounded-pill bg-primary-subtle text-primary">
+                                            {{ $formatNumber($workActiveCards->count()) }} card
+                                        </span>
+                                    </div>
+
+                                    @if($workActiveCards->count())
+                                        <div class="table-responsive trello-table-scroll">
+                                            <table class="table table-modern align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Card</th>
+                                                        <th>PIC</th>
+                                                        <th>Status</th>
+                                                        <th>Last Activity</th>
+                                                        <th class="text-end">Link</th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody
+                                                    class="trello-load-more-list auto-expand-list is-collapsed"
+                                                    data-initial-visible="4"
+                                                >
+                                                    @foreach($workActiveCards as $card)
+                                                        @php
+                                                            $cardStatus = \Illuminate\Support\Str::of(
+                                                                data_get($card, 'normalized_status')
+                                                                    ?: data_get($card, 'status')
+                                                                    ?: 'unmapped'
+                                                            )
+                                                                ->lower()
+                                                                ->replace([' ', '-'], '_')
+                                                                ->toString();
+
+                                                            $cardLastActivity = data_get($card, 'last_activity_at')
+                                                                ?: data_get($card, 'date_last_activity')
+                                                                ?: data_get($card, 'updated_at');
+
+                                                            $cardUrl = data_get($card, 'short_url')
+                                                                ?: data_get($card, 'url')
+                                                                ?: data_get($card, 'card_url');
+
+                                                            $cardMembers = collect(data_get($card, 'members', []));
+                                                            $cardMemberNames = $cardMembers
+                                                                ->pluck('name')
+                                                                ->filter()
+                                                                ->implode(', ');
+                                                        @endphp
+
+                                                        <tr>
+                                                            <td>
+                                                                <div class="fw-semibold text-dark">
+                                                                    {{ \Illuminate\Support\Str::limit(
+                                                                        data_get($card, 'name')
+                                                                            ?: data_get($card, 'title')
+                                                                            ?: '-',
+                                                                        48
+                                                                    ) }}
+                                                                </div>
+
+                                                                <div class="small text-muted">
+                                                                    {{ data_get($card, 'list_name')
+                                                                        ?: data_get($card, 'trello_list_name')
+                                                                        ?: '-' }}
+                                                                </div>
+                                                            </td>
+
+                                                            <td>
+                                                                <div class="work-card-pic">
+                                                                    <div class="work-card-avatar-stack">
+                                                                        @forelse($cardMembers->take(3) as $member)
+                                                                            <div
+                                                                                class="work-card-avatar"
+                                                                                title="{{ data_get($member, 'name', 'PIC') }}"
+                                                                            >
+                                                                                @if(filled(data_get($member, 'avatar_url')))
+                                                                                    <img
+                                                                                        src="{{ data_get($member, 'avatar_url') }}"
+                                                                                        alt="{{ data_get($member, 'name', 'PIC') }}"
+                                                                                        loading="lazy"
+                                                                                        referrerpolicy="no-referrer"
+                                                                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+                                                                                    >
+                                                                                    <span class="work-card-avatar-fallback">
+                                                                                        {{ data_get($member, 'initials', '?') }}
+                                                                                    </span>
+                                                                                @else
+                                                                                    <span>{{ data_get($member, 'initials', '?') }}</span>
+                                                                                @endif
+                                                                            </div>
+                                                                        @empty
+                                                                            <div class="work-card-avatar is-empty" title="No PIC">
+                                                                                <span>?</span>
+                                                                            </div>
+                                                                        @endforelse
+
+                                                                        @if($cardMembers->count() > 3)
+                                                                            <div class="work-card-avatar is-more">
+                                                                                <span>+{{ $cardMembers->count() - 3 }}</span>
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+
+                                                                    <div class="work-card-pic-name">
+                                                                        {{ $cardMemberNames
+                                                                            ? \Illuminate\Support\Str::limit($cardMemberNames, 24)
+                                                                            : 'No PIC' }}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            <td>
+                                                                <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
+                                                                    {{ $trelloStatusLabels[$cardStatus]
+                                                                        ?? \Illuminate\Support\Str::headline($cardStatus) }}
+                                                                </span>
+                                                            </td>
+
+                                                            <td>{{ $formatDate($cardLastActivity, 'd M H:i') }}</td>
+
+                                                            <td class="text-end">
+                                                                @if($cardUrl)
+                                                                    <a
+                                                                        href="{{ $cardUrl }}"
+                                                                        target="_blank"
+                                                                        rel="noopener"
+                                                                        class="btn btn-sm btn-light"
+                                                                    >
+                                                                        Open
+                                                                    </a>
+                                                                @else
+                                                                    <span class="text-muted">-</span>
+                                                                @endif
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @else
+                                        <div class="empty-state-box my-0">
+                                            <div class="empty-state-icon">
+                                                <i class="bi bi-kanban"></i>
+                                            </div>
+                                            <h5 class="empty-state-title">Tidak ada active work</h5>
+                                            <p class="empty-state-text mb-0">
+                                                Belum ada card {{ $work['label'] }} di status To Do, Doing, Review, atau Scheduled.
+                                            </p>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                @if($workActiveCards->count() > 4)
+                                    <div
+                                        class="auto-expand-trigger trello-auto-expand-trigger"
+                                        data-auto-expand-key="trello-{{ $workKey }}-active"
+                                        aria-hidden="true"
+                                    ></div>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @endforeach
-            </div>
-
-            @if($trelloMarketingUnmapped > 0)
-                <div class="alert alert-warning mb-4">
-                    Ada {{ $formatNumber($trelloMarketingUnmapped) }} card yang belum punya status dashboard.
-                    Jalankan mapping list sebelum angka dipakai untuk keputusan operasional.
-                </div>
-            @endif
-
-            <div class="row g-3 trello-table-row">
-                <div class="col-12 d-flex flex-column trello-table-column">
-                    <div class="trello-table-card flex-fill">
-                        <div class="trello-table-header">
-                            <div>
-                                <div class="fw-semibold text-dark">Priority Cards</div>
-                                <div class="small text-muted">Card dengan deadline hari ini atau sudah melewati deadline.</div>
-                            </div>
-                            <span class="badge rounded-pill bg-danger-subtle text-danger">
-                                {{ $formatNumber($trelloMarketingPriorityCards->count()) }} card
-                            </span>
-                        </div>
-
-                        @if($trelloMarketingPriorityCards->count())
-                            <div class="table-responsive trello-table-scroll">
-                                <table class="table table-modern align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Card</th>
-                                            <th>PIC</th>
-                                            <th>Status</th>
-                                            <th>Due</th>
-                                            <th class="text-end">Link</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
-                                        @foreach($trelloMarketingPriorityCards as $card)
-                                            @php
-                                                $cardStatus = \Illuminate\Support\Str::of(
-                                                    data_get($card, 'normalized_status')
-                                                        ?: data_get($card, 'status')
-                                                        ?: 'unmapped'
-                                                )->lower()->replace([' ', '-'], '_')->toString();
-
-                                                $cardDueAt = data_get($card, 'due_at')
-                                                    ?: data_get($card, 'due')
-                                                    ?: data_get($card, 'due_date');
-
-                                                $cardUrl = data_get($card, 'short_url')
-                                                    ?: data_get($card, 'url')
-                                                    ?: data_get($card, 'card_url');
-
-                                                $cardMembers = collect(data_get($card, 'members', []));
-                                                $cardMemberNames = $cardMembers->pluck('name')->filter()->implode(', ');
-                                            @endphp
-
-                                            <tr>
-                                                <td>
-                                                    <div class="fw-semibold text-dark">
-                                                        {{ \Illuminate\Support\Str::limit(
-                                                            data_get($card, 'name')
-                                                                ?: data_get($card, 'title')
-                                                                ?: '-',
-                                                            48
-                                                        ) }}
-                                                    </div>
-                                                    <div class="small text-muted">
-                                                        {{ data_get($card, 'list_name')
-                                                            ?: data_get($card, 'trello_list_name')
-                                                            ?: '-' }}
-                                                    </div>
-                                                </td>
-
-                                                <td>
-                                                    <div class="work-card-pic">
-                                                        <div class="work-card-avatar-stack">
-                                                            @forelse($cardMembers->take(3) as $member)
-                                                                <div class="work-card-avatar" title="{{ data_get($member, 'name', 'PIC') }}">
-                                                                    @if(filled(data_get($member, 'avatar_url')))
-                                                                        <img
-                                                                            src="{{ data_get($member, 'avatar_url') }}"
-                                                                            alt="{{ data_get($member, 'name', 'PIC') }}"
-                                                                            loading="lazy"
-                                                                            referrerpolicy="no-referrer"
-                                                                            onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
-                                                                        >
-                                                                        <span class="work-card-avatar-fallback">
-                                                                            {{ data_get($member, 'initials', '?') }}
-                                                                        </span>
-                                                                    @else
-                                                                        <span>{{ data_get($member, 'initials', '?') }}</span>
-                                                                    @endif
-                                                                </div>
-                                                            @empty
-                                                                <div class="work-card-avatar is-empty" title="No PIC"><span>?</span></div>
-                                                            @endforelse
-
-                                                            @if($cardMembers->count() > 3)
-                                                                <div class="work-card-avatar is-more">
-                                                                    <span>+{{ $cardMembers->count() - 3 }}</span>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                        <div class="work-card-pic-name">
-                                                            {{ $cardMemberNames
-                                                                ? \Illuminate\Support\Str::limit($cardMemberNames, 24)
-                                                                : 'No PIC' }}
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td>
-                                                    <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
-                                                        {{ $trelloStatusLabels[$cardStatus]
-                                                            ?? \Illuminate\Support\Str::headline($cardStatus) }}
-                                                    </span>
-                                                </td>
-
-                                                <td>{{ $formatDate($cardDueAt, 'd M H:i') }}</td>
-
-                                                <td class="text-end">
-                                                    @if($cardUrl)
-                                                        <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
-                                                            Open
-                                                        </a>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @else
-                            <div class="empty-state-box my-0">
-                                <div class="empty-state-icon"><i class="bi bi-check2-circle"></i></div>
-                                <h5 class="empty-state-title">Tidak ada priority card</h5>
-                                <p class="empty-state-text mb-0">
-                                    Belum ada card Marketing dengan deadline hari ini atau overdue.
-                                </p>
-                            </div>
-                        @endif
-                    </div>
-
-                    @if($trelloMarketingPriorityCards->count() > 4)
-                        <div class="auto-expand-trigger trello-auto-expand-trigger" aria-hidden="true"></div>
-                    @endif
-                </div>
-
-                <div class="col-12 d-flex flex-column trello-table-column">
-                    <div class="trello-table-card flex-fill">
-                        <div class="trello-table-header">
-                            <div>
-                                <div class="fw-semibold text-dark">Active Work Queue</div>
-                                <div class="small text-muted">Card aktif di To Do, Doing, Review, atau Scheduled.</div>
-                            </div>
-                            <span class="badge rounded-pill bg-primary-subtle text-primary">
-                                {{ $formatNumber($trelloMarketingActiveCards->count()) }} card
-                            </span>
-                        </div>
-
-                        @if($trelloMarketingActiveCards->count())
-                            <div class="table-responsive trello-table-scroll">
-                                <table class="table table-modern align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Card</th>
-                                            <th>PIC</th>
-                                            <th>Status</th>
-                                            <th>Last Activity</th>
-                                            <th class="text-end">Link</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="trello-load-more-list auto-expand-list is-collapsed" data-initial-visible="4">
-                                        @foreach($trelloMarketingActiveCards as $card)
-                                            @php
-                                                $cardStatus = \Illuminate\Support\Str::of(
-                                                    data_get($card, 'normalized_status')
-                                                        ?: data_get($card, 'status')
-                                                        ?: 'unmapped'
-                                                )->lower()->replace([' ', '-'], '_')->toString();
-
-                                                $cardLastActivity = data_get($card, 'last_activity_at')
-                                                    ?: data_get($card, 'date_last_activity')
-                                                    ?: data_get($card, 'updated_at');
-
-                                                $cardUrl = data_get($card, 'short_url')
-                                                    ?: data_get($card, 'url')
-                                                    ?: data_get($card, 'card_url');
-
-                                                $cardMembers = collect(data_get($card, 'members', []));
-                                                $cardMemberNames = $cardMembers->pluck('name')->filter()->implode(', ');
-                                            @endphp
-
-                                            <tr>
-                                                <td>
-                                                    <div class="fw-semibold text-dark">
-                                                        {{ \Illuminate\Support\Str::limit(
-                                                            data_get($card, 'name')
-                                                                ?: data_get($card, 'title')
-                                                                ?: '-',
-                                                            48
-                                                        ) }}
-                                                    </div>
-                                                    <div class="small text-muted">
-                                                        {{ data_get($card, 'list_name')
-                                                            ?: data_get($card, 'trello_list_name')
-                                                            ?: '-' }}
-                                                    </div>
-                                                </td>
-
-                                                <td>
-                                                    <div class="work-card-pic">
-                                                        <div class="work-card-avatar-stack">
-                                                            @forelse($cardMembers->take(3) as $member)
-                                                                <div class="work-card-avatar" title="{{ data_get($member, 'name', 'PIC') }}">
-                                                                    @if(filled(data_get($member, 'avatar_url')))
-                                                                        <img
-                                                                            src="{{ data_get($member, 'avatar_url') }}"
-                                                                            alt="{{ data_get($member, 'name', 'PIC') }}"
-                                                                            loading="lazy"
-                                                                            referrerpolicy="no-referrer"
-                                                                            onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
-                                                                        >
-                                                                        <span class="work-card-avatar-fallback">
-                                                                            {{ data_get($member, 'initials', '?') }}
-                                                                        </span>
-                                                                    @else
-                                                                        <span>{{ data_get($member, 'initials', '?') }}</span>
-                                                                    @endif
-                                                                </div>
-                                                            @empty
-                                                                <div class="work-card-avatar is-empty" title="No PIC"><span>?</span></div>
-                                                            @endforelse
-
-                                                            @if($cardMembers->count() > 3)
-                                                                <div class="work-card-avatar is-more">
-                                                                    <span>+{{ $cardMembers->count() - 3 }}</span>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                        <div class="work-card-pic-name">
-                                                            {{ $cardMemberNames
-                                                                ? \Illuminate\Support\Str::limit($cardMemberNames, 24)
-                                                                : 'No PIC' }}
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td>
-                                                    <span class="badge rounded-pill {{ $trelloStatusBadgeClasses[$cardStatus] ?? 'bg-light text-muted' }}">
-                                                        {{ $trelloStatusLabels[$cardStatus]
-                                                            ?? \Illuminate\Support\Str::headline($cardStatus) }}
-                                                    </span>
-                                                </td>
-
-                                                <td>{{ $formatDate($cardLastActivity, 'd M H:i') }}</td>
-
-                                                <td class="text-end">
-                                                    @if($cardUrl)
-                                                        <a href="{{ $cardUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-light">
-                                                            Open
-                                                        </a>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @else
-                            <div class="empty-state-box my-0">
-                                <div class="empty-state-icon"><i class="bi bi-kanban"></i></div>
-                                <h5 class="empty-state-title">Tidak ada active work</h5>
-                                <p class="empty-state-text mb-0">
-                                    Belum ada card Marketing di status To Do, Doing, Review, atau Scheduled.
-                                </p>
-                            </div>
-                        @endif
-                    </div>
-
-                    @if($trelloMarketingActiveCards->count() > 4)
-                        <div class="auto-expand-trigger trello-auto-expand-trigger" aria-hidden="true"></div>
-                    @endif
-                </div>
             </div>
         </div>
     </div>
@@ -1763,6 +2729,55 @@
         font-weight: 800;
     }
 
+    .platform-status-icon-meta_ads,
+    .meta-insight-icon {
+        color: #0866FF;
+        background: rgba(8, 102, 255, .12);
+    }
+
+    .platform-status-icon-google_analytics {
+        color: #E37400;
+        background: rgba(249, 171, 0, .14);
+    }
+
+    .platform-status-icon-google_ads {
+        color: #2563eb;
+        background: rgba(66, 133, 244, .12);
+    }
+
+    .platform-status-icon-trello_marketing {
+        color: #0079BF;
+        background: rgba(0, 121, 191, .12);
+    }
+
+    .platform-status-icon-trello_sei {
+        color: #5B3E8E;
+        background: rgba(91, 62, 142, .12);
+    }
+
+    .work-progress-tabs {
+        background: rgba(91, 62, 142, .06);
+        border: 1px solid rgba(91, 62, 142, .10);
+        border-radius: 999px;
+        padding: .25rem;
+        gap: .25rem;
+    }
+
+    .work-progress-tabs .nav-link {
+        border-radius: 999px;
+        color: #6b7280;
+        font-size: .85rem;
+        font-weight: 700;
+        padding: .45rem .85rem;
+        white-space: nowrap;
+    }
+
+    .work-progress-tabs .nav-link.active {
+        background: #5B3E8E;
+        color: #ffffff;
+        box-shadow: 0 10px 20px rgba(91, 62, 142, .18);
+    }
+
     .platform-status-description {
         color: #6b7280;
         font-size: .82rem;
@@ -1773,6 +2788,157 @@
     .platform-status-meta {
         color: #6b7280;
         font-size: .75rem;
+    }
+
+    .last-sync-badge {
+        width: fit-content;
+        max-width: 100%;
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .35rem;
+        padding: .42rem .65rem;
+        border-radius: 999px;
+        border: 1px solid rgba(15, 23, 42, .08);
+        background: #f8fafc;
+        color: #64748b;
+        font-size: .7rem;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .last-sync-badge i {
+        font-size: .78rem;
+    }
+
+    .last-sync-badge strong {
+        color: #334155;
+        font-weight: 850;
+    }
+
+    .last-sync-badge.is-synced {
+        color: #047857;
+        background: rgba(16, 185, 129, .09);
+        border-color: rgba(16, 185, 129, .18);
+    }
+
+    .last-sync-badge.is-synced strong {
+        color: #065f46;
+    }
+
+    .last-sync-badge.is-not-synced {
+        color: #b45309;
+        background: rgba(245, 158, 11, .10);
+        border-color: rgba(245, 158, 11, .20);
+    }
+
+    .last-sync-badge.is-not-synced strong {
+        color: #92400e;
+    }
+
+    .last-sync-badge-compact {
+        padding: .26rem .45rem;
+        font-size: .64rem;
+        margin-top: .25rem;
+    }
+
+    .trello-sync-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .55rem;
+    }
+
+    .trello-board-name {
+        display: inline-flex;
+        align-items: center;
+        color: #475569;
+        font-size: .74rem;
+        font-weight: 750;
+    }
+
+    .last-webhook-text {
+        color: #64748b;
+        font-size: .72rem;
+    }
+
+    .last-webhook-text strong {
+        color: #475569;
+    }
+
+    .platform-status-card-trello {
+        background:
+            linear-gradient(135deg, rgba(0, 121, 191, .035), rgba(91, 62, 142, .035)),
+            #ffffff;
+    }
+
+    .trello-combined-status-list {
+        display: grid;
+        gap: .65rem;
+    }
+
+    .trello-combined-status-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        min-height: 52px;
+        padding: .65rem .7rem;
+        border: 1px solid rgba(15, 23, 42, .07);
+        border-radius: 14px;
+        background: rgba(248, 250, 252, .82);
+    }
+
+    .trello-combined-status-main {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        min-width: 0;
+    }
+
+    .trello-combined-status-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        color: #5B3E8E;
+        background: rgba(91, 62, 142, .10);
+        font-size: .82rem;
+    }
+
+    .trello-combined-status-name {
+        color: #111827;
+        font-size: .8rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .trello-combined-status-sync {
+        color: #6b7280;
+        font-size: .68rem;
+        line-height: 1.35;
+        margin-top: .15rem;
+    }
+
+    .trello-combined-status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+        box-shadow: 0 0 0 4px rgba(107, 114, 128, .08);
+    }
+
+    .trello-combined-status-dot.is-synced {
+        background: #22c55e;
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, .12);
+    }
+
+    .trello-combined-status-dot.is-not-synced {
+        background: #f59e0b;
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, .12);
     }
 
     .marketing-insight-box {
@@ -1868,6 +3034,207 @@
         padding: 1rem;
     }
 
+    .best-campaign-card {
+        padding: 1rem;
+    }
+
+    .best-campaign-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .best-campaign-icon {
+        width: 36px;
+        height: 36px;
+        margin-bottom: 0;
+        flex: 0 0 auto;
+    }
+
+    .best-campaign-title {
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .best-campaign-subtitle {
+        color: #64748b;
+        font-size: .78rem;
+        line-height: 1.45;
+        margin-top: .25rem;
+    }
+
+    .best-campaign-health {
+        padding: .45rem .7rem;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .best-campaign-highlight-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .7rem;
+    }
+
+    .best-campaign-highlight-item {
+        padding: .85rem;
+        border: 1px solid rgba(15, 23, 42, .08);
+        border-radius: 15px;
+        background: #f8fafc;
+        display: grid;
+        gap: .25rem;
+    }
+
+    .best-campaign-highlight-item span {
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 850;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .best-campaign-highlight-item strong {
+        color: #0f172a;
+        font-size: 1.2rem;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .best-campaign-highlight-item small {
+        color: #94a3b8;
+        font-size: .68rem;
+        line-height: 1.35;
+    }
+
+    .best-campaign-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .7rem;
+        margin-top: .7rem;
+    }
+
+    .best-campaign-metric {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        padding: .75rem;
+        border: 1px solid rgba(15, 23, 42, .07);
+        border-radius: 15px;
+        background: #ffffff;
+    }
+
+    .best-campaign-metric-icon {
+        width: 34px;
+        height: 34px;
+        margin-bottom: 0;
+        flex: 0 0 auto;
+    }
+
+    .best-campaign-metric div {
+        min-width: 0;
+        display: grid;
+        gap: .12rem;
+    }
+
+    .best-campaign-metric div > span {
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 800;
+    }
+
+    .best-campaign-metric strong {
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .best-campaign-efficiency-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .7rem;
+        margin-top: .7rem;
+    }
+
+    .best-campaign-efficiency-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .8rem;
+        padding: .72rem .8rem;
+        border-radius: 14px;
+        border: 1px solid rgba(15, 23, 42, .08);
+        background: #f8fafc;
+    }
+
+    .best-campaign-efficiency-item span {
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 750;
+    }
+
+    .best-campaign-efficiency-item strong {
+        color: #334155;
+        font-size: .84rem;
+        font-weight: 900;
+        text-align: right;
+    }
+
+    .campaign-health-guide {
+        display: grid;
+        gap: .55rem;
+        padding-top: .75rem;
+        border-top: 1px solid rgba(15, 23, 42, .07);
+    }
+
+    .campaign-health-guide-row {
+        display: flex;
+        align-items: flex-start;
+        gap: .6rem;
+    }
+
+    .campaign-health-guide-row > div {
+        min-width: 0;
+    }
+
+    .campaign-health-guide-row strong {
+        display: block;
+        color: #334155;
+        font-size: .72rem;
+        font-weight: 850;
+        line-height: 1.3;
+    }
+
+    .campaign-health-guide-row p {
+        color: #64748b;
+        font-size: .7rem;
+        line-height: 1.42;
+        margin: .12rem 0 0;
+    }
+
+    .campaign-health-guide-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+        margin-top: .25rem;
+    }
+
+    .campaign-health-guide-dot.is-healthy {
+        background: #22c55e;
+    }
+
+    .campaign-health-guide-dot.is-attention {
+        background: #f59e0b;
+    }
+
+    .campaign-health-guide-dot.is-critical {
+        background: #ef4444;
+    }
+
     .marketing-health-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1923,7 +3290,6 @@
     }
 
     .marketing-ai-executive-card,
-    .marketing-ai-bottleneck-card,
     .marketing-ai-panel,
     .marketing-platform-ai-card {
         border: 1px solid rgba(15, 23, 42, .08);
@@ -1941,7 +3307,6 @@
     }
 
     .marketing-ai-card-icon,
-    .marketing-ai-bottleneck-icon,
     .marketing-platform-ai-icon {
         display: inline-flex;
         align-items: center;
@@ -1973,24 +3338,35 @@
         line-height: 1.65;
     }
 
-    .marketing-ai-bottleneck-card {
-        padding: 1.1rem;
-        background: linear-gradient(135deg, rgba(239, 68, 68, .07), rgba(255, 190, 4, .06));
+    .marketing-ai-paragraphs {
+        min-width: 0;
     }
 
-    .marketing-ai-bottleneck-icon {
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
-        color: #dc2626;
-        background: rgba(239, 68, 68, .12);
+    .marketing-ai-paragraphs > p,
+    .marketing-ai-inline-paragraphs > p,
+    .marketing-ai-table-paragraphs > p {
+        margin: 0;
+        white-space: normal;
     }
 
-    .marketing-ai-bottleneck-value {
-        color: #111827;
-        font-size: 1.05rem;
-        font-weight: 800;
-        line-height: 1.5;
+    .marketing-ai-paragraphs > p + p {
+        margin-top: .85rem;
+    }
+
+    .marketing-ai-inline-paragraphs > p + p {
+        margin-top: .5rem;
+    }
+
+    .marketing-ai-table-paragraphs > p + p {
+        margin-top: .6rem;
+    }
+
+    .campaign-ai-bottleneck-box > p {
+        margin-bottom: 0;
+    }
+
+    .campaign-ai-bottleneck-box > p + p {
+        margin-top: .65rem;
     }
 
     .marketing-ai-panel {
@@ -2062,7 +3438,6 @@
 
     .campaign-ai-detail {
         padding: .9rem;
-        border-left: 3px solid rgba(91, 62, 142, .45);
     }
 
     .campaign-ai-detail-header {
@@ -2106,7 +3481,6 @@
 
     .campaign-ai-summary {
         padding: .75rem;
-        border-left: 3px solid rgba(91, 62, 142, .45);
     }
 
     .compact-empty-state {
@@ -2131,14 +3505,15 @@
     .ga-funnel-track {
         height: 10px;
         border-radius: 999px;
-        background: rgba(244, 126, 32, .10);
+        background: rgba(249, 171, 0, .16);
         overflow: hidden;
     }
 
     .ga-funnel-bar {
         height: 100%;
         border-radius: inherit;
-        background: linear-gradient(90deg, #f47e20, #5B3E8E);
+        background: linear-gradient(90deg, #F9AB00 0%, #E37400 100%);
+        box-shadow: 0 6px 14px rgba(227, 116, 0, .18);
     }
 
     .marketing-compact-list {
@@ -2445,6 +3820,22 @@
     }
 
     @media (max-width: 767.98px) {
+        .best-campaign-highlight-grid,
+        .best-campaign-metric-grid,
+        .best-campaign-efficiency-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .last-sync-badge {
+            border-radius: 14px;
+        }
+
+        .work-progress-tabs {
+            width: 100%;
+            overflow-x: auto;
+            flex-wrap: nowrap;
+        }
+
         .marketing-header-status {
             width: 100%;
             text-align: left;

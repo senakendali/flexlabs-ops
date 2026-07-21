@@ -938,14 +938,14 @@ return [
                             'icon' => 'bi bi-journal-text',
                             'permission' => 'sales_daily_reports.view',
                         ],
-                        [
+                        /*[
                             'label' => 'Performance',
                             'route' => 'sales-performance.index',
                             'active' => ['sales-performance.*'],
                             'icon' => 'bi bi-bar-chart-line',
                             'permission' => 'sales_performance.view',
                         ],
-                        /*[
+                        [
                             'label' => 'Feedback Survey',
                             'route' => 'feedback.responses.index',
                             'active' => ['feedback.responses.*'],
@@ -989,16 +989,16 @@ return [
                             'permission' => 'marketing.dashboard.view',
                             'missing_label' => 'Marketing Dashboard belum tersedia',
                         ],
-                        [
+                        /*[
                             'label' => 'Reports',
                             'route' => 'marketing.reports.index',
                             'active' => ['marketing.reports.*'],
                             'icon' => 'bi bi-bar-chart-line',
                             'permission' => 'marketing_reports.view',
-                        ],
+                        ],*/
                     ],
                 ],
-                [
+                /*[
                     'title' => 'Setup',
                     'items' => [
                         [
@@ -1016,7 +1016,7 @@ return [
                             'permission' => 'ads.view',
                         ],
                     ],
-                ],
+                ],*/
                 [
                     'title' => 'Tools',
                     'items' => [

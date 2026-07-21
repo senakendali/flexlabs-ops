@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Throwable;
 
 class MarketingDashboardService
@@ -25,27 +26,32 @@ class MarketingDashboardService
         | Marketing API Performance Sources
         |--------------------------------------------------------------------------
         | Dashboard tidak hit API eksternal saat page load.
-        | Data dibaca dari snapshot/sync lokal yang sebelumnya diisi oleh:
-        | - Meta Ads sync
-        | - Google Analytics sync
-        | - Google Ads sync
-        | - Trello Marketing sync/webhook
+        | Data dibaca dari snapshot/sync lokal:
+        | - Meta Ads
+        | - Google Analytics
+        | - Google Ads
+        | - Trello Marketing
+        | - Trello SEI
         |--------------------------------------------------------------------------
         */
         $metaAdsDashboardInsight = $this->getMetaAdsDashboardInsight();
         $googleAnalyticsDashboardInsight = $this->getGoogleAnalyticsDashboardInsight();
         $googleAdsDashboardInsight = $this->getGoogleAdsDashboardInsight();
+
         $trelloMarketingStats = $this->getTrelloMarketingStats();
+        $trelloSeiStats = $this->getTrelloSeiStats();
 
         $trelloDashboardStats = [
             'marketing' => $trelloMarketingStats,
+            'sei' => $trelloSeiStats,
         ];
 
         $platformStatuses = $this->buildPlatformStatuses(
             metaAds: $metaAdsDashboardInsight,
             googleAnalytics: $googleAnalyticsDashboardInsight,
             googleAds: $googleAdsDashboardInsight,
-            trelloMarketing: $trelloMarketingStats
+            trelloMarketing: $trelloMarketingStats,
+            trelloSei: $trelloSeiStats
         );
 
         $marketingOverview = $this->buildMarketingOverview(
@@ -53,6 +59,7 @@ class MarketingDashboardService
             googleAnalytics: $googleAnalyticsDashboardInsight,
             googleAds: $googleAdsDashboardInsight,
             trelloMarketing: $trelloMarketingStats,
+            trelloSei: $trelloSeiStats,
             platformStatuses: $platformStatuses
         );
 
@@ -61,49 +68,96 @@ class MarketingDashboardService
             'google_analytics_dashboard_insight' => $googleAnalyticsDashboardInsight,
             'google_ads_dashboard_insight' => $googleAdsDashboardInsight,
             'trello_marketing_stats' => $trelloMarketingStats,
+            'trello_sei_stats' => $trelloSeiStats,
             'platform_statuses' => $platformStatuses,
             'marketing_overview' => $marketingOverview,
         ];
 
+        $marketingAiRecommendations = $this->buildMarketingAiRecommendations(
+            metaAds: $metaAdsDashboardInsight,
+            googleAnalytics: $googleAnalyticsDashboardInsight,
+            googleAds: $googleAdsDashboardInsight,
+            trelloMarketing: $trelloMarketingStats,
+            trelloSei: $trelloSeiStats
+        );
+
+        $marketingSummaryContext['ai_recommendations'] = $marketingAiRecommendations;
+
         $marketingSummary = $this->buildMarketingSummary($marketingSummaryContext);
-        $marketingAiSummaryText = (string) ($marketingSummary['summary_text'] ?? '');
+        $marketingSummary['ai_recommendations'] = $marketingAiRecommendations;
+
+        $marketingAiSummaryText = (string) (
+            $marketingAiRecommendations['executive_summary']
+            ?? $marketingSummary['summary_text']
+            ?? ''
+        );
 
         return compact(
             'metaAdsDashboardInsight',
             'googleAnalyticsDashboardInsight',
             'googleAdsDashboardInsight',
             'trelloMarketingStats',
+            'trelloSeiStats',
             'trelloDashboardStats',
             'platformStatuses',
             'marketingOverview',
             'marketingSummaryContext',
             'marketingSummary',
-            'marketingAiSummaryText'
+            'marketingAiSummaryText',
+            'marketingAiRecommendations'
         );
     }
 
     protected function getTrelloMarketingStats(): array
     {
+        return $this->getTrelloStats(
+            sourceKey: 'marketing',
+            department: 'marketing',
+            label: 'Marketing'
+        );
+    }
+
+    protected function getTrelloSeiStats(): array
+    {
+        return $this->getTrelloStats(
+            sourceKey: 'sei',
+            department: 'sei',
+            label: 'SEI'
+        );
+    }
+
+    protected function getTrelloStats(
+        string $sourceKey,
+        string $department,
+        string $label
+    ): array {
         try {
-            return $this->trelloDashboardStatsService->getStats('marketing');
+            return $this->trelloDashboardStatsService->getStats($sourceKey);
         } catch (Throwable $exception) {
-            Log::error('Failed to fetch Marketing Trello dashboard stats.', [
-                'source_key' => 'marketing',
+            Log::error("Failed to fetch {$label} Trello dashboard stats.", [
+                'source_key' => $sourceKey,
                 'message' => $exception->getMessage(),
             ]);
 
             return $this->emptyTrelloDashboardStats(
-                insight: 'Data Trello Marketing belum bisa ditarik. Dashboard tetap aman, tetapi koneksi, scheduler, webhook, atau mapping list perlu dicek.'
+                sourceKey: $sourceKey,
+                department: $department,
+                label: $label,
+                insight: "Data Trello {$label} belum bisa ditarik. Dashboard tetap aman, tetapi koneksi, scheduler, webhook, atau mapping list perlu dicek."
             );
         }
     }
 
-    protected function emptyTrelloDashboardStats(?string $insight = null): array
-    {
+    protected function emptyTrelloDashboardStats(
+        string $sourceKey,
+        string $department,
+        string $label,
+        ?string $insight = null
+    ): array {
         return [
-            'source_key' => 'marketing',
+            'source_key' => $sourceKey,
             'integration_name' => null,
-            'department' => 'marketing',
+            'department' => $department,
             'board_id' => null,
             'board_name' => null,
             'webhook_status' => 'inactive',
@@ -137,7 +191,7 @@ class MarketingDashboardService
             'active_cards' => [],
             'recent_cards' => [],
 
-            'insight' => $insight ?: 'Trello Marketing belum aktif atau belum ditemukan.',
+            'insight' => $insight ?: "Trello {$label} belum aktif atau belum ditemukan.",
         ];
     }
 
@@ -145,12 +199,26 @@ class MarketingDashboardService
         array $metaAds,
         array $googleAnalytics,
         array $googleAds,
-        array $trelloMarketing
+        array $trelloMarketing,
+        array $trelloSei
     ): array {
-        $trelloWebhookStatus = strtolower((string) ($trelloMarketing['webhook_status'] ?? 'inactive'));
-        $trelloAvailable = filled($trelloMarketing['board_id'] ?? null)
-            || filled($trelloMarketing['board_name'] ?? null)
-            || in_array($trelloWebhookStatus, ['active', 'synced'], true);
+        $resolveTrelloStatus = function (array $stats): array {
+            $webhookStatus = strtolower((string) ($stats['webhook_status'] ?? 'inactive'));
+
+            $isAvailable = filled($stats['board_id'] ?? null)
+                || filled($stats['board_name'] ?? null)
+                || in_array($webhookStatus, ['active', 'synced'], true);
+
+            return [
+                'is_available' => $isAvailable,
+                'status' => $isAvailable ? 'synced' : 'not_synced',
+                'last_synced_at' => $stats['last_synced_at'] ?? null,
+                'webhook_status' => $webhookStatus,
+            ];
+        };
+
+        $marketingTrelloStatus = $resolveTrelloStatus($trelloMarketing);
+        $seiTrelloStatus = $resolveTrelloStatus($trelloSei);
 
         return [
             'meta_ads' => [
@@ -183,12 +251,22 @@ class MarketingDashboardService
             'trello_marketing' => [
                 'key' => 'trello_marketing',
                 'label' => 'Trello Marketing',
-                'is_available' => $trelloAvailable,
-                'status' => $trelloAvailable ? 'synced' : 'not_synced',
-                'last_synced_at' => $trelloMarketing['last_synced_at'] ?? null,
+                'is_available' => $marketingTrelloStatus['is_available'],
+                'status' => $marketingTrelloStatus['status'],
+                'last_synced_at' => $marketingTrelloStatus['last_synced_at'],
                 'summary_text' => $trelloMarketing['insight'] ?? 'Data Trello Marketing belum tersedia.',
                 'error_message' => null,
-                'webhook_status' => $trelloWebhookStatus,
+                'webhook_status' => $marketingTrelloStatus['webhook_status'],
+            ],
+            'trello_sei' => [
+                'key' => 'trello_sei',
+                'label' => 'Trello SEI',
+                'is_available' => $seiTrelloStatus['is_available'],
+                'status' => $seiTrelloStatus['status'],
+                'last_synced_at' => $seiTrelloStatus['last_synced_at'],
+                'summary_text' => $trelloSei['insight'] ?? 'Data Trello SEI belum tersedia.',
+                'error_message' => null,
+                'webhook_status' => $seiTrelloStatus['webhook_status'],
             ],
         ];
     }
@@ -198,12 +276,15 @@ class MarketingDashboardService
         array $googleAnalytics,
         array $googleAds,
         array $trelloMarketing,
+        array $trelloSei,
         array $platformStatuses
     ): array {
         $metaOverview = $metaAds['overview'] ?? [];
         $googleAnalyticsKpis = $googleAnalytics['kpis'] ?? [];
         $googleAdsOverview = $googleAds['overview'] ?? [];
-        $trelloSummary = $trelloMarketing['summary'] ?? [];
+
+        $trelloMarketingSummary = $trelloMarketing['summary'] ?? [];
+        $trelloSeiSummary = $trelloSei['summary'] ?? [];
 
         $metaConversions = (int) ($metaOverview['total_lead_form_submission'] ?? 0)
             + (int) ($metaOverview['total_whatsapp_chat'] ?? 0);
@@ -253,13 +334,40 @@ class MarketingDashboardService
             $attentionPlatforms++;
         }
 
-        if (
-            strtolower((string) ($trelloMarketing['webhook_status'] ?? 'inactive')) !== 'active'
-            || ((int) ($trelloSummary['overdue'] ?? 0)) > 0
-            || ((int) ($trelloSummary['unmapped'] ?? 0)) > 0
-        ) {
-            $attentionPlatforms++;
+        foreach ([$trelloMarketing, $trelloSei] as $trelloStats) {
+            $summary = $trelloStats['summary'] ?? [];
+
+            if (
+                ! in_array(
+                    strtolower((string) ($trelloStats['webhook_status'] ?? 'inactive')),
+                    ['active', 'synced'],
+                    true
+                )
+                || ((int) ($summary['overdue'] ?? 0)) > 0
+                || ((int) ($summary['unmapped'] ?? 0)) > 0
+            ) {
+                $attentionPlatforms++;
+            }
         }
+
+        $trelloOpenCards = (int) ($trelloMarketingSummary['total_open_cards'] ?? 0)
+            + (int) ($trelloSeiSummary['total_open_cards'] ?? 0);
+
+        $trelloActiveWork = (int) ($trelloMarketingSummary['active_work'] ?? 0)
+            + (int) ($trelloSeiSummary['active_work'] ?? 0);
+
+        $trelloDueToday = (int) ($trelloMarketingSummary['due_today'] ?? 0)
+            + (int) ($trelloSeiSummary['due_today'] ?? 0);
+
+        $trelloOverdue = (int) ($trelloMarketingSummary['overdue'] ?? 0)
+            + (int) ($trelloSeiSummary['overdue'] ?? 0);
+
+        $trelloCompleted = (int) ($trelloMarketingSummary['completed'] ?? 0)
+            + (int) ($trelloSeiSummary['completed'] ?? 0);
+
+        $trelloCompletionRate = $trelloOpenCards > 0
+            ? (int) round(($trelloCompleted / $trelloOpenCards) * 100)
+            : 0;
 
         return [
             'platform_count' => count($platformStatuses),
@@ -283,13 +391,632 @@ class MarketingDashboardService
             'website_engagement_rate' => $engagementRate,
             'website_key_events' => $keyEvents,
 
-            'trello_open_cards' => (int) ($trelloSummary['total_open_cards'] ?? 0),
-            'trello_active_work' => (int) ($trelloSummary['active_work'] ?? 0),
-            'trello_due_today' => (int) ($trelloSummary['due_today'] ?? 0),
-            'trello_overdue' => (int) ($trelloSummary['overdue'] ?? 0),
-            'trello_completion_rate' => (int) ($trelloSummary['completion_rate'] ?? 0),
+            'trello_open_cards' => $trelloOpenCards,
+            'trello_active_work' => $trelloActiveWork,
+            'trello_due_today' => $trelloDueToday,
+            'trello_overdue' => $trelloOverdue,
+            'trello_completion_rate' => $trelloCompletionRate,
+
+            'trello_marketing_open_cards' => (int) ($trelloMarketingSummary['total_open_cards'] ?? 0),
+            'trello_marketing_overdue' => (int) ($trelloMarketingSummary['overdue'] ?? 0),
+            'trello_sei_open_cards' => (int) ($trelloSeiSummary['total_open_cards'] ?? 0),
+            'trello_sei_overdue' => (int) ($trelloSeiSummary['overdue'] ?? 0),
         ];
     }
+
+    protected function buildMarketingAiRecommendations(
+        array $metaAds,
+        array $googleAnalytics,
+        array $googleAds,
+        array $trelloMarketing,
+        array $trelloSei
+    ): array {
+        $platforms = [
+            'meta_ads' => $this->buildMetaAdsAiRecommendation($metaAds),
+            'google_analytics' => $this->normalizePlatformAiRecommendation(
+                platformKey: 'google_analytics',
+                platformLabel: 'Google Analytics',
+                payload: is_array($googleAnalytics['ai_summary'] ?? null)
+                    ? $googleAnalytics['ai_summary']
+                    : [],
+                fallbackSummary: (string) ($googleAnalytics['summary_text'] ?? ''),
+                isAvailable: (bool) ($googleAnalytics['is_available'] ?? false)
+            ),
+            'google_ads' => $this->normalizePlatformAiRecommendation(
+                platformKey: 'google_ads',
+                platformLabel: 'Google Ads',
+                payload: is_array($googleAds['ai_summary'] ?? null)
+                    ? $googleAds['ai_summary']
+                    : [],
+                fallbackSummary: (string) ($googleAds['summary_text'] ?? ''),
+                isAvailable: (bool) ($googleAds['is_available'] ?? false)
+            ),
+            'trello_marketing' => $this->buildTrelloAiRecommendation(
+                $trelloMarketing,
+                'trello_marketing',
+                'Trello Marketing',
+                'Marketing'
+            ),
+            'trello_sei' => $this->buildTrelloAiRecommendation(
+                $trelloSei,
+                'trello_sei',
+                'Trello SEI',
+                'SEI'
+            ),
+        ];
+
+        $blockingFactors = collect($platforms)
+            ->flatMap(function (array $platform) {
+                return collect($platform['blocking_factors'] ?? [])
+                    ->map(function (array $factor) use ($platform) {
+                        return array_merge($factor, [
+                            'platform_key' => $platform['platform_key'],
+                            'platform_label' => $platform['platform_label'],
+                        ]);
+                    });
+            })
+            ->sortByDesc(fn (array $factor) => $this->aiSeverityScore($factor['severity'] ?? 'low'))
+            ->values();
+
+        $recommendedSteps = collect($platforms)
+            ->flatMap(function (array $platform) {
+                return collect($platform['recommended_steps'] ?? [])
+                    ->map(function ($step) use ($platform) {
+                        $text = is_array($step)
+                            ? ($step['action'] ?? $step['step'] ?? $step['recommendation'] ?? $step['text'] ?? null)
+                            : $step;
+
+                        if (blank($text)) {
+                            return null;
+                        }
+
+                        return [
+                            'platform_key' => $platform['platform_key'],
+                            'platform_label' => $platform['platform_label'],
+                            'action' => trim((string) $text),
+                        ];
+                    });
+            })
+            ->filter()
+            ->unique(fn (array $item) => Str::lower($item['platform_key'] . '|' . $item['action']))
+            ->values();
+
+        $priorityActions = collect($platforms)
+            ->flatMap(fn (array $platform) => $platform['priority_actions'] ?? [])
+            ->filter(fn ($item) => is_array($item) && filled($item['action'] ?? null))
+            ->sortByDesc(fn (array $item) => (int) ($item['score'] ?? 0))
+            ->values();
+
+        if ($priorityActions->isEmpty()) {
+            $priorityActions = $recommendedSteps
+                ->take(8)
+                ->values()
+                ->map(function (array $item, int $index) {
+                    return array_merge($item, [
+                        'priority' => $index <= 1 ? 'high' : 'medium',
+                        'reason' => 'Rekomendasi dari analisis platform.',
+                        'score' => 700 - ($index * 10),
+                    ]);
+                });
+        }
+
+        $platformPriority = collect($platforms)
+            ->sortByDesc(function (array $platform) {
+                $severity = $platform['severity'] ?? 'info';
+                $factorScore = collect($platform['blocking_factors'] ?? [])
+                    ->max(fn (array $factor) => $this->aiSeverityScore($factor['severity'] ?? 'low')) ?? 0;
+
+                return $this->aiSeverityScore($severity) + $factorScore;
+            })
+            ->values();
+
+        $mainPlatform = $platformPriority->first() ?? [];
+        $mainBottleneck = trim((string) ($mainPlatform['main_bottleneck'] ?? ''));
+
+        if ($mainBottleneck === '') {
+            $mainBottleneck = (string) (
+                $blockingFactors->first()['factor']
+                ?? 'Belum ada bottleneck utama yang terdeteksi dari data terbaru.'
+            );
+        }
+
+        $summaryParagraphs = $platformPriority
+            ->map(fn (array $platform) => trim((string) ($platform['summary'] ?? '')))
+            ->filter()
+            ->take(4)
+            ->values()
+            ->all();
+
+        $executiveSummary = $this->joinSummaryParagraphs($summaryParagraphs);
+
+        if (blank($executiveSummary)) {
+            $executiveSummary = 'AI Marketing insight belum tersedia karena snapshot atau hasil analisis platform masih kosong.';
+        }
+
+        return [
+            'generated_at' => now()->format('d M Y H:i'),
+            'source' => 'platform_ai_and_local_fallback',
+            'executive_summary' => $executiveSummary,
+            'main_bottleneck' => $mainBottleneck,
+            'blocking_factors' => $blockingFactors->take(12)->all(),
+            'recommended_steps' => $recommendedSteps->take(16)->all(),
+            'priority_actions' => $priorityActions->take(10)->all(),
+            'platforms' => $platforms,
+        ];
+    }
+
+
+    protected function buildMetaAdsAiRecommendation(array $metaAds): array
+    {
+        $campaigns = collect($metaAds['campaigns'] ?? []);
+
+        $campaignAnalyses = $campaigns
+            ->map(function (array $campaign) {
+                $ai = is_array($campaign['ai_summary'] ?? null)
+                    ? $campaign['ai_summary']
+                    : [];
+
+                return [
+                    'campaign_name' => $campaign['campaign_name'] ?? 'Untitled Campaign',
+                    'health_type' => $campaign['health_type'] ?? 'info',
+                    'summary' => $ai['summary'] ?? null,
+                    'main_bottleneck' => $ai['main_bottleneck'] ?? null,
+                    'blocking_factors' => is_array($ai['blocking_factors'] ?? null)
+                        ? $ai['blocking_factors']
+                        : [],
+                    'recommended_steps' => is_array($ai['recommended_steps'] ?? null)
+                        ? $ai['recommended_steps']
+                        : [],
+                ];
+            })
+            ->filter(fn (array $item) => filled($item['summary'])
+                || filled($item['main_bottleneck'])
+                || ! empty($item['blocking_factors'])
+                || ! empty($item['recommended_steps']))
+            ->values();
+
+        $blockingFactors = $campaignAnalyses
+            ->flatMap(function (array $analysis) {
+                return collect($analysis['blocking_factors'])
+                    ->map(function ($factor) use ($analysis) {
+                        if (is_string($factor)) {
+                            return [
+                                'factor' => $factor,
+                                'evidence' => null,
+                                'severity' => $analysis['health_type'] === 'critical' ? 'high' : 'medium',
+                                'campaign_name' => $analysis['campaign_name'],
+                            ];
+                        }
+
+                        if (! is_array($factor)) {
+                            return null;
+                        }
+
+                        return [
+                            'factor' => $factor['factor']
+                                ?? $factor['issue']
+                                ?? $factor['title']
+                                ?? 'Faktor penghambat',
+                            'evidence' => $factor['evidence']
+                                ?? $factor['description']
+                                ?? $factor['detail']
+                                ?? null,
+                            'severity' => $factor['severity']
+                                ?? ($analysis['health_type'] === 'critical' ? 'high' : 'medium'),
+                            'campaign_name' => $analysis['campaign_name'],
+                        ];
+                    });
+            })
+            ->filter()
+            ->sortByDesc(fn (array $factor) => $this->aiSeverityScore($factor['severity'] ?? 'low'))
+            ->values();
+
+        $recommendedSteps = $campaignAnalyses
+            ->flatMap(fn (array $analysis) => collect($analysis['recommended_steps']))
+            ->map(function ($step) {
+                return is_array($step)
+                    ? ($step['action'] ?? $step['step'] ?? $step['recommendation'] ?? $step['text'] ?? null)
+                    : $step;
+            })
+            ->filter()
+            ->map(fn ($step) => trim((string) $step))
+            ->unique(fn (string $step) => Str::lower($step))
+            ->values();
+
+        $priorityActions = $campaignAnalyses
+            ->flatMap(function (array $analysis) {
+                $severity = $analysis['health_type'] === 'critical'
+                    ? 'high'
+                    : ($analysis['health_type'] === 'warning' ? 'medium' : 'low');
+
+                return collect($analysis['recommended_steps'])
+                    ->map(function ($step, int $index) use ($analysis, $severity) {
+                        $text = is_array($step)
+                            ? ($step['action'] ?? $step['step'] ?? $step['recommendation'] ?? $step['text'] ?? null)
+                            : $step;
+
+                        if (blank($text)) {
+                            return null;
+                        }
+
+                        return [
+                            'platform_key' => 'meta_ads',
+                            'platform_label' => 'Meta Ads',
+                            'campaign_name' => $analysis['campaign_name'],
+                            'action' => trim((string) $text),
+                            'priority' => $severity,
+                            'reason' => $analysis['main_bottleneck']
+                                ?: 'Rekomendasi AI berdasarkan performa campaign.',
+                            'score' => $this->aiSeverityScore($severity) + max(0, 40 - ($index * 5)),
+                        ];
+                    });
+            })
+            ->filter()
+            ->values();
+
+        $mainAnalysis = $campaignAnalyses
+            ->sortByDesc(fn (array $item) => $this->aiSeverityScore($item['health_type'] ?? 'info'))
+            ->first();
+
+        return [
+            'platform_key' => 'meta_ads',
+            'platform_label' => 'Meta Ads',
+            'is_available' => (bool) ($metaAds['is_available'] ?? false),
+            'severity' => $mainAnalysis['health_type'] ?? (
+                (int) data_get($metaAds, 'overview.critical_count', 0) > 0
+                    ? 'critical'
+                    : ((int) data_get($metaAds, 'overview.attention_count', 0) > 0 ? 'warning' : 'good')
+            ),
+            'summary' => $mainAnalysis['summary']
+                ?? $metaAds['summary_text']
+                ?? 'Meta Ads insight belum tersedia.',
+            'main_bottleneck' => $mainAnalysis['main_bottleneck']
+                ?? $blockingFactors->first()['factor']
+                ?? 'Belum ada bottleneck utama pada Meta Ads.',
+            'blocking_factors' => $blockingFactors->take(8)->all(),
+            'recommended_steps' => $recommendedSteps->take(10)->all(),
+            'priority_actions' => $priorityActions->take(8)->all(),
+            'campaign_analyses' => $campaignAnalyses->all(),
+        ];
+    }
+
+
+    protected function normalizePlatformAiRecommendation(
+        string $platformKey,
+        string $platformLabel,
+        array $payload,
+        string $fallbackSummary,
+        bool $isAvailable
+    ): array {
+        $summary = $this->firstFilledAiValue($payload, [
+            'executive_summary',
+            'summary',
+            'summary_text',
+            'overview',
+            'performance_summary',
+            'analysis_summary',
+        ]) ?: $fallbackSummary;
+
+        $mainBottleneck = $this->firstFilledAiValue($payload, [
+            'main_bottleneck',
+            'bottleneck',
+            'biggest_bottleneck',
+            'main_issue',
+            'biggest_risk',
+            'primary_issue',
+            'key_problem',
+        ]);
+
+        $blockingFactors = $this->normalizeAiFactors(
+            $this->firstArrayAiValue($payload, [
+                'blocking_factors',
+                'bottlenecks',
+                'issues',
+                'risks',
+                'key_findings',
+                'problems',
+                'weaknesses',
+            ])
+        );
+
+        $recommendedSteps = $this->normalizeAiSteps(
+            $this->firstArrayAiValue($payload, [
+                'recommended_steps',
+                'recommended_actions',
+                'recommendations',
+                'next_actions',
+                'action_plan',
+                'actions',
+                'optimization_actions',
+            ])
+        );
+
+        if (blank($mainBottleneck)) {
+            $mainBottleneck = $blockingFactors[0]['factor'] ?? null;
+        }
+
+        $severity = $this->firstFilledAiValue($payload, [
+            'severity',
+            'health_type',
+            'status',
+            'health',
+        ]) ?: ($isAvailable ? 'info' : 'warning');
+
+        $priorityActions = collect($recommendedSteps)
+            ->map(function (string $step, int $index) use (
+                $platformKey,
+                $platformLabel,
+                $mainBottleneck,
+                $severity
+            ) {
+                $normalizedPriority = in_array(Str::lower((string) $severity), ['critical', 'danger', 'high'], true)
+                    ? 'high'
+                    : (in_array(Str::lower((string) $severity), ['warning', 'attention', 'medium'], true)
+                        ? 'medium'
+                        : 'low');
+
+                return [
+                    'platform_key' => $platformKey,
+                    'platform_label' => $platformLabel,
+                    'action' => $step,
+                    'priority' => $normalizedPriority,
+                    'reason' => $mainBottleneck ?: 'Rekomendasi AI berdasarkan data platform.',
+                    'score' => $this->aiSeverityScore($normalizedPriority) + max(0, 40 - ($index * 5)),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'platform_key' => $platformKey,
+            'platform_label' => $platformLabel,
+            'is_available' => $isAvailable,
+            'severity' => Str::lower((string) $severity),
+            'summary' => $summary !== '' ? $summary : $platformLabel . ' insight belum tersedia.',
+            'main_bottleneck' => $mainBottleneck ?: 'Belum ada bottleneck utama yang tertulis.',
+            'blocking_factors' => $blockingFactors,
+            'recommended_steps' => $recommendedSteps,
+            'priority_actions' => $priorityActions,
+            'raw_ai_payload' => $payload,
+        ];
+    }
+
+
+    protected function buildTrelloAiRecommendation(
+        array $trelloStats,
+        string $platformKey,
+        string $platformLabel,
+        string $teamLabel
+    ): array {
+        $summary = $trelloStats['summary'] ?? [];
+        $overdue = (int) ($summary['overdue'] ?? 0);
+        $dueToday = (int) ($summary['due_today'] ?? 0);
+        $unmapped = (int) ($summary['unmapped'] ?? 0);
+        $activeWork = (int) ($summary['active_work'] ?? 0);
+        $completionRate = (int) ($summary['completion_rate'] ?? 0);
+        $webhookStatus = Str::lower((string) ($trelloStats['webhook_status'] ?? 'inactive'));
+
+        $isSynced = in_array($webhookStatus, ['active', 'synced'], true);
+
+        $factors = [];
+        $steps = [];
+        $priorityActions = [];
+
+        if (! $isSynced) {
+            $factors[] = [
+                'factor' => $platformLabel . ' belum tersinkronisasi',
+                'evidence' => 'Webhook status saat ini: ' . ($webhookStatus ?: 'inactive') . '.',
+                'severity' => 'high',
+            ];
+
+            $steps[] = 'Periksa scheduler, webhook, token, dan koneksi board ' . $platformLabel . '.';
+        }
+
+        if ($unmapped > 0) {
+            $factors[] = [
+                'factor' => 'Masih ada card tanpa mapping status',
+                'evidence' => number_format($unmapped) . ' card belum masuk status dashboard.',
+                'severity' => 'high',
+            ];
+
+            $steps[] = 'Selesaikan mapping list ' . $platformLabel . ' agar seluruh workload terbaca dengan benar.';
+        }
+
+        if ($overdue > 0) {
+            $factors[] = [
+                'factor' => $teamLabel . ' task overdue',
+                'evidence' => number_format($overdue) . ' card sudah melewati deadline.',
+                'severity' => 'high',
+            ];
+
+            $steps[] = 'Review card overdue, tetapkan PIC, dan reschedule deadline yang masih realistis.';
+        }
+
+        if ($dueToday > 0) {
+            $factors[] = [
+                'factor' => 'Ada task yang jatuh tempo hari ini',
+                'evidence' => number_format($dueToday) . ' card perlu diselesaikan atau dikonfirmasi hari ini.',
+                'severity' => 'medium',
+            ];
+
+            $steps[] = 'Prioritaskan card due today sebelum membuka pekerjaan baru.';
+        }
+
+        if ($activeWork > 0 && $completionRate < 50) {
+            $factors[] = [
+                'factor' => 'Work in progress relatif tinggi',
+                'evidence' => number_format($activeWork)
+                    . ' card aktif dengan completion rate '
+                    . number_format($completionRate)
+                    . '%.',
+                'severity' => 'medium',
+            ];
+
+            $steps[] = 'Batasi work in progress dan dorong task mendekati selesai sebelum menambah task baru.';
+        }
+
+        if (empty($factors)) {
+            $factors[] = [
+                'factor' => 'Belum ada bottleneck workload yang berat',
+                'evidence' => 'Workload ' . $teamLabel . ' tidak memiliki overdue atau mapping issue yang signifikan.',
+                'severity' => 'low',
+            ];
+        }
+
+        if (empty($steps)) {
+            $steps[] = 'Pertahankan disiplin update status, PIC, dan deadline pada setiap card ' . $teamLabel . '.';
+        }
+
+        foreach ($steps as $index => $step) {
+            $priority = $index <= 1 && ($overdue > 0 || $unmapped > 0 || ! $isSynced)
+                ? 'high'
+                : 'medium';
+
+            $priorityActions[] = [
+                'platform_key' => $platformKey,
+                'platform_label' => $platformLabel,
+                'action' => $step,
+                'priority' => $priority,
+                'reason' => $factors[0]['factor'] ?? ($teamLabel . ' workload action.'),
+                'score' => $this->aiSeverityScore($priority) + max(0, 40 - ($index * 5)),
+            ];
+        }
+
+        return [
+            'platform_key' => $platformKey,
+            'platform_label' => $platformLabel,
+            'is_available' => $isSynced,
+            'severity' => ($overdue > 0 || $unmapped > 0 || ! $isSynced)
+                ? 'critical'
+                : ($dueToday > 0 ? 'warning' : 'good'),
+            'summary' => (string) (
+                $trelloStats['insight']
+                ?? ($teamLabel . ' workload tercatat dari Trello.')
+            ),
+            'main_bottleneck' => $factors[0]['factor'] ?? 'Belum ada bottleneck utama.',
+            'blocking_factors' => $factors,
+            'recommended_steps' => array_values(array_unique($steps)),
+            'priority_actions' => $priorityActions,
+        ];
+    }
+
+
+    protected function firstFilledAiValue(array $payload, array $keys): string
+    {
+        foreach ($keys as $key) {
+            $value = data_get($payload, $key);
+
+            if (is_scalar($value) && filled((string) $value)) {
+                return trim((string) $value);
+            }
+        }
+
+        return '';
+    }
+
+
+    protected function firstArrayAiValue(array $payload, array $keys): array
+    {
+        foreach ($keys as $key) {
+            $value = data_get($payload, $key);
+
+            if (is_array($value) && ! empty($value)) {
+                return $value;
+            }
+        }
+
+        return [];
+    }
+
+
+    protected function normalizeAiFactors(array $items): array
+    {
+        return collect($items)
+            ->map(function ($item) {
+                if (is_string($item)) {
+                    return [
+                        'factor' => trim($item),
+                        'evidence' => null,
+                        'severity' => 'medium',
+                    ];
+                }
+
+                if (! is_array($item)) {
+                    return null;
+                }
+
+                $factor = $item['factor']
+                    ?? $item['issue']
+                    ?? $item['title']
+                    ?? $item['finding']
+                    ?? $item['risk']
+                    ?? $item['problem']
+                    ?? null;
+
+                if (blank($factor)) {
+                    return null;
+                }
+
+                return [
+                    'factor' => trim((string) $factor),
+                    'evidence' => $item['evidence']
+                        ?? $item['description']
+                        ?? $item['detail']
+                        ?? $item['reason']
+                        ?? $item['impact']
+                        ?? null,
+                    'severity' => Str::lower((string) ($item['severity'] ?? $item['priority'] ?? 'medium')),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+
+    protected function normalizeAiSteps(array $items): array
+    {
+        return collect($items)
+            ->map(function ($item) {
+                if (is_string($item)) {
+                    return trim($item);
+                }
+
+                if (! is_array($item)) {
+                    return null;
+                }
+
+                $step = $item['action']
+                    ?? $item['step']
+                    ?? $item['recommendation']
+                    ?? $item['title']
+                    ?? $item['text']
+                    ?? $item['next_action']
+                    ?? null;
+
+                return filled($step)
+                    ? trim((string) $step)
+                    : null;
+            })
+            ->filter()
+            ->unique(fn (string $step) => Str::lower($step))
+            ->values()
+            ->all();
+    }
+
+
+    protected function aiSeverityScore(string $severity): int
+    {
+        return match (Str::lower(trim($severity))) {
+            'critical', 'danger', 'urgent', 'high' => 1000,
+            'warning', 'attention', 'medium' => 750,
+            'action' => 700,
+            'info', 'monitor' => 450,
+            'good', 'healthy', 'success', 'low' => 200,
+            default => 300,
+        };
+    }
+
 
     protected function buildMarketingSummary(array $context): array
     {

@@ -606,6 +606,7 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | - super-admin.dashboard
 | - academic.dashboard
 | - sales.dashboard
+| - sales.dashboard.chart-data
 | - marketing.dashboard
 | - finance.dashboard
 | - hr.dashboard
@@ -614,8 +615,8 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | - /dashboard remains the legacy/global dashboard during the migration.
 | - /super-admin/dashboard explicitly exposes the management dashboard.
 | - Each division dashboard has its own permission.
-| - The controllers for Sales, Finance, and HR can initially render placeholder
-|   views, then be completed role by role.
+| - Sales Dashboard has its own chart-data endpoint and does not replace the
+|   existing sales-performance.chart-data route.
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])
@@ -635,6 +636,10 @@ Route::middleware(['auth', 'verified'])
         Route::get('/sales/dashboard', [SalesDashboardController::class, 'index'])
             ->middleware('permission:sales.dashboard.view')
             ->name('sales.dashboard');
+
+        Route::get('/sales/dashboard/chart-data', [SalesDashboardController::class, 'chartData'])
+            ->middleware('permission:sales.dashboard.view')
+            ->name('sales.dashboard.chart-data');
 
         Route::get('/marketing/dashboard', [MarketingDashboardController::class, 'index'])
             ->middleware('permission:marketing.dashboard.view')
