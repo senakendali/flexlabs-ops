@@ -14,7 +14,10 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sales\SalesDashboardController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Hr\HrDashboardController;
-use App\Http\Controllers\Hr\AttendanceController as HrAttendanceController;
+use App\Http\Controllers\Hr\AttendanceImportController;
+use App\Http\Controllers\Hr\EmployeeController;
+use App\Http\Controllers\Hr\WorkingHourTemplateController;
+use App\Http\Controllers\Hr\CompanyHolidayController;
 use App\Http\Controllers\Operation\QuizController;
 use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
@@ -730,25 +733,259 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | HR - Attendance
+    | HR - Attendance Import
     |--------------------------------------------------------------------------
     |
-    | Initial HR module route used by the HR navigation.
-    | The attendance feature can be expanded later with create, store, approval,
-    | correction, export, and monthly recap endpoints.
+    | Flow:
+    | - Upload Excel attendance dari Evertime
+    | - Parse dan simpan staging rows
+    | - Review missing attendance / leave / permission
+    | - Update satu row atau bulk adjustment
+    | - Confirm ke employee_attendances
+    |
+    | Main route names:
+    | - hr.attendance-imports.index
+    | - hr.attendance-imports.create
+    | - hr.attendance-imports.store
+    | - hr.attendance-imports.review
+    | - hr.attendance-imports.rows.update
+    | - hr.attendance-imports.bulk-update
+    | - hr.attendance-imports.confirm
+    | - hr.attendance-imports.cancel
+    | - hr.attendance-imports.destroy
+    |
+    | Backward compatibility:
+    | - hr.attendances.index tetap tersedia untuk menu lama.
     |--------------------------------------------------------------------------
     */
     Route::prefix('hr')
         ->name('hr.')
         ->middleware('permission:hr.view')
         ->group(function () {
-            Route::prefix('attendances')
-                ->name('attendances.')
+            /*
+            |--------------------------------------------------------------------------
+            | Legacy Attendance Menu Alias
+            |--------------------------------------------------------------------------
+            | Route lama tetap hidup agar konfigurasi sidebar/menu yang masih
+            | memakai hr.attendances.index tidak error selama masa transisi.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/attendances', [AttendanceImportController::class, 'index'])
                 ->middleware('permission:hr.attendances.view')
-                ->controller(HrAttendanceController::class)
+                ->name('attendances.index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Attendance Imports
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('attendance-imports')
+                ->name('attendance-imports.')
+                ->middleware('permission:hr.attendances.view')
+                ->controller(AttendanceImportController::class)
+                ->group(function () {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Import History & Upload
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::get('/create', 'create')
+                        ->name('create');
+
+                    Route::post('/', 'store')
+                        ->name('store');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Review
+                    |--------------------------------------------------------------------------
+                    | Static/action routes ditempatkan dengan pola spesifik agar tidak
+                    | bentrok dengan parameter attendance import.
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get('/{attendanceImport}/review', 'review')
+                        ->whereNumber('attendanceImport')
+                        ->name('review');
+
+                    Route::patch(
+                        '/{attendanceImport}/rows/{attendanceImportRow}',
+                        'updateRow'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->whereNumber('attendanceImportRow')
+                        ->name('rows.update');
+
+                    Route::patch(
+                        '/{attendanceImport}/bulk-update',
+                        'bulkUpdate'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->name('bulk-update');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Import Workflow Actions
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::post('/{attendanceImport}/confirm', 'confirm')
+                        ->whereNumber('attendanceImport')
+                        ->name('confirm');
+
+                    Route::patch('/{attendanceImport}/cancel', 'cancel')
+                        ->whereNumber('attendanceImport')
+                        ->name('cancel');
+
+                    Route::delete('/{attendanceImport}', 'destroy')
+                        ->whereNumber('attendanceImport')
+                        ->name('destroy');
+                });
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Employee Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/employees
+            | - POST   /hr/employees
+            | - PUT    /hr/employees/{employee}
+            | - PATCH  /hr/employees/{employee}
+            | - DELETE /hr/employees/{employee}
+            |
+            | Route names:
+            | - hr.employees.index
+            | - hr.employees.store
+            | - hr.employees.update
+            | - hr.employees.patch
+            | - hr.employees.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('employees')
+                ->name('employees.')
+                ->middleware('permission:hr.employees.view')
+                ->controller(EmployeeController::class)
                 ->group(function () {
                     Route::get('/', 'index')
                         ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.employees.create')
+                        ->name('store');
+
+                    Route::put('/{employee}', 'update')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.update')
+                        ->name('update');
+
+                    Route::patch('/{employee}', 'update')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.update')
+                        ->name('patch');
+
+                    Route::delete('/{employee}', 'destroy')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Working Hours Template Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/working-hour-templates
+            | - POST   /hr/working-hour-templates
+            | - PUT    /hr/working-hour-templates/{workingHourTemplate}
+            | - PATCH  /hr/working-hour-templates/{workingHourTemplate}
+            | - DELETE /hr/working-hour-templates/{workingHourTemplate}
+            |
+            | Route names:
+            | - hr.working-hour-templates.index
+            | - hr.working-hour-templates.store
+            | - hr.working-hour-templates.update
+            | - hr.working-hour-templates.patch
+            | - hr.working-hour-templates.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('working-hour-templates')
+                ->name('working-hour-templates.')
+                ->middleware('permission:hr.working_hour_templates.view')
+                ->controller(WorkingHourTemplateController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.working_hour_templates.create')
+                        ->name('store');
+
+                    Route::put('/{workingHourTemplate}', 'update')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.update')
+                        ->name('update');
+
+                    Route::patch('/{workingHourTemplate}', 'update')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.update')
+                        ->name('patch');
+
+                    Route::delete('/{workingHourTemplate}', 'destroy')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Company Holiday Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/company-holidays
+            | - POST   /hr/company-holidays
+            | - PUT    /hr/company-holidays/{companyHoliday}
+            | - PATCH  /hr/company-holidays/{companyHoliday}
+            | - DELETE /hr/company-holidays/{companyHoliday}
+            |
+            | Route names:
+            | - hr.company-holidays.index
+            | - hr.company-holidays.store
+            | - hr.company-holidays.update
+            | - hr.company-holidays.patch
+            | - hr.company-holidays.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('company-holidays')
+                ->name('company-holidays.')
+                ->middleware('permission:hr.company_holidays.view')
+                ->controller(CompanyHolidayController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.company_holidays.create')
+                        ->name('store');
+
+                    Route::put('/{companyHoliday}', 'update')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.update')
+                        ->name('update');
+
+                    Route::patch('/{companyHoliday}', 'update')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.update')
+                        ->name('patch');
+
+                    Route::delete('/{companyHoliday}', 'destroy')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.delete')
+                        ->name('destroy');
                 });
         });
 
