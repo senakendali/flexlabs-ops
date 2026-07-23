@@ -355,12 +355,12 @@
 </div>
 
 <div class="modal fade" id="workingTemplateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable hr-master-modal-dialog">
         <form id="workingTemplateForm">
             @csrf
             <input type="hidden" id="working_template_id">
 
-            <div class="modal-content custom-modal">
+            <div class="modal-content custom-modal hr-master-modal-content">
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="workingTemplateModalTitle">Add Working-Hours Template</h5>
@@ -419,7 +419,7 @@
                                     <label for="working_template_start_time" class="form-label">
                                         Start Time <span class="text-danger">*</span>
                                     </label>
-                                    <input type="time" step="1" id="working_template_start_time" class="form-control">
+                                    <input type="time" step="60" id="working_template_start_time" class="form-control">
                                     <div class="invalid-feedback" id="error_start_time"></div>
                                 </div>
 
@@ -427,31 +427,31 @@
                                     <label for="working_template_end_time" class="form-label">
                                         End Time <span class="text-danger">*</span>
                                     </label>
-                                    <input type="time" step="1" id="working_template_end_time" class="form-control">
+                                    <input type="time" step="60" id="working_template_end_time" class="form-control">
                                     <div class="invalid-feedback" id="error_end_time"></div>
                                 </div>
 
                                 <div class="col-6 col-md-3">
                                     <label for="working_template_break_start" class="form-label">Break Start</label>
-                                    <input type="time" step="1" id="working_template_break_start" class="form-control">
+                                    <input type="time" step="60" id="working_template_break_start" class="form-control">
                                     <div class="invalid-feedback" id="error_break_start_time"></div>
                                 </div>
 
                                 <div class="col-6 col-md-3">
                                     <label for="working_template_break_end" class="form-label">Break End</label>
-                                    <input type="time" step="1" id="working_template_break_end" class="form-control">
+                                    <input type="time" step="60" id="working_template_break_end" class="form-control">
                                     <div class="invalid-feedback" id="error_break_end_time"></div>
                                 </div>
 
                                 <div class="col-6 col-md-3">
                                     <label for="working_template_first_half_end" class="form-label">First Half End</label>
-                                    <input type="time" step="1" id="working_template_first_half_end" class="form-control">
+                                    <input type="time" step="60" id="working_template_first_half_end" class="form-control">
                                     <div class="invalid-feedback" id="error_first_half_end_time"></div>
                                 </div>
 
                                 <div class="col-6 col-md-3">
                                     <label for="working_template_second_half_start" class="form-label">Second Half Start</label>
-                                    <input type="time" step="1" id="working_template_second_half_start" class="form-control">
+                                    <input type="time" step="60" id="working_template_second_half_start" class="form-control">
                                     <div class="invalid-feedback" id="error_second_half_start_time"></div>
                                 </div>
 
@@ -625,15 +625,38 @@
         display: block;
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
-        overflow-y: visible;
+        overflow-x: auto !important;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 90px;
-        margin-bottom: -90px;
+        overscroll-behavior-x: contain;
+        padding-bottom: .75rem;
+        scrollbar-width: thin;
+        scrollbar-color: #9d8abb #f4f1f8;
     }
 
+    .master-table-responsive::-webkit-scrollbar {
+        height: 12px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-track {
+        background: #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-thumb {
+        background: #9d8abb;
+        border: 2px solid #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #806aa5;
+    }
+
+
     .master-admin-table {
-        min-width: 1360px;
+        width: max-content !important;
+        min-width: 1780px;
     }
 
     .master-admin-table .col-template {
@@ -747,7 +770,69 @@
         font-size: .9rem;
     }
 
+    .hr-master-modal-dialog {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .hr-master-modal-dialog .hr-master-modal-content {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        overflow: hidden;
+    }
+
+    .hr-master-modal-dialog .modal-header,
+    .hr-master-modal-dialog .modal-footer {
+        flex: 0 0 auto;
+        background: #fff;
+        position: relative;
+        z-index: 2;
+    }
+
+    .hr-master-modal-dialog .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: #b8a9cf #f4f1f8;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-track {
+        background: #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-thumb {
+        background: #b8a9cf;
+        border: 2px solid #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #9d8abb;
+    }
+
     @media (max-width: 768px) {
+        .hr-master-modal-dialog {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+            margin: .5rem auto;
+        }
+
+        .hr-master-modal-dialog .hr-master-modal-content {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+        }
+
         .container-fluid.px-4 {
             padding-left: 1rem !important;
             padding-right: 1rem !important;
@@ -790,6 +875,7 @@
         deleteWorkingTemplateModal = bootstrap.Modal.getOrCreateInstance(
             document.getElementById('deleteWorkingTemplateModal')
         );
+
 
         Object.assign(workingTemplateFields, {
             id: document.getElementById('working_template_id'),
@@ -914,16 +1000,45 @@
         const payload = {
             code: workingTemplateFields.code.value.trim() || null,
             name: workingTemplateFields.name.value.trim(),
-            start_time: workingTemplateFields.start_time.value,
-            end_time: workingTemplateFields.end_time.value,
-            break_start_time: workingTemplateFields.break_start_time.value || null,
-            break_end_time: workingTemplateFields.break_end_time.value || null,
-            first_half_end_time: workingTemplateFields.first_half_end_time.value || null,
-            second_half_start_time: workingTemplateFields.second_half_start_time.value || null,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Normalize Time for Laravel
+            |--------------------------------------------------------------------------
+            | Browser tertentu mengembalikan HH:mm:ss walaupun input terlihat
+            | hanya menampilkan jam dan menit. Controller memvalidasi H:i,
+            | sehingga seluruh nilai waktu dipotong menjadi HH:mm.
+            */
+            start_time: normalizeTimeForRequest(
+                workingTemplateFields.start_time.value
+            ),
+
+            end_time: normalizeTimeForRequest(
+                workingTemplateFields.end_time.value
+            ),
+
+            break_start_time: normalizeTimeForRequest(
+                workingTemplateFields.break_start_time.value
+            ),
+
+            break_end_time: normalizeTimeForRequest(
+                workingTemplateFields.break_end_time.value
+            ),
+
+            first_half_end_time: normalizeTimeForRequest(
+                workingTemplateFields.first_half_end_time.value
+            ),
+
+            second_half_start_time: normalizeTimeForRequest(
+                workingTemplateFields.second_half_start_time.value
+            ),
+
             working_days: workingDays,
+
             late_tolerance_minutes: Number(
                 workingTemplateFields.late_tolerance_minutes.value || 0
             ),
+
             source: workingTemplateFields.source.value.trim() || 'manual',
             is_active: workingTemplateFields.is_active.checked,
         };
@@ -1082,6 +1197,22 @@
         return value ? String(value).slice(0, 5) : '';
     }
 
+    /**
+     * Mengubah nilai input time menjadi format H:i yang diterima Laravel.
+     *
+     * Examples:
+     * 12:00:00 -> 12:00
+     * 21:00    -> 21:00
+     * empty    -> null
+     */
+    function normalizeTimeForRequest(value) {
+        if (!value) {
+            return null;
+        }
+
+        return String(value).slice(0, 5);
+    }
+
     function workingTemplateJsonHeaders() {
         return {
             'Content-Type': 'application/json',
@@ -1146,5 +1277,6 @@
 
         toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
     }
+
 </script>
 @endpush

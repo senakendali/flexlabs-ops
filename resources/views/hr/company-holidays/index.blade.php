@@ -321,12 +321,12 @@
 </div>
 
 <div class="modal fade" id="holidayModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable hr-master-modal-dialog">
         <form id="holidayForm">
             @csrf
             <input type="hidden" id="holiday_id">
 
-            <div class="modal-content custom-modal">
+            <div class="modal-content custom-modal hr-master-modal-content">
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="holidayModalTitle">Add Company Holiday</h5>
@@ -513,15 +513,38 @@
         display: block;
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
-        overflow-y: visible;
+        overflow-x: auto !important;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 90px;
-        margin-bottom: -90px;
+        overscroll-behavior-x: contain;
+        padding-bottom: .75rem;
+        scrollbar-width: thin;
+        scrollbar-color: #9d8abb #f4f1f8;
     }
 
+    .master-table-responsive::-webkit-scrollbar {
+        height: 12px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-track {
+        background: #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-thumb {
+        background: #9d8abb;
+        border: 2px solid #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .master-table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #806aa5;
+    }
+
+
     .master-admin-table {
-        min-width: 980px;
+        width: max-content !important;
+        min-width: 1280px;
     }
 
     .master-admin-table .col-holiday {
@@ -602,7 +625,69 @@
         font-size: .9rem;
     }
 
+    .hr-master-modal-dialog {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .hr-master-modal-dialog .hr-master-modal-content {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        overflow: hidden;
+    }
+
+    .hr-master-modal-dialog .modal-header,
+    .hr-master-modal-dialog .modal-footer {
+        flex: 0 0 auto;
+        background: #fff;
+        position: relative;
+        z-index: 2;
+    }
+
+    .hr-master-modal-dialog .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: #b8a9cf #f4f1f8;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-track {
+        background: #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-thumb {
+        background: #b8a9cf;
+        border: 2px solid #f4f1f8;
+        border-radius: 999px;
+    }
+
+    .hr-master-modal-dialog .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #9d8abb;
+    }
+
     @media (max-width: 768px) {
+        .hr-master-modal-dialog {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+            margin: .5rem auto;
+        }
+
+        .hr-master-modal-dialog .hr-master-modal-content {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+        }
+
         .container-fluid.px-4 {
             padding-left: 1rem !important;
             padding-right: 1rem !important;
@@ -646,6 +731,7 @@
         deleteHolidayModal = bootstrap.Modal.getOrCreateInstance(
             document.getElementById('deleteHolidayModal')
         );
+
 
         Object.assign(holidayFields, {
             id: document.getElementById('holiday_id'),
@@ -948,5 +1034,6 @@
 
         toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
     }
+
 </script>
 @endpush
