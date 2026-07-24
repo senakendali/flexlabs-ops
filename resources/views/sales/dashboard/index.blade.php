@@ -254,7 +254,7 @@
                 <div class="col-xl-2 col-md-2">
                     <a
                         href="{{ route('sales.dashboard') }}"
-                        class="btn btn-light btn-modern w-100 sales-filter-reset-btn"
+                        class="btn btn-danger btn-modern w-100 sales-filter-reset-btn"
                         title="Reset filter"
                     >
                         <i class="bi bi-arrow-counterclockwise me-1"></i>
