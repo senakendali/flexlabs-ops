@@ -36,6 +36,32 @@ class AttendanceImportService
     private const DEFAULT_END_TIME = '17:00:00';
 
     /**
+     * Core business fields used to decide whether two rows for the same
+     * employee/date are exact duplicates or conflicting duplicates.
+     *
+     * Remarks, source row number, and raw payload are deliberately excluded.
+     * They are audit details, not attendance outcomes.
+     */
+    private const DUPLICATE_COMPARISON_FIELDS = [
+        'working_hour_template_id',
+        'scheduled_start_time',
+        'scheduled_end_time',
+        'attendance_type',
+        'clock_in',
+        'clock_out',
+        'leave_type',
+        'leave_duration',
+        'leave_session',
+        'leave_start_time',
+        'leave_end_time',
+        'leave_minutes',
+        'is_excused',
+    ];
+
+    private const DUPLICATE_CONFLICT_MESSAGE =
+        'Conflicting duplicate ditemukan untuk employee dan attendance date yang sama. HR perlu memilih record yang digunakan atau mengabaikan record yang tidak valid.';
+
+    /**
      * Upload, parse, normalize, and stage an Evertime attendance workbook.
      */
     public function upload(
@@ -113,6 +139,23 @@ class AttendanceImportService
 
                 /*
                 |------------------------------------------------------------------
+                | Company holidays within the detected import period.
+                |------------------------------------------------------------------
+                |
+                | Holiday data is loaded once and reused while staging Excel rows
+                | and generating missing calendar rows. This avoids one holiday
+                | query for every employee/date combination.
+                |
+                */
+                $companyHolidays = $this->getCompanyHolidaysByDate(
+                    dateFrom: Carbon::parse($dateRange['date_from'])->startOfDay(),
+                    dateTo: Carbon::parse($dateRange['date_to'])->startOfDay()
+                );
+
+                $context['company_holidays'] = $companyHolidays;
+
+                /*
+                |------------------------------------------------------------------
                 | Pass 2: create staging rows.
                 |------------------------------------------------------------------
                 */
@@ -130,11 +173,15 @@ class AttendanceImportService
                     templateUsage: $context['template_usage']
                 );
 
-                if ((bool) $settings['generate_missing_rows']) {
+                if (
+                    (bool) $settings['generate_missing_rows']
+                    || (bool) $settings['generate_holiday_rows']
+                ) {
                     $this->generateMissingAttendanceRows(
                         attendanceImport: $attendanceImport,
                         employees: $context['employees']->values(),
-                        settings: $settings
+                        settings: $settings,
+                        companyHolidays: $companyHolidays
                     );
                 }
 
@@ -171,7 +218,14 @@ class AttendanceImportService
         array $data,
         ?int $userId = null
     ): AttendanceImportRow {
-        $this->assertImportIsEditable($row->attendanceImport);
+        $attendanceImport = $row->attendanceImport;
+
+        $this->assertImportIsEditable($attendanceImport);
+
+        $originalEmployeeId = $row->employee_id;
+        $originalAttendanceDate = $this->normalizeDuplicateDate(
+            $row->attendance_date
+        );
 
         $payload = Arr::only($data, [
             'employee_id',
@@ -213,8 +267,41 @@ class AttendanceImportService
             ]
         );
         $row->save();
+        $row->refresh();
 
-        $this->refreshImportStatistics($row->attendanceImport);
+        $currentEmployeeId = $row->employee_id;
+        $currentAttendanceDate = $this->normalizeDuplicateDate(
+            $row->attendance_date
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reconcile both duplicate groups when employee/date changes.
+        |--------------------------------------------------------------------------
+        |
+        | The old group may stop being conflicting, while the new group may
+        | become exact or conflicting. Running reconciliation on both keeps
+        | duplicate counters and Confirm Import state accurate.
+        |
+        */
+        $this->reconcileStagingDuplicateGroupByIdentity(
+            attendanceImport: $attendanceImport,
+            employeeId: $originalEmployeeId,
+            attendanceDate: $originalAttendanceDate
+        );
+
+        if (
+            $currentEmployeeId !== $originalEmployeeId
+            || $currentAttendanceDate !== $originalAttendanceDate
+        ) {
+            $this->reconcileStagingDuplicateGroupByIdentity(
+                attendanceImport: $attendanceImport,
+                employeeId: $currentEmployeeId,
+                attendanceDate: $currentAttendanceDate
+            );
+        }
+
+        $this->refreshImportStatistics($attendanceImport);
 
         return $row->fresh([
             'employee',
@@ -848,11 +935,23 @@ class AttendanceImportService
         );
 
         if ($employee) {
-            $context['employees']->put((string) $employee->id, $employee);
+            $employee->loadMissing('defaultWorkingHourTemplate');
+
+            $context['employees']->put(
+                (string) $employee->id,
+                $employee
+            );
         }
 
         $template = null;
+        $scheduleSource = 'unknown';
+        $scheduleIsInferred = false;
 
+        /*
+        |--------------------------------------------------------------------------
+        | Prefer the template supplied by Excel.
+        |--------------------------------------------------------------------------
+        */
         if (filled($row['working_hours_template_raw'] ?? null)) {
             $template = $context['templates']->get(
                 Str::lower($row['working_hours_template_raw'])
@@ -869,15 +968,64 @@ class AttendanceImportService
                     $template
                 );
             }
+
+            $scheduleSource = 'excel';
         }
 
-        if ($employee && $template) {
+        /*
+        |--------------------------------------------------------------------------
+        | Fall back to the employee default template.
+        |--------------------------------------------------------------------------
+        |
+        | Some Evertime rows do not contain a template name. When the employee
+        | master already has a default template, use it as a schedule snapshot
+        | instead of treating the schedule as unknown.
+        |
+        */
+        if (! $template && $employee?->defaultWorkingHourTemplate) {
+            $template = $employee->defaultWorkingHourTemplate;
+            $scheduleSource = 'employee_default';
+            $scheduleIsInferred = true;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Track only templates explicitly observed from Excel.
+        |--------------------------------------------------------------------------
+        |
+        | A fallback employee template should not be counted as fresh evidence
+        | when selecting the employee's most frequently used template.
+        |
+        */
+        if (
+            $employee
+            && $template
+            && $scheduleSource === 'excel'
+        ) {
             $context['template_usage'][$employee->id][$template->id] =
                 ($context['template_usage'][$employee->id][$template->id] ?? 0) + 1;
         }
 
         $schedule = $this->resolveScheduleSnapshot(
             template: $template,
+            settings: $settings
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Automatically infer a missing clock-out when it is safe to do so.
+        |--------------------------------------------------------------------------
+        |
+        | The inferred time is never hidden. A system marker is stored inside
+        | raw_payload._system and the row receives a visible remark.
+        |
+        */
+        $row = $this->applyAutomaticClockOut(
+            row: $row,
+            employee: $employee,
+            template: $template,
+            schedule: $schedule,
+            companyHolidays: $context['company_holidays'] ?? collect(),
             settings: $settings
         );
 
@@ -901,24 +1049,12 @@ class AttendanceImportService
             punctuality: $punctuality
         );
 
-        $duplicate = $this->findExistingStagingDuplicate(
-            attendanceImport: $attendanceImport,
-            employee: $employee,
-            attendanceDate: $row['attendance_date']
-        );
-
-        if ($duplicate) {
-            $review = [
-                'review_status' => AttendanceImportRow::REVIEW_DUPLICATE,
-                'validation_message' => 'Duplicate employee dan attendance date ditemukan dalam file yang sama.',
-            ];
-        }
-
-        return AttendanceImportRow::create([
+        $stagedRow = AttendanceImportRow::create([
             'attendance_import_id' => $attendanceImport->id,
             'employee_id' => $employee?->id,
             'working_hour_template_id' => $template?->id,
-            'working_hours_template_raw' => $row['working_hours_template_raw'],
+            'working_hours_template_raw' => $row['working_hours_template_raw']
+                ?: $template?->name,
 
             'row_number' => $row['row_number'],
             'source_row_key' => $row['source_row_key'],
@@ -926,8 +1062,10 @@ class AttendanceImportService
 
             'employee_number_raw' => $row['employee_number_raw'],
             'employee_name_raw' => $row['employee_name_raw'],
-            'employee_number' => $employee?->employee_number ?? $row['employee_number'],
-            'employee_name' => $employee?->name ?? $row['employee_name'],
+            'employee_number' => $employee?->employee_number
+                ?? $row['employee_number'],
+            'employee_name' => $employee?->name
+                ?? $row['employee_name'],
 
             'clock_in' => $row['clock_in'],
             'clock_out' => $row['clock_out'],
@@ -938,8 +1076,8 @@ class AttendanceImportService
                 $row['clock_in'],
                 $row['clock_out']
             ),
-            'schedule_source' => $template ? 'excel' : 'unknown',
-            'schedule_is_inferred' => false,
+            'schedule_source' => $scheduleSource,
+            'schedule_is_inferred' => $scheduleIsInferred,
 
             'attendance_type' => $row['attendance_type'],
             'punctuality_status' => $punctuality['punctuality_status'],
@@ -960,6 +1098,263 @@ class AttendanceImportService
             'remarks' => $row['remarks'],
             'raw_payload' => $row['raw_payload'],
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Duplicate reconciliation runs after the row exists.
+        |--------------------------------------------------------------------------
+        |
+        | This allows the service to write bidirectional metadata to every row
+        | in the same employee/date group and to auto-ignore exact duplicates.
+        |
+        */
+        $this->reconcileStagingDuplicateGroup($stagedRow);
+
+        return $stagedRow->fresh([
+            'employee',
+            'workingHourTemplate',
+        ]);
+    }
+
+    /**
+     * Fill a missing clock-out using the scheduled end time when the inference
+     * is safe and transparent.
+     */
+    protected function applyAutomaticClockOut(
+        array $row,
+        ?Employee $employee,
+        ?WorkingHourTemplate $template,
+        array $schedule,
+        Collection $companyHolidays,
+        array $settings
+    ): array {
+        $autoClockOutEnabled = (bool) (
+            $settings['auto_clock_out_missing']
+            ?? true
+        );
+
+        if (! $autoClockOutEnabled) {
+            return $row;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Only normal present rows may receive auto clock-out.
+        |--------------------------------------------------------------------------
+        |
+        | Half-day leave and other leave rows need their own expected boundary
+        | and must remain reviewable instead of using the full scheduled end.
+        |
+        */
+        if (
+            ($row['attendance_type'] ?? null) !== 'present'
+            || ! filled($row['clock_in'] ?? null)
+            || filled($row['clock_out'] ?? null)
+            || filled($row['leave_type'] ?? null)
+            || (bool) ($row['leave_was_detected'] ?? false)
+            || ! filled($row['attendance_date'] ?? null)
+            || ! filled($schedule['scheduled_end_time'] ?? null)
+        ) {
+            return $row;
+        }
+
+        $dateString = Carbon::parse(
+            $row['attendance_date']
+        )->toDateString();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Never auto clock-out on a company holiday.
+        |--------------------------------------------------------------------------
+        */
+        if ($companyHolidays->has($dateString)) {
+            return $row;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | The date must be an expected workday for the employee/template.
+        |--------------------------------------------------------------------------
+        */
+        if (! $this->isExpectedWorkdayForAutomaticClockOut(
+            attendanceDate: $dateString,
+            employee: $employee,
+            template: $template,
+            settings: $settings
+        )) {
+            return $row;
+        }
+
+        if (! $this->isClockInCompatibleWithScheduledEnd(
+            clockIn: $row['clock_in'],
+            scheduledStart: $schedule['scheduled_start_time'] ?? null,
+            scheduledEnd: $schedule['scheduled_end_time']
+        )) {
+            return $row;
+        }
+
+        $scheduledEnd = $this->normalizeTime(
+            $schedule['scheduled_end_time']
+        );
+
+        if (! $scheduledEnd) {
+            return $row;
+        }
+
+        $row['clock_out'] = $scheduledEnd;
+
+        $templateLabel = $template?->name
+            ?: 'default schedule';
+
+        $autoRemark = "Auto clock-out {$scheduledEnd} berdasarkan {$templateLabel}.";
+
+        $row['remarks'] = $this->appendRemark(
+            existing: $row['remarks'] ?? null,
+            additional: $autoRemark
+        );
+
+        $rawPayload = is_array($row['raw_payload'] ?? null)
+            ? $row['raw_payload']
+            : [];
+
+        $systemPayload = is_array($rawPayload['_system'] ?? null)
+            ? $rawPayload['_system']
+            : [];
+
+        $rawPayload['_system'] = array_merge(
+            $systemPayload,
+            [
+                'auto_clock_out' => true,
+                'original_clock_out' => null,
+                'inferred_clock_out' => $scheduledEnd,
+                'inferred_from' => $template
+                    ? 'working_hour_template'
+                    : 'default_setting',
+                'working_hour_template_id' => $template?->id,
+                'working_hour_template_name' => $template?->name,
+                'generated_at' => now()->toIso8601String(),
+            ]
+        );
+
+        $row['raw_payload'] = $rawPayload;
+
+        return $row;
+    }
+
+    /**
+     * Confirm that the date belongs to the employee's expected work pattern.
+     */
+    protected function isExpectedWorkdayForAutomaticClockOut(
+        string $attendanceDate,
+        ?Employee $employee,
+        ?WorkingHourTemplate $template,
+        array $settings
+    ): bool {
+        try {
+            $isoDayNumber = Carbon::parse(
+                $attendanceDate
+            )->dayOfWeekIso;
+        } catch (Throwable) {
+            return false;
+        }
+
+        $workingDays = [];
+
+        if (
+            $employee
+            && is_array($employee->working_days_override)
+            && ! empty($employee->working_days_override)
+        ) {
+            $workingDays = $employee->working_days_override;
+        } elseif (
+            $template
+            && is_array($template->working_days)
+            && ! empty($template->working_days)
+        ) {
+            $workingDays = $template->working_days;
+        } else {
+            $workingDays = $settings['default_working_days']
+                ?? self::DEFAULT_WORKING_DAYS;
+        }
+
+        return in_array(
+            $isoDayNumber,
+            $this->normalizeWorkingDays($workingDays),
+            true
+        );
+    }
+
+    /**
+     * Prevent obviously impossible inferences, such as a day-shift employee
+     * clocking in after the scheduled end.
+     */
+    protected function isClockInCompatibleWithScheduledEnd(
+        string $clockIn,
+        ?string $scheduledStart,
+        string $scheduledEnd
+    ): bool {
+        $clockIn = $this->normalizeTime($clockIn);
+        $scheduledStart = $this->normalizeTime($scheduledStart);
+        $scheduledEnd = $this->normalizeTime($scheduledEnd);
+
+        if (! $clockIn || ! $scheduledEnd) {
+            return false;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Without a start time, a same-day clock-in must not be after end time.
+        |--------------------------------------------------------------------------
+        */
+        if (! $scheduledStart) {
+            return $clockIn <= $scheduledEnd;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normal same-day schedule.
+        |--------------------------------------------------------------------------
+        */
+        if ($scheduledStart < $scheduledEnd) {
+            return $clockIn <= $scheduledEnd;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Overnight schedule, for example 22:00–07:00.
+        |--------------------------------------------------------------------------
+        |
+        | A valid clock-in is either on/after the evening start or on/before the
+        | next-day end.
+        |
+        */
+        return $clockIn >= $scheduledStart
+            || $clockIn <= $scheduledEnd;
+    }
+
+    protected function appendRemark(
+        ?string $existing,
+        string $additional
+    ): string {
+        $existing = trim((string) $existing);
+        $additional = trim($additional);
+
+        if ($existing === '') {
+            return $additional;
+        }
+
+        if (
+            Str::contains(
+                Str::lower($existing),
+                Str::lower($additional)
+            )
+        ) {
+            return $existing;
+        }
+
+        return rtrim($existing, " \t\n\r\0\x0B.")
+            . '. '
+            . $additional;
     }
 
     protected function resolveEmployeeForRow(
@@ -1023,10 +1418,17 @@ class AttendanceImportService
     /**
      * Create one needs-review row for each expected workday missing from Excel.
      */
+    /**
+     * Generate calendar rows that are absent from the Excel export.
+     *
+     * Company holidays remain visible as valid system-generated rows, while
+     * missing expected workdays remain Needs Review.
+     */
     protected function generateMissingAttendanceRows(
         AttendanceImport $attendanceImport,
         Collection $employees,
-        array $settings
+        array $settings,
+        ?Collection $companyHolidays = null
     ): void {
         $dateFrom = $attendanceImport->date_from
             ? Carbon::parse($attendanceImport->date_from)->startOfDay()
@@ -1044,7 +1446,20 @@ class AttendanceImportService
             $dateTo = now()->startOfDay();
         }
 
-        $holidayDates = $this->getCompanyHolidayDates($dateFrom, $dateTo);
+        $companyHolidays ??= $this->getCompanyHolidaysByDate(
+            dateFrom: $dateFrom,
+            dateTo: $dateTo
+        );
+
+        $generateHolidayRows = (bool) (
+            $settings['generate_holiday_rows']
+            ?? true
+        );
+
+        $generateMissingRows = (bool) (
+            $settings['generate_missing_rows']
+            ?? true
+        );
 
         foreach ($employees as $employee) {
             $employee->loadMissing('defaultWorkingHourTemplate');
@@ -1075,15 +1490,49 @@ class AttendanceImportService
             foreach (CarbonPeriod::create($employeeStartDate, $dateTo) as $date) {
                 $dateString = $date->toDateString();
 
+                /*
+                |--------------------------------------------------------------------------
+                | Excel data takes precedence.
+                |--------------------------------------------------------------------------
+                |
+                | If an actual row exists on a holiday or off day, do not create a
+                | second generated row for the same employee/date.
+                |
+                */
+                if ($actualDates->has($dateString)) {
+                    continue;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Keep company holidays visible in the attendance timeline.
+                |--------------------------------------------------------------------------
+                */
+                $holiday = $companyHolidays->get($dateString);
+
+                if ($generateHolidayRows && is_array($holiday)) {
+                    $this->createGeneratedHolidayRow(
+                        attendanceImport: $attendanceImport,
+                        employee: $employee,
+                        template: $template,
+                        schedule: $schedule,
+                        attendanceDate: $dateString,
+                        holiday: $holiday
+                    );
+
+                    continue;
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Non-working days are ignored unless they are company holidays.
+                |--------------------------------------------------------------------------
+                */
                 if (! in_array($date->dayOfWeekIso, $workingDays, true)) {
                     continue;
                 }
 
-                if ($holidayDates->has($dateString)) {
-                    continue;
-                }
-
-                if ($actualDates->has($dateString)) {
+                if (! $generateMissingRows) {
                     continue;
                 }
 
@@ -1092,6 +1541,13 @@ class AttendanceImportService
                     'employee_id' => $employee->id,
                     'working_hour_template_id' => $template?->id,
                     'working_hours_template_raw' => $template?->name,
+
+                    'source_row_key' => hash('sha256', implode('|', [
+                        'generated_missing',
+                        $attendanceImport->id,
+                        $employee->id,
+                        $dateString,
+                    ])),
 
                     'attendance_date' => $dateString,
                     'employee_number' => $employee->employee_number,
@@ -1102,7 +1558,9 @@ class AttendanceImportService
                     'scheduled_start_time' => $schedule['scheduled_start_time'],
                     'scheduled_end_time' => $schedule['scheduled_end_time'],
                     'scheduled_work_minutes' => $schedule['scheduled_work_minutes'],
-                    'schedule_source' => $template ? 'employee_default' : 'default_setting',
+                    'schedule_source' => $template
+                        ? 'employee_default'
+                        : 'default_setting',
                     'schedule_is_inferred' => true,
 
                     'attendance_type' => 'missing',
@@ -1113,9 +1571,108 @@ class AttendanceImportService
                     'source' => AttendanceImportRow::SOURCE_GENERATED_GAP,
                     'review_status' => AttendanceImportRow::REVIEW_NEEDS_REVIEW,
                     'validation_message' => 'Tidak ditemukan data attendance pada hari kerja. HR perlu memilih sakit, cuti, izin, absent, off day, holiday, atau data issue.',
+                    'raw_payload' => [
+                        '_system' => [
+                            'generated' => true,
+                            'generated_type' => 'missing_workday',
+                            'generated_at' => now()->toIso8601String(),
+                        ],
+                    ],
                 ]);
             }
         }
+    }
+
+    /**
+     * Create a valid system-generated holiday row for one employee/date.
+     */
+    protected function createGeneratedHolidayRow(
+        AttendanceImport $attendanceImport,
+        Employee $employee,
+        ?WorkingHourTemplate $template,
+        array $schedule,
+        string $attendanceDate,
+        array $holiday
+    ): AttendanceImportRow {
+        $holidayName = trim((string) (
+            $holiday['name']
+            ?? 'Company Holiday'
+        ));
+
+        $holidayType = trim((string) (
+            $holiday['holiday_type']
+            ?? ''
+        ));
+
+        $remarks = $holidayName;
+
+        if ($holidayType !== '') {
+            $remarks .= ' · '
+                . Str::headline($holidayType);
+        }
+
+        if (filled($holiday['notes'] ?? null)) {
+            $remarks .= '. '
+                . trim((string) $holiday['notes']);
+        }
+
+        return AttendanceImportRow::create([
+            'attendance_import_id' => $attendanceImport->id,
+            'employee_id' => $employee->id,
+            'working_hour_template_id' => $template?->id,
+            'working_hours_template_raw' => $template?->name,
+
+            'source_row_key' => hash('sha256', implode('|', [
+                'generated_holiday',
+                $attendanceImport->id,
+                $employee->id,
+                $attendanceDate,
+                implode(',', $holiday['ids'] ?? []),
+            ])),
+
+            'attendance_date' => $attendanceDate,
+            'employee_number' => $employee->employee_number,
+            'employee_name' => $employee->name,
+            'employee_name_raw' => $employee->name,
+            'employee_number_raw' => $employee->employee_number,
+
+            'scheduled_start_time' => $schedule['scheduled_start_time'],
+            'scheduled_end_time' => $schedule['scheduled_end_time'],
+            'scheduled_work_minutes' => $schedule['scheduled_work_minutes'],
+            'worked_minutes' => null,
+            'schedule_source' => $template
+                ? 'employee_default'
+                : 'default_setting',
+            'schedule_is_inferred' => true,
+
+            'attendance_type' => 'holiday',
+            'punctuality_status' => 'not_applicable',
+            'arrival_status' => 'not_applicable',
+            'departure_status' => 'not_applicable',
+            'late_minutes' => null,
+            'early_leave_minutes' => null,
+
+            'is_excused' => true,
+            'remarks' => $remarks,
+
+            'source' => AttendanceImportRow::SOURCE_GENERATED_GAP,
+            'review_status' => AttendanceImportRow::REVIEW_VALID,
+            'validation_message' => null,
+
+            'raw_payload' => [
+                '_system' => [
+                    'generated' => true,
+                    'generated_type' => 'company_holiday',
+                    'holiday_ids' => $holiday['ids'] ?? [],
+                    'holiday_name' => $holidayName,
+                    'holiday_type' => $holidayType !== ''
+                        ? $holidayType
+                        : null,
+                    'holiday_notes' => $holiday['notes'] ?? null,
+                    'generated_at' => now()->toIso8601String(),
+                ],
+            ],
+        ]);
     }
 
     protected function resolveEmployeeExpectedStartDate(
@@ -1162,7 +1719,13 @@ class AttendanceImportService
         return $settings['default_working_days'];
     }
 
-    protected function getCompanyHolidayDates(
+    /**
+     * Return active company holidays keyed by date.
+     *
+     * Multiple holidays on the same date are merged so one generated attendance
+     * row can still preserve all names, types, notes, and source IDs.
+     */
+    protected function getCompanyHolidaysByDate(
         Carbon $dateFrom,
         Carbon $dateTo
     ): Collection {
@@ -1174,9 +1737,62 @@ class AttendanceImportService
             ->active()
             ->whereDate('holiday_date', '>=', $dateFrom->toDateString())
             ->whereDate('holiday_date', '<=', $dateTo->toDateString())
-            ->pluck('holiday_date')
-            ->map(fn ($date) => Carbon::parse($date)->toDateString())
-            ->flip();
+            ->orderBy('holiday_date')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'holiday_date',
+                'name',
+                'holiday_type',
+                'notes',
+            ])
+            ->groupBy(
+                fn (CompanyHoliday $holiday) => $holiday
+                    ->holiday_date
+                    ->toDateString()
+            )
+            ->map(function (Collection $holidays): array {
+                $names = $holidays
+                    ->pluck('name')
+                    ->filter()
+                    ->map(fn ($name) => trim((string) $name))
+                    ->unique()
+                    ->values();
+
+                $types = $holidays
+                    ->pluck('holiday_type')
+                    ->filter()
+                    ->map(fn ($type) => trim((string) $type))
+                    ->unique()
+                    ->values();
+
+                $notes = $holidays
+                    ->pluck('notes')
+                    ->filter()
+                    ->map(fn ($note) => trim((string) $note))
+                    ->unique()
+                    ->values();
+
+                return [
+                    'ids' => $holidays
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->values()
+                        ->all(),
+
+                    'name' => $names->isNotEmpty()
+                        ? $names->implode(' / ')
+                        : 'Company Holiday',
+
+                    'holiday_type' => $types->isNotEmpty()
+                        ? $types->implode(', ')
+                        : null,
+
+                    'notes' => $notes->isNotEmpty()
+                        ? $notes->implode(' ')
+                        : null,
+                ];
+            });
     }
 
     protected function resolveScheduleSnapshot(
@@ -1299,7 +1915,10 @@ class AttendanceImportService
 
         if (
             $template
-            && (bool) data_get($template->metadata, 'requires_configuration')
+            && (
+                ! $this->normalizeTime($template->start_time)
+                || ! $this->normalizeTime($template->end_time)
+            )
         ) {
             $messages[] = "Working Hours Template {$template->name} belum memiliki konfigurasi jam lengkap.";
         }
@@ -1324,19 +1943,817 @@ class AttendanceImportService
         ];
     }
 
-    protected function findExistingStagingDuplicate(
+    /**
+     * Reconcile all staging rows that share one employee and attendance date.
+     *
+     * Rules:
+     * - Same core attendance values: keep the highest-quality row and
+     *   auto-ignore the additional rows.
+     * - Different core attendance values: keep one representative per distinct
+     *   value set and mark those representatives as conflicting duplicates.
+     * - Rows manually ignored by HR remain ignored and no longer block the
+     *   duplicate group.
+     */
+    protected function reconcileStagingDuplicateGroup(
+        AttendanceImportRow $row
+    ): void {
+        $this->reconcileStagingDuplicateGroupByIdentity(
+            attendanceImport: $row->attendanceImport,
+            employeeId: $row->employee_id,
+            attendanceDate: $this->normalizeDuplicateDate(
+                $row->attendance_date
+            )
+        );
+    }
+
+    protected function reconcileStagingDuplicateGroupByIdentity(
         AttendanceImport $attendanceImport,
-        ?Employee $employee,
+        ?int $employeeId,
         ?string $attendanceDate
-    ): ?AttendanceImportRow {
-        if (! $employee || ! $attendanceDate) {
+    ): void {
+        if (! $employeeId || ! $attendanceDate) {
+            return;
+        }
+
+        $rows = $attendanceImport->rows()
+            ->where('employee_id', $employeeId)
+            ->whereDate('attendance_date', $attendanceDate)
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Do not label an ordinary single row as a duplicate.
+        |--------------------------------------------------------------------------
+        |
+        | A single row can still carry REVIEW_DUPLICATE after another row was
+        | moved to a different employee/date. In that case restore its original
+        | review state and preserve a resolved-conflict audit marker.
+        |
+        */
+        if ($rows->count() === 1) {
+            /** @var AttendanceImportRow $onlyRow */
+            $onlyRow = $rows->first();
+
+            if (
+                $onlyRow->review_status
+                    === AttendanceImportRow::REVIEW_DUPLICATE
+            ) {
+                $groupKey = $this->duplicateGroupKey(
+                    attendanceImportId: $attendanceImport->id,
+                    employeeId: $employeeId,
+                    attendanceDate: $attendanceDate
+                );
+
+                $this->markDuplicateCanonical(
+                    canonical: $onlyRow,
+                    groupKey: $groupKey,
+                    allRows: $rows,
+                    resolutionType: 'resolved_conflict'
+                );
+            }
+
+            return;
+        }
+
+        $groupKey = $this->duplicateGroupKey(
+            attendanceImportId: $attendanceImport->id,
+            employeeId: $employeeId,
+            attendanceDate: $attendanceDate
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | A row explicitly ignored by HR is removed from active comparison.
+        |--------------------------------------------------------------------------
+        |
+        | Auto-ignored exact duplicates are also excluded. They remain available
+        | for audit through metadata but do not create a new blocking conflict.
+        |
+        */
+        $activeRows = $rows
+            ->reject(
+                fn (AttendanceImportRow $candidate): bool =>
+                    $candidate->review_status
+                        === AttendanceImportRow::REVIEW_IGNORED
+            )
+            ->values();
+
+        if ($activeRows->isEmpty()) {
+            return;
+        }
+
+        $fingerprintGroups = $activeRows
+            ->groupBy(
+                fn (AttendanceImportRow $candidate): string =>
+                    $this->duplicateFingerprint($candidate)
+            );
+
+        $representatives = collect();
+
+        foreach ($fingerprintGroups as $fingerprintRows) {
+            /** @var AttendanceImportRow $preferred */
+            $preferred = $fingerprintRows
+                ->sort(function (
+                    AttendanceImportRow $left,
+                    AttendanceImportRow $right
+                ): int {
+                    $scoreComparison =
+                        $this->duplicateQualityScore($right)
+                        <=> $this->duplicateQualityScore($left);
+
+                    if ($scoreComparison !== 0) {
+                        return $scoreComparison;
+                    }
+
+                    return $left->id <=> $right->id;
+                })
+                ->first();
+
+            $representatives->push($preferred);
+
+            $fingerprintRows
+                ->reject(
+                    fn (AttendanceImportRow $candidate): bool =>
+                        $candidate->is($preferred)
+                )
+                ->each(function (
+                    AttendanceImportRow $duplicate
+                ) use (
+                    $preferred,
+                    $groupKey,
+                    $rows
+                ): void {
+                    $this->markExactDuplicateIgnored(
+                        duplicate: $duplicate,
+                        canonical: $preferred,
+                        groupKey: $groupKey,
+                        allRows: $rows
+                    );
+                });
+        }
+
+        $representatives = $representatives
+            ->values();
+
+        if ($representatives->count() === 1) {
+            /** @var AttendanceImportRow $canonical */
+            $canonical = $representatives->first();
+
+            $allFingerprintCount = $rows
+                ->groupBy(
+                    fn (AttendanceImportRow $candidate): string =>
+                        $this->duplicateFingerprint($candidate)
+                )
+                ->count();
+
+            $this->markDuplicateCanonical(
+                canonical: $canonical,
+                groupKey: $groupKey,
+                allRows: $rows,
+                resolutionType: $allFingerprintCount > 1
+                    ? 'resolved_conflict'
+                    : 'exact'
+            );
+
+            return;
+        }
+
+        $conflictingFields =
+            $this->duplicateDifferenceFields(
+                $representatives
+            );
+
+        $comparisonMatrix =
+            $this->duplicateComparisonMatrix(
+                $representatives
+            );
+
+        $representativeIds = $representatives
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
+        foreach ($representatives as $representative) {
+            $this->markConflictingDuplicate(
+                row: $representative,
+                groupKey: $groupKey,
+                allRows: $rows,
+                representativeIds: $representativeIds,
+                conflictingFields: $conflictingFields,
+                comparisonMatrix: $comparisonMatrix
+            );
+        }
+    }
+
+    /**
+     * Core normalized values used for exact/conflicting comparison.
+     */
+    protected function duplicateComparisonPayload(
+        AttendanceImportRow $row
+    ): array {
+        $payload = [
+            'working_hour_template_id' =>
+                $row->working_hour_template_id
+                    ? (int) $row->working_hour_template_id
+                    : null,
+
+            'scheduled_start_time' => $this->normalizeTime(
+                $row->scheduled_start_time
+            ),
+
+            'scheduled_end_time' => $this->normalizeTime(
+                $row->scheduled_end_time
+            ),
+
+            'attendance_type' => $this->normalizeDuplicateScalar(
+                $row->attendance_type
+            ),
+
+            'clock_in' => $this->normalizeTime(
+                $row->clock_in
+            ),
+
+            'clock_out' => $this->normalizeTime(
+                $row->clock_out
+            ),
+
+            'leave_type' => $this->normalizeDuplicateScalar(
+                $row->leave_type
+            ),
+
+            'leave_duration' => $this->normalizeDuplicateScalar(
+                $row->leave_duration
+            ),
+
+            'leave_session' => $this->normalizeDuplicateScalar(
+                $row->leave_session
+            ),
+
+            'leave_start_time' => $this->normalizeTime(
+                $row->leave_start_time
+            ),
+
+            'leave_end_time' => $this->normalizeTime(
+                $row->leave_end_time
+            ),
+
+            'leave_minutes' => $row->leave_minutes !== null
+                ? (int) $row->leave_minutes
+                : null,
+
+            'is_excused' => (bool) $row->is_excused,
+        ];
+
+        return Arr::only(
+            $payload,
+            self::DUPLICATE_COMPARISON_FIELDS
+        );
+    }
+
+    protected function duplicateFingerprint(
+        AttendanceImportRow $row
+    ): string {
+        return hash(
+            'sha256',
+            json_encode(
+                $this->duplicateComparisonPayload($row),
+                JSON_UNESCAPED_UNICODE
+                    | JSON_UNESCAPED_SLASHES
+                    | JSON_PRESERVE_ZERO_FRACTION
+            ) ?: ''
+        );
+    }
+
+    /**
+     * Prefer matched, complete, explicit attendance evidence when exact
+     * duplicates contain different levels of data quality.
+     */
+    protected function duplicateQualityScore(
+        AttendanceImportRow $row
+    ): int {
+        $score = 0;
+
+        $score += $row->employee_id ? 100 : 0;
+        $score += $row->clock_in ? 20 : 0;
+        $score += $row->clock_out ? 20 : 0;
+        $score += $row->working_hour_template_id ? 10 : 0;
+        $score += ! $row->schedule_is_inferred ? 6 : 0;
+
+        $score += (bool) data_get(
+            $row->raw_payload,
+            '_system.auto_clock_out',
+            false
+        )
+            ? 0
+            : 8;
+
+        $score += in_array(
+            $row->review_status,
+            [
+                AttendanceImportRow::REVIEW_VALID,
+                AttendanceImportRow::REVIEW_RESOLVED,
+            ],
+            true
+        )
+            ? 5
+            : 0;
+
+        $score += filled($row->remarks) ? 2 : 0;
+        $score += filled($row->leave_reason) ? 2 : 0;
+
+        return $score;
+    }
+
+    protected function duplicateDifferenceFields(
+        Collection $rows
+    ): array {
+        $payloads = $rows
+            ->map(
+                fn (AttendanceImportRow $row): array =>
+                    $this->duplicateComparisonPayload($row)
+            );
+
+        return collect(
+            self::DUPLICATE_COMPARISON_FIELDS
+        )
+            ->filter(function (
+                string $field
+            ) use ($payloads): bool {
+                return $payloads
+                    ->pluck($field)
+                    ->map(
+                        fn ($value): string =>
+                            json_encode(
+                                $value,
+                                JSON_UNESCAPED_UNICODE
+                                    | JSON_UNESCAPED_SLASHES
+                                    | JSON_PRESERVE_ZERO_FRACTION
+                            ) ?: 'null'
+                    )
+                    ->unique()
+                    ->count() > 1;
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function duplicateComparisonMatrix(
+        Collection $rows
+    ): array {
+        return $rows
+            ->mapWithKeys(
+                fn (AttendanceImportRow $row): array => [
+                    (string) $row->id =>
+                        $this->duplicateComparisonPayload(
+                            $row
+                        ),
+                ]
+            )
+            ->all();
+    }
+
+    protected function duplicateGroupKey(
+        int $attendanceImportId,
+        int $employeeId,
+        string $attendanceDate
+    ): string {
+        return hash(
+            'sha256',
+            implode('|', [
+                'attendance_duplicate',
+                $attendanceImportId,
+                $employeeId,
+                $attendanceDate,
+            ])
+        );
+    }
+
+    protected function normalizeDuplicateDate(
+        mixed $value
+    ): ?string {
+        if (! $value) {
             return null;
         }
 
-        return $attendanceImport->rows()
-            ->where('employee_id', $employee->id)
-            ->whereDate('attendance_date', $attendanceDate)
-            ->first();
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    protected function normalizeDuplicateScalar(
+        mixed $value
+    ): mixed {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+
+        $text = Str::of((string) $value)
+            ->lower()
+            ->squish()
+            ->toString();
+
+        return $text !== ''
+            ? $text
+            : null;
+    }
+
+    protected function markExactDuplicateIgnored(
+        AttendanceImportRow $duplicate,
+        AttendanceImportRow $canonical,
+        string $groupKey,
+        Collection $allRows
+    ): void {
+        $before = $this->duplicateReviewStateBeforeChange(
+            $duplicate
+        );
+
+        $relatedIds = $allRows
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $metadata = [
+            'detected' => true,
+            'type' => 'exact',
+            'role' => 'ignored_exact',
+            'group_key' => $groupKey,
+            'canonical_row_id' => (int) $canonical->id,
+            'related_row_ids' => $relatedIds,
+            'comparison_fields' =>
+                self::DUPLICATE_COMPARISON_FIELDS,
+            'comparison' => [
+                (string) $canonical->id =>
+                    $this->duplicateComparisonPayload(
+                        $canonical
+                    ),
+                (string) $duplicate->id =>
+                    $this->duplicateComparisonPayload(
+                        $duplicate
+                    ),
+            ],
+            'review_status_before_duplicate' =>
+                $before['review_status'],
+            'validation_message_before_duplicate' =>
+                $before['validation_message'],
+            'auto_resolved' => true,
+            'resolved_action' => 'auto_ignore_exact',
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $duplicate->forceFill([
+            'review_status' =>
+                AttendanceImportRow::REVIEW_IGNORED,
+            'validation_message' => null,
+            'resolved_by' => null,
+            'resolved_at' => now(),
+            'raw_payload' =>
+                $this->mergeDuplicateRawMetadata(
+                    $duplicate,
+                    $metadata
+                ),
+            'resolution_metadata' =>
+                $this->mergeDuplicateResolutionMetadata(
+                    $duplicate,
+                    [
+                        'type' => 'exact',
+                        'action' => 'auto_ignore_exact',
+                        'canonical_row_id' =>
+                            (int) $canonical->id,
+                        'group_key' => $groupKey,
+                        'resolved_at' =>
+                            now()->toIso8601String(),
+                    ]
+                ),
+        ])->save();
+    }
+
+    protected function markDuplicateCanonical(
+        AttendanceImportRow $canonical,
+        string $groupKey,
+        Collection $allRows,
+        string $resolutionType
+    ): void {
+        /*
+        |--------------------------------------------------------------------------
+        | Keep every exact duplicate pointed at the latest preferred row.
+        |--------------------------------------------------------------------------
+        |
+        | The preferred row can change when a later record contains stronger
+        | evidence, for example an actual clock-out instead of an inferred one.
+        |
+        */
+        $canonicalFingerprint =
+            $this->duplicateFingerprint($canonical);
+
+        $allRows
+            ->filter(
+                fn (AttendanceImportRow $candidate): bool =>
+                    ! $candidate->is($canonical)
+                    && $this->duplicateFingerprint(
+                        $candidate
+                    ) === $canonicalFingerprint
+            )
+            ->each(function (
+                AttendanceImportRow $duplicate
+            ) use (
+                $canonical,
+                $groupKey,
+                $allRows
+            ): void {
+                $this->markExactDuplicateIgnored(
+                    duplicate: $duplicate,
+                    canonical: $canonical,
+                    groupKey: $groupKey,
+                    allRows: $allRows
+                );
+            });
+
+        $relatedIds = $allRows
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $wasDuplicate =
+            $canonical->review_status
+                === AttendanceImportRow::REVIEW_DUPLICATE;
+
+        if ($wasDuplicate) {
+            $this->restoreReviewStateBeforeDuplicate(
+                $canonical
+            );
+
+            $canonical->refresh();
+        }
+
+        $metadata = [
+            'detected' => $allRows->count() > 1,
+            'type' => $resolutionType,
+            'role' => $resolutionType === 'resolved_conflict'
+                ? 'selected_record'
+                : 'canonical',
+            'group_key' => $groupKey,
+            'canonical_row_id' => (int) $canonical->id,
+            'related_row_ids' => $relatedIds,
+            'comparison_fields' =>
+                self::DUPLICATE_COMPARISON_FIELDS,
+            'comparison' =>
+                $this->duplicateComparisonMatrix(
+                    $allRows
+                ),
+            'auto_resolved' => $resolutionType === 'exact',
+            'resolved_action' =>
+                $resolutionType === 'resolved_conflict'
+                    ? 'conflict_resolved_by_ignored_rows'
+                    : 'keep_canonical',
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $canonical->forceFill([
+            'raw_payload' =>
+                $this->mergeDuplicateRawMetadata(
+                    $canonical,
+                    $metadata
+                ),
+            'resolution_metadata' =>
+                $this->mergeDuplicateResolutionMetadata(
+                    $canonical,
+                    [
+                        'type' => $resolutionType,
+                        'action' =>
+                            $metadata['resolved_action'],
+                        'canonical_row_id' =>
+                            (int) $canonical->id,
+                        'group_key' => $groupKey,
+                        'resolved_at' =>
+                            now()->toIso8601String(),
+                    ]
+                ),
+        ])->save();
+    }
+
+    protected function markConflictingDuplicate(
+        AttendanceImportRow $row,
+        string $groupKey,
+        Collection $allRows,
+        array $representativeIds,
+        array $conflictingFields,
+        array $comparisonMatrix
+    ): void {
+        $before = $this->duplicateReviewStateBeforeChange(
+            $row
+        );
+
+        $metadata = [
+            'detected' => true,
+            'type' => 'conflict',
+            'role' => 'conflicting_record',
+            'group_key' => $groupKey,
+            'canonical_row_id' => null,
+            'related_row_ids' => $allRows
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->values()
+                ->all(),
+            'representative_row_ids' =>
+                $representativeIds,
+            'conflicting_fields' =>
+                $conflictingFields,
+            'comparison_fields' =>
+                self::DUPLICATE_COMPARISON_FIELDS,
+            'comparison' => $comparisonMatrix,
+            'review_status_before_duplicate' =>
+                $before['review_status'],
+            'validation_message_before_duplicate' =>
+                $before['validation_message'],
+            'auto_resolved' => false,
+            'resolved_action' => null,
+            'updated_at' => now()->toIso8601String(),
+        ];
+
+        $row->forceFill([
+            'review_status' =>
+                AttendanceImportRow::REVIEW_DUPLICATE,
+            'validation_message' =>
+                self::DUPLICATE_CONFLICT_MESSAGE,
+            'resolved_by' => null,
+            'resolved_at' => null,
+            'raw_payload' =>
+                $this->mergeDuplicateRawMetadata(
+                    $row,
+                    $metadata
+                ),
+            'resolution_metadata' =>
+                $this->mergeDuplicateResolutionMetadata(
+                    $row,
+                    [
+                        'type' => 'conflict',
+                        'action' => 'pending_hr_review',
+                        'group_key' => $groupKey,
+                        'representative_row_ids' =>
+                            $representativeIds,
+                        'conflicting_fields' =>
+                            $conflictingFields,
+                        'detected_at' =>
+                            now()->toIso8601String(),
+                    ]
+                ),
+        ])->save();
+    }
+
+    protected function duplicateReviewStateBeforeChange(
+        AttendanceImportRow $row
+    ): array {
+        $existingDuplicateMetadata = data_get(
+            $row->raw_payload,
+            '_system.duplicate',
+            []
+        );
+
+        $reviewStatus = data_get(
+            $existingDuplicateMetadata,
+            'review_status_before_duplicate'
+        );
+
+        $validationMessage = data_get(
+            $existingDuplicateMetadata,
+            'validation_message_before_duplicate'
+        );
+
+        if (! $reviewStatus) {
+            $reviewStatus = in_array(
+                $row->review_status,
+                [
+                    AttendanceImportRow::REVIEW_DUPLICATE,
+                    AttendanceImportRow::REVIEW_IGNORED,
+                ],
+                true
+            )
+                ? AttendanceImportRow::REVIEW_VALID
+                : $row->review_status;
+        }
+
+        if (
+            ! array_key_exists(
+                'validation_message_before_duplicate',
+                is_array($existingDuplicateMetadata)
+                    ? $existingDuplicateMetadata
+                    : []
+            )
+        ) {
+            $validationMessage =
+                $row->validation_message;
+        }
+
+        return [
+            'review_status' => $reviewStatus,
+            'validation_message' => $validationMessage,
+        ];
+    }
+
+    protected function restoreReviewStateBeforeDuplicate(
+        AttendanceImportRow $row
+    ): void {
+        $before = $this->duplicateReviewStateBeforeChange(
+            $row
+        );
+
+        $restorableStatuses = [
+            AttendanceImportRow::REVIEW_VALID,
+            AttendanceImportRow::REVIEW_NEEDS_REVIEW,
+            AttendanceImportRow::REVIEW_RESOLVED,
+            AttendanceImportRow::REVIEW_ERROR,
+        ];
+
+        $restoredStatus = in_array(
+            $before['review_status'],
+            $restorableStatuses,
+            true
+        )
+            ? $before['review_status']
+            : AttendanceImportRow::REVIEW_VALID;
+
+        $row->forceFill([
+            'review_status' => $restoredStatus,
+            'validation_message' =>
+                $before['validation_message'],
+        ])->save();
+    }
+
+    protected function mergeDuplicateRawMetadata(
+        AttendanceImportRow $row,
+        array $duplicateMetadata
+    ): array {
+        $rawPayload = is_array($row->raw_payload)
+            ? $row->raw_payload
+            : [];
+
+        $systemPayload = is_array(
+            $rawPayload['_system'] ?? null
+        )
+            ? $rawPayload['_system']
+            : [];
+
+        $existingDuplicateMetadata = is_array(
+            $systemPayload['duplicate'] ?? null
+        )
+            ? $systemPayload['duplicate']
+            : [];
+
+        $systemPayload['duplicate'] = array_merge(
+            $existingDuplicateMetadata,
+            $duplicateMetadata
+        );
+
+        $rawPayload['_system'] = $systemPayload;
+
+        return $rawPayload;
+    }
+
+    protected function mergeDuplicateResolutionMetadata(
+        AttendanceImportRow $row,
+        array $duplicateResolution
+    ): array {
+        $resolutionMetadata =
+            is_array($row->resolution_metadata)
+                ? $row->resolution_metadata
+                : [];
+
+        $existing = is_array(
+            $resolutionMetadata[
+                'duplicate_resolution'
+            ] ?? null
+        )
+            ? $resolutionMetadata[
+                'duplicate_resolution'
+            ]
+            : [];
+
+        $resolutionMetadata[
+            'duplicate_resolution'
+        ] = array_merge(
+            $existing,
+            $duplicateResolution
+        );
+
+        return $resolutionMetadata;
     }
 
     protected function normalizeManualReviewPayload(
@@ -1505,6 +2922,21 @@ class AttendanceImportService
                 'raw_payload' => $row->raw_payload,
                 'resolution_metadata' => $row->resolution_metadata,
                 'validation_message' => $row->validation_message,
+
+                /*
+                | Keep the system-generated markers easy to consume after the
+                | staging row has been confirmed into employee_attendances.
+                */
+                'system' => data_get($row->raw_payload, '_system'),
+                'auto_clock_out' => (bool) data_get(
+                    $row->raw_payload,
+                    '_system.auto_clock_out',
+                    false
+                ),
+                'generated_type' => data_get(
+                    $row->raw_payload,
+                    '_system.generated_type'
+                ),
             ],
             'updated_by' => $userId,
         ];
@@ -1562,26 +2994,91 @@ class AttendanceImportService
     protected function buildImportSummary(
         AttendanceImport $attendanceImport
     ): array {
+        $systemRows = $attendanceImport->rows()
+            ->whereNotNull('raw_payload')
+            ->get([
+                'review_status',
+                'raw_payload',
+            ]);
+
         return [
             'employees' => $attendanceImport->rows()
                 ->whereNotNull('employee_id')
                 ->distinct('employee_id')
                 ->count('employee_id'),
+
             'working_templates' => $attendanceImport->rows()
                 ->whereNotNull('working_hour_template_id')
                 ->distinct('working_hour_template_id')
                 ->count('working_hour_template_id'),
+
             'present_rows' => $attendanceImport->rows()
                 ->where('attendance_type', 'present')
                 ->count(),
+
             'leave_rows' => $attendanceImport->rows()
                 ->whereNotNull('leave_type')
                 ->count(),
+
+            'holiday_rows' => $attendanceImport->rows()
+                ->where('attendance_type', 'holiday')
+                ->count(),
+
             'missing_rows' => $attendanceImport->rows()
                 ->where('attendance_type', 'missing')
                 ->count(),
+
+            'auto_clock_out_rows' => $systemRows
+                ->filter(
+                    fn (AttendanceImportRow $row) => (bool) data_get(
+                        $row->raw_payload,
+                        '_system.auto_clock_out',
+                        false
+                    )
+                )
+                ->count(),
+
+            'exact_duplicate_rows' => $systemRows
+                ->filter(
+                    fn (AttendanceImportRow $row) =>
+                        data_get(
+                            $row->raw_payload,
+                            '_system.duplicate.type'
+                        ) === 'exact'
+                        && data_get(
+                            $row->raw_payload,
+                            '_system.duplicate.role'
+                        ) === 'ignored_exact'
+                )
+                ->count(),
+
+            'conflicting_duplicate_rows' => $systemRows
+                ->filter(
+                    fn (AttendanceImportRow $row) =>
+                        $row->review_status
+                            === AttendanceImportRow::REVIEW_DUPLICATE
+                        && data_get(
+                            $row->raw_payload,
+                            '_system.duplicate.type'
+                        ) === 'conflict'
+                )
+                ->count(),
+
+            'resolved_duplicate_rows' => $systemRows
+                ->filter(
+                    fn (AttendanceImportRow $row) =>
+                        data_get(
+                            $row->raw_payload,
+                            '_system.duplicate.type'
+                        ) === 'resolved_conflict'
+                )
+                ->count(),
+
             'late_rows' => $attendanceImport->rows()
-                ->whereIn('arrival_status', ['late', 'excused_late'])
+                ->whereIn('arrival_status', [
+                    'late',
+                    'excused_late',
+                ])
                 ->count(),
         ];
     }
@@ -1623,6 +3120,14 @@ class AttendanceImportService
             'duplicate_action' => $duplicateAction,
             'generate_missing_rows' => filter_var(
                 $settings['generate_missing_rows'] ?? true,
+                FILTER_VALIDATE_BOOL
+            ),
+            'generate_holiday_rows' => filter_var(
+                $settings['generate_holiday_rows'] ?? true,
+                FILTER_VALIDATE_BOOL
+            ),
+            'auto_clock_out_missing' => filter_var(
+                $settings['auto_clock_out_missing'] ?? true,
                 FILTER_VALIDATE_BOOL
             ),
             'include_future_dates' => filter_var(

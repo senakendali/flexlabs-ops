@@ -12,8 +12,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -261,426 +262,140 @@ class AttendanceImportController extends Controller
     }
 
     /**
-     * Menampilkan staging attendance yang dikelompokkan per employee.
+     * Menampilkan shell halaman review attendance.
      *
-     * Seluruh employee group dan attendance row ditampilkan dalam satu halaman
-     * tanpa pagination. Cocok untuk proses review import attendance mingguan.
+     * Data tetap disiapkan untuk progressive enhancement dan fallback tanpa
+     * JavaScript. Blade berikutnya dapat memakai reviewDataUrl untuk memuat
+     * atau mengganti daftar attendance secara asynchronous.
      */
     public function review(
         Request $request,
         AttendanceImport $attendanceImport
     ): View {
-        $attendanceImport->load([
-            'uploader:id,name',
-            'confirmer:id,name',
-        ]);
+        $context = $this->buildReviewContext(
+            request: $request,
+            attendanceImport: $attendanceImport
+        );
 
-        $filters = [
-            'search' => trim(
-                $request->string('search')->toString()
-            ),
+        return view(
+            'hr.attendance-imports.review',
+            array_merge($context, [
+                'reviewDataUrl' => $this->reviewDataUrl(
+                    $attendanceImport
+                ),
+                'asyncReviewEnabled' => Route::has(
+                    'hr.attendance-imports.review-data'
+                ),
+            ])
+        );
+    }
 
-            'attendance_type' => trim(
-                $request->string('attendance_type')->toString()
-            ),
+    /**
+     * Memuat daftar attendance review secara asynchronous.
+     *
+     * Endpoint ini mengembalikan HTML hasil render Blade partial, bukan markup
+     * yang dibangun ulang di JavaScript. Dengan begitu gaya, badge, formatting,
+     * permission, dan payload edit tetap memiliki satu sumber.
+     */
+    public function reviewData(
+        Request $request,
+        AttendanceImport $attendanceImport
+    ): JsonResponse {
+        $context = $this->buildReviewContext(
+            request: $request,
+            attendanceImport: $attendanceImport
+        );
 
-            'review_status' => trim(
-                $request->string('review_status')->toString()
-            ),
-
-            'source' => trim(
-                $request->string('source')->toString()
-            ),
-
-            'employee_id' => $request->integer('employee_id') ?: null,
-
-            'date_from' => trim(
-                $request->string('date_from')->toString()
-            ),
-
-            'date_to' => trim(
-                $request->string('date_to')->toString()
-            ),
-        ];
-
-        /*
-        |--------------------------------------------------------------------------
-        | Base Attendance Rows Query
-        |--------------------------------------------------------------------------
-        */
-        $rowsQuery = $attendanceImport
-            ->rows()
-            ->with([
-                'employee:id,employee_number,name',
-                'workingHourTemplate:id,name,start_time,end_time',
-                'resolver:id,name',
-            ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Search
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['search'] !== '') {
-            $search = $filters['search'];
-
-            $rowsQuery->where(function ($query) use ($search): void {
-                $query
-                    ->where(
-                        'employee_name',
-                        'like',
-                        '%' . $search . '%'
+        $requestedGroupKeys = collect(
+            $request->input('group_keys', [])
+        )
+            ->when(
+                $request->filled('group_key'),
+                fn (Collection $keys) => $keys->push(
+                    trim(
+                        $request
+                            ->string('group_key')
+                            ->toString()
                     )
-                    ->orWhere(
-                        'employee_number',
-                        'like',
-                        '%' . $search . '%'
-                    )
-                    ->orWhere(
-                        'remarks',
-                        'like',
-                        '%' . $search . '%'
-                    )
-                    ->orWhere(
-                        'validation_message',
-                        'like',
-                        '%' . $search . '%'
-                    )
-                    ->orWhereHas(
-                        'employee',
-                        function ($employeeQuery) use ($search): void {
-                            $employeeQuery
-                                ->where(
-                                    'name',
-                                    'like',
-                                    '%' . $search . '%'
-                                )
-                                ->orWhere(
-                                    'employee_number',
-                                    'like',
-                                    '%' . $search . '%'
-                                );
-                        }
-                    );
-            });
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Attendance Type
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['attendance_type'] !== '') {
-            $rowsQuery->where(
-                'attendance_type',
-                $filters['attendance_type']
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Review Status
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['review_status'] !== '') {
-            $rowsQuery->where(
-                'review_status',
-                $filters['review_status']
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Row Source
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['source'] !== '') {
-            $rowsQuery->where(
-                'source',
-                $filters['source']
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Employee
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['employee_id']) {
-            $rowsQuery->where(
-                'employee_id',
-                $filters['employee_id']
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Date Range
-        |--------------------------------------------------------------------------
-        */
-        if ($filters['date_from'] !== '') {
-            $rowsQuery->whereDate(
-                'attendance_date',
-                '>=',
-                $filters['date_from']
-            );
-        }
-
-        if ($filters['date_to'] !== '') {
-            $rowsQuery->whereDate(
-                'attendance_date',
-                '<=',
-                $filters['date_to']
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Load All Filtered Rows
-        |--------------------------------------------------------------------------
-        |
-        | Import attendance dilakukan mingguan sehingga seluruh staging rows masih
-        | aman ditampilkan dalam satu halaman tanpa pagination.
-        |
-        */
-        $filteredRows = $rowsQuery
-            ->orderByRaw(
-                'CASE WHEN employee_name IS NULL OR employee_name = ? THEN 1 ELSE 0 END',
-                ['']
-            )
-            ->orderBy('employee_name')
-            ->orderBy('attendance_date')
-            ->orderBy('id')
-            ->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Group Rows by Employee
-        |--------------------------------------------------------------------------
-        |
-        | employee_id digunakan sebagai identifier utama.
-        |
-        | Untuk employee yang belum berhasil matched, normalized employee name
-        | digunakan agar row milik orang yang sama tetap berada dalam satu group.
-        |
-        */
-        $employeeGroups = $filteredRows
-            ->groupBy(function (AttendanceImportRow $row): string {
-                if ($row->employee_id) {
-                    return 'employee-' . $row->employee_id;
-                }
-
-                $employeeName = $row->employee?->name
-                    ?? $row->employee_name
-                    ?? $row->employee_name_raw
-                    ?? 'unknown-employee';
-
-                $normalizedName = Str::of($employeeName)
-                    ->lower()
-                    ->squish()
-                    ->toString();
-
-                return 'unmatched-' . md5($normalizedName);
-            })
-            ->map(function ($group, string $groupKey): array {
-                /** @var AttendanceImportRow|null $firstRow */
-                $firstRow = $group->first();
-
-                $employee = $firstRow?->employee;
-
-                $employeeName = $employee?->name
-                    ?? $firstRow?->employee_name
-                    ?? $firstRow?->employee_name_raw
-                    ?? 'Unknown Employee';
-
-                $employeeNumber = $employee?->employee_number
-                    ?? $firstRow?->employee_number;
-
-                /*
-                |--------------------------------------------------------------------------
-                | Sort Rows Inside Employee Group
-                |--------------------------------------------------------------------------
-                */
-                $sortedRows = $group
-                    ->sort(function (
-                        AttendanceImportRow $left,
-                        AttendanceImportRow $right
-                    ): int {
-                        $leftDate = $left->attendance_date?->format('Y-m-d')
-                            ?? '9999-12-31';
-
-                        $rightDate = $right->attendance_date?->format('Y-m-d')
-                            ?? '9999-12-31';
-
-                        $dateComparison = $leftDate <=> $rightDate;
-
-                        if ($dateComparison !== 0) {
-                            return $dateComparison;
-                        }
-
-                        return $left->id <=> $right->id;
-                    })
-                    ->values();
-
-                $dates = $sortedRows
-                    ->pluck('attendance_date')
-                    ->filter()
-                    ->sortBy(
-                        fn ($date) => $date->format('Y-m-d')
-                    )
-                    ->values();
-
-                return [
-                    'key' => $groupKey,
-
-                    'employee' => $employee,
-
-                    'employee_id' => $employee?->id,
-
-                    'employee_name' => $employeeName,
-
-                    'employee_number' => $employeeNumber,
-
-                    'is_unmatched' => ! $employee,
-
-                    'record_count' => $sortedRows->count(),
-
-                    'valid_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_VALID
-                        )
-                        ->count(),
-
-                    'needs_review_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_NEEDS_REVIEW
-                        )
-                        ->count(),
-
-                    'resolved_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_RESOLVED
-                        )
-                        ->count(),
-
-                    'ignored_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_IGNORED
-                        )
-                        ->count(),
-
-                    'error_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_ERROR
-                        )
-                        ->count(),
-
-                    'duplicate_count' => $sortedRows
-                        ->where(
-                            'review_status',
-                            AttendanceImportRow::REVIEW_DUPLICATE
-                        )
-                        ->count(),
-
-                    'date_from' => $dates->first(),
-
-                    'date_to' => $dates->last(),
-
-                    'rows' => $sortedRows,
-                ];
-            })
-            ->sortBy(
-                fn (array $group) => Str::lower(
-                    $group['employee_name']
                 )
             )
+            ->filter(
+                fn ($key) => is_string($key)
+                    && trim($key) !== ''
+            )
+            ->map(
+                fn ($key) => trim((string) $key)
+            )
+            ->unique()
             ->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Employee Filter Options
-        |--------------------------------------------------------------------------
-        |
-        | Dropdown employee tetap mengambil seluruh employee dalam import,
-        | bukan hanya employee yang muncul setelah filter.
-        |
-        */
-        $employeeIds = $attendanceImport
-            ->rows()
-            ->whereNotNull('employee_id')
-            ->distinct()
-            ->pluck('employee_id');
+        $employeeGroups = $context['employeeGroups'];
 
-        $employees = Employee::query()
-            ->whereIn('id', $employeeIds)
-            ->orderBy('name')
-            ->get([
-                'id',
-                'employee_number',
-                'name',
-            ]);
+        if ($requestedGroupKeys->isNotEmpty()) {
+            $employeeGroups = $employeeGroups
+                ->whereIn('key', $requestedGroupKeys->all())
+                ->values();
+        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Working-Hours Templates
-        |--------------------------------------------------------------------------
-        */
-        $workingHourTemplates = WorkingHourTemplate::query()
-            ->active()
-            ->orderBy('name')
-            ->get();
+        $partialContext = array_merge(
+            $context,
+            [
+                'employeeGroups' => $employeeGroups,
+                'highlightRowId' => $request->integer(
+                    'highlight_row_id'
+                ) ?: null,
+            ]
+        );
 
-        return view('hr.attendance-imports.review', [
-            'attendanceImport' => $attendanceImport,
+        $html = view(
+            'hr.attendance-imports.partials.employee-groups',
+            $partialContext
+        )->render();
 
-            /*
-            | Collection seluruh employee group, tanpa pagination.
-            */
-            'employeeGroups' => $employeeGroups,
-
-            'filters' => $filters,
-
-            'employees' => $employees,
-
-            'workingHourTemplates' => $workingHourTemplates,
-
-            'attendanceTypeOptions' => $this->attendanceTypeOptions(),
-
-            'punctualityOptions' => $this->punctualityOptions(),
-
-            'arrivalStatusOptions' => $this->arrivalStatusOptions(),
-
-            'departureStatusOptions' => $this->departureStatusOptions(),
-
-            'leaveTypeOptions' => $this->leaveTypeOptions(),
-
-            'leaveDurationOptions' => $this->leaveDurationOptions(),
-
-            'leaveSessionOptions' => $this->leaveSessionOptions(),
-
-            'reviewStatusOptions' => $this->reviewStatusOptions(),
-
-            'sourceOptions' => $this->sourceOptions(),
-
-            'canEdit' => in_array(
-                $attendanceImport->status,
-                [
-                    AttendanceImport::STATUS_UPLOADED,
-                    AttendanceImport::STATUS_REVIEWING,
-                    AttendanceImport::STATUS_FAILED,
-                ],
-                true
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'summary' => $this->reviewSummary(
+                $context['attendanceImport']
             ),
+            'meta' => [
+                'employee_count' => $employeeGroups->count(),
+                'row_count' => (int) $employeeGroups
+                    ->sum('record_count'),
+                'all_employee_count' => $context[
+                    'employeeGroups'
+                ]->count(),
+                'all_row_count' => (int) $context[
+                    'employeeGroups'
+                ]->sum('record_count'),
+                'requested_group_keys' => $requestedGroupKeys,
+                'filtered' => collect(
+                    $context['filters']
+                )
+                    ->filter(
+                        fn ($value) => filled($value)
+                    )
+                    ->isNotEmpty(),
+            ],
+            'can_edit' => $context['canEdit'],
+            'can_confirm' => $this->canConfirmImport(
+                $context['attendanceImport'],
+                $context['canEdit']
+            ),
+            'status' => $context[
+                'attendanceImport'
+            ]->status,
+            'filters' => $context['filters'],
+            'refreshed_at' => now()->toIso8601String(),
         ]);
     }
 
     /**
      * Update satu staging row dari inline review.
+     *
+     * Request JSON/AJAX mendapat context yang cukup untuk mengganti employee
+     * group, summary counter, serta status Confirm Import tanpa reload halaman.
+     * Request biasa tetap mendapat redirect sebagai fallback.
      */
     public function updateRow(
         Request $request,
@@ -693,6 +408,14 @@ class AttendanceImportController extends Controller
             row: $attendanceImportRow
         );
 
+        $attendanceImportRow->loadMissing([
+            'employee:id,employee_number,name',
+        ]);
+
+        $previousGroupKey = $this->reviewGroupKey(
+            $attendanceImportRow
+        );
+
         $validated = $request->validate(
             $this->reviewRowRules()
         );
@@ -703,11 +426,56 @@ class AttendanceImportController extends Controller
             userId: auth()->id(),
         );
 
+        $row->refresh()->load([
+            'employee:id,employee_number,name',
+            'workingHourTemplate:id,name,start_time,end_time',
+            'resolver:id,name',
+        ]);
+
+        $attendanceImport->refresh()->load([
+            'uploader:id,name',
+            'confirmer:id,name',
+        ]);
+
+        $currentGroupKey = $this->reviewGroupKey(
+            $row
+        );
+
         if ($request->expectsJson()) {
+            $rowData = $row->toArray();
+
+            $rowData['group_key'] = $currentGroupKey;
+            $rowData['previous_group_key'] = $previousGroupKey;
+            $rowData['refresh_group_keys'] = collect([
+                $previousGroupKey,
+                $currentGroupKey,
+            ])
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $rowData['summary'] = $this->reviewSummary(
+                $attendanceImport
+            );
+
+            $rowData['can_edit'] = $this->canEditImport(
+                $attendanceImport
+            );
+
+            $rowData['can_confirm'] = $this->canConfirmImport(
+                $attendanceImport
+            );
+
+            $rowData['review_data_url'] =
+                $this->reviewDataUrl(
+                    $attendanceImport
+                );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Attendance row berhasil diperbarui.',
-                'data' => $row,
+                'data' => $rowData,
             ]);
         }
 
@@ -719,6 +487,9 @@ class AttendanceImportController extends Controller
 
     /**
      * Terapkan klasifikasi yang sama ke beberapa staging row.
+     *
+     * Response asynchronous meminta client me-refresh daftar attendance karena
+     * satu bulk action dapat menyentuh beberapa employee group sekaligus.
      */
     public function bulkUpdate(
         Request $request,
@@ -758,12 +529,18 @@ class AttendanceImportController extends Controller
             ]);
         }
 
-        $updated = $attendanceImportService->bulkUpdateReviewRows(
-            attendanceImport: $attendanceImport,
-            rowIds: $rowIds->all(),
-            data: $validated['resolution'],
-            userId: auth()->id(),
-        );
+        $updated = $attendanceImportService
+            ->bulkUpdateReviewRows(
+                attendanceImport: $attendanceImport,
+                rowIds: $rowIds->all(),
+                data: $validated['resolution'],
+                userId: auth()->id(),
+            );
+
+        $attendanceImport->refresh()->load([
+            'uploader:id,name',
+            'confirmer:id,name',
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -771,6 +548,21 @@ class AttendanceImportController extends Controller
                 'message' => "{$updated} attendance row berhasil diperbarui.",
                 'data' => [
                     'updated_rows' => $updated,
+                    'updated_row_ids' => $rowIds->all(),
+                    'refresh_all' => true,
+                    'summary' => $this->reviewSummary(
+                        $attendanceImport
+                    ),
+                    'can_edit' => $this->canEditImport(
+                        $attendanceImport
+                    ),
+                    'can_confirm' => $this->canConfirmImport(
+                        $attendanceImport
+                    ),
+                    'review_data_url' =>
+                        $this->reviewDataUrl(
+                            $attendanceImport
+                        ),
                 ],
             ]);
         }
@@ -883,6 +675,454 @@ class AttendanceImportController extends Controller
                 'success',
                 'Attendance import berhasil dihapus.'
             );
+    }
+
+    /**
+     * Menyiapkan seluruh context yang dipakai halaman review dan endpoint data.
+     */
+    protected function buildReviewContext(
+        Request $request,
+        AttendanceImport $attendanceImport
+    ): array {
+        $attendanceImport->load([
+            'uploader:id,name',
+            'confirmer:id,name',
+        ]);
+
+        $filters = $this->reviewFilters($request);
+
+        $filteredRows = $this
+            ->reviewRowsQuery(
+                attendanceImport: $attendanceImport,
+                filters: $filters
+            )
+            ->orderByRaw(
+                'CASE WHEN employee_name IS NULL OR employee_name = ? THEN 1 ELSE 0 END',
+                ['']
+            )
+            ->orderBy('employee_name')
+            ->orderBy('attendance_date')
+            ->orderBy('id')
+            ->get();
+
+        $employeeGroups = $this->groupReviewRows(
+            $filteredRows
+        );
+
+        $employeeIds = $attendanceImport
+            ->rows()
+            ->whereNotNull('employee_id')
+            ->distinct()
+            ->pluck('employee_id');
+
+        $employees = Employee::query()
+            ->whereIn('id', $employeeIds)
+            ->orderBy('name')
+            ->get([
+                'id',
+                'employee_number',
+                'name',
+            ]);
+
+        $workingHourTemplates = WorkingHourTemplate::query()
+            ->active()
+            ->orderBy('name')
+            ->get();
+
+        $canEdit = $this->canEditImport(
+            $attendanceImport
+        );
+
+        return [
+            'attendanceImport' => $attendanceImport,
+            'employeeGroups' => $employeeGroups,
+            'filters' => $filters,
+            'employees' => $employees,
+            'workingHourTemplates' => $workingHourTemplates,
+            'attendanceTypeOptions' =>
+                $this->attendanceTypeOptions(),
+            'punctualityOptions' =>
+                $this->punctualityOptions(),
+            'arrivalStatusOptions' =>
+                $this->arrivalStatusOptions(),
+            'departureStatusOptions' =>
+                $this->departureStatusOptions(),
+            'leaveTypeOptions' =>
+                $this->leaveTypeOptions(),
+            'leaveDurationOptions' =>
+                $this->leaveDurationOptions(),
+            'leaveSessionOptions' =>
+                $this->leaveSessionOptions(),
+            'reviewStatusOptions' =>
+                $this->reviewStatusOptions(),
+            'sourceOptions' =>
+                $this->sourceOptions(),
+            'canEdit' => $canEdit,
+            'canConfirm' => $this->canConfirmImport(
+                $attendanceImport,
+                $canEdit
+            ),
+        ];
+    }
+
+    /**
+     * Mengambil filter review dari request dengan format yang konsisten.
+     */
+    protected function reviewFilters(
+        Request $request
+    ): array {
+        return [
+            'search' => trim(
+                $request->string('search')->toString()
+            ),
+            'attendance_type' => trim(
+                $request
+                    ->string('attendance_type')
+                    ->toString()
+            ),
+            'review_status' => trim(
+                $request
+                    ->string('review_status')
+                    ->toString()
+            ),
+            'source' => trim(
+                $request->string('source')->toString()
+            ),
+            'employee_id' => $request->integer(
+                'employee_id'
+            ) ?: null,
+            'date_from' => trim(
+                $request->string('date_from')->toString()
+            ),
+            'date_to' => trim(
+                $request->string('date_to')->toString()
+            ),
+        ];
+    }
+
+    /**
+     * Menyusun query staging rows sesuai filter review.
+     */
+    protected function reviewRowsQuery(
+        AttendanceImport $attendanceImport,
+        array $filters
+    ) {
+        $query = $attendanceImport
+            ->rows()
+            ->with([
+                'employee:id,employee_number,name',
+                'workingHourTemplate:id,name,start_time,end_time',
+                'resolver:id,name',
+            ]);
+
+        if ($filters['search'] !== '') {
+            $search = $filters['search'];
+
+            $query->where(function ($rowQuery) use (
+                $search
+            ): void {
+                $rowQuery
+                    ->where(
+                        'employee_name',
+                        'like',
+                        '%' . $search . '%'
+                    )
+                    ->orWhere(
+                        'employee_number',
+                        'like',
+                        '%' . $search . '%'
+                    )
+                    ->orWhere(
+                        'remarks',
+                        'like',
+                        '%' . $search . '%'
+                    )
+                    ->orWhere(
+                        'validation_message',
+                        'like',
+                        '%' . $search . '%'
+                    )
+                    ->orWhereHas(
+                        'employee',
+                        function ($employeeQuery) use (
+                            $search
+                        ): void {
+                            $employeeQuery
+                                ->where(
+                                    'name',
+                                    'like',
+                                    '%' . $search . '%'
+                                )
+                                ->orWhere(
+                                    'employee_number',
+                                    'like',
+                                    '%' . $search . '%'
+                                );
+                        }
+                    );
+            });
+        }
+
+        if ($filters['attendance_type'] !== '') {
+            $query->where(
+                'attendance_type',
+                $filters['attendance_type']
+            );
+        }
+
+        if ($filters['review_status'] !== '') {
+            $query->where(
+                'review_status',
+                $filters['review_status']
+            );
+        }
+
+        if ($filters['source'] !== '') {
+            $query->where(
+                'source',
+                $filters['source']
+            );
+        }
+
+        if ($filters['employee_id']) {
+            $query->where(
+                'employee_id',
+                $filters['employee_id']
+            );
+        }
+
+        if ($filters['date_from'] !== '') {
+            $query->whereDate(
+                'attendance_date',
+                '>=',
+                $filters['date_from']
+            );
+        }
+
+        if ($filters['date_to'] !== '') {
+            $query->whereDate(
+                'attendance_date',
+                '<=',
+                $filters['date_to']
+            );
+        }
+
+        return $query;
+    }
+
+    /**
+     * Mengelompokkan staging rows berdasarkan employee yang sudah matched atau
+     * normalized raw name untuk employee yang belum matched.
+     */
+    protected function groupReviewRows(
+        Collection $filteredRows
+    ): Collection {
+        return $filteredRows
+            ->groupBy(
+                fn (AttendanceImportRow $row): string =>
+                    $this->reviewGroupKey($row)
+            )
+            ->map(function (
+                Collection $group,
+                string $groupKey
+            ): array {
+                /** @var AttendanceImportRow|null $firstRow */
+                $firstRow = $group->first();
+
+                $employee = $firstRow?->employee;
+
+                $employeeName = $employee?->name
+                    ?? $firstRow?->employee_name
+                    ?? $firstRow?->employee_name_raw
+                    ?? 'Unknown Employee';
+
+                $employeeNumber =
+                    $employee?->employee_number
+                    ?? $firstRow?->employee_number;
+
+                $sortedRows = $group
+                    ->sort(function (
+                        AttendanceImportRow $left,
+                        AttendanceImportRow $right
+                    ): int {
+                        $leftDate =
+                            $left->attendance_date?->format(
+                                'Y-m-d'
+                            )
+                            ?? '9999-12-31';
+
+                        $rightDate =
+                            $right->attendance_date?->format(
+                                'Y-m-d'
+                            )
+                            ?? '9999-12-31';
+
+                        $dateComparison =
+                            $leftDate <=> $rightDate;
+
+                        if ($dateComparison !== 0) {
+                            return $dateComparison;
+                        }
+
+                        return $left->id <=> $right->id;
+                    })
+                    ->values();
+
+                $dates = $sortedRows
+                    ->pluck('attendance_date')
+                    ->filter()
+                    ->sortBy(
+                        fn ($date) =>
+                            $date->format('Y-m-d')
+                    )
+                    ->values();
+
+                return [
+                    'key' => $groupKey,
+                    'employee' => $employee,
+                    'employee_id' => $employee?->id,
+                    'employee_name' => $employeeName,
+                    'employee_number' => $employeeNumber,
+                    'is_unmatched' => ! $employee,
+                    'record_count' => $sortedRows->count(),
+                    'valid_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_VALID
+                        )
+                        ->count(),
+                    'needs_review_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_NEEDS_REVIEW
+                        )
+                        ->count(),
+                    'resolved_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_RESOLVED
+                        )
+                        ->count(),
+                    'ignored_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_IGNORED
+                        )
+                        ->count(),
+                    'error_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_ERROR
+                        )
+                        ->count(),
+                    'duplicate_count' => $sortedRows
+                        ->where(
+                            'review_status',
+                            AttendanceImportRow::REVIEW_DUPLICATE
+                        )
+                        ->count(),
+                    'date_from' => $dates->first(),
+                    'date_to' => $dates->last(),
+                    'rows' => $sortedRows,
+                ];
+            })
+            ->sortBy(
+                fn (array $group) => Str::lower(
+                    $group['employee_name']
+                )
+            )
+            ->values();
+    }
+
+    /**
+     * Identifier DOM/API stabil untuk employee group.
+     */
+    protected function reviewGroupKey(
+        AttendanceImportRow $row
+    ): string {
+        if ($row->employee_id) {
+            return 'employee-' . $row->employee_id;
+        }
+
+        $employeeName = $row->employee?->name
+            ?? $row->employee_name
+            ?? $row->employee_name_raw
+            ?? 'unknown-employee';
+
+        $normalizedName = Str::of($employeeName)
+            ->lower()
+            ->squish()
+            ->toString();
+
+        return 'unmatched-' . md5(
+            $normalizedName
+        );
+    }
+
+    /**
+     * Ringkasan global import untuk stat cards dan tombol Confirm Import.
+     */
+    protected function reviewSummary(
+        AttendanceImport $attendanceImport
+    ): array {
+        return [
+            'total_rows' => (int)
+                $attendanceImport->total_rows,
+            'imported_rows' => (int)
+                $attendanceImport->imported_rows,
+            'generated_rows' => (int)
+                $attendanceImport->generated_rows,
+            'review_rows' => (int)
+                $attendanceImport->review_rows,
+            'error_rows' => (int)
+                $attendanceImport->error_rows,
+            'duplicate_rows' => (int)
+                $attendanceImport->duplicate_rows,
+            'status' => $attendanceImport->status,
+        ];
+    }
+
+    protected function canEditImport(
+        AttendanceImport $attendanceImport
+    ): bool {
+        return in_array(
+            $attendanceImport->status,
+            [
+                AttendanceImport::STATUS_UPLOADED,
+                AttendanceImport::STATUS_REVIEWING,
+                AttendanceImport::STATUS_FAILED,
+            ],
+            true
+        );
+    }
+
+    protected function canConfirmImport(
+        AttendanceImport $attendanceImport,
+        ?bool $canEdit = null
+    ): bool {
+        $canEdit ??= $this->canEditImport(
+            $attendanceImport
+        );
+
+        return $canEdit
+            && (int) $attendanceImport->review_rows === 0
+            && (int) $attendanceImport->error_rows === 0
+            && (int) $attendanceImport->duplicate_rows === 0;
+    }
+
+    protected function reviewDataUrl(
+        AttendanceImport $attendanceImport
+    ): ?string {
+        if (! Route::has(
+            'hr.attendance-imports.review-data'
+        )) {
+            return null;
+        }
+
+        return route(
+            'hr.attendance-imports.review-data',
+            $attendanceImport
+        );
     }
 
     /**

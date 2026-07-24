@@ -3,67 +3,216 @@
 namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Contracts\View\View;
+use App\Models\Employee;
+use App\Services\Dashboard\HrDashboardService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class HrDashboardController extends Controller
 {
-    public function index(): View
+    public function __construct(
+        protected HrDashboardService $hrDashboardService
+    ) {
+    }
+
+    /**
+     * Menampilkan HR Dashboard Overview.
+     *
+     * Supported filters:
+     * - date_from: Y-m-d
+     * - date_to: Y-m-d
+     * - work_team: optional
+     */
+    public function index(Request $request): View
     {
-        return view('hr.dashboard.index', [
-            'pageTitle' => 'HR Dashboard',
-            'eyebrow' => 'People Operations',
-            'description' => 'Monitor staff attendance, punctuality, leave, and workforce activity from one HR workspace.',
-            'departmentIcon' => 'bi bi-person-badge-fill',
-            'statusLabel' => 'Dashboard scaffold ready',
-            'stats' => [
-                [
-                    'label' => 'Active Staff',
-                    'value' => '0',
-                    'description' => 'Active employees included in attendance monitoring.',
-                    'icon' => 'bi bi-people-fill',
-                ],
-                [
-                    'label' => 'Present Today',
-                    'value' => '0',
-                    'description' => 'Staff who have checked in today.',
-                    'icon' => 'bi bi-person-check-fill',
-                ],
-                [
-                    'label' => 'Late Today',
-                    'value' => '0',
-                    'description' => 'Check-ins recorded after the attendance threshold.',
-                    'icon' => 'bi bi-clock-history',
-                ],
-                [
-                    'label' => 'Leave / Permit',
-                    'value' => '0',
-                    'description' => 'Approved leave or permit records for today.',
-                    'icon' => 'bi bi-calendar2-x-fill',
-                ],
-            ],
-            'focusItems' => [
-                [
-                    'title' => 'Define staff attendance source',
-                    'description' => 'Prepare employee, shift, check-in, check-out, leave, and permit records.',
-                    'icon' => 'bi bi-database-fill-gear',
-                ],
-                [
-                    'title' => 'Create daily attendance recap',
-                    'description' => 'Summarize present, late, absent, leave, and missing check-out records.',
-                    'icon' => 'bi bi-calendar2-check-fill',
-                ],
-                [
-                    'title' => 'Prepare monthly attendance report',
-                    'description' => 'Provide attendance rate and punctuality trends per employee and department.',
-                    'icon' => 'bi bi-bar-chart-line-fill',
-                ],
-            ],
-            'activityItems' => [
-                'HR dashboard controller and route are active.',
-                'The first HR module will focus on staff attendance.',
-                'Attendance management can be opened from the HR menu.',
-            ],
-            'generatedAt' => now()->format('d M Y H:i'),
+        $filters = $this->dashboardFilters($request);
+
+        return view(
+            'hr.dashboard.index',
+            $this->hrDashboardService->getData($filters)
+        );
+    }
+
+    /**
+     * Menyediakan data chart HR Dashboard secara asynchronous.
+     */
+    public function chartData(Request $request): JsonResponse
+    {
+        $filters = $this->dashboardFilters($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->hrDashboardService
+                ->getChartData($filters),
+            'refreshed_at' => now()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Menampilkan Monthly Attendance Report.
+     *
+     * Supported filters:
+     * - month: Y-m
+     * - work_team: optional
+     */
+    public function monthlyReport(Request $request): View
+    {
+        $filters = $this->monthlyReportFilters($request);
+
+        return view(
+            'hr.attendance-reports.monthly',
+            $this->hrDashboardService
+                ->getMonthlyReportData($filters)
+        );
+    }
+
+    /**
+     * Menyediakan data Monthly Attendance Report secara asynchronous.
+     */
+    public function monthlyReportData(
+        Request $request
+    ): JsonResponse {
+        $filters = $this->monthlyReportFilters($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->hrDashboardService
+                ->getMonthlyReportData($filters),
+            'refreshed_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Menampilkan attendance detail untuk satu employee.
+     *
+     * Supported filters:
+     * - month: Y-m
+     */
+    public function employeeDetail(
+        Request $request,
+        Employee $employee
+    ): View {
+        $filters = $this->employeeDetailFilters($request);
+
+        return view(
+            'hr.employees.attendance-detail',
+            $this->hrDashboardService
+                ->getEmployeeDetailData(
+                    employeeId: $employee->id,
+                    filters: $filters
+                )
+        );
+    }
+
+    /**
+     * Menyediakan employee attendance detail secara asynchronous.
+     */
+    public function employeeDetailData(
+        Request $request,
+        Employee $employee
+    ): JsonResponse {
+        $filters = $this->employeeDetailFilters($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->hrDashboardService
+                ->getEmployeeDetailData(
+                    employeeId: $employee->id,
+                    filters: $filters
+                ),
+            'refreshed_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Validasi dan normalisasi filter HR Dashboard Overview.
+     */
+    protected function dashboardFilters(
+        Request $request
+    ): array {
+        $validated = $request->validate([
+            'date_from' => [
+                'nullable',
+                'date_format:Y-m-d',
+            ],
+            'date_to' => [
+                'nullable',
+                'date_format:Y-m-d',
+            ],
+            'work_team' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+        ]);
+
+        return [
+            'date_from' => $this->normalizedString(
+                $validated['date_from'] ?? null
+            ),
+            'date_to' => $this->normalizedString(
+                $validated['date_to'] ?? null
+            ),
+            'work_team' => $this->normalizedString(
+                $validated['work_team'] ?? null
+            ),
+        ];
+    }
+
+    /**
+     * Validasi dan normalisasi filter Monthly Attendance Report.
+     */
+    protected function monthlyReportFilters(
+        Request $request
+    ): array {
+        $validated = $request->validate([
+            'month' => [
+                'nullable',
+                'date_format:Y-m',
+            ],
+            'work_team' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+        ]);
+
+        return [
+            'month' => $this->normalizedString(
+                $validated['month'] ?? null
+            ),
+            'work_team' => $this->normalizedString(
+                $validated['work_team'] ?? null
+            ),
+        ];
+    }
+
+    /**
+     * Validasi dan normalisasi filter Employee Attendance Detail.
+     */
+    protected function employeeDetailFilters(
+        Request $request
+    ): array {
+        $validated = $request->validate([
+            'month' => [
+                'nullable',
+                'date_format:Y-m',
+            ],
+        ]);
+
+        return [
+            'month' => $this->normalizedString(
+                $validated['month'] ?? null
+            ),
+        ];
+    }
+
+    protected function normalizedString(
+        mixed $value
+    ): ?string {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
     }
 }

@@ -38,10 +38,18 @@
         };
     };
 
-    $canConfirm = $canEdit
-        && (int) $attendanceImport->review_rows === 0
-        && (int) $attendanceImport->error_rows === 0
-        && (int) $attendanceImport->duplicate_rows === 0;
+    $canConfirm = isset($canConfirm)
+        ? (bool) $canConfirm
+        : (
+            $canEdit
+            && (int) $attendanceImport->review_rows === 0
+            && (int) $attendanceImport->error_rows === 0
+            && (int) $attendanceImport->duplicate_rows === 0
+        );
+
+    $formatTime = fn ($time) => filled($time)
+        ? substr((string) $time, 0, 5)
+        : '-';
 
 @endphp
 
@@ -145,83 +153,681 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Grouped Attendance Table
+    | Grouped Attendance Cards
+    |--------------------------------------------------------------------------
+    | The review page intentionally uses responsive cards instead of a wide
+    | table. Every value remains visible without horizontal scrolling.
+    */
+    .attendance-review-page .attendance-review-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .9rem 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--attendance-border);
+        border-radius: 1rem;
+        background: #faf9fc;
+    }
+
+    .attendance-review-page .attendance-select-all {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+    }
+
+    .attendance-review-page .attendance-select-all .form-check-input {
+        margin-top: 0;
+        flex: 0 0 auto;
+    }
+
+    .attendance-review-page .attendance-filter-status {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        min-height: 31px;
+        padding: .35rem .65rem;
+        color: #6f657c;
+        background: #f8f6fb;
+        border: 1px solid var(--attendance-border);
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .attendance-review-page .attendance-filter-status.is-loading {
+        color: var(--attendance-purple);
+        background: #f1ebf8;
+        border-color: #d8cbe8;
+    }
+
+    .attendance-review-page .attendance-async-shell {
+        position: relative;
+        min-height: 180px;
+    }
+
+    .attendance-review-page .attendance-review-content {
+        min-width: 0;
+        transition:
+            opacity .16s ease,
+            filter .16s ease;
+    }
+
+    .attendance-review-page .attendance-async-shell.is-loading
+    .attendance-review-content {
+        opacity: .42;
+        filter: saturate(.78);
+        pointer-events: none;
+        user-select: none;
+    }
+
+    .attendance-review-page .attendance-review-loading {
+        position: absolute;
+        inset: 0;
+        z-index: 18;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 2.5rem;
+        pointer-events: none;
+    }
+
+    .attendance-review-page .attendance-review-loading-panel {
+        display: inline-flex;
+        align-items: center;
+        gap: .75rem;
+        max-width: calc(100% - 2rem);
+        padding: .75rem 1rem;
+        color: var(--attendance-purple);
+        background: rgba(255, 255, 255, .96);
+        border: 1px solid #d9cce9;
+        border-radius: 1rem;
+        box-shadow: 0 14px 34px rgba(54, 36, 82, .14);
+        font-size: .86rem;
+        font-weight: 800;
+    }
+
+    .attendance-review-page .attendance-review-loading-panel .spinner-border {
+        width: 1rem;
+        height: 1rem;
+        border-width: .14em;
+    }
+
+    .attendance-review-page .attendance-record-card.is-recently-updated {
+        border-color: #86c99a;
+        background: #f3fbf5;
+        box-shadow:
+            inset 4px 0 0 #3b8e4d,
+            0 10px 26px rgba(59, 142, 77, .12);
+        animation: attendanceUpdatedPulse 1.1s ease;
+    }
+
+    @keyframes attendanceUpdatedPulse {
+        0% {
+            transform: scale(.995);
+        }
+
+        45% {
+            transform: scale(1.004);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .attendance-review-page .employee-group-list {
+        display: grid;
+        gap: 1.25rem;
+        min-width: 0;
+    }
+
+    .attendance-review-page .employee-attendance-group {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--attendance-border);
+        border-radius: 1.1rem;
+        background: #fff;
+        box-shadow: 0 8px 24px rgba(54, 36, 82, .045);
+    }
+
+    .attendance-review-page .employee-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: 1rem 1.1rem;
+        background: var(--attendance-soft-purple);
+        border-bottom: 1px solid #ded5e9;
+    }
+
+    .attendance-review-page .employee-group-identity {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        min-width: 0;
+    }
+
+    .attendance-review-page .employee-group-icon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 42px;
+        color: var(--attendance-purple);
+        background: #ece5f6;
+        border-radius: 13px;
+    }
+
+    .attendance-review-page .employee-group-name {
+        color: #171322;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-review-page .employee-group-meta {
+        color: #746b82;
+        font-size: .82rem;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-review-page .employee-group-badges {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+
+    .attendance-review-page .attendance-record-list {
+        display: grid;
+        gap: .75rem;
+        padding: .9rem;
+        min-width: 0;
+        background: #fcfbfd;
+    }
+
+    .attendance-review-page .attendance-record-card {
+        position: relative;
+        min-width: 0;
+        padding: 1rem;
+        border: 1px solid #e8e5ec;
+        border-radius: 1rem;
+        background: #fff;
+        transition:
+            transform .16s ease,
+            border-color .16s ease,
+            box-shadow .16s ease,
+            background-color .16s ease;
+    }
+
+    .attendance-review-page .attendance-record-card.is-needs-review {
+        border-color: #efd57a;
+        background: #fffdf3;
+        box-shadow: inset 4px 0 0 #e9b800;
+    }
+
+    .attendance-review-page .attendance-record-card.is-error {
+        border-color: #f4b9b4;
+        background: #fff9f8;
+        box-shadow: inset 4px 0 0 #d92d20;
+    }
+
+    .attendance-review-page .attendance-record-card.is-duplicate {
+        border-color: #cbd1d8;
+        background: #fafbfc;
+        box-shadow: inset 4px 0 0 #475467;
+    }
+
+    .attendance-review-page .attendance-record-card.is-holiday {
+        border-color: #b8e0ed;
+        background: #f4fbfd;
+        box-shadow: inset 4px 0 0 #2996b3;
+    }
+
+    .attendance-review-page .attendance-record-card.is-off-day {
+        border-color: #d9dde3;
+        background: #f8f9fb;
+        box-shadow: inset 4px 0 0 #98a2b3;
+    }
+
+    .attendance-review-page .attendance-record-card.needs-review-row {
+        cursor: pointer;
+    }
+
+    .attendance-review-page .attendance-record-card.needs-review-row:hover {
+        transform: translateY(-1px);
+        border-color: #d9b935;
+        box-shadow:
+            inset 4px 0 0 #e9b800,
+            0 10px 24px rgba(89, 68, 8, .08);
+    }
+
+    .attendance-review-page .attendance-record-card.needs-review-row:focus-visible {
+        outline: 3px solid rgba(91, 62, 142, .24);
+        outline-offset: 2px;
+    }
+
+    .attendance-review-page .attendance-record-main,
+    .attendance-review-page .attendance-record-meta {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: .85rem 1rem;
+        min-width: 0;
+    }
+
+    .attendance-review-page .attendance-record-main {
+        align-items: start;
+    }
+
+    .attendance-review-page .attendance-record-meta {
+        align-items: start;
+        padding-top: 1rem;
+        padding-bottom: .35rem;
+        margin-top: 1rem;
+        border-top: 1px solid #eeeaf2;
+    }
+
+    .attendance-review-page .attendance-select-cell {
+        grid-column: span 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: .15rem;
+    }
+
+    .attendance-review-page .attendance-date-cell {
+        grid-column: span 2;
+    }
+
+    .attendance-review-page .attendance-schedule-cell {
+        grid-column: span 3;
+    }
+
+    .attendance-review-page .attendance-actual-cell {
+        grid-column: span 2;
+    }
+
+    .attendance-review-page .attendance-status-cell {
+        grid-column: span 2;
+    }
+
+    .attendance-review-page .attendance-review-cell {
+        grid-column: span 2;
+    }
+
+    .attendance-review-page .attendance-leave-cell {
+        grid-column: span 3;
+    }
+
+    .attendance-review-page .attendance-source-cell {
+        grid-column: span 2;
+    }
+
+    .attendance-review-page .attendance-notes-cell {
+        grid-column: span 5;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .attendance-review-page .attendance-action-cell {
+        grid-column: span 2;
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-end;
+    }
+
+    .attendance-review-page .attendance-data-cell {
+        min-width: 0;
+    }
+
+    .attendance-review-page .attendance-data-label {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin-bottom: .35rem;
+        color: #7d748a;
+        font-size: .7rem;
+        font-weight: 800;
+        letter-spacing: .055em;
+        line-height: 1.25;
+        text-transform: uppercase;
+    }
+
+    .attendance-review-page .attendance-data-value {
+        color: #18141f;
+        font-size: .92rem;
+        font-weight: 750;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-review-page .attendance-data-help {
+        color: #777080;
+        font-size: .79rem;
+        line-height: 1.5;
+        margin-top: .18rem;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-review-page .attendance-clock-pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+    }
+
+    .attendance-review-page .attendance-clock-box {
+        min-width: 0;
+        padding: .55rem .65rem;
+        border: 1px solid #ebe7ef;
+        border-radius: .75rem;
+        background: #faf9fc;
+    }
+
+    .attendance-review-page .attendance-clock-label {
+        color: #7f778a;
+        font-size: .68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .attendance-review-page .attendance-clock-value {
+        color: #191520;
+        font-size: .92rem;
+        font-weight: 800;
+        margin-top: .15rem;
+    }
+
+    .attendance-review-page .attendance-badge-stack {
+        display: flex;
+        align-items: flex-start;
+        gap: .4rem;
+        flex-wrap: wrap;
+    }
+
+    .attendance-review-page .attendance-validation {
+        display: flex;
+        align-items: flex-start;
+        gap: .55rem;
+        padding: .68rem .75rem;
+        margin-top: .6rem;
+        color: #9a6700;
+        background: #fff7d6;
+        border: 1px solid #f1d982;
+        border-radius: .75rem;
+        font-size: .79rem;
+        font-weight: 650;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
+
+    .attendance-review-page .attendance-validation.is-error {
+        color: #a32119;
+        background: #fff0ee;
+        border-color: #f3bbb6;
+    }
+
+    .attendance-review-page .attendance-notes-box {
+        width: 100%;
+        min-height: 76px;
+        height: auto;
+        padding: .75rem .85rem;
+        margin-bottom: .25rem;
+        color: #5e5668;
+        background: #faf9fc;
+        border: 1px solid #ebe7ef;
+        border-radius: .75rem;
+        font-size: .82rem;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+        white-space: pre-line;
+    }
+
+    .attendance-review-page .attendance-record-card.is-recently-updated {
+        border-color: #86c99a;
+        background: #f3fbf5;
+        box-shadow:
+            inset 4px 0 0 #3B8E4D,
+            0 10px 26px rgba(59, 142, 77, .12);
+    }
+
+    .attendance-review-page .attendance-no-clock {
+        color: #687080;
+        font-size: .82rem;
+        font-weight: 650;
+        padding: .55rem .65rem;
+        border-radius: .75rem;
+        background: #f4f6f8;
+    }
+
+    .attendance-review-page .review-click-hint {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        color: #866500;
+        font-size: .75rem;
+        font-weight: 700;
+        margin-top: .5rem;
+    }
+
+    .attendance-review-page .attendance-auto-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-top: .35rem;
+        padding: .24rem .48rem;
+        color: #5B3E8E;
+        background: #eee8f7;
+        border: 1px solid #d7cae8;
+        border-radius: 999px;
+        font-size: .7rem;
+        font-weight: 800;
+    }
+
+    .attendance-review-page .bulk-action-bar {
+        position: sticky;
+        bottom: 1rem;
+        z-index: 20;
+        padding: .9rem 1rem;
+        margin-top: 1rem;
+        color: #fff;
+        background: rgba(73, 49, 115, .96);
+        border: 1px solid rgba(255, 255, 255, .14);
+        border-radius: 1rem;
+        box-shadow: 0 14px 36px rgba(40, 24, 64, .24);
+        backdrop-filter: blur(12px);
+    }
+
+    .attendance-review-page .bulk-action-bar .text-muted {
+        color: rgba(255, 255, 255, .7) !important;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scrollable Modal Content
     |--------------------------------------------------------------------------
     */
-    .attendance-review-page .attendance-table-wrap {
-        max-height: 72vh;
-        overflow: auto;
-        border: 1px solid var(--attendance-border);
-        border-radius: .9rem;
+    #editAttendanceModal .attendance-modal-dialog,
+    #bulkUpdateModal .attendance-modal-dialog {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    #editAttendanceModal .attendance-modal-form {
+        display: flex;
+        width: 100%;
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+    }
+
+    #editAttendanceModal .attendance-modal-dialog .modal-content,
+    #bulkUpdateModal .attendance-modal-dialog .modal-content {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        overflow: hidden;
+    }
+
+    #editAttendanceModal .modal-header,
+    #editAttendanceModal .modal-footer,
+    #bulkUpdateModal .modal-header,
+    #bulkUpdateModal .modal-footer {
+        flex: 0 0 auto;
+        background: #fff;
+        position: relative;
+        z-index: 2;
+    }
+
+    #editAttendanceModal .modal-body,
+    #bulkUpdateModal .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-color: #b8a9cf #f4f1f8;
     }
 
-    .attendance-review-page .attendance-table-wrap::-webkit-scrollbar {
+    #editAttendanceModal .modal-body::-webkit-scrollbar,
+    #bulkUpdateModal .modal-body::-webkit-scrollbar {
         width: 10px;
-        height: 10px;
     }
 
-    .attendance-review-page .attendance-table-wrap::-webkit-scrollbar-track {
+    #editAttendanceModal .modal-body::-webkit-scrollbar-track,
+    #bulkUpdateModal .modal-body::-webkit-scrollbar-track {
         background: #f4f1f8;
         border-radius: 999px;
     }
 
-    .attendance-review-page .attendance-table-wrap::-webkit-scrollbar-thumb {
+    #editAttendanceModal .modal-body::-webkit-scrollbar-thumb,
+    #bulkUpdateModal .modal-body::-webkit-scrollbar-thumb {
         background: #b8a9cf;
         border: 2px solid #f4f1f8;
         border-radius: 999px;
     }
 
-    .attendance-review-page .attendance-review-table {
-        min-width: 1420px;
+    @media (max-width: 1199.98px) {
+        .attendance-review-page .attendance-record-main,
+        .attendance-review-page .attendance-record-meta {
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+        }
+
+        .attendance-review-page .attendance-select-cell {
+            grid-column: span 1;
+        }
+
+        .attendance-review-page .attendance-date-cell {
+            grid-column: span 3;
+        }
+
+        .attendance-review-page .attendance-schedule-cell {
+            grid-column: span 4;
+        }
+
+        .attendance-review-page .attendance-actual-cell {
+            grid-column: span 3;
+        }
+
+        .attendance-review-page .attendance-status-cell {
+            grid-column: span 2;
+        }
+
+        .attendance-review-page .attendance-review-cell {
+            grid-column: span 3;
+        }
+
+        .attendance-review-page .attendance-leave-cell {
+            grid-column: span 3;
+        }
+
+        .attendance-review-page .attendance-source-cell {
+            grid-column: span 2;
+        }
+
+        .attendance-review-page .attendance-notes-cell {
+            grid-column: span 3;
+        }
+
+        .attendance-review-page .attendance-action-cell {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
     }
 
-    .attendance-review-page .attendance-review-table thead {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-    }
+    @media (max-width: 767.98px) {
+        .attendance-review-page .attendance-review-toolbar,
+        .attendance-review-page .employee-group-header {
+            align-items: flex-start;
+        }
 
-    .attendance-review-page .employee-group-row td {
-        padding: .85rem 1rem !important;
-        background: var(--attendance-soft-purple) !important;
-        border-top: 1px solid #dcd3e9;
-        border-bottom: 1px solid #dcd3e9;
-    }
+        .attendance-review-page .attendance-review-toolbar {
+            flex-direction: column;
+        }
 
-    .attendance-review-page .employee-group-icon {
-        width: 38px;
-        height: 38px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 38px;
-        color: var(--attendance-purple);
-        background: #ece5f6;
-        border-radius: 12px;
-    }
+        .attendance-review-page .employee-group-badges {
+            justify-content: flex-start;
+        }
 
-    .attendance-review-page .needs-review-row {
-        cursor: pointer;
-        transition: background-color .16s ease, box-shadow .16s ease;
-    }
+        .attendance-review-page .attendance-record-main,
+        .attendance-review-page .attendance-record-meta {
+            grid-template-columns: 1fr;
+        }
 
-    .attendance-review-page .needs-review-row:hover td {
-        background-color: #fff7d8 !important;
-    }
+        .attendance-review-page .attendance-select-cell,
+        .attendance-review-page .attendance-date-cell,
+        .attendance-review-page .attendance-schedule-cell,
+        .attendance-review-page .attendance-actual-cell,
+        .attendance-review-page .attendance-status-cell,
+        .attendance-review-page .attendance-review-cell,
+        .attendance-review-page .attendance-leave-cell,
+        .attendance-review-page .attendance-source-cell,
+        .attendance-review-page .attendance-notes-cell,
+        .attendance-review-page .attendance-action-cell {
+            grid-column: 1;
+        }
 
-    .attendance-review-page .needs-review-row:focus {
-        outline: 3px solid rgba(91, 62, 142, .22);
-        outline-offset: -3px;
-    }
+        .attendance-review-page .attendance-select-cell {
+            justify-content: flex-start;
+            padding-top: 0;
+        }
 
-    .attendance-review-page .review-click-hint {
-        color: #8a6500;
-        font-size: .75rem;
-        font-weight: 600;
-        margin-top: .35rem;
-        white-space: nowrap;
+        .attendance-review-page .attendance-action-cell .btn {
+            width: 100%;
+        }
+
+        .attendance-review-page .attendance-clock-pair {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .attendance-review-page .bulk-action-bar {
+            bottom: .5rem;
+        }
+
+        #editAttendanceModal .attendance-modal-dialog,
+        #bulkUpdateModal .attendance-modal-dialog {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+            margin: .5rem;
+        }
+
+        #editAttendanceModal .attendance-modal-form,
+        #editAttendanceModal .attendance-modal-dialog .modal-content,
+        #bulkUpdateModal .attendance-modal-dialog .modal-content {
+            max-height: calc(100vh - 1rem);
+            max-height: calc(100dvh - 1rem);
+        }
     }
 
     /*
@@ -229,7 +835,7 @@
     | Confirmation Dialog
     |--------------------------------------------------------------------------
     */
-    .attendance-review-page .confirmation-icon {
+    #actionConfirmationModal .confirmation-icon {
         width: 52px;
         height: 52px;
         display: inline-flex;
@@ -240,18 +846,26 @@
         font-size: 1.35rem;
     }
 
-    .attendance-review-page .confirmation-icon.is-primary {
+    #actionConfirmationModal .confirmation-icon.is-primary {
         color: var(--attendance-purple);
         background: #eee8f7;
     }
 
-    .attendance-review-page .confirmation-icon.is-danger {
+    #actionConfirmationModal .confirmation-icon.is-danger {
         color: #b42318;
         background: #fee4e2;
     }
 </style>
 
 <div class="container-fluid px-4 py-4 attendance-review-page">
+    <div
+        id="attendanceAsyncToastContainer"
+        class="toast-container position-fixed top-0 end-0 p-3"
+        style="z-index: 1095;"
+        aria-live="polite"
+        aria-atomic="true"
+    ></div>
+
     <div class="page-header-card mb-4">
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
@@ -312,7 +926,7 @@
 
                     <button
                         type="button"
-                        class="btn btn-modern header-btn-cancel"
+                        class="btn btn-light btn-modern header-btn-cancel"
                         data-confirm-form="cancelImportForm"
                         data-confirm-title="Cancel Attendance Import"
                         data-confirm-message="This import will be cancelled and can no longer be finalized. Continue?"
@@ -333,6 +947,7 @@
 
                     <button
                         type="button"
+                        id="attendanceConfirmButton"
                         class="btn btn-modern header-btn-confirm"
                         data-confirm-form="confirmImportForm"
                         data-confirm-title="Confirm Attendance Import"
@@ -374,18 +989,21 @@
 
     <div class="row g-3 mb-4">
         @foreach ([
-            ['label' => 'Total Rows', 'value' => $attendanceImport->total_rows, 'class' => 'text-dark'],
-            ['label' => 'Imported', 'value' => $attendanceImport->imported_rows, 'class' => 'text-dark'],
-            ['label' => 'Generated', 'value' => $attendanceImport->generated_rows, 'class' => 'text-dark'],
-            ['label' => 'Needs Review', 'value' => $attendanceImport->review_rows, 'class' => 'text-warning'],
-            ['label' => 'Error', 'value' => $attendanceImport->error_rows, 'class' => 'text-danger'],
-            ['label' => 'Duplicate', 'value' => $attendanceImport->duplicate_rows, 'class' => 'text-dark'],
+            ['key' => 'total_rows', 'label' => 'Total Rows', 'value' => $attendanceImport->total_rows, 'class' => 'text-dark'],
+            ['key' => 'imported_rows', 'label' => 'Imported', 'value' => $attendanceImport->imported_rows, 'class' => 'text-dark'],
+            ['key' => 'generated_rows', 'label' => 'Generated', 'value' => $attendanceImport->generated_rows, 'class' => 'text-dark'],
+            ['key' => 'review_rows', 'label' => 'Needs Review', 'value' => $attendanceImport->review_rows, 'class' => 'text-warning'],
+            ['key' => 'error_rows', 'label' => 'Error', 'value' => $attendanceImport->error_rows, 'class' => 'text-danger'],
+            ['key' => 'duplicate_rows', 'label' => 'Duplicate', 'value' => $attendanceImport->duplicate_rows, 'class' => 'text-dark'],
         ] as $stat)
             <div class="col-6 col-md-4 col-xl-2">
                 <div class="content-card h-100">
                     <div class="content-card-body">
                         <div class="small text-muted mb-2">{{ $stat['label'] }}</div>
-                        <div class="fs-3 fw-bold {{ $stat['class'] }}">
+                        <div
+                            class="fs-3 fw-bold {{ $stat['class'] }}"
+                            data-attendance-stat="{{ $stat['key'] }}"
+                        >
                             {{ number_format($stat['value']) }}
                         </div>
                     </div>
@@ -495,12 +1113,37 @@
                     <a
                         href="{{ route('hr.attendance-imports.review', $attendanceImport) }}"
                         class="btn btn-outline-secondary btn-modern"
+                        id="resetReviewFilters"
                     >
                         <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                     </a>
 
-                    <button type="submit" class="btn btn-primary btn-modern">
-                        <i class="bi bi-search me-2"></i>Search
+                    <span
+                        class="attendance-filter-status"
+                        id="attendanceDataStatus"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <i class="bi bi-check-circle"></i>
+                        <span>Ready</span>
+                    </span>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary btn-modern"
+                        id="reviewFilterSubmitButton"
+                    >
+                        <span class="default-text">
+                            <i class="bi bi-search me-2"></i>Search
+                        </span>
+
+                        <span class="loading-text d-none">
+                            <span
+                                class="spinner-border spinner-border-sm me-2"
+                                aria-hidden="true"
+                            ></span>
+                            Loading...
+                        </span>
                     </button>
                 </div>
             </form>
@@ -517,11 +1160,17 @@
             </div>
 
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge rounded-pill bg-light text-dark border">
+                <span
+                    class="badge rounded-pill bg-light text-dark border"
+                    id="attendanceEmployeeCount"
+                >
                     {{ number_format($employeeGroups->count()) }} employees
                 </span>
 
-                <span class="badge rounded-pill bg-light text-dark border">
+                <span
+                    class="badge rounded-pill bg-light text-dark border"
+                    id="attendanceVisibleRowCount"
+                >
                     {{ number_format($employeeGroups->sum('record_count')) }} attendance rows
                 </span>
             </div>
@@ -536,308 +1185,111 @@
                 @csrf
                 @method('PATCH')
 
-                @if ($employeeGroups->count())
-                    <div class="attendance-table-wrap">
-                        <table class="table table-hover align-middle admin-table attendance-review-table mb-0">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px;">
-                                        @if ($canEdit)
-                                            <input type="checkbox" class="form-check-input" id="selectAllRows">
-                                        @endif
-                                    </th>
-                                    <th class="text-nowrap">Date</th>
-                                    <th class="text-nowrap">Template / Schedule</th>
-                                    <th class="text-nowrap">Clock In</th>
-                                    <th class="text-nowrap">Clock Out</th>
-                                    <th class="text-nowrap">Attendance</th>
-                                    <th class="text-nowrap">Leave / Permission</th>
-                                    <th class="text-nowrap">Punctuality</th>
-                                    <th class="text-nowrap">Source</th>
-                                    <th class="text-nowrap">Review</th>
-                                    <th class="text-nowrap">Remarks</th>
-                                    <th class="text-end text-nowrap">Action</th>
-                                </tr>
-                            </thead>
+                @if ($canEdit)
+                    <div
+                        class="attendance-review-toolbar {{ $employeeGroups->sum('record_count') > 0 ? '' : 'd-none' }}"
+                        id="attendanceReviewToolbar"
+                    >
+                        <label class="attendance-select-all mb-0" for="selectAllRows">
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="selectAllRows"
+                            >
 
-                            <tbody>
-                                @foreach ($employeeGroups as $employeeGroup)
-                                    @php
-                                        $groupEmployeeName = $employeeGroup['employee_name'];
-                                        $groupEmployeeNumber = $employeeGroup['employee_number']
-                                            ?: 'No employee number';
+                            <span>
+                                <span class="fw-semibold text-dark d-block">
+                                    Select all visible rows
+                                </span>
 
-                                        $groupReviewCount = (int) $employeeGroup['needs_review_count'];
-                                        $groupErrorCount = (int) $employeeGroup['error_count'];
-                                        $groupDuplicateCount = (int) $employeeGroup['duplicate_count'];
+                                <span class="small text-muted">
+                                    Use selection only when the same adjustment applies to multiple records.
+                                </span>
+                            </span>
+                        </label>
 
-                                        $groupDateFrom = $employeeGroup['date_from'];
-                                        $groupDateTo = $employeeGroup['date_to'];
-                                    @endphp
+                        <span
+                            class="badge rounded-pill bg-light text-dark border"
+                            id="attendanceToolbarVisibleCount"
+                        >
+                            {{ number_format($employeeGroups->sum('record_count')) }}
+                            visible records
+                        </span>
+                    </div>
+                @endif
 
-                                    <tr class="employee-group-row">
-                                        <td colspan="12">
-                                            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
-                                                <div class="d-flex align-items-center gap-3">
-                                                    <span class="employee-group-icon">
-                                                        <i class="bi bi-person-badge"></i>
-                                                    </span>
+                <div
+                    class="attendance-async-shell"
+                    id="attendanceAsyncShell"
+                >
+                    <div
+                        class="attendance-review-loading d-none"
+                        id="attendanceReviewLoading"
+                        aria-hidden="true"
+                    >
+                        <div class="attendance-review-loading-panel">
+                            <span
+                                class="spinner-border"
+                                aria-hidden="true"
+                            ></span>
 
-                                                    <div>
-                                                        <div class="fw-bold text-dark">{{ $groupEmployeeName }}</div>
-                                                        <div class="small text-muted">
-                                                            {{ $groupEmployeeNumber }}
-                                                            · {{ number_format($employeeGroup['record_count']) }} records
-
-                                                            @if ($groupDateFrom && $groupDateTo)
-                                                                · {{ $groupDateFrom->format('d M') }}
-                                                                – {{ $groupDateTo->format('d M Y') }}
-                                                            @endif
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div class="d-flex gap-2 flex-wrap">
-                                                    @if ($employeeGroup['is_unmatched'])
-                                                        <span class="badge rounded-pill bg-danger-subtle text-danger-emphasis border border-danger-subtle">
-                                                            Unmatched Employee
-                                                        </span>
-                                                    @endif
-
-                                                    @if ($groupReviewCount > 0)
-                                                        <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">
-                                                            {{ $groupReviewCount }} Needs Review
-                                                        </span>
-                                                    @endif
-
-                                                    @if ($groupErrorCount > 0)
-                                                        <span class="badge rounded-pill bg-danger-subtle text-danger-emphasis border border-danger-subtle">
-                                                            {{ $groupErrorCount }} Error
-                                                        </span>
-                                                    @endif
-
-                                                    @if ($groupDuplicateCount > 0)
-                                                        <span class="badge rounded-pill bg-dark-subtle text-dark-emphasis border border-dark-subtle">
-                                                            {{ $groupDuplicateCount }} Duplicate
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    @foreach ($employeeGroup['rows'] as $row)
-                                        @php
-                                            $editPayload = [
-                                                'employee_id' => $row->employee_id,
-                                                'working_hour_template_id' => $row->working_hour_template_id,
-                                                'attendance_date' => optional($row->attendance_date)->format('Y-m-d'),
-                                                'clock_in' => $row->clock_in,
-                                                'clock_out' => $row->clock_out,
-                                                'scheduled_start_time' => $row->scheduled_start_time,
-                                                'scheduled_end_time' => $row->scheduled_end_time,
-                                                'attendance_type' => $row->attendance_type,
-                                                'punctuality_status' => $row->punctuality_status,
-                                                'arrival_status' => $row->arrival_status,
-                                                'departure_status' => $row->departure_status,
-                                                'late_minutes' => $row->late_minutes,
-                                                'early_leave_minutes' => $row->early_leave_minutes,
-                                                'leave_type' => $row->leave_type,
-                                                'leave_duration' => $row->leave_duration,
-                                                'leave_session' => $row->leave_session,
-                                                'leave_start_time' => $row->leave_start_time,
-                                                'leave_end_time' => $row->leave_end_time,
-                                                'leave_minutes' => $row->leave_minutes,
-                                                'is_excused' => (bool) $row->is_excused,
-                                                'leave_reason' => $row->leave_reason,
-                                                'remarks' => $row->remarks,
-                                                'review_status' => $row->review_status,
-                                                'update_url' => route(
-                                                    'hr.attendance-imports.rows.update',
-                                                    [$attendanceImport, $row]
-                                                ),
-                                            ];
-
-                                            $isNeedsReview = $canEdit
-                                                && $row->review_status === 'needs_review';
-                                        @endphp
-
-                                        <tr
-                                            class="{{ $row->review_status === 'needs_review' ? 'table-warning needs-review-row' : ($row->review_status === 'error' ? 'table-danger' : '') }}"
-                                            @if ($isNeedsReview)
-                                                role="button"
-                                                tabindex="0"
-                                                title="Click to review this attendance row"
-                                                data-attendance-payload="{{ base64_encode(json_encode(
-                                                    $editPayload,
-                                                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-                                                )) }}"
-                                            @endif
-                                        >
-                                            <td>
-                                                @if ($canEdit)
-                                                    <input
-                                                        type="checkbox"
-                                                        class="form-check-input row-checkbox"
-                                                        name="row_ids[]"
-                                                        value="{{ $row->id }}"
-                                                    >
-                                                @endif
-                                            </td>
-
-                                            <td class="text-nowrap">
-                                                <div class="fw-semibold text-dark">
-                                                    {{ $row->attendance_date?->format('d M Y') ?? '-' }}
-                                                </div>
-                                                <div class="small text-muted">
-                                                    {{ $row->attendance_date?->format('l') ?? '' }}
-                                                </div>
-                                            </td>
-
-                                            <td>
-                                                <div class="fw-semibold text-dark">
-                                                    {{ $row->workingHourTemplate?->name
-                                                        ?? $row->working_hours_template_raw
-                                                        ?? 'Unknown Template' }}
-                                                </div>
-                                                <div class="small text-muted">
-                                                    {{ $row->scheduled_start_time ?: '-' }}
-                                                    –
-                                                    {{ $row->scheduled_end_time ?: '-' }}
-                                                </div>
-
-                                                @if ($row->schedule_is_inferred)
-                                                    <span class="badge rounded-pill bg-light text-dark border mt-2">
-                                                        Inferred
-                                                    </span>
-                                                @endif
-                                            </td>
-
-                                            <td class="text-nowrap fw-semibold">{{ $row->clock_in ?: '-' }}</td>
-                                            <td class="text-nowrap fw-semibold">{{ $row->clock_out ?: '-' }}</td>
-
-                                            <td class="text-nowrap">
-                                                <span class="badge rounded-pill {{ $attendanceBadgeClass($row->attendance_type) }}">
-                                                    {{ $attendanceTypeOptions[$row->attendance_type] ?? ucfirst($row->attendance_type) }}
-                                                </span>
-                                            </td>
-
-                                            <td>
-                                                @if ($row->leave_type)
-                                                    <div class="fw-semibold text-dark">
-                                                        {{ $leaveTypeOptions[$row->leave_type] ?? ucfirst(str_replace('_', ' ', $row->leave_type)) }}
-                                                    </div>
-                                                    <div class="small text-muted">
-                                                        {{ $leaveDurationOptions[$row->leave_duration] ?? ucfirst(str_replace('_', ' ', $row->leave_duration ?? '')) }}
-                                                        @if ($row->leave_session)
-                                                            · {{ $leaveSessionOptions[$row->leave_session] ?? ucfirst(str_replace('_', ' ', $row->leave_session)) }}
-                                                        @endif
-                                                    </div>
-                                                @else
-                                                    <span class="text-muted">-</span>
-                                                @endif
-                                            </td>
-
-                                            <td>
-                                                <div class="fw-semibold text-dark">
-                                                    {{ $punctualityOptions[$row->punctuality_status] ?? ucfirst(str_replace('_', ' ', $row->punctuality_status)) }}
-                                                </div>
-
-                                                @if ($row->late_minutes)
-                                                    <div class="small text-muted">{{ $row->late_minutes }} min late</div>
-                                                @elseif ($row->early_leave_minutes)
-                                                    <div class="small text-muted">{{ $row->early_leave_minutes }} min early</div>
-                                                @endif
-                                            </td>
-
-                                            <td class="text-nowrap">
-                                                <span class="badge rounded-pill bg-light text-dark border">
-                                                    {{ $sourceOptions[$row->source] ?? ucfirst($row->source) }}
-                                                </span>
-                                            </td>
-
-                                            <td>
-                                                <span class="badge rounded-pill {{ $reviewBadgeClass($row->review_status) }}">
-                                                    {{ $reviewStatusOptions[$row->review_status] ?? ucfirst($row->review_status) }}
-                                                </span>
-
-                                                @if (
-                                                    $row->validation_message
-                                                    && in_array($row->review_status, ['needs_review', 'error', 'duplicate'], true)
-                                                )
-                                                    <div class="small text-danger mt-2" style="max-width: 260px;">
-                                                        {{ $row->validation_message }}
-                                                    </div>
-                                                @endif
-
-                                                @if ($isNeedsReview)
-                                                    <div class="review-click-hint">
-                                                        <i class="bi bi-cursor me-1"></i>Click row to review
-                                                    </div>
-                                                @endif
-                                            </td>
-
-                                            <td style="min-width: 220px;">
-                                                {{ $row->remarks ?: '-' }}
-                                            </td>
-
-                                            <td class="text-end text-nowrap">
-                                                @if ($canEdit)
-                                                    <button
-                                                        type="button"
-                                                        class="btn btn-sm btn-outline-secondary px-3 edit-row-button"
-                                                        data-attendance-payload="{{ base64_encode(json_encode(
-                                                            $editPayload,
-                                                            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-                                                        )) }}"
-                                                    >
-                                                        {{ $row->review_status === 'needs_review' ? 'Review' : 'Edit' }}
-                                                    </button>
-                                                @else
-                                                    <span class="text-muted small">Locked</span>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                @endforeach
-                            </tbody>
-                        </table>
+                            <span id="attendanceReviewLoadingText">
+                                Loading attendance data...
+                            </span>
+                        </div>
                     </div>
 
-                    @if ($canEdit)
-                        <div
-                            class="d-flex justify-content-between align-items-center gap-3 flex-wrap mt-3 d-none"
-                            id="bulkActionBar"
-                        >
-                            <div>
-                                <div class="fw-semibold text-dark">
-                                    <span id="selectedRowCount">0</span> rows selected
-                                </div>
-                                <div class="small text-muted">
-                                    Apply one attendance resolution to multiple selected rows.
-                                </div>
+                    <div
+                        class="attendance-review-content"
+                        id="attendanceReviewContent"
+                        data-review-url="{{ $reviewDataUrl ?? route('hr.attendance-imports.review-data', $attendanceImport) }}"
+                        aria-live="polite"
+                        aria-busy="false"
+                    >
+                        @include(
+                            'hr.attendance-imports.partials.employee-groups',
+                            [
+                                'employeeGroups' => $employeeGroups,
+                                'attendanceImport' => $attendanceImport,
+                                'canEdit' => $canEdit,
+                                'attendanceTypeOptions' => $attendanceTypeOptions,
+                                'punctualityOptions' => $punctualityOptions,
+                                'reviewStatusOptions' => $reviewStatusOptions,
+                                'sourceOptions' => $sourceOptions,
+                                'leaveTypeOptions' => $leaveTypeOptions,
+                                'leaveDurationOptions' => $leaveDurationOptions,
+                                'leaveSessionOptions' => $leaveSessionOptions,
+                                'highlightRowId' => null,
+                            ]
+                        )
+                    </div>
+                </div>
+
+                @if ($canEdit)
+                    <div
+                        class="bulk-action-bar d-flex justify-content-between align-items-center gap-3 flex-wrap d-none"
+                        id="bulkActionBar"
+                    >
+                        <div>
+                            <div class="fw-semibold">
+                                <span id="selectedRowCount">0</span>
+                                rows selected
                             </div>
 
-                            <button
-                                type="button"
-                                class="btn btn-primary btn-modern"
-                                data-bs-toggle="modal"
-                                data-bs-target="#bulkUpdateModal"
-                            >
-                                Bulk Adjust
-                            </button>
-                        </div>
-                    @endif
-                @else
-                    <div class="empty-state-box">
-                        <div class="empty-state-icon">
-                            <i class="bi bi-calendar2-check"></i>
+                            <div class="small text-muted">
+                                Apply one attendance resolution to the selected records.
+                            </div>
                         </div>
 
-                        <h5 class="empty-state-title">No attendance row found</h5>
-                        <p class="empty-state-text mb-0">
-                            No attendance row matches the current filters.
-                        </p>
+                        <button
+                            type="button"
+                            class="btn btn-warning btn-modern"
+                            id="openBulkUpdateButton"
+                            data-bs-toggle="modal"
+                            data-bs-target="#bulkUpdateModal"
+                        >
+                            <i class="bi bi-sliders me-2"></i>Bulk Adjust
+                        </button>
                     </div>
                 @endif
             </form>
@@ -848,8 +1300,8 @@
 
 {{-- Edit Attendance Modal --}}
 <div class="modal fade" id="editAttendanceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <form method="POST" id="editAttendanceForm">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable attendance-modal-dialog">
+        <form method="POST" id="editAttendanceForm" class="attendance-modal-form">
             @csrf
             @method('PATCH')
 
@@ -866,6 +1318,12 @@
                 </div>
 
                 <div class="modal-body">
+                    <div
+                        id="editAttendanceFormAlert"
+                        class="alert alert-danger d-none mb-3"
+                        role="alert"
+                    ></div>
+
                     <div class="content-card mb-3">
                         <div class="content-card-header">
                             <div>
@@ -1092,8 +1550,18 @@
                         Cancel
                     </button>
 
-                    <button type="submit" class="btn btn-primary btn-modern">
-                        <i class="bi bi-check-circle me-2"></i>Save Changes
+                    <button
+                        type="submit"
+                        class="btn btn-primary btn-modern"
+                        id="saveAttendanceChangesButton"
+                    >
+                        <span class="default-text">
+                            <i class="bi bi-check-circle me-2"></i>Save Changes
+                        </span>
+                        <span class="loading-text d-none">
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Saving...
+                        </span>
                     </button>
                 </div>
             </div>
@@ -1103,7 +1571,7 @@
 
 {{-- Bulk Adjustment Modal --}}
 <div class="modal fade" id="bulkUpdateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable attendance-modal-dialog">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <div>
@@ -1117,6 +1585,12 @@
             </div>
 
             <div class="modal-body">
+                <div
+                    id="bulkUpdateFormAlert"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label class="form-label">Attendance Type</label>
@@ -1210,8 +1684,24 @@
                     Cancel
                 </button>
 
-                <button type="submit" class="btn btn-primary btn-modern" form="bulkUpdateForm">
-                    Apply to Selected Rows
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-modern"
+                    id="bulkUpdateSubmitButton"
+                    form="bulkUpdateForm"
+                >
+                    <span class="default-text">
+                        <i class="bi bi-check2-all me-2"></i>
+                        Apply to Selected Rows
+                    </span>
+
+                    <span class="loading-text d-none">
+                        <span
+                            class="spinner-border spinner-border-sm me-2"
+                            aria-hidden="true"
+                        ></span>
+                        Applying...
+                    </span>
                 </button>
             </div>
         </div>
@@ -1258,8 +1748,27 @@
 @push('scripts')
 <script>
     let attendanceEditModal = null;
+    let attendanceBulkModal = null;
     let attendanceConfirmationModal = null;
     let pendingAttendanceConfirmationForm = null;
+    let attendanceDataAbortController = null;
+    let attendanceSearchTimer = null;
+    let attendanceDataRequestSequence = 0;
+
+    const attendanceReviewPageUrl = @js(
+        route(
+            'hr.attendance-imports.review',
+            $attendanceImport
+        )
+    );
+
+    const attendanceReviewDataUrl = @js(
+        $reviewDataUrl
+            ?? route(
+                'hr.attendance-imports.review-data',
+                $attendanceImport
+            )
+    );
 
     function decodeAttendancePayload(encodedPayload) {
         if (!encodedPayload) {
@@ -1273,58 +1782,1001 @@
                 character => character.charCodeAt(0)
             );
 
-            const json = new TextDecoder('utf-8').decode(bytes);
-
-            return JSON.parse(json);
+            return JSON.parse(
+                new TextDecoder('utf-8').decode(bytes)
+            );
         } catch (error) {
-            console.error('Attendance payload could not be decoded.', error);
+            console.error(
+                'Attendance payload could not be decoded.',
+                error
+            );
 
             return null;
         }
     }
 
+    function escapeAttendanceSelector(value) {
+        if (window.CSS?.escape) {
+            return window.CSS.escape(String(value));
+        }
+
+        return String(value).replace(
+            /[^A-Za-z0-9_-]/g,
+            character => `\\${character}`
+        );
+    }
+
     function getAttendanceEditModal() {
-        const modalElement = document.getElementById('editAttendanceModal');
+        const element = document.getElementById(
+            'editAttendanceModal'
+        );
 
-        if (!modalElement) {
-            console.error('Attendance edit modal element was not found.');
-
+        if (!element || !window.bootstrap?.Modal) {
             return null;
         }
 
-        if (!window.bootstrap || !window.bootstrap.Modal) {
-            console.error('Bootstrap Modal is not available.');
-
-            return null;
-        }
-
-        if (!attendanceEditModal) {
-            attendanceEditModal = window.bootstrap.Modal.getOrCreateInstance(
-                modalElement
+        attendanceEditModal ??=
+            window.bootstrap.Modal.getOrCreateInstance(
+                element
             );
-        }
 
         return attendanceEditModal;
     }
 
-    function populateAttendanceEditForm(row) {
-        const form = document.getElementById('editAttendanceForm');
+    function getAttendanceBulkModal() {
+        const element = document.getElementById(
+            'bulkUpdateModal'
+        );
+
+        if (!element || !window.bootstrap?.Modal) {
+            return null;
+        }
+
+        attendanceBulkModal ??=
+            window.bootstrap.Modal.getOrCreateInstance(
+                element
+            );
+
+        return attendanceBulkModal;
+    }
+
+    function getAttendanceConfirmationModal() {
+        const element = document.getElementById(
+            'actionConfirmationModal'
+        );
+
+        if (!element || !window.bootstrap?.Modal) {
+            return null;
+        }
+
+        attendanceConfirmationModal ??=
+            window.bootstrap.Modal.getOrCreateInstance(
+                element
+            );
+
+        return attendanceConfirmationModal;
+    }
+
+    async function parseAttendanceResponse(response) {
+        const contentType =
+            response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            return response.json();
+        }
+
+        const responseText = await response.text();
+
+        return {
+            success: response.ok,
+            message: response.ok
+                ? 'Request completed.'
+                : 'Server returned an invalid response.',
+            raw: responseText,
+        };
+    }
+
+    function getAttendanceFilterForm() {
+        return document.getElementById(
+            'reviewFilterForm'
+        );
+    }
+
+    function attendanceFilterParams() {
+        const form = getAttendanceFilterForm();
+        const params = new URLSearchParams();
 
         if (!form) {
-            console.error('Attendance edit form was not found.');
+            return params;
+        }
 
+        new FormData(form).forEach((value, key) => {
+            const normalizedValue = String(value).trim();
+
+            if (normalizedValue !== '') {
+                params.append(key, normalizedValue);
+            }
+        });
+
+        return params;
+    }
+
+    function attendanceDataRequestUrl({
+        groupKeys = [],
+        highlightRowId = null,
+    } = {}) {
+        const url = new URL(
+            attendanceReviewDataUrl,
+            window.location.origin
+        );
+
+        attendanceFilterParams().forEach(
+            (value, key) => url.searchParams.append(
+                key,
+                value
+            )
+        );
+
+        groupKeys.forEach(groupKey => {
+            url.searchParams.append(
+                'group_keys[]',
+                groupKey
+            );
+        });
+
+        if (highlightRowId) {
+            url.searchParams.set(
+                'highlight_row_id',
+                String(highlightRowId)
+            );
+        }
+
+        url.searchParams.set(
+            '_async',
+            String(Date.now())
+        );
+
+        return url;
+    }
+
+    function attendancePageUrlFromFilters() {
+        const url = new URL(
+            attendanceReviewPageUrl,
+            window.location.origin
+        );
+
+        attendanceFilterParams().forEach(
+            (value, key) => url.searchParams.append(
+                key,
+                value
+            )
+        );
+
+        return url;
+    }
+
+    function updateAttendanceHistory(mode = 'none') {
+        if (!['push', 'replace'].includes(mode)) {
+            return;
+        }
+
+        const url = attendancePageUrlFromFilters();
+
+        window.history[
+            mode === 'push'
+                ? 'pushState'
+                : 'replaceState'
+        ](
+            {
+                attendanceReview: true,
+            },
+            '',
+            url
+        );
+    }
+
+    function syncAttendanceFilterFormFromUrl() {
+        const form = getAttendanceFilterForm();
+
+        if (!form) {
+            return;
+        }
+
+        const params = new URLSearchParams(
+            window.location.search
+        );
+
+        Array.from(form.elements).forEach(field => {
+            if (!field.name) {
+                return;
+            }
+
+            field.value = params.get(field.name) || '';
+        });
+    }
+
+    function clearAttendanceFilters() {
+        const form = getAttendanceFilterForm();
+
+        if (!form) {
+            return;
+        }
+
+        Array.from(form.elements).forEach(field => {
+            if (!field.name) {
+                return;
+            }
+
+            if (
+                field instanceof HTMLInputElement
+                || field instanceof HTMLSelectElement
+                || field instanceof HTMLTextAreaElement
+            ) {
+                field.value = '';
+            }
+        });
+    }
+
+    function setAttendanceDataStatus(
+        message,
+        loading = false
+    ) {
+        const status = document.getElementById(
+            'attendanceDataStatus'
+        );
+
+        if (!status) {
+            return;
+        }
+
+        status.classList.toggle(
+            'is-loading',
+            loading
+        );
+
+        const icon = status.querySelector('i');
+        const label = status.querySelector('span');
+
+        if (icon) {
+            icon.className = loading
+                ? 'bi bi-arrow-repeat'
+                : 'bi bi-check-circle';
+        }
+
+        if (label) {
+            label.textContent = message;
+        }
+    }
+
+    function setAttendanceDataLoading(
+        loading,
+        message = 'Loading attendance data...'
+    ) {
+        const shell = document.getElementById(
+            'attendanceAsyncShell'
+        );
+        const loadingElement = document.getElementById(
+            'attendanceReviewLoading'
+        );
+        const loadingText = document.getElementById(
+            'attendanceReviewLoadingText'
+        );
+        const content = document.getElementById(
+            'attendanceReviewContent'
+        );
+        const filterButton = document.getElementById(
+            'reviewFilterSubmitButton'
+        );
+
+        shell?.classList.toggle(
+            'is-loading',
+            loading
+        );
+
+        loadingElement?.classList.toggle(
+            'd-none',
+            !loading
+        );
+
+        loadingElement?.setAttribute(
+            'aria-hidden',
+            loading ? 'false' : 'true'
+        );
+
+        content?.setAttribute(
+            'aria-busy',
+            loading ? 'true' : 'false'
+        );
+
+        if (loadingText) {
+            loadingText.textContent = message;
+        }
+
+        if (filterButton) {
+            filterButton.disabled = loading;
+
+            filterButton
+                .querySelector('.default-text')
+                ?.classList.toggle(
+                    'd-none',
+                    loading
+                );
+
+            filterButton
+                .querySelector('.loading-text')
+                ?.classList.toggle(
+                    'd-none',
+                    !loading
+                );
+        }
+
+        if (loading) {
+            setAttendanceDataStatus(
+                'Refreshing...',
+                true
+            );
+        }
+    }
+
+    function formatAttendanceCount(value) {
+        return new Intl.NumberFormat('en-US').format(
+            Number(value || 0)
+        );
+    }
+
+    function updateAttendanceSummary(
+        summary = {},
+        canConfirm = false
+    ) {
+        document
+            .querySelectorAll('[data-attendance-stat]')
+            .forEach(element => {
+                const key = element.dataset.attendanceStat;
+
+                if (
+                    Object.prototype.hasOwnProperty.call(
+                        summary,
+                        key
+                    )
+                ) {
+                    element.textContent =
+                        formatAttendanceCount(
+                            summary[key]
+                        );
+                }
+            });
+
+        const confirmButton = document.getElementById(
+            'attendanceConfirmButton'
+        );
+
+        if (confirmButton) {
+            confirmButton.disabled = !canConfirm;
+            confirmButton.title = canConfirm
+                ? 'Confirm attendance import'
+                : 'Resolve all review, error, and duplicate rows first.';
+        }
+    }
+
+    function attendanceVisibleMetaFromDom() {
+        const list = document.getElementById(
+            'attendanceEmployeeGroupList'
+        );
+
+        if (!list) {
+            return {
+                employeeCount: 0,
+                rowCount: 0,
+            };
+        }
+
+        return {
+            employeeCount: Number(
+                list.dataset.attendanceGroupCount
+                || list.querySelectorAll(
+                    '.employee-attendance-group'
+                ).length
+            ),
+            rowCount: Number(
+                list.dataset.attendanceRowCount
+                || list.querySelectorAll(
+                    '.attendance-record-card'
+                ).length
+            ),
+        };
+    }
+
+    function updateAttendanceVisibleMeta(meta = null) {
+        const resolvedMeta = meta
+            ? {
+                employeeCount: Number(
+                    meta.employee_count || 0
+                ),
+                rowCount: Number(
+                    meta.row_count || 0
+                ),
+            }
+            : attendanceVisibleMetaFromDom();
+
+        const employeeCount = document.getElementById(
+            'attendanceEmployeeCount'
+        );
+        const visibleRowCount = document.getElementById(
+            'attendanceVisibleRowCount'
+        );
+        const toolbarCount = document.getElementById(
+            'attendanceToolbarVisibleCount'
+        );
+        const toolbar = document.getElementById(
+            'attendanceReviewToolbar'
+        );
+
+        if (employeeCount) {
+            employeeCount.textContent = `${
+                formatAttendanceCount(
+                    resolvedMeta.employeeCount
+                )
+            } employees`;
+        }
+
+        if (visibleRowCount) {
+            visibleRowCount.textContent = `${
+                formatAttendanceCount(
+                    resolvedMeta.rowCount
+                )
+            } attendance rows`;
+        }
+
+        if (toolbarCount) {
+            toolbarCount.textContent = `${
+                formatAttendanceCount(
+                    resolvedMeta.rowCount
+                )
+            } visible records`;
+        }
+
+        toolbar?.classList.toggle(
+            'd-none',
+            resolvedMeta.rowCount === 0
+        );
+    }
+
+    function setAttendanceRowHighlight(rowId) {
+        if (!rowId) {
+            return;
+        }
+
+        const row = document.getElementById(
+            `attendance-record-${rowId}`
+        );
+
+        if (!row) {
+            return;
+        }
+
+        row.classList.add(
+            'is-recently-updated'
+        );
+
+        window.setTimeout(() => {
+            row.classList.remove(
+                'is-recently-updated'
+            );
+        }, 2400);
+    }
+
+    function restoreAttendanceAnchor(anchor = null) {
+        if (!anchor) {
+            return;
+        }
+
+        const row = anchor.rowId
+            ? document.getElementById(
+                `attendance-record-${anchor.rowId}`
+            )
+            : null;
+
+        if (
+            row
+            && Number.isFinite(anchor.viewportTop)
+        ) {
+            const updatedTop =
+                row.getBoundingClientRect().top;
+
+            window.scrollBy({
+                top: updatedTop - anchor.viewportTop,
+                left: 0,
+                behavior: 'auto',
+            });
+
+            return;
+        }
+
+        if (Number.isFinite(anchor.scrollY)) {
+            const maxScroll = Math.max(
+                document.documentElement.scrollHeight
+                    - window.innerHeight,
+                0
+            );
+
+            window.scrollTo({
+                top: Math.min(
+                    anchor.scrollY,
+                    maxScroll
+                ),
+                left: 0,
+                behavior: 'auto',
+            });
+        }
+    }
+
+    function parseAttendanceHtml(html) {
+        const template = document.createElement(
+            'template'
+        );
+
+        template.innerHTML = String(html || '').trim();
+
+        return template.content;
+    }
+
+    function replaceAttendanceGroup(
+        html,
+        groupKey
+    ) {
+        const content = document.getElementById(
+            'attendanceReviewContent'
+        );
+
+        if (!content || !groupKey) {
             return false;
         }
 
-        form.action = row.update_url || '';
+        const fragment = parseAttendanceHtml(html);
+        const selector =
+            `[data-attendance-group-key="${
+                escapeAttendanceSelector(groupKey)
+            }"]`;
 
-        form.querySelectorAll('[data-field]').forEach(field => {
+        const currentGroup = content.querySelector(
+            selector
+        );
+        const refreshedGroup = fragment.querySelector(
+            selector
+        );
+
+        if (
+            currentGroup
+            && refreshedGroup
+        ) {
+            currentGroup.replaceWith(
+                refreshedGroup.cloneNode(true)
+            );
+
+            return true;
+        }
+
+        if (
+            currentGroup
+            && !refreshedGroup
+        ) {
+            currentGroup.remove();
+
+            if (
+                !content.querySelector(
+                    '.employee-attendance-group'
+                )
+            ) {
+                content.replaceChildren(
+                    fragment.cloneNode(true)
+                );
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    async function loadAttendanceReviewData({
+        historyMode = 'none',
+        groupKeys = [],
+        highlightRowId = null,
+        anchor = null,
+        loadingMessage = 'Loading attendance data...',
+    } = {}) {
+        const content = document.getElementById(
+            'attendanceReviewContent'
+        );
+
+        if (!content || !attendanceReviewDataUrl) {
+            return null;
+        }
+
+        attendanceDataAbortController?.abort();
+        attendanceDataAbortController =
+            new AbortController();
+
+        const requestSequence =
+            ++attendanceDataRequestSequence;
+
+        setAttendanceDataLoading(
+            true,
+            loadingMessage
+        );
+
+        try {
+            const response = await fetch(
+                attendanceDataRequestUrl({
+                    groupKeys,
+                    highlightRowId,
+                }),
+                {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With':
+                            'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal:
+                        attendanceDataAbortController
+                            .signal,
+                }
+            );
+
+            const result = await parseAttendanceResponse(
+                response
+            );
+
+            if (
+                !response.ok
+                || result.success === false
+            ) {
+                throw new Error(
+                    result.message
+                    || 'Attendance data could not be loaded.'
+                );
+            }
+
+            if (
+                requestSequence
+                !== attendanceDataRequestSequence
+            ) {
+                return null;
+            }
+
+            if (groupKeys.length === 1) {
+                const groupWasReplaced =
+                    replaceAttendanceGroup(
+                        result.html,
+                        groupKeys[0]
+                    );
+
+                if (!groupWasReplaced) {
+                    return await loadAttendanceReviewData({
+                        historyMode,
+                        highlightRowId,
+                        anchor,
+                        loadingMessage,
+                    });
+                }
+
+                updateAttendanceVisibleMeta();
+            } else {
+                content.innerHTML = result.html || '';
+                updateAttendanceVisibleMeta(
+                    result.meta || null
+                );
+            }
+
+            updateAttendanceSummary(
+                result.summary || {},
+                Boolean(result.can_confirm)
+            );
+
+            syncAttendanceBulkActionBar();
+            updateAttendanceHistory(historyMode);
+            restoreAttendanceAnchor(anchor);
+            setAttendanceRowHighlight(
+                highlightRowId
+            );
+
+            setAttendanceDataStatus(
+                `Updated ${
+                    new Date().toLocaleTimeString(
+                        [],
+                        {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        }
+                    )
+                }`,
+                false
+            );
+
+            return result;
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return null;
+            }
+
+            const message = error?.message
+                || 'Attendance data could not be loaded.';
+
+            showAttendanceToast(
+                message,
+                'danger'
+            );
+
+            setAttendanceDataStatus(
+                'Load failed',
+                false
+            );
+
+            throw error;
+        } finally {
+            if (
+                requestSequence
+                === attendanceDataRequestSequence
+            ) {
+                setAttendanceDataLoading(false);
+            }
+        }
+    }
+
+    function clearAttendanceEditErrors() {
+        const form = document.getElementById(
+            'editAttendanceForm'
+        );
+        const alert = document.getElementById(
+            'editAttendanceFormAlert'
+        );
+
+        form?.querySelectorAll(
+            '.is-invalid'
+        ).forEach(field => {
+            field.classList.remove(
+                'is-invalid'
+            );
+        });
+
+        if (alert) {
+            alert.replaceChildren();
+            alert.classList.add('d-none');
+        }
+    }
+
+    function showFormErrors({
+        form,
+        alert,
+        errors = {},
+        fallbackMessage = null,
+    }) {
+        if (!alert) {
+            return;
+        }
+
+        const messages = [];
+
+        Object.entries(
+            errors || {}
+        ).forEach(([key, fieldMessages]) => {
+            const normalizedFieldName = key
+                .replace(/^resolution\./, '')
+                .split('.')[0];
+
+            const directField = form?.querySelector(
+                `[name="${normalizedFieldName}"]`
+            );
+
+            const nestedField = document.querySelector(
+                `[form="${form?.id}"][name="${
+                    key.startsWith('resolution.')
+                        ? `resolution[${normalizedFieldName}]`
+                        : normalizedFieldName
+                }"]`
+            );
+
+            (directField || nestedField)?.classList.add(
+                'is-invalid'
+            );
+
+            (
+                Array.isArray(fieldMessages)
+                    ? fieldMessages
+                    : [fieldMessages]
+            )
+                .filter(Boolean)
+                .forEach(message => {
+                    messages.push(String(message));
+                });
+        });
+
+        if (
+            messages.length === 0
+            && fallbackMessage
+        ) {
+            messages.push(fallbackMessage);
+        }
+
+        if (messages.length === 0) {
+            messages.push(
+                'The requested changes could not be saved.'
+            );
+        }
+
+        const list = document.createElement('ul');
+        list.className = 'mb-0 ps-3';
+
+        messages.forEach(message => {
+            const item = document.createElement('li');
+            item.textContent = message;
+            list.appendChild(item);
+        });
+
+        alert.replaceChildren(list);
+        alert.classList.remove('d-none');
+        alert.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+        });
+    }
+
+    function showAttendanceEditErrors(
+        errors,
+        fallbackMessage = null
+    ) {
+        showFormErrors({
+            form: document.getElementById(
+                'editAttendanceForm'
+            ),
+            alert: document.getElementById(
+                'editAttendanceFormAlert'
+            ),
+            errors,
+            fallbackMessage,
+        });
+    }
+
+    function clearAttendanceBulkErrors() {
+        const form = document.getElementById(
+            'bulkUpdateForm'
+        );
+        const alert = document.getElementById(
+            'bulkUpdateFormAlert'
+        );
+
+        document
+            .querySelectorAll(
+                '[form="bulkUpdateForm"].is-invalid'
+            )
+            .forEach(field => {
+                field.classList.remove(
+                    'is-invalid'
+                );
+            });
+
+        form?.querySelectorAll(
+            '.is-invalid'
+        ).forEach(field => {
+            field.classList.remove(
+                'is-invalid'
+            );
+        });
+
+        if (alert) {
+            alert.replaceChildren();
+            alert.classList.add('d-none');
+        }
+    }
+
+    function showAttendanceBulkErrors(
+        errors,
+        fallbackMessage = null
+    ) {
+        showFormErrors({
+            form: document.getElementById(
+                'bulkUpdateForm'
+            ),
+            alert: document.getElementById(
+                'bulkUpdateFormAlert'
+            ),
+            errors,
+            fallbackMessage,
+        });
+    }
+
+    function setAttendanceSaveLoading(loading) {
+        const button = document.getElementById(
+            'saveAttendanceChangesButton'
+        );
+
+        if (!button) {
+            return;
+        }
+
+        button.disabled = loading;
+
+        button
+            .querySelector('.default-text')
+            ?.classList.toggle(
+                'd-none',
+                loading
+            );
+
+        button
+            .querySelector('.loading-text')
+            ?.classList.toggle(
+                'd-none',
+                !loading
+            );
+    }
+
+    function setAttendanceBulkLoading(loading) {
+        const button = document.getElementById(
+            'bulkUpdateSubmitButton'
+        );
+
+        if (!button) {
+            return;
+        }
+
+        button.disabled = loading;
+
+        button
+            .querySelector('.default-text')
+            ?.classList.toggle(
+                'd-none',
+                loading
+            );
+
+        button
+            .querySelector('.loading-text')
+            ?.classList.toggle(
+                'd-none',
+                !loading
+            );
+    }
+
+    function populateAttendanceEditForm(row) {
+        const form = document.getElementById(
+            'editAttendanceForm'
+        );
+
+        if (!form) {
+            return false;
+        }
+
+        clearAttendanceEditErrors();
+
+        form.action = row.update_url || '';
+        form.dataset.rowId = String(row.id || '');
+        form.dataset.groupKey =
+            row.group_key || '';
+        form.dataset.groupDomKey =
+            row.group_dom_key || '';
+
+        form.querySelectorAll(
+            '[data-field]'
+        ).forEach(field => {
             const key = field.dataset.field;
             const value = row[key];
 
             if (field.type === 'checkbox') {
                 field.checked = Boolean(value);
+                return;
+            }
 
+            if (
+                field.type === 'time'
+                && value
+            ) {
+                field.value = String(value).slice(
+                    0,
+                    5
+                );
                 return;
             }
 
@@ -1335,9 +2787,10 @@
     }
 
     function openAttendanceReviewModal(row) {
-        if (!row || typeof row !== 'object') {
-            console.error('Invalid attendance row payload.', row);
-
+        if (
+            !row
+            || typeof row !== 'object'
+        ) {
             return;
         }
 
@@ -1348,37 +2801,42 @@
         getAttendanceEditModal()?.show();
     }
 
-    function openAttendanceReviewModalFromElement(element) {
+    function openAttendanceReviewModalFromElement(
+        element
+    ) {
         const row = decodeAttendancePayload(
             element.dataset.attendancePayload
         );
 
-        if (!row) {
-            return;
+        if (row) {
+            openAttendanceReviewModal(row);
         }
-
-        openAttendanceReviewModal(row);
     }
 
     function syncAttendanceBulkActionBar() {
-        const selectAllRows = document.getElementById('selectAllRows');
-
-        const rowCheckboxes = Array.from(
-            document.querySelectorAll('.row-checkbox')
+        const selectAllRows = document.getElementById(
+            'selectAllRows'
         );
-
-        const bulkActionBar = document.getElementById('bulkActionBar');
-
+        const rowCheckboxes = Array.from(
+            document.querySelectorAll(
+                '.row-checkbox'
+            )
+        );
+        const selected = rowCheckboxes.filter(
+            checkbox => checkbox.checked
+        );
+        const bulkActionBar = document.getElementById(
+            'bulkActionBar'
+        );
         const selectedRowCount = document.getElementById(
             'selectedRowCount'
         );
 
-        const selected = rowCheckboxes.filter(
-            checkbox => checkbox.checked
-        );
-
         if (selectedRowCount) {
-            selectedRowCount.textContent = selected.length;
+            selectedRowCount.textContent =
+                formatAttendanceCount(
+                    selected.length
+                );
         }
 
         bulkActionBar?.classList.toggle(
@@ -1389,226 +2847,693 @@
         if (selectAllRows) {
             selectAllRows.checked =
                 selected.length > 0
-                && selected.length === rowCheckboxes.length;
+                && selected.length
+                    === rowCheckboxes.length;
 
             selectAllRows.indeterminate =
                 selected.length > 0
-                && selected.length < rowCheckboxes.length;
+                && selected.length
+                    < rowCheckboxes.length;
         }
     }
 
     function initializeAttendanceBulkSelection() {
-        const selectAllRows = document.getElementById('selectAllRows');
+        document.addEventListener(
+            'change',
+            event => {
+                if (
+                    event.target?.id
+                    === 'selectAllRows'
+                ) {
+                    document
+                        .querySelectorAll(
+                            '.row-checkbox'
+                        )
+                        .forEach(checkbox => {
+                            checkbox.checked =
+                                event.target.checked;
+                        });
 
-        const rowCheckboxes = Array.from(
-            document.querySelectorAll('.row-checkbox')
+                    syncAttendanceBulkActionBar();
+                    return;
+                }
+
+                if (
+                    event.target?.classList?.contains(
+                        'row-checkbox'
+                    )
+                ) {
+                    syncAttendanceBulkActionBar();
+                }
+            }
         );
-
-        selectAllRows?.addEventListener('change', () => {
-            rowCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllRows.checked;
-            });
-
-            syncAttendanceBulkActionBar();
-        });
-
-        rowCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener(
-                'change',
-                syncAttendanceBulkActionBar
-            );
-        });
     }
 
     function initializeAttendanceRowEditors() {
-        document.querySelectorAll('.edit-row-button').forEach(button => {
-            button.addEventListener('click', event => {
-                event.preventDefault();
-                event.stopPropagation();
+        document.addEventListener(
+            'click',
+            event => {
+                const editButton =
+                    event.target.closest(
+                        '.edit-row-button[data-attendance-payload]'
+                    );
 
-                openAttendanceReviewModalFromElement(button);
-            });
-        });
-
-        document
-            .querySelectorAll(
-                '.needs-review-row[data-attendance-payload]'
-            )
-            .forEach(rowElement => {
-                rowElement.addEventListener('click', event => {
-                    if (
-                        event.target.closest(
-                            'input, button, a, select, textarea, label, .dropdown'
-                        )
-                    ) {
-                        return;
-                    }
-
-                    openAttendanceReviewModalFromElement(rowElement);
-                });
-
-                rowElement.addEventListener('keydown', event => {
-                    if (!['Enter', ' '].includes(event.key)) {
-                        return;
-                    }
-
-                    if (
-                        event.target.closest(
-                            'input, button, a, select, textarea, label, .dropdown'
-                        )
-                    ) {
-                        return;
-                    }
-
+                if (editButton) {
                     event.preventDefault();
+                    event.stopPropagation();
 
-                    openAttendanceReviewModalFromElement(rowElement);
-                });
-            });
+                    openAttendanceReviewModalFromElement(
+                        editButton
+                    );
+
+                    return;
+                }
+
+                const card = event.target.closest(
+                    '.needs-review-row[data-attendance-payload]'
+                );
+
+                if (!card) {
+                    return;
+                }
+
+                if (
+                    event.target.closest(
+                        'input, button, a, select, textarea, label, .dropdown'
+                    )
+                ) {
+                    return;
+                }
+
+                openAttendanceReviewModalFromElement(
+                    card
+                );
+            }
+        );
+
+        document.addEventListener(
+            'keydown',
+            event => {
+                if (
+                    !['Enter', ' '].includes(
+                        event.key
+                    )
+                ) {
+                    return;
+                }
+
+                const card = event.target.closest(
+                    '.needs-review-row[data-attendance-payload]'
+                );
+
+                if (!card) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                openAttendanceReviewModalFromElement(
+                    card
+                );
+            }
+        );
     }
 
     function initializeAttendanceFilters() {
-        document
-            .querySelectorAll('.filter-auto-submit')
-            .forEach(field => {
-                field.addEventListener('change', () => {
-                    document
-                        .getElementById('reviewFilterForm')
-                        ?.submit();
-                });
-            });
-    }
-
-    function getAttendanceConfirmationModal() {
-        const modalElement = document.getElementById(
-            'actionConfirmationModal'
+        const form = getAttendanceFilterForm();
+        const resetButton = document.getElementById(
+            'resetReviewFilters'
+        );
+        const searchInput = document.getElementById(
+            'search'
         );
 
-        if (!modalElement) {
-            console.error('Confirmation modal element was not found.');
+        form?.addEventListener(
+            'submit',
+            event => {
+                event.preventDefault();
 
-            return null;
-        }
+                loadAttendanceReviewData({
+                    historyMode: 'push',
+                    loadingMessage:
+                        'Applying attendance filters...',
+                }).catch(() => {});
+            }
+        );
 
-        if (!window.bootstrap || !window.bootstrap.Modal) {
-            console.error('Bootstrap Modal is not available.');
-
-            return null;
-        }
-
-        if (!attendanceConfirmationModal) {
-            attendanceConfirmationModal =
-                window.bootstrap.Modal.getOrCreateInstance(
-                    modalElement
+        document
+            .querySelectorAll(
+                '.filter-auto-submit'
+            )
+            .forEach(field => {
+                field.addEventListener(
+                    'change',
+                    () => {
+                        loadAttendanceReviewData({
+                            historyMode: 'push',
+                            loadingMessage:
+                                'Applying attendance filters...',
+                        }).catch(() => {});
+                    }
                 );
+            });
+
+        searchInput?.addEventListener(
+            'input',
+            () => {
+                window.clearTimeout(
+                    attendanceSearchTimer
+                );
+
+                attendanceSearchTimer =
+                    window.setTimeout(() => {
+                        loadAttendanceReviewData({
+                            historyMode: 'replace',
+                            loadingMessage:
+                                'Searching attendance...',
+                        }).catch(() => {});
+                    }, 550);
+            }
+        );
+
+        resetButton?.addEventListener(
+            'click',
+            event => {
+                event.preventDefault();
+                window.clearTimeout(
+                    attendanceSearchTimer
+                );
+
+                clearAttendanceFilters();
+
+                loadAttendanceReviewData({
+                    historyMode: 'push',
+                    loadingMessage:
+                        'Resetting attendance filters...',
+                }).catch(() => {});
+            }
+        );
+
+        window.addEventListener(
+            'popstate',
+            () => {
+                syncAttendanceFilterFormFromUrl();
+
+                loadAttendanceReviewData({
+                    historyMode: 'none',
+                    loadingMessage:
+                        'Restoring attendance filters...',
+                }).catch(() => {});
+            }
+        );
+    }
+
+    function initializeAttendanceAsyncEdit() {
+        const form = document.getElementById(
+            'editAttendanceForm'
+        );
+        const modalElement = document.getElementById(
+            'editAttendanceModal'
+        );
+
+        form?.addEventListener(
+            'submit',
+            async event => {
+                event.preventDefault();
+                clearAttendanceEditErrors();
+
+                const rowId = form.dataset.rowId;
+                const originalGroupKey =
+                    form.dataset.groupKey;
+
+                if (!form.action || !rowId) {
+                    showAttendanceEditErrors(
+                        null,
+                        'Attendance row to update was not found.'
+                    );
+
+                    return;
+                }
+
+                const currentCard =
+                    document.getElementById(
+                        `attendance-record-${rowId}`
+                    );
+
+                const anchor = {
+                    rowId,
+                    viewportTop:
+                        currentCard
+                            ?.getBoundingClientRect()
+                            .top,
+                    scrollY: window.scrollY,
+                };
+
+                setAttendanceSaveLoading(true);
+
+                try {
+                    const response = await fetch(
+                        form.action,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Accept':
+                                    'application/json',
+                                'X-Requested-With':
+                                    'XMLHttpRequest',
+                            },
+                            body: new FormData(form),
+                            credentials:
+                                'same-origin',
+                        }
+                    );
+
+                    const result =
+                        await parseAttendanceResponse(
+                            response
+                        );
+
+                    if (response.status === 422) {
+                        showAttendanceEditErrors(
+                            result.errors || {},
+                            result.message
+                        );
+
+                        return;
+                    }
+
+                    if (
+                        !response.ok
+                        || result.success === false
+                    ) {
+                        throw new Error(
+                            result.message
+                            || 'Attendance row could not be updated.'
+                        );
+                    }
+
+                    const responseData =
+                        result.data || {};
+
+                    updateAttendanceSummary(
+                        responseData.summary || {},
+                        Boolean(
+                            responseData.can_confirm
+                        )
+                    );
+
+                    getAttendanceEditModal()?.hide();
+
+                    const refreshGroupKeys = Array.from(
+                        new Set(
+                            responseData
+                                .refresh_group_keys
+                                || [
+                                    originalGroupKey,
+                                ].filter(Boolean)
+                        )
+                    );
+
+                    const canRefreshOneGroup =
+                        refreshGroupKeys.length === 1
+                        && (
+                            !responseData.previous_group_key
+                            || responseData.previous_group_key
+                                === responseData.group_key
+                        );
+
+                    await loadAttendanceReviewData({
+                        groupKeys:
+                            canRefreshOneGroup
+                                ? refreshGroupKeys
+                                : [],
+                        highlightRowId: rowId,
+                        anchor,
+                        loadingMessage:
+                            'Refreshing updated attendance...',
+                    });
+
+                    showAttendanceToast(
+                        result.message
+                        || 'Attendance row was updated.',
+                        'success'
+                    );
+                } catch (error) {
+                    const message = error?.message
+                        || 'Attendance row could not be updated.';
+
+                    showAttendanceEditErrors(
+                        null,
+                        message
+                    );
+
+                    showAttendanceToast(
+                        message,
+                        'danger'
+                    );
+                } finally {
+                    setAttendanceSaveLoading(false);
+                }
+            }
+        );
+
+        modalElement?.addEventListener(
+            'hidden.bs.modal',
+            () => {
+                clearAttendanceEditErrors();
+                setAttendanceSaveLoading(false);
+            }
+        );
+    }
+
+    function initializeAttendanceAsyncBulkUpdate() {
+        const form = document.getElementById(
+            'bulkUpdateForm'
+        );
+        const modalElement = document.getElementById(
+            'bulkUpdateModal'
+        );
+
+        form?.addEventListener(
+            'submit',
+            async event => {
+                event.preventDefault();
+                clearAttendanceBulkErrors();
+
+                const selectedRows =
+                    document.querySelectorAll(
+                        '.row-checkbox:checked'
+                    );
+
+                if (selectedRows.length === 0) {
+                    showAttendanceBulkErrors(
+                        null,
+                        'Select at least one attendance row.'
+                    );
+
+                    getAttendanceBulkModal()?.show();
+                    return;
+                }
+
+                setAttendanceBulkLoading(true);
+
+                const anchor = {
+                    scrollY: window.scrollY,
+                };
+
+                try {
+                    const response = await fetch(
+                        form.action,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Accept':
+                                    'application/json',
+                                'X-Requested-With':
+                                    'XMLHttpRequest',
+                            },
+                            body: new FormData(form),
+                            credentials:
+                                'same-origin',
+                        }
+                    );
+
+                    const result =
+                        await parseAttendanceResponse(
+                            response
+                        );
+
+                    if (response.status === 422) {
+                        showAttendanceBulkErrors(
+                            result.errors || {},
+                            result.message
+                        );
+
+                        getAttendanceBulkModal()?.show();
+                        return;
+                    }
+
+                    if (
+                        !response.ok
+                        || result.success === false
+                    ) {
+                        throw new Error(
+                            result.message
+                            || 'Bulk attendance update failed.'
+                        );
+                    }
+
+                    const responseData =
+                        result.data || {};
+
+                    updateAttendanceSummary(
+                        responseData.summary || {},
+                        Boolean(
+                            responseData.can_confirm
+                        )
+                    );
+
+                    getAttendanceBulkModal()?.hide();
+                    form.reset();
+                    syncAttendanceBulkActionBar();
+
+                    await loadAttendanceReviewData({
+                        anchor,
+                        loadingMessage:
+                            'Refreshing attendance data...',
+                    });
+
+                    showAttendanceToast(
+                        result.message
+                        || 'Selected attendance rows were updated.',
+                        'success'
+                    );
+                } catch (error) {
+                    const message = error?.message
+                        || 'Bulk attendance update failed.';
+
+                    showAttendanceBulkErrors(
+                        null,
+                        message
+                    );
+
+                    getAttendanceBulkModal()?.show();
+
+                    showAttendanceToast(
+                        message,
+                        'danger'
+                    );
+                } finally {
+                    setAttendanceBulkLoading(false);
+                }
+            }
+        );
+
+        modalElement?.addEventListener(
+            'hidden.bs.modal',
+            () => {
+                clearAttendanceBulkErrors();
+                setAttendanceBulkLoading(false);
+            }
+        );
+    }
+
+    function showAttendanceToast(
+        message,
+        type = 'success'
+    ) {
+        const container = document.getElementById(
+            'attendanceAsyncToastContainer'
+        );
+
+        if (
+            !container
+            || !window.bootstrap?.Toast
+        ) {
+            return;
         }
 
-        return attendanceConfirmationModal;
+        const backgroundClass = {
+            success: 'text-bg-success',
+            danger: 'text-bg-danger',
+            warning: 'text-bg-warning',
+            info: 'text-bg-info',
+        }[type] || 'text-bg-success';
+
+        const toastElement =
+            document.createElement('div');
+
+        toastElement.className =
+            `toast align-items-center ${
+                backgroundClass
+            } border-0`;
+
+        toastElement.setAttribute(
+            'role',
+            'status'
+        );
+        toastElement.setAttribute(
+            'aria-live',
+            'polite'
+        );
+        toastElement.setAttribute(
+            'aria-atomic',
+            'true'
+        );
+
+        const wrapper =
+            document.createElement('div');
+        wrapper.className = 'd-flex';
+
+        const body =
+            document.createElement('div');
+        body.className =
+            'toast-body fw-semibold';
+        body.textContent = message;
+
+        const close =
+            document.createElement('button');
+        close.type = 'button';
+        close.className =
+            'btn-close btn-close-white me-2 m-auto';
+        close.setAttribute(
+            'data-bs-dismiss',
+            'toast'
+        );
+        close.setAttribute(
+            'aria-label',
+            'Close'
+        );
+
+        wrapper.append(body, close);
+        toastElement.appendChild(wrapper);
+        container.appendChild(toastElement);
+
+        const toast =
+            new window.bootstrap.Toast(
+                toastElement,
+                {
+                    delay: 3400,
+                }
+            );
+
+        toast.show();
+
+        toastElement.addEventListener(
+            'hidden.bs.toast',
+            () => toastElement.remove()
+        );
     }
 
     function initializeAttendanceConfirmationDialog() {
         const modalElement = document.getElementById(
             'actionConfirmationModal'
         );
-
         const confirmationTitle = document.getElementById(
             'confirmationTitle'
         );
-
         const confirmationMessage = document.getElementById(
             'confirmationMessage'
         );
-
         const confirmationIcon = document.getElementById(
             'confirmationIcon'
         );
+        const confirmationIconGlyph =
+            document.getElementById(
+                'confirmationIconGlyph'
+            );
+        const confirmationSubmitButton =
+            document.getElementById(
+                'confirmationSubmitButton'
+            );
 
-        const confirmationIconGlyph = document.getElementById(
-            'confirmationIconGlyph'
-        );
+        document.addEventListener(
+            'click',
+            event => {
+                const trigger = event.target.closest(
+                    '[data-confirm-form]'
+                );
 
-        const confirmationSubmitButton = document.getElementById(
-            'confirmationSubmitButton'
-        );
+                if (
+                    !trigger
+                    || trigger.disabled
+                ) {
+                    return;
+                }
 
-        document
-            .querySelectorAll('[data-confirm-form]')
-            .forEach(trigger => {
-                trigger.addEventListener('click', () => {
-                    if (trigger.disabled) {
-                        return;
-                    }
+                pendingAttendanceConfirmationForm =
+                    document.getElementById(
+                        trigger.dataset.confirmForm
+                    );
 
-                    pendingAttendanceConfirmationForm =
-                        document.getElementById(
-                            trigger.dataset.confirmForm
-                        );
+                const variant =
+                    trigger.dataset.confirmVariant
+                    || 'primary';
 
-                    const variant =
-                        trigger.dataset.confirmVariant || 'primary';
+                if (confirmationTitle) {
+                    confirmationTitle.textContent =
+                        trigger.dataset.confirmTitle
+                        || 'Confirm Action';
+                }
 
-                    if (confirmationTitle) {
-                        confirmationTitle.textContent =
-                            trigger.dataset.confirmTitle
-                            || 'Confirm Action';
-                    }
+                if (confirmationMessage) {
+                    confirmationMessage.textContent =
+                        trigger.dataset.confirmMessage
+                        || 'Are you sure you want to continue?';
+                }
 
-                    if (confirmationMessage) {
-                        confirmationMessage.textContent =
-                            trigger.dataset.confirmMessage
-                            || 'Are you sure you want to continue?';
-                    }
+                if (confirmationSubmitButton) {
+                    confirmationSubmitButton.textContent =
+                        trigger.dataset.confirmLabel
+                        || 'Confirm';
 
-                    if (confirmationSubmitButton) {
-                        confirmationSubmitButton.textContent =
-                            trigger.dataset.confirmLabel
-                            || 'Confirm';
-
-                        confirmationSubmitButton.className =
-                            `btn btn-modern ${
-                                variant === 'danger'
-                                    ? 'btn-danger'
-                                    : 'btn-primary'
-                            }`;
-                    }
-
-                    if (confirmationIcon) {
-                        confirmationIcon.className =
-                            `confirmation-icon ${
-                                variant === 'danger'
-                                    ? 'is-danger'
-                                    : 'is-primary'
-                            }`;
-                    }
-
-                    if (confirmationIconGlyph) {
-                        confirmationIconGlyph.className =
+                    confirmationSubmitButton.className =
+                        `btn btn-modern ${
                             variant === 'danger'
-                                ? 'bi bi-exclamation-triangle-fill'
-                                : 'bi bi-check-lg';
-                    }
+                                ? 'btn-danger'
+                                : 'btn-primary'
+                        }`;
+                }
 
-                    getAttendanceConfirmationModal()?.show();
-                });
-            });
+                if (confirmationIcon) {
+                    confirmationIcon.className =
+                        `confirmation-icon ${
+                            variant === 'danger'
+                                ? 'is-danger'
+                                : 'is-primary'
+                        }`;
+                }
 
-        confirmationSubmitButton?.addEventListener('click', () => {
-            if (!pendingAttendanceConfirmationForm) {
-                return;
+                if (confirmationIconGlyph) {
+                    confirmationIconGlyph.className =
+                        variant === 'danger'
+                            ? 'bi bi-exclamation-triangle-fill'
+                            : 'bi bi-check-lg';
+                }
+
+                getAttendanceConfirmationModal()?.show();
             }
+        );
 
-            confirmationSubmitButton.disabled = true;
+        confirmationSubmitButton?.addEventListener(
+            'click',
+            () => {
+                if (!pendingAttendanceConfirmationForm) {
+                    return;
+                }
 
-            confirmationSubmitButton.innerHTML = `
-                <span
-                    class="spinner-border spinner-border-sm me-2"
-                    aria-hidden="true"
-                ></span>
-                Processing...
-            `;
+                confirmationSubmitButton.disabled = true;
+                confirmationSubmitButton.innerHTML = `
+                    <span
+                        class="spinner-border spinner-border-sm me-2"
+                        aria-hidden="true"
+                    ></span>
+                    Processing...
+                `;
 
-            pendingAttendanceConfirmationForm.submit();
-        });
+                pendingAttendanceConfirmationForm.submit();
+            }
+        );
 
         modalElement?.addEventListener(
             'hidden.bs.modal',
@@ -1617,7 +3542,8 @@
 
                 if (confirmationSubmitButton) {
                     confirmationSubmitButton.disabled = false;
-                    confirmationSubmitButton.textContent = 'Confirm';
+                    confirmationSubmitButton.textContent =
+                        'Confirm';
                     confirmationSubmitButton.className =
                         'btn btn-primary btn-modern';
                 }
@@ -1625,11 +3551,22 @@
         );
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        initializeAttendanceBulkSelection();
-        initializeAttendanceRowEditors();
-        initializeAttendanceFilters();
-        initializeAttendanceConfirmationDialog();
-    });
+    document.addEventListener(
+        'DOMContentLoaded',
+        () => {
+            initializeAttendanceBulkSelection();
+            initializeAttendanceRowEditors();
+            initializeAttendanceFilters();
+            initializeAttendanceAsyncEdit();
+            initializeAttendanceAsyncBulkUpdate();
+            initializeAttendanceConfirmationDialog();
+
+            loadAttendanceReviewData({
+                historyMode: 'none',
+                loadingMessage:
+                    'Loading latest attendance data...',
+            }).catch(() => {});
+        }
+    );
 </script>
 @endpush

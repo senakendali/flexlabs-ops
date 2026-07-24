@@ -613,6 +613,11 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | - marketing.dashboard
 | - finance.dashboard
 | - hr.dashboard
+| - hr.dashboard.chart-data
+| - hr.dashboard.monthly-report
+| - hr.dashboard.monthly-report-data
+| - hr.dashboard.employee-detail
+| - hr.dashboard.employee-detail-data
 |
 | Notes:
 | - /dashboard remains the legacy/global dashboard during the migration.
@@ -652,9 +657,80 @@ Route::middleware(['auth', 'verified'])
             ->middleware('permission:finance.dashboard.view')
             ->name('finance.dashboard');
 
-        Route::get('/hr/dashboard', [HrDashboardController::class, 'index'])
+        /*
+        |--------------------------------------------------------------------------
+        | HR Dashboard
+        |--------------------------------------------------------------------------
+        |
+        | Main pages:
+        | - GET /hr/dashboard
+        | - GET /hr/dashboard/monthly-report
+        | - GET /hr/dashboard/employees/{employee}/attendance
+        |
+        | Async data:
+        | - GET /hr/dashboard/chart-data
+        | - GET /hr/dashboard/monthly-report/data
+        | - GET /hr/dashboard/employees/{employee}/attendance/data
+        |
+        | Route names:
+        | - hr.dashboard
+        | - hr.dashboard.chart-data
+        | - hr.dashboard.monthly-report
+        | - hr.dashboard.monthly-report-data
+        | - hr.dashboard.employee-detail
+        | - hr.dashboard.employee-detail-data
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('hr/dashboard')
             ->middleware('permission:hr.dashboard.view')
-            ->name('hr.dashboard');
+            ->controller(HrDashboardController::class)
+            ->group(function () {
+                /*
+                |--------------------------------------------------------------------------
+                | Overview
+                |--------------------------------------------------------------------------
+                */
+                Route::get('/', 'index')
+                    ->name('hr.dashboard');
+
+                Route::get('/chart-data', 'chartData')
+                    ->name('hr.dashboard.chart-data');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Monthly Attendance Report
+                |--------------------------------------------------------------------------
+                | Static report routes ditempatkan sebelum employee parameter.
+                |--------------------------------------------------------------------------
+                */
+                Route::get('/monthly-report', 'monthlyReport')
+                    ->name('hr.dashboard.monthly-report');
+
+                Route::get(
+                    '/monthly-report/data',
+                    'monthlyReportData'
+                )
+                    ->name('hr.dashboard.monthly-report-data');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Employee Attendance Detail
+                |--------------------------------------------------------------------------
+                */
+                Route::get(
+                    '/employees/{employee}/attendance',
+                    'employeeDetail'
+                )
+                    ->whereNumber('employee')
+                    ->name('hr.dashboard.employee-detail');
+
+                Route::get(
+                    '/employees/{employee}/attendance/data',
+                    'employeeDetailData'
+                )
+                    ->whereNumber('employee')
+                    ->name('hr.dashboard.employee-detail-data');
+            });
     });
 
 
@@ -748,6 +824,7 @@ Route::middleware('auth')->group(function () {
     | - hr.attendance-imports.create
     | - hr.attendance-imports.store
     | - hr.attendance-imports.review
+    | - hr.attendance-imports.review-data
     | - hr.attendance-imports.rows.update
     | - hr.attendance-imports.bulk-update
     | - hr.attendance-imports.confirm
@@ -809,6 +886,30 @@ Route::middleware('auth')->group(function () {
                     Route::get('/{attendanceImport}/review', 'review')
                         ->whereNumber('attendanceImport')
                         ->name('review');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Async Review Data
+                    |--------------------------------------------------------------------------
+                    | Mengembalikan HTML Blade partial + summary JSON untuk:
+                    | - Initial async attendance list
+                    | - Search dan filter tanpa full-page reload
+                    | - Refresh satu atau beberapa employee group
+                    | - Sinkronisasi summary dan status Confirm Import
+                    |
+                    | URL:
+                    | - GET /hr/attendance-imports/{attendanceImport}/review-data
+                    |
+                    | Route name:
+                    | - hr.attendance-imports.review-data
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get(
+                        '/{attendanceImport}/review-data',
+                        'reviewData'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->name('review-data');
 
                     Route::patch(
                         '/{attendanceImport}/rows/{attendanceImportRow}',
