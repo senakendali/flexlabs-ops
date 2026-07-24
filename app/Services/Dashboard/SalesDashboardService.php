@@ -987,15 +987,48 @@ class SalesDashboardService
             $stats['participants_total'] = (int) (clone $query)->count();
 
             if ($sourceColumn) {
-                $source = (clone $query)
-                    ->selectRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown") as source_name, COUNT(*) as total')
-                    ->groupByRaw('COALESCE(NULLIF(' . $this->wrapColumn($sourceColumn) . ', ""), "unknown")')
+                /*
+                |--------------------------------------------------------------------------
+                | Top Workshop Source
+                |--------------------------------------------------------------------------
+                |
+                | Normalisasi source dilakukan di subquery terlebih dahulu,
+                | kemudian agregasi dilakukan menggunakan alias source_name.
+                |
+                | Pola ini aman untuk MySQL dengan ONLY_FULL_GROUP_BY aktif
+                | dan menghindari error 1055 ketika expression COALESCE/NULLIF
+                | dipakai langsung pada SELECT dan GROUP BY.
+                |--------------------------------------------------------------------------
+                */
+                $normalizedSourceQuery = (clone $query)
+                    ->selectRaw(
+                        'COALESCE(NULLIF(TRIM('
+                        . $this->wrapColumn($sourceColumn)
+                        . '), ?), ?) as source_name',
+                        [
+                            '',
+                            'unknown',
+                        ]
+                    );
+
+                $source = DB::query()
+                    ->fromSub(
+                        $normalizedSourceQuery,
+                        'workshop_participant_sources'
+                    )
+                    ->selectRaw(
+                        'source_name, COUNT(*) as total'
+                    )
+                    ->groupBy('source_name')
                     ->orderByDesc('total')
                     ->first();
 
                 if ($source) {
-                    $stats['top_source'] = $source->source_name;
-                    $stats['top_source_total'] = (int) $source->total;
+                    $stats['top_source'] =
+                        (string) $source->source_name;
+
+                    $stats['top_source_total'] =
+                        (int) $source->total;
                 }
             }
         }

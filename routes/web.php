@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Program\ProgramController;
 use App\Http\Controllers\Instructor\InstructorController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Trial\TrialScheduleController;
 use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardLandingController;
 use App\Http\Controllers\Sales\SalesDashboardController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Hr\HrDashboardController;
@@ -601,12 +603,18 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 
 /*
 |--------------------------------------------------------------------------
-| Division Dashboards
+| Dashboard Landing & Division Dashboards
 |--------------------------------------------------------------------------
 |
-| Route names used by the role/menu configuration:
-| - dashboard
-| - super-admin.dashboard
+| Smart landing:
+| - GET /dashboard
+|   Redirect berdasarkan role melalui DashboardLandingController.
+|
+| Management:
+| - GET /management/dashboard
+| - GET /super-admin/dashboard (legacy alias)
+|
+| Division dashboards:
 | - academic.dashboard
 | - sales.dashboard
 | - sales.dashboard.chart-data
@@ -619,23 +627,98 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | - hr.dashboard.employee-detail
 | - hr.dashboard.employee-detail-data
 |
+| Role mapping:
+| - super_admin / admin -> management.dashboard
+| - academic            -> academic.dashboard
+| - marketing           -> marketing.dashboard
+| - sales               -> sales.dashboard
+| - finance             -> finance.dashboard
+| - hr                  -> hr.dashboard
+|
 | Notes:
-| - /dashboard remains the legacy/global dashboard during the migration.
-| - /super-admin/dashboard explicitly exposes the management dashboard.
-| - Each division dashboard has its own permission.
-| - Sales Dashboard has its own chart-data endpoint and does not replace the
-|   existing sales-performance.chart-data route.
+| - Route "dashboard" tetap dipakai menu utama dan login redirect.
+| - Management Dashboard hanya dapat dibuka oleh Super Admin dan Admin.
+| - Alias "super-admin.dashboard" dipertahankan agar link lama tidak rusak.
+| - Setiap dashboard divisi tetap dilindungi permission masing-masing.
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])
     ->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'index'])
-            ->middleware('permission:dashboard.view')
-            ->name('dashboard');
+        /*
+        |--------------------------------------------------------------------------
+        | Smart Dashboard Landing
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/dashboard',
+            DashboardLandingController::class
+        )->name('dashboard');
 
-        Route::get('/super-admin/dashboard', [DashboardController::class, 'index'])
-            ->middleware('permission:dashboard.view')
-            ->name('super-admin.dashboard');
+        /*
+        |--------------------------------------------------------------------------
+        | Management Dashboard
+        |--------------------------------------------------------------------------
+        |
+        | Config akses saat ini memberikan wildcard "*" kepada:
+        | - super_admin
+        | - admin
+        |
+        | Karena belum ada middleware role khusus yang terkonfirmasi,
+        | validasi role dilakukan langsung pada route ini agar user divisi
+        | tidak dapat membuka Management Dashboard melalui URL.
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/management/dashboard',
+            function (
+                Request $request,
+                DashboardController $dashboardController
+            ) {
+                $user = $request->user();
+
+                abort_unless(
+                    $user
+                    && in_array(
+                        (string) $user->role,
+                        ['super_admin', 'admin'],
+                        true
+                    ),
+                    403,
+                    'Management Dashboard hanya dapat diakses oleh Super Admin dan Admin.'
+                );
+
+                return $dashboardController->index(
+                    $request
+                );
+            }
+        )->name('management.dashboard');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Legacy Super Admin Dashboard Alias
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/super-admin/dashboard',
+            function () {
+                $user = request()->user();
+
+                abort_unless(
+                    $user
+                    && in_array(
+                        (string) $user->role,
+                        ['super_admin', 'admin'],
+                        true
+                    ),
+                    403,
+                    'Management Dashboard hanya dapat diakses oleh Super Admin dan Admin.'
+                );
+
+                return redirect()->route(
+                    'management.dashboard'
+                );
+            }
+        )->name('super-admin.dashboard');
 
         Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
             ->middleware('permission:academic.dashboard.view')

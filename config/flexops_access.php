@@ -570,7 +570,16 @@ return [
             'route' => 'dashboard',
             'icon' => 'bi bi-grid-1x2-fill',
             'permission' => 'dashboard.view',
-            'active' => ['dashboard'],
+            'active' => [
+                'dashboard',
+                'management.dashboard',
+                'super-admin.dashboard',
+                'academic.dashboard*',
+                'sales.dashboard*',
+                'marketing.dashboard*',
+                'finance.dashboard*',
+                'hr.dashboard*',
+            ],
         ],
 
         [
