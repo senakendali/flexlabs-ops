@@ -293,18 +293,6 @@
 
         .signature-space {
             height: 62px;
-            line-height: 62px;
-            text-align: center;
-            overflow: hidden;
-        }
-
-        .signature-image {
-            display: inline-block;
-            max-width: 105px;
-            max-height: 58px;
-            width: auto;
-            height: auto;
-            vertical-align: middle;
         }
 
         .signature-name {
@@ -320,18 +308,6 @@
             line-height: 1.25;
             min-height: 24px;
             margin-top: 3px;
-        }
-
-        .signature-meta {
-            min-height: 22px;
-            margin-top: 4px;
-            color: #64748b;
-            font-size: 8px;
-            line-height: 1.3;
-        }
-
-        .signature-meta.approved {
-            color: #019641;
         }
 
         .company-footer {
@@ -397,39 +373,26 @@
             $memo->tax_entity_type ? \Illuminate\Support\Str::headline(str_replace('_', ' ', $memo->tax_entity_type)) : '-'
         );
 
-        $approvalRows = $memo->relationLoaded('approvals')
-            ? $memo->approvals
-            : collect();
+        $approvalRows = $memo->relationLoaded('approvals') ? $memo->approvals : collect();
+        $acknowledgements = $approvalRows->where('role_label', 'Acknowledged by')->values();
 
-        $approvalsByStep = $approvalRows->keyBy(
-            fn ($approval) => (int) data_get($approval, 'step_order')
-        );
+        $acknowledgementDefaults = collect([
+            (object) [
+                'approver_name' => 'Andres Dony Wijaya',
+                'approver_position' => 'Business Admin Manager',
+                'approved_at' => $memo->approved_at,
+                'approver' => null,
+            ],
+            (object) [
+                'approver_name' => 'Awalokita Garnierit',
+                'approver_position' => 'Academic Business Unit Head',
+                'approved_at' => $memo->approved_at,
+                'approver' => null,
+            ],
+        ]);
 
-        $signerOne = $approvalsByStep->get(1) ?: (object) [
-            'approver_name' => 'Andres Dony Wijaya',
-            'approver_position' => 'Business Admin Manager',
-            'status' => 'pending',
-            'approved_at' => null,
-            'approver' => null,
-        ];
-
-        $signerTwo = $approvalsByStep->get(2) ?: (object) [
-            'approver_name' => 'Awalokita Garnierit',
-            'approver_position' => 'Academic Business Unit Head',
-            'status' => 'pending',
-            'approved_at' => null,
-            'approver' => null,
-        ];
-
-        $signerThree = $approvalsByStep->get(3) ?: (object) [
-            'approver_name' => $memo->to_name,
-            'approver_position' => $memo->to_position,
-            'status' => 'pending',
-            'approved_at' => null,
-            'approver' => null,
-        ];
-
-        $approvalSignatures = collect($approvalSignatures ?? []);
+        $acknowledgerOne = $acknowledgements->get(0) ?: $acknowledgementDefaults->get(0);
+        $acknowledgerTwo = $acknowledgements->get(1) ?: $acknowledgementDefaults->get(1);
 
         $getSignerName = function ($approval) {
             return data_get($approval, 'approver_name')
@@ -440,34 +403,6 @@
         $getSignerPosition = function ($approval) {
             return data_get($approval, 'approver_position') ?: '-';
         };
-
-        $getApprovalMeta = function ($approval) use ($formatDate) {
-            $status = strtolower((string) data_get($approval, 'status'));
-            $approvedAt = data_get($approval, 'approved_at');
-
-            if ($status === 'approved' && filled($approvedAt)) {
-                return [
-                    'class' => 'approved',
-                    'label' => 'Approved ' . $formatDate($approvedAt, 'd M Y, H:i'),
-                ];
-            }
-
-            if ($status === 'rejected') {
-                return [
-                    'class' => '',
-                    'label' => 'Rejected',
-                ];
-            }
-
-            return [
-                'class' => '',
-                'label' => 'Awaiting approval',
-            ];
-        };
-
-        $signerOneMeta = $getApprovalMeta($signerOne);
-        $signerTwoMeta = $getApprovalMeta($signerTwo);
-        $signerThreeMeta = $getApprovalMeta($signerThree);
 
         $logoPath = public_path('images/sei.png');
 
@@ -643,56 +578,23 @@
 
                     <td>
                         <div class="signature-title">Acknowledged by</div>
-                        <div class="signature-space">
-                            @if ($approvalSignatures->get(1))
-                                <img
-                                    src="{{ $approvalSignatures->get(1) }}"
-                                    class="signature-image"
-                                    alt="Signature of {{ $getSignerName($signerOne) }}"
-                                >
-                            @endif
-                        </div>
-                        <div class="signature-name">{{ $getSignerName($signerOne) }}</div>
-                        <div class="signature-position">{{ $getSignerPosition($signerOne) }}</div>
-                        <div class="signature-meta {{ $signerOneMeta['class'] }}">
-                            {{ $signerOneMeta['label'] }}
-                        </div>
+                        <div class="signature-space"></div>
+                        <div class="signature-name">{{ $getSignerName($acknowledgerOne) }}</div>
+                        <div class="signature-position">{{ $getSignerPosition($acknowledgerOne) }}</div>
                     </td>
 
                     <td>
                         <div class="signature-title">Acknowledged by</div>
-                        <div class="signature-space">
-                            @if ($approvalSignatures->get(2))
-                                <img
-                                    src="{{ $approvalSignatures->get(2) }}"
-                                    class="signature-image"
-                                    alt="Signature of {{ $getSignerName($signerTwo) }}"
-                                >
-                            @endif
-                        </div>
-                        <div class="signature-name">{{ $getSignerName($signerTwo) }}</div>
-                        <div class="signature-position">{{ $getSignerPosition($signerTwo) }}</div>
-                        <div class="signature-meta {{ $signerTwoMeta['class'] }}">
-                            {{ $signerTwoMeta['label'] }}
-                        </div>
+                        <div class="signature-space"></div>
+                        <div class="signature-name">{{ $getSignerName($acknowledgerTwo) }}</div>
+                        <div class="signature-position">{{ $getSignerPosition($acknowledgerTwo) }}</div>
                     </td>
 
                     <td>
                         <div class="signature-title">Approved by</div>
-                        <div class="signature-space">
-                            @if ($approvalSignatures->get(3))
-                                <img
-                                    src="{{ $approvalSignatures->get(3) }}"
-                                    class="signature-image"
-                                    alt="Signature of {{ $getSignerName($signerThree) }}"
-                                >
-                            @endif
-                        </div>
-                        <div class="signature-name">{{ $getSignerName($signerThree) }}</div>
-                        <div class="signature-position">{{ $getSignerPosition($signerThree) }}</div>
-                        <div class="signature-meta {{ $signerThreeMeta['class'] }}">
-                            {{ $signerThreeMeta['label'] }}
-                        </div>
+                        <div class="signature-space"></div>
+                        <div class="signature-name">{{ $memo->to_name ?: '-' }}</div>
+                        <div class="signature-position">{{ $memo->to_position ?: '-' }}</div>
                     </td>
                 </tr>
             </table>

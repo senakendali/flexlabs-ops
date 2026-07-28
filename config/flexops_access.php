@@ -1278,6 +1278,7 @@ return [
             'active' => [
                 'settings.*',
                 'settings.users.*',
+                'settings.targets.*',
             ],
             'sections' => [
                 [
@@ -1290,6 +1291,20 @@ return [
                             'icon' => 'bi bi-people-fill',
                             'permission' => 'users.view',
                             'missing_label' => 'User Management belum tersedia',
+                        ],
+                    ],
+                ],
+                [
+                    'title' => 'Business Planning',
+                    'items' => [
+                        [
+                            'label' => 'Monthly Targets',
+                            'route' => 'settings.targets.index',
+                            'active' => ['settings.targets.*'],
+                            'icon' => 'bi bi-bullseye',
+                            'permission' => 'users.view',
+                            'desc' => 'Maintain monthly KPI targets sebagai dasar perbandingan target dan aktual.',
+                            'missing_label' => 'Target Management belum tersedia',
                         ],
                     ],
                 ],

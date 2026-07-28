@@ -13,6 +13,7 @@ use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLandingController;
+use App\Http\Controllers\ExecutiveCenter\ExecutiveDashboardController;
 use App\Http\Controllers\Sales\SalesDashboardController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Hr\HrDashboardController;
@@ -82,6 +83,7 @@ use App\Http\Controllers\Academic\WorkshopScheduleController;
 use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
+use App\Http\Controllers\Settings\TargetController;
 use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
@@ -614,6 +616,11 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | - GET /management/dashboard
 | - GET /super-admin/dashboard (legacy alias)
 |
+| Executive Center:
+| - GET /executive-center
+| - GET /executive-center/dashboard
+| - GET /executive-center/dashboard/data
+|
 | Division dashboards:
 | - academic.dashboard
 | - sales.dashboard
@@ -638,6 +645,8 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 | Notes:
 | - Route "dashboard" tetap dipakai menu utama dan login redirect.
 | - Management Dashboard hanya dapat dibuka oleh Super Admin dan Admin.
+| - Executive Center terpisah dari Management Dashboard dan hanya dapat
+|   dibuka oleh Super Admin dan Admin.
 | - Alias "super-admin.dashboard" dipertahankan agar link lama tidak rusak.
 | - Setiap dashboard divisi tetap dilindungi permission masing-masing.
 |--------------------------------------------------------------------------
@@ -719,6 +728,102 @@ Route::middleware(['auth', 'verified'])
                 );
             }
         )->name('super-admin.dashboard');
+
+        /*
+        |----------------------------------------------------------------------
+        | Executive Center
+        |----------------------------------------------------------------------
+        |
+        | Executive Center merupakan modul read-only yang terpisah dari
+        | Management Dashboard. Halaman dashboard menyediakan monitoring KPI
+        | lintas centre, sedangkan endpoint data digunakan untuk pembaruan
+        | periode bulanan secara async.
+        |
+        | Route names:
+        | - executive-center.index
+        | - executive-center.dashboard
+        | - executive-center.dashboard.data
+        |
+        | Access:
+        | - super_admin
+        | - admin
+        |
+        | Role guard sengaja mengikuti Management Dashboard karena middleware
+        | role khusus untuk Executive Center belum tersedia.
+        |----------------------------------------------------------------------
+        */
+        Route::prefix('executive-center')
+            ->name('executive-center.')
+            ->group(function () {
+                Route::get('/', function (Request $request) {
+                    $user = $request->user();
+
+                    abort_unless(
+                        $user
+                        && in_array(
+                            (string) $user->role,
+                            ['super_admin', 'admin'],
+                            true
+                        ),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return redirect()->route(
+                        'executive-center.dashboard'
+                    );
+                })->name('index');
+
+                Route::get(
+                    '/dashboard',
+                    function (
+                        Request $request,
+                        ExecutiveDashboardController $executiveDashboardController
+                    ) {
+                        $user = $request->user();
+
+                        abort_unless(
+                            $user
+                            && in_array(
+                                (string) $user->role,
+                                ['super_admin', 'admin'],
+                                true
+                            ),
+                            403,
+                            'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                        );
+
+                        return $executiveDashboardController->index(
+                            $request
+                        );
+                    }
+                )->name('dashboard');
+
+                Route::get(
+                    '/dashboard/data',
+                    function (
+                        Request $request,
+                        ExecutiveDashboardController $executiveDashboardController
+                    ) {
+                        $user = $request->user();
+
+                        abort_unless(
+                            $user
+                            && in_array(
+                                (string) $user->role,
+                                ['super_admin', 'admin'],
+                                true
+                            ),
+                            403,
+                            'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                        );
+
+                        return $executiveDashboardController->data(
+                            $request
+                        );
+                    }
+                )->name('dashboard.data');
+            });
 
         Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
             ->middleware('permission:academic.dashboard.view')
@@ -1573,37 +1678,140 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('settings')
-    ->name('settings.')
-    ->middleware('permission:users.view')
-    ->group(function () {
-        Route::get('/', fn () => view('settings.index'))
-            ->name('index');
+        ->name('settings.')
+        ->group(function () {
+            Route::get('/', fn () => view('settings.index'))
+                ->middleware('permission:users.view')
+                ->name('index');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Settings - User Management
-        |--------------------------------------------------------------------------
-        */
-        Route::prefix('users')
-            ->name('users.')
-            ->controller(UserManagementController::class)
-            ->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/create', 'create')->middleware('permission:users.create')->name('create');
-                Route::post('/', 'store')->middleware('permission:users.create')->name('store');
+            /*
+            |--------------------------------------------------------------------------
+            | Settings - User Management
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('users')
+                ->name('users.')
+                ->middleware('permission:users.view')
+                ->controller(UserManagementController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
 
-                Route::get('/{user}', 'show')->name('show');
-                Route::get('/{user}/edit', 'edit')->middleware('permission:users.update')->name('edit');
-                Route::put('/{user}', 'update')->middleware('permission:users.update')->name('update');
-                Route::patch('/{user}', 'update')->middleware('permission:users.update')->name('patch');
+                    Route::get('/create', 'create')
+                        ->middleware('permission:users.create')
+                        ->name('create');
 
-                Route::patch('/{user}/password', 'updatePassword')
-                    ->middleware('permission:users.update')
-                    ->name('password.update');
+                    Route::post('/', 'store')
+                        ->middleware('permission:users.create')
+                        ->name('store');
 
-                Route::delete('/{user}', 'destroy')->middleware('permission:users.delete')->name('destroy');
-            });
-    });
+                    Route::get('/{user}', 'show')
+                        ->whereNumber('user')
+                        ->name('show');
+
+                    Route::get('/{user}/edit', 'edit')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('edit');
+
+                    Route::put('/{user}', 'update')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('update');
+
+                    Route::patch('/{user}', 'update')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('patch');
+
+                    Route::patch('/{user}/password', 'updatePassword')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('password.update');
+
+                    Route::delete('/{user}', 'destroy')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Settings - Monthly Targets
+            |--------------------------------------------------------------------------
+            |
+            | Main page:
+            | - GET /settings/targets
+            |
+            | Target maintenance:
+            | - POST   /settings/targets
+            | - PUT    /settings/targets/{target}
+            | - PATCH  /settings/targets/{target}
+            | - DELETE /settings/targets/{target}
+            |
+            | Supporting actions:
+            | - POST  /settings/targets/copy-previous-month
+            | - PATCH /settings/targets/{target}/status
+            | - GET   /settings/targets/{target}/history
+            |
+            | Route names:
+            | - settings.targets.index
+            | - settings.targets.store
+            | - settings.targets.update
+            | - settings.targets.patch
+            | - settings.targets.destroy
+            | - settings.targets.copy-previous-month
+            | - settings.targets.status.update
+            | - settings.targets.history
+            |
+            | Notes:
+            | - Route statis ditempatkan sebelum route dengan parameter {target}.
+            | - Actual KPI tidak diinput melalui route ini karena akan dihitung
+            |   dari sumber data FlexOps.
+            | - Perubahan status digunakan untuk alur Draft, Active, dan Locked.
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('targets')
+                ->name('targets.')
+                ->middleware('permission:targets.view')
+                ->controller(TargetController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/copy-previous-month', 'copyPreviousMonth')
+                        ->middleware('permission:targets.create')
+                        ->name('copy-previous-month');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:targets.create')
+                        ->name('store');
+
+                    Route::get('/{target}/history', 'history')
+                        ->whereNumber('target')
+                        ->name('history');
+
+                    Route::patch('/{target}/status', 'updateStatus')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('status.update');
+
+                    Route::put('/{target}', 'update')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('update');
+
+                    Route::patch('/{target}', 'update')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('patch');
+
+                    Route::delete('/{target}', 'destroy')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.delete')
+                        ->name('destroy');
+                });
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -2668,7 +2876,7 @@ Route::middleware('auth')->group(function () {
 | - articles.destroy
 |
 | Notes:
-| - Menu Marketing → Tools pakai route articles.index.
+| - Menu Marketing â†’ Tools pakai route articles.index.
 | - Store/update/delete sudah support async JSON dari controller.
 | - AI generate route belum ditambahkan dulu karena service Gemini belum dibuat.
 |--------------------------------------------------------------------------
