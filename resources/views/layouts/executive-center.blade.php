@@ -214,9 +214,9 @@
     @endphp
 
     <div class="executive-page-shell relative min-h-screen overflow-visible bg-executive-primary">
-        <div class="executive-layout-wrap relative mx-auto flex min-h-screen w-full max-w-[1780px] flex-col px-4 pb-8 sm:px-6 lg:px-8">
+        <div class="executive-layout-wrap relative flex min-h-screen w-full max-w-none flex-col px-4 pb-8 sm:px-6 lg:px-8">
             <header class="executive-topbar sticky top-0 z-50 -mx-4 bg-executive-primary px-4 py-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-                <div class="mx-auto flex w-full max-w-[1780px] items-center justify-between gap-4">
+                <div class="flex w-full max-w-none items-center justify-between gap-4">
                     <a
                         href="{{ url('/executive-center') }}"
                         class="inline-flex shrink-0 items-center"
@@ -314,9 +314,9 @@
                 @endforeach
             </nav>
 
-            <div class="executive-shell-card rounded-[2rem] bg-[#F7F6FB] p-4 shadow-shell sm:p-5 lg:rounded-[2.35rem] lg:p-7">
-                <main class="min-w-0 w-full">
-                    <section class="executive-main-card min-h-[calc(100vh-11rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-panel">
+            <div class="executive-shell-card w-full max-w-none rounded-[2rem] bg-[#F7F6FB] p-4 shadow-shell sm:p-5 lg:rounded-[2.35rem] lg:p-7">
+                <main class="min-w-0 w-full max-w-none">
+                    <section class="executive-main-card min-h-[calc(100vh-11rem)] w-full max-w-none overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-panel">
                         <header class="executive-page-header border-b border-executive-line px-5 py-5 sm:px-6 lg:px-7">
                             <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                                 <div class="min-w-0">
@@ -349,7 +349,7 @@
                             </div>
                         </header>
 
-                        <div class="executive-content min-w-0 p-5 sm:p-6 lg:p-7">
+                        <div class="executive-content min-w-0 w-full max-w-none p-5 sm:p-6 lg:p-7">
                             @yield('content')
                         </div>
                     </section>

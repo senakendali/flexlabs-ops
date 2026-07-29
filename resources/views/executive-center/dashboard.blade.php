@@ -59,49 +59,42 @@
             'badge' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
             'dot' => 'bg-emerald-500',
             'bar' => 'bg-emerald-500',
-            'accent' => 'border-emerald-400',
             'icon' => 'bg-emerald-50 text-emerald-600',
         ],
         'watch' => [
             'badge' => 'bg-amber-50 text-amber-700 ring-amber-200',
             'dot' => 'bg-amber-500',
             'bar' => 'bg-amber-400',
-            'accent' => 'border-amber-400',
             'icon' => 'bg-amber-50 text-amber-600',
         ],
         'critical' => [
             'badge' => 'bg-rose-50 text-rose-700 ring-rose-200',
             'dot' => 'bg-rose-500',
             'bar' => 'bg-rose-500',
-            'accent' => 'border-rose-400',
             'icon' => 'bg-rose-50 text-rose-600',
         ],
         'unavailable' => [
             'badge' => 'bg-slate-100 text-slate-600 ring-slate-200',
             'dot' => 'bg-slate-400',
             'bar' => 'bg-slate-400',
-            'accent' => 'border-slate-300',
             'icon' => 'bg-slate-100 text-slate-500',
         ],
         'no_data' => [
             'badge' => 'bg-sky-50 text-sky-700 ring-sky-200',
             'dot' => 'bg-sky-400',
             'bar' => 'bg-sky-400',
-            'accent' => 'border-sky-300',
             'icon' => 'bg-sky-50 text-sky-600',
         ],
         'not_configured' => [
             'badge' => 'bg-slate-100 text-slate-600 ring-slate-200',
             'dot' => 'bg-slate-300',
             'bar' => 'bg-slate-300',
-            'accent' => 'border-slate-300',
             'icon' => 'bg-slate-100 text-slate-500',
         ],
         'pending' => [
             'badge' => 'bg-violet-50 text-violet-700 ring-violet-200',
             'dot' => 'bg-violet-400',
             'bar' => 'bg-violet-400',
-            'accent' => 'border-violet-300',
             'icon' => 'bg-violet-50 text-violet-600',
         ],
     ];
@@ -126,36 +119,71 @@
 @endphp
 
 @section('header_actions')
-    <div
-        id="executiveLiveBadge"
-        class="hidden items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 sm:flex"
-    >
-        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-        <span id="executiveLiveBadgeText">
-            {{ ($resolvedPeriod['is_future'] ?? false) ? 'Future period' : (($resolvedPeriod['is_current'] ?? false) ? 'Live data' : 'Closed period') }}
-        </span>
+    <div class="flex min-w-0 flex-col gap-3 xl:items-end">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div class="min-w-0">
+                <p
+                    id="executivePeriodLabel"
+                    class="text-sm font-extrabold text-executive-ink"
+                >
+                    {{ $resolvedPeriod['label'] ?? 'Current Period' }}
+                </p>
+
+                <p
+                    id="executivePeriodContext"
+                    class="mt-0.5 text-[10px] font-semibold text-executive-muted"
+                >
+                    {{ $resolvedPeriod['actual_label'] ?? 'Periode data belum tersedia' }}
+                    @if (isset($resolvedPeriod['elapsed_percentage']) && ($resolvedPeriod['is_current'] ?? false))
+                        · {{ number_format((float) $resolvedPeriod['elapsed_percentage'], 1, ',', '.') }}% bulan berjalan
+                    @endif
+                </p>
+            </div>
+
+            <div id="executiveSummaryBadges" class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                    {{ (int) ($resolvedSummary['healthy_kpis'] ?? 0) }} healthy
+                </span>
+
+                <span class="rounded-full bg-rose-50 px-3 py-1.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200">
+                    {{ (int) ($resolvedSummary['critical_kpis'] ?? 0) }} critical
+                </span>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <div
+                id="executiveLiveBadge"
+                class="hidden items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 sm:flex"
+            >
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                <span id="executiveLiveBadgeText">
+                    {{ ($resolvedPeriod['is_future'] ?? false) ? 'Future period' : (($resolvedPeriod['is_current'] ?? false) ? 'Live data' : 'Closed period') }}
+                </span>
+            </div>
+
+            <label class="relative block">
+                <span class="sr-only">Pilih periode bulan</span>
+
+                <input
+                    id="executiveMonthFilter"
+                    type="month"
+                    value="{{ $filters['month'] ?? now()->format('Y-m') }}"
+                    class="h-10 min-w-[152px] rounded-xl border border-executive-line bg-white px-3 pr-9 text-xs font-bold text-executive-ink outline-none transition focus:border-executive-primary focus:ring-4 focus:ring-executive-primary/10 disabled:cursor-wait disabled:opacity-60"
+                    autocomplete="off"
+                >
+
+                <svg
+                    class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-executive-muted"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                >
+                    <path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </label>
+        </div>
     </div>
-
-    <label class="relative block">
-        <span class="sr-only">Pilih periode bulan</span>
-
-        <input
-            id="executiveMonthFilter"
-            type="month"
-            value="{{ $filters['month'] ?? now()->format('Y-m') }}"
-            class="h-10 min-w-[152px] rounded-xl border border-executive-line bg-white px-3 pr-9 text-xs font-bold text-executive-ink outline-none transition focus:border-executive-primary focus:ring-4 focus:ring-executive-primary/10 disabled:cursor-wait disabled:opacity-60"
-            autocomplete="off"
-        >
-
-        <svg
-            class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-executive-muted"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-        >
-            <path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-    </label>
 @endsection
 
 @section('content')
@@ -185,40 +213,6 @@
             aria-live="polite"
         ></div>
 
-        <section class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-executive-primary">
-                    Business Overview
-                </p>
-
-                <h3
-                    id="executivePeriodLabel"
-                    class="mt-1 text-2xl font-extrabold tracking-[-0.035em] text-executive-ink"
-                >
-                    {{ $resolvedPeriod['label'] ?? 'Current Period' }}
-                </h3>
-
-                <p
-                    id="executivePeriodContext"
-                    class="mt-1 text-xs font-medium text-executive-muted"
-                >
-                    {{ $resolvedPeriod['actual_label'] ?? 'Periode data belum tersedia' }}
-                    @if (isset($resolvedPeriod['elapsed_percentage']) && ($resolvedPeriod['is_current'] ?? false))
-                        · {{ number_format((float) $resolvedPeriod['elapsed_percentage'], 1, ',', '.') }}% bulan berjalan
-                    @endif
-                </p>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-executive-muted ring-1 ring-inset ring-executive-line">
-                    {{ (int) ($resolvedSummary['healthy_kpis'] ?? 0) }} healthy
-                </span>
-                <span class="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-executive-muted ring-1 ring-inset ring-executive-line">
-                    {{ (int) ($resolvedSummary['critical_kpis'] ?? 0) }} critical
-                </span>
-            </div>
-        </section>
-
         <section
             id="executiveHighlights"
             class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5"
@@ -232,8 +226,6 @@
                 @endphp
 
                 <article class="relative overflow-hidden rounded-2xl border border-executive-line bg-white p-4 shadow-panel">
-                    <div class="absolute inset-y-4 left-0 w-1 rounded-r-full {{ $highlightStyle['bar'] }}"></div>
-
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="truncate text-[11px] font-semibold text-executive-muted">
@@ -519,7 +511,7 @@
                 </p>
             </div>
 
-            <div id="executiveDataFreshness" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div id="executiveDataFreshness" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 @forelse ($resolvedFreshness as $freshness)
                     <article class="rounded-xl border border-executive-line bg-slate-50/60 px-4 py-3">
                         <div class="flex items-center justify-between gap-3">
@@ -729,14 +721,14 @@
                     context.textContent = `${period.actual_label || 'Periode data belum tersedia'}${progress}`;
                 }
 
-                const summaryContainer = label?.closest('section')?.querySelector('.flex.flex-wrap.items-center.gap-2');
+                const summaryContainer = document.getElementById('executiveSummaryBadges');
 
                 if (summaryContainer) {
                     summaryContainer.innerHTML = `
-                        <span class="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-executive-muted ring-1 ring-inset ring-executive-line">
+                        <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
                             ${escapeHtml(summary.healthy_kpis || 0)} healthy
                         </span>
-                        <span class="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-executive-muted ring-1 ring-inset ring-executive-line">
+                        <span class="rounded-full bg-rose-50 px-3 py-1.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200">
                             ${escapeHtml(summary.critical_kpis || 0)} critical
                         </span>
                     `;
@@ -808,7 +800,6 @@
 
                     return `
                         <article class="relative overflow-hidden rounded-2xl border border-executive-line bg-white p-4 shadow-panel">
-                            <div class="absolute inset-y-4 left-0 w-1 rounded-r-full ${style.bar}"></div>
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
                                     <p class="truncate text-[11px] font-semibold text-executive-muted">

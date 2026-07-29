@@ -34,6 +34,112 @@ class GoogleAdsReportService
         ];
     }
 
+    /**
+     * Mengambil metrik akun per hari untuk kebutuhan agregasi KPI.
+     *
+     * Snapshot harian sengaja dipisahkan dari dashboardInsight():
+     * - dashboardInsight() tetap menyimpan detail campaign dan AI summary;
+     * - method ini hanya menyediakan metrik akun per tanggal;
+     * - tanggal tanpa aktivitas tetap dikembalikan dengan nilai nol agar
+     *   coverage periode dapat diverifikasi dengan benar.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function dailyDashboardInsights(string $datePreset = 'last_7d'): array
+    {
+        $this->ensureConfigured();
+
+        $dateRange = $this->resolveDateRange($datePreset);
+        $version = $this->resolveGoogleAdsVersion();
+        $googleAdsClient = $this->makeGoogleAdsClient($version);
+        $googleAdsServiceClient = $googleAdsClient->getGoogleAdsServiceClient();
+
+        $startDate = $dateRange['date_start'];
+        $endDate = $dateRange['date_stop'];
+        $timezone = config('app.timezone', 'Asia/Jakarta');
+
+        $dailyMetrics = [];
+        $cursor = Carbon::parse($startDate, $timezone)->startOfDay();
+        $lastDate = Carbon::parse($endDate, $timezone)->startOfDay();
+
+        while ($cursor->lte($lastDate)) {
+            $date = $cursor->toDateString();
+            $dailyMetrics[$date] = [
+                'total_cost' => 0.0,
+                'total_impressions' => 0,
+                'total_clicks' => 0,
+                'total_conversions' => 0.0,
+                'total_conversion_value' => 0.0,
+            ];
+
+            $cursor->addDay();
+        }
+
+        $query = <<<GAQL
+SELECT
+  segments.date,
+  metrics.cost_micros,
+  metrics.impressions,
+  metrics.clicks,
+  metrics.conversions,
+  metrics.conversions_value
+FROM customer
+WHERE segments.date BETWEEN '{$startDate}' AND '{$endDate}'
+ORDER BY segments.date ASC
+GAQL;
+
+        $request = $this->makeSearchRequest(
+            version: $version,
+            customerId: $this->customerId(),
+            query: $query
+        );
+
+        $response = $googleAdsServiceClient->search($request);
+
+        foreach ($response->iterateAllElements() as $row) {
+            $date = (string) $row->getSegments()->getDate();
+
+            if (! isset($dailyMetrics[$date])) {
+                continue;
+            }
+
+            $metrics = $row->getMetrics();
+            $dailyMetrics[$date]['total_cost'] += $this->microsToCurrency(
+                $metrics->getCostMicros()
+            );
+            $dailyMetrics[$date]['total_impressions'] += (int) $metrics->getImpressions();
+            $dailyMetrics[$date]['total_clicks'] += (int) $metrics->getClicks();
+            $dailyMetrics[$date]['total_conversions'] += (float) $metrics->getConversions();
+            $dailyMetrics[$date]['total_conversion_value'] += (float) $metrics->getConversionsValue();
+        }
+
+        return collect($dailyMetrics)
+            ->map(function (array $metrics, string $date) use ($datePreset) {
+                $overview = $this->buildDailyOverview($metrics);
+
+                return [
+                    'is_available' => true,
+                    'source' => 'google_ads',
+                    'granularity' => 'daily',
+                    'customer_id' => $this->customerId(),
+                    'login_customer_id' => $this->loginCustomerId(),
+                    'period' => [
+                        'date_preset' => 'daily',
+                        'sync_preset' => $datePreset,
+                        'date_start' => $date,
+                        'date_stop' => $date,
+                    ],
+                    'overview' => $overview,
+                    'campaigns' => [],
+                    'summary_text' => $overview['summary_text'],
+                    'last_synced_at' => now()->format('d M Y H:i'),
+                    'error_message' => null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     public function campaignPerformance(string $datePreset = 'last_7d', int $limit = 20): array
     {
         $this->ensureConfigured();
@@ -167,6 +273,78 @@ GAQL;
             ->sortByDesc('cost')
             ->values()
             ->all();
+    }
+
+    /**
+     * @param array<string, int|float> $metrics
+     * @return array<string, mixed>
+     */
+    protected function buildDailyOverview(array $metrics): array
+    {
+        $totalCost = max((float) ($metrics['total_cost'] ?? 0), 0);
+        $totalImpressions = max((int) ($metrics['total_impressions'] ?? 0), 0);
+        $totalClicks = max((int) ($metrics['total_clicks'] ?? 0), 0);
+        $totalConversions = max((float) ($metrics['total_conversions'] ?? 0), 0);
+        $totalConversionValue = max(
+            (float) ($metrics['total_conversion_value'] ?? 0),
+            0
+        );
+
+        $ctr = $totalImpressions > 0
+            ? round(($totalClicks / $totalImpressions) * 100, 2)
+            : 0;
+
+        $averageCpc = $totalClicks > 0
+            ? round($totalCost / $totalClicks, 2)
+            : 0;
+
+        $costPerConversion = $totalConversions > 0
+            ? round($totalCost / $totalConversions, 2)
+            : null;
+
+        $conversionRate = $totalClicks > 0
+            ? round(($totalConversions / $totalClicks) * 100, 2)
+            : 0;
+
+        $roas = $totalCost > 0
+            ? round($totalConversionValue / $totalCost, 2)
+            : 0;
+
+        return [
+            'campaign_count' => 0,
+            'enabled_campaign_count' => 0,
+            'paused_campaign_count' => 0,
+
+            'total_cost' => round($totalCost, 2),
+            'total_cost_label' => $this->formatCurrency($totalCost),
+
+            'total_impressions' => $totalImpressions,
+            'total_clicks' => $totalClicks,
+            'ctr' => $ctr,
+
+            'average_cpc' => $averageCpc,
+            'average_cpc_label' => $this->formatCurrency($averageCpc),
+
+            'total_conversions' => round($totalConversions, 2),
+            'total_conversion_value' => round($totalConversionValue, 2),
+
+            'cost_per_conversion' => $costPerConversion,
+            'cost_per_conversion_label' => $costPerConversion !== null
+                ? $this->formatCurrency($costPerConversion)
+                : '-',
+
+            'conversion_rate' => $conversionRate,
+            'roas' => $roas,
+
+            'critical_count' => 0,
+            'attention_count' => 0,
+            'healthy_count' => 0,
+            'best_campaign' => null,
+
+            'summary_text' => $totalCost > 0
+                ? 'Google Ads mengeluarkan spend harian ' . $this->formatCurrency($totalCost) . '.'
+                : 'Tidak ada spend Google Ads pada tanggal ini.',
+        ];
     }
 
     protected function buildOverview(array $campaigns): array

@@ -3,7 +3,6 @@
 namespace App\Services\MetaAds;
 
 use App\Models\MetaAdsCampaignInsight;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -16,9 +15,7 @@ class MetaAdsInsightService
         $adAccountId = config('services.meta_ads.ad_account_id');
 
         if (! $token || ! $adAccountId) {
-            throw new RuntimeException(
-                'Meta Ads config is missing. Check META_ACCESS_TOKEN and META_AD_ACCOUNT_ID.'
-            );
+            throw new RuntimeException('Meta Ads config is missing. Check META_ACCESS_TOKEN and META_AD_ACCOUNT_ID.');
         }
 
         $url = "https://graph.facebook.com/{$version}/{$adAccountId}/insights";
@@ -43,65 +40,33 @@ class MetaAdsInsightService
                 'date_stop',
             ]),
             'date_preset' => $datePreset,
-
-            // Tetap mengambil periode last_7d, tetapi Meta memecah hasilnya
-            // menjadi satu insight per campaign per tanggal.
-            'time_increment' => 1,
             'access_token' => $token,
         ]);
 
-        $rows = [];
-        $synced = 0;
-
-        while (true) {
-            $payload = $this->validatedPayload($response);
-            $pageRows = $payload['data'] ?? [];
-
-            foreach ($pageRows as $row) {
-                $normalized = $this->normalizeCampaignInsight($row, $adAccountId);
-
-                MetaAdsCampaignInsight::updateOrCreate(
-                    [
-                        'ad_account_id' => $normalized['ad_account_id'],
-                        'campaign_id' => $normalized['campaign_id'],
-                        'date_start' => $normalized['date_start'],
-                        'date_stop' => $normalized['date_stop'],
-                    ],
-                    $normalized
-                );
-
-                $rows[] = $row;
-                $synced++;
-            }
-
-            $nextUrl = data_get($payload, 'paging.next');
-
-            if (! $nextUrl) {
-                break;
-            }
-
-            $response = Http::get($nextUrl);
-        }
-
-        return [
-            'synced' => $synced,
-            'data' => $rows,
-        ];
-    }
-
-    private function validatedPayload(Response $response): array
-    {
         if (! $response->successful()) {
             throw new RuntimeException('Meta API error: ' . $response->body());
         }
 
         $payload = $response->json();
+        $rows = $payload['data'] ?? [];
 
-        if (! is_array($payload)) {
-            throw new RuntimeException('Meta API returned an invalid response.');
+        foreach ($rows as $row) {
+            $normalized = $this->normalizeCampaignInsight($row, $adAccountId);
+
+            MetaAdsCampaignInsight::updateOrCreate(
+                [
+                    'campaign_id' => $normalized['campaign_id'],
+                    'date_start' => $normalized['date_start'],
+                    'date_stop' => $normalized['date_stop'],
+                ],
+                $normalized
+            );
         }
 
-        return $payload;
+        return [
+            'synced' => count($rows),
+            'data' => $rows,
+        ];
     }
 
     private function normalizeCampaignInsight(array $row, string $adAccountId): array

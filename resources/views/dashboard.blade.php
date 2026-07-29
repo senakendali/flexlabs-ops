@@ -375,7 +375,11 @@
                     menentukan tindakan berikutnya.
                 </p>
 
-                <div class="management-month-filter mt-3" role="navigation" aria-label="Pilih bulan dashboard">
+                <div
+                    class="management-month-filter mt-3"
+                    role="navigation"
+                    aria-label="Pilih bulan dashboard"
+                >
                     @foreach ($monthOptions as $monthOption)
                         <a
                             href="{{ request()->fullUrlWithQuery([
@@ -388,8 +392,6 @@
                         </a>
                     @endforeach
                 </div>
-
-               
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
@@ -402,6 +404,17 @@
                     <i class="bi bi-clock-history me-1"></i>
                     Diperbarui {{ $formatDateTime($generatedAt) }}
                 </span>
+            </div>
+
+            <div class="w-100 d-flex justify-content-end mt-2">
+                <a
+                    href="{{ route('executive-center.dashboard') }}"
+                    class="btn btn-sm btn-light btn-modern border"
+                    title="Buka Executive Center"
+                >
+                    <i class="bi bi-bar-chart-line-fill me-1"></i>
+                    Executive Center
+                </a>
             </div>
         </div>
     </div>

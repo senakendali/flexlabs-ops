@@ -584,7 +584,11 @@ class ExecutiveDashboardService
 
     /**
      * Marketing Spend hanya dinilai available bila seluruh source yang
-     * didefinisikan KPI memiliki snapshot tepat untuk periode terpilih.
+     * didefinisikan KPI memiliki data yang dapat mewakili periode terpilih.
+     *
+     * Meta Ads dibaca dari insight harian. Google Ads masih dibaca dari
+     * snapshot periode eksplisit sampai proses sinkronisasinya menyimpan
+     * cost harian.
      */
     private function calculateMarketingSpend(
         string $dateFrom,
@@ -612,6 +616,18 @@ class ExecutiveDashboardService
             ->sortDesc()
             ->first();
 
+        $missingMessages = collect($sources)
+            ->reject(fn (array $source) => $source['available'])
+            ->map(function (array $source) {
+                $message = trim((string) ($source['message'] ?? ''));
+
+                return $message !== ''
+                    ? $source['source_label'] . ': ' . $message
+                    : $source['source_label'] . ': data periode belum tersedia.';
+            })
+            ->values()
+            ->all();
+
         return [
             'value' => $value,
             'available' => $isComplete,
@@ -621,9 +637,7 @@ class ExecutiveDashboardService
             'last_recorded_at' => $freshness,
             'message' => $isComplete
                 ? null
-                : 'Snapshot bulanan belum lengkap untuk: '
-                    . implode(', ', $missingSources)
-                    . '. Snapshot rolling last_7d tidak digunakan sebagai actual bulanan.',
+                : implode(' ', $missingMessages),
             'meta' => [
                 'is_partial' => ! $isComplete && $hasData,
                 'missing_sources' => $missingSources,
@@ -650,29 +664,41 @@ class ExecutiveDashboardService
             return $this->platformSpendUnavailable(
                 'meta_ads',
                 'Meta Ads',
-                'Snapshot Meta Ads dengan periode eksplisit belum tersedia.'
+                'Tabel atau kolom insight harian Meta Ads belum tersedia.'
             );
         }
 
-        $periodRows = DB::table($table)
-            ->whereDate('date_start', $dateFrom)
-            ->whereDate('date_stop', $dateTo);
+        $dailyRows = DB::table($table)
+            ->whereColumn('date_start', 'date_stop')
+            ->whereDate('date_start', '>=', $dateFrom)
+            ->whereDate('date_start', '<=', $dateTo);
 
-        if (! (clone $periodRows)->exists()) {
+        if (! (clone $dailyRows)->exists()) {
             return $this->platformSpendUnavailable(
                 'meta_ads',
                 'Meta Ads',
-                'Tidak ada snapshot Meta Ads yang tepat mencakup periode terpilih.'
+                'Insight harian belum tersedia pada periode terpilih. Jalankan sinkronisasi Meta Ads dengan time_increment=1.'
             );
         }
+
+        $coverageStart = (string) (clone $dailyRows)->min('date_start');
+        $coverageEnd = (string) (clone $dailyRows)->max('date_stop');
+        $coverageComplete = $coverageStart <= $dateFrom
+            && $coverageEnd >= $dateTo;
 
         if (
             Schema::hasColumn($table, 'id')
             && Schema::hasColumn($table, 'campaign_id')
         ) {
-            $latestIds = (clone $periodRows)
+            $identityColumns = ['campaign_id', 'date_start', 'date_stop'];
+
+            if (Schema::hasColumn($table, 'ad_account_id')) {
+                array_unshift($identityColumns, 'ad_account_id');
+            }
+
+            $latestIds = (clone $dailyRows)
                 ->selectRaw('MAX(id) as id')
-                ->groupBy('campaign_id')
+                ->groupBy($identityColumns)
                 ->pluck('id')
                 ->filter()
                 ->all();
@@ -682,8 +708,8 @@ class ExecutiveDashboardService
                 ->sum('spend');
             $rowCount = count($latestIds);
         } else {
-            $value = (float) (clone $periodRows)->sum('spend');
-            $rowCount = (int) (clone $periodRows)->count();
+            $value = (float) (clone $dailyRows)->sum('spend');
+            $rowCount = (int) (clone $dailyRows)->count();
         }
 
         $freshnessColumn = $this->firstExistingColumn($table, [
@@ -694,17 +720,28 @@ class ExecutiveDashboardService
 
         return [
             'value' => $value,
-            'available' => true,
+            'available' => $coverageComplete,
             'has_data' => $rowCount > 0,
             'source_key' => 'meta_ads',
             'source_label' => 'Meta Ads',
             'last_recorded_at' => $freshnessColumn
-                ? (clone $periodRows)->max($freshnessColumn)
-                : $dateTo,
-            'message' => null,
+                ? (clone $dailyRows)->max($freshnessColumn)
+                : $coverageEnd,
+            'message' => $coverageComplete
+                ? null
+                : sprintf(
+                    'Data harian baru mencakup %s sampai %s, sedangkan periode dashboard %s sampai %s. Lakukan backfill sebelum dipakai sebagai actual bulanan.',
+                    $coverageStart,
+                    $coverageEnd,
+                    $dateFrom,
+                    $dateTo
+                ),
             'meta' => [
                 'row_count' => $rowCount,
-                'period_exact_match' => true,
+                'granularity' => 'daily',
+                'coverage_start' => $coverageStart,
+                'coverage_end' => $coverageEnd,
+                'coverage_complete' => $coverageComplete,
             ],
         ];
     }
@@ -717,16 +754,30 @@ class ExecutiveDashboardService
 
         if (
             ! Schema::hasTable($table)
-            || ! Schema::hasColumn($table, 'payload')
+            || ! Schema::hasColumn($table, 'total_cost')
+            || ! Schema::hasColumn($table, 'date_start')
+            || ! Schema::hasColumn($table, 'date_stop')
         ) {
             return $this->platformSpendUnavailable(
                 'google_ads',
                 'Google Ads',
-                'Snapshot Google Ads belum tersedia.'
+                'Tabel atau kolom snapshot harian Google Ads belum tersedia.'
             );
         }
 
-        $query = DB::table($table);
+        $dailyRows = DB::table($table)
+            ->whereColumn('date_start', 'date_stop')
+            ->whereDate('date_start', '>=', $dateFrom)
+            ->whereDate('date_start', '<=', $dateTo);
+
+        if (Schema::hasColumn($table, 'date_preset')) {
+            $dailyRows->where('date_preset', 'daily');
+        }
+
+        if (Schema::hasColumn($table, 'is_available')) {
+            $dailyRows->where('is_available', true);
+        }
+
         $customerId = preg_replace(
             '/\D+/',
             '',
@@ -737,85 +788,91 @@ class ExecutiveDashboardService
             $customerId !== ''
             && Schema::hasColumn($table, 'customer_id')
         ) {
-            $query->where('customer_id', $customerId);
+            $dailyRows->where('customer_id', $customerId);
         }
 
-        $sortColumn = $this->firstExistingColumn($table, [
-            'synced_at',
-            'updated_at',
-            'created_at',
-            'id',
-        ]);
-
-        if ($sortColumn) {
-            $query->orderByDesc($sortColumn);
-        }
-
-        $matchedByCustomer = [];
-
-        foreach ($query->limit(200)->get() as $snapshot) {
-            $payload = $this->decodeArray($snapshot->payload ?? null);
-            $period = is_array($payload['period'] ?? null)
-                ? $payload['period']
-                : [];
-
-            if (
-                (string) ($period['date_start'] ?? '') !== $dateFrom
-                || (string) ($period['date_stop'] ?? '') !== $dateTo
-            ) {
-                continue;
-            }
-
-            $snapshotCustomer = (string) (
-                $snapshot->customer_id
-                ?? $payload['customer_id']
-                ?? 'default'
-            );
-
-            if (isset($matchedByCustomer[$snapshotCustomer])) {
-                continue;
-            }
-
-            $overview = is_array($payload['overview'] ?? null)
-                ? $payload['overview']
-                : [];
-
-            $matchedByCustomer[$snapshotCustomer] = [
-                'value' => (float) (
-                    $overview['total_cost']
-                    ?? $overview['cost']
-                    ?? 0
-                ),
-                'last_recorded_at' => $snapshot->synced_at
-                    ?? $snapshot->updated_at
-                    ?? $snapshot->created_at
-                    ?? $dateTo,
-            ];
-        }
-
-        if (empty($matchedByCustomer)) {
+        if (! (clone $dailyRows)->exists()) {
             return $this->platformSpendUnavailable(
                 'google_ads',
                 'Google Ads',
-                'Tidak ada snapshot Google Ads yang tepat mencakup periode terpilih.'
+                'Snapshot harian belum tersedia pada periode terpilih. Jalankan sinkronisasi Google Ads harian.'
             );
         }
 
+        if (Schema::hasColumn($table, 'id')) {
+            $identityColumns = ['date_start', 'date_stop'];
+
+            if (Schema::hasColumn($table, 'customer_id')) {
+                array_unshift($identityColumns, 'customer_id');
+            }
+
+            $latestIds = (clone $dailyRows)
+                ->selectRaw('MAX(id) as id')
+                ->groupBy($identityColumns)
+                ->pluck('id')
+                ->filter()
+                ->all();
+
+            $resolvedRows = DB::table($table)->whereIn('id', $latestIds);
+            $value = (float) (clone $resolvedRows)->sum('total_cost');
+            $rowCount = count($latestIds);
+            $coverageStart = (string) (clone $resolvedRows)->min('date_start');
+            $coverageEnd = (string) (clone $resolvedRows)->max('date_stop');
+            $coveredDateCount = (int) (clone $resolvedRows)
+                ->distinct()
+                ->count('date_start');
+        } else {
+            $resolvedRows = clone $dailyRows;
+            $value = (float) (clone $resolvedRows)->sum('total_cost');
+            $rowCount = (int) (clone $resolvedRows)->count();
+            $coverageStart = (string) (clone $resolvedRows)->min('date_start');
+            $coverageEnd = (string) (clone $resolvedRows)->max('date_stop');
+            $coveredDateCount = (int) (clone $resolvedRows)
+                ->distinct()
+                ->count('date_start');
+        }
+
+        $expectedDateCount = Carbon::parse($dateFrom)
+            ->diffInDays(Carbon::parse($dateTo)) + 1;
+        $coverageComplete = $coverageStart <= $dateFrom
+            && $coverageEnd >= $dateTo
+            && $coveredDateCount >= $expectedDateCount;
+
+        $freshnessColumn = $this->firstExistingColumn($table, [
+            'synced_at',
+            'updated_at',
+            'created_at',
+            'date_stop',
+        ]);
+
         return [
-            'value' => (float) collect($matchedByCustomer)->sum('value'),
-            'available' => true,
-            'has_data' => true,
+            'value' => $value,
+            'available' => $coverageComplete,
+            'has_data' => $rowCount > 0,
             'source_key' => 'google_ads',
             'source_label' => 'Google Ads',
-            'last_recorded_at' => collect($matchedByCustomer)
-                ->pluck('last_recorded_at')
-                ->filter()
-                ->sortDesc()
-                ->first(),
-            'message' => null,
+            'last_recorded_at' => $freshnessColumn
+                ? (clone $resolvedRows)->max($freshnessColumn)
+                : $coverageEnd,
+            'message' => $coverageComplete
+                ? null
+                : sprintf(
+                    'Data harian baru mencakup %s sampai %s (%d dari %d tanggal), sedangkan periode dashboard %s sampai %s. Lakukan backfill Google Ads sebelum dipakai sebagai actual bulanan.',
+                    $coverageStart,
+                    $coverageEnd,
+                    $coveredDateCount,
+                    $expectedDateCount,
+                    $dateFrom,
+                    $dateTo
+                ),
             'meta' => [
-                'customer_count' => count($matchedByCustomer),
-                'period_exact_match' => true,
+                'row_count' => $rowCount,
+                'granularity' => 'daily',
+                'coverage_start' => $coverageStart,
+                'coverage_end' => $coverageEnd,
+                'covered_date_count' => $coveredDateCount,
+                'expected_date_count' => $expectedDateCount,
+                'coverage_complete' => $coverageComplete,
             ],
         ];
     }
@@ -2277,7 +2334,12 @@ class ExecutiveDashboardService
                     'actual_formatted' => $kpi['actual_formatted'],
                     'target_formatted' => $kpi['target_formatted'],
                     'recommended_action' => $this->recommendedAction($kpi),
-                    'source_message' => $kpi['source_message'],
+                    'source_message' => $this->sameMessage(
+                        $kpi['source_message'] ?? null,
+                        $kpi['status_reason'] ?? null
+                    )
+                        ? null
+                        : ($kpi['source_message'] ?? null),
                 ];
             })
             ->sortBy([
@@ -2286,6 +2348,24 @@ class ExecutiveDashboardService
             ])
             ->values()
             ->all();
+    }
+
+    private function sameMessage(
+        mixed $first,
+        mixed $second
+    ): bool {
+        $normalize = static function (mixed $message): string {
+            $message = trim((string) $message);
+            $message = preg_replace('/\s+/u', ' ', $message) ?? $message;
+
+            return strtolower($message);
+        };
+
+        $normalizedFirst = $normalize($first);
+        $normalizedSecond = $normalize($second);
+
+        return $normalizedFirst !== ''
+            && $normalizedFirst === $normalizedSecond;
     }
 
     private function buildExecutiveBrief(
