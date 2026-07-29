@@ -1,7 +1,9 @@
 @extends('layouts.executive-center')
 
 @section('title', 'Executive Dashboard')
-@section('page_title', 'Executive Dashboard')
+@section('page_title')
+    Executive Dashboard
+@endsection
 @section('meta_description', 'Real-time business visibility and decision support across FlexLabs.')
 @section('page_description', 'Real-time business visibility and decision support across FlexLabs.')
 
@@ -197,12 +199,13 @@
             class="pointer-events-none fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/10 backdrop-blur-[1px]"
             aria-hidden="true"
         >
-            <div class="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-bold text-executive-ink shadow-panel ring-1 ring-black/5">
+            <div class="rounded-2xl bg-white px-7 py-5 text-center shadow-panel ring-1 ring-black/5">
                 <svg class="h-5 w-5 animate-spin text-executive-primary" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-20"></circle>
                     <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
                 </svg>
-                <span>Updating executive data...</span>
+                <p id="executiveLoadingTitle" class="mt-3 text-sm font-bold text-executive-ink">Updating executive data...</p>
+                <p class="mt-1 text-xs font-medium text-executive-muted">FlexOps is consolidating the latest KPI and business performance data.</p>
             </div>
         </div>
 
@@ -726,6 +729,7 @@
 
             function setLoading(isLoading) {
                 monthFilter.disabled = isLoading;
+                root.setAttribute('aria-busy', isLoading ? 'true' : 'false');
 
                 if (loading) {
                     loading.classList.toggle('hidden', !isLoading);
@@ -1102,7 +1106,7 @@
                 }
             }
 
-            async function loadMonth(month) {
+            async function loadMonth(month, pushHistory = true) {
                 if (!month) {
                     return;
                 }
@@ -1113,6 +1117,8 @@
 
                 const controller = new AbortController();
                 requestController = controller;
+                const loadingTitle = document.getElementById('executiveLoadingTitle');
+                if (loadingTitle) loadingTitle.textContent = `Loading ${new Intl.DateTimeFormat('en-US', {month:'long', year:'numeric'}).format(new Date(month + '-01T00:00:00'))} data...`;
                 setLoading(true);
 
                 try {
@@ -1146,9 +1152,7 @@
 
                     const pageUrl = new URL(window.location.href);
                     pageUrl.searchParams.set('month', payload.data.filters?.month || month);
-                    window.history.replaceState({}, '', pageUrl.toString());
-
-                    showToast('Executive Dashboard berhasil diperbarui.', 'success');
+                    if (pushHistory) window.history.pushState({}, '', pageUrl.toString());
                 } catch (error) {
                     if (error.name !== 'AbortError') {
                         showToast(error.message || 'Executive data gagal diperbarui.');
@@ -1163,6 +1167,10 @@
 
             monthFilter.addEventListener('change', function () {
                 loadMonth(monthFilter.value);
+            });
+            window.addEventListener('popstate', function () {
+                const month = new URLSearchParams(window.location.search).get('month');
+                if (month) { monthFilter.value = month; loadMonth(month, false); }
             });
         });
     </script>

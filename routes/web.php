@@ -851,6 +851,30 @@ Route::middleware(['auth', 'verified'])
 
                     return $executiveDashboardController->briefData($request);
                 })->name('ai-executive-brief.data');
+
+                Route::get('/kpi-scorecard', function (
+                    Request $request,
+                    \App\Http\Controllers\ExecutiveCenter\KpiScorecardController $controller
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $controller($request);
+                })->name('kpi-scorecard');
+
+                Route::get('/business-attention', function (Request $request, \App\Http\Controllers\ExecutiveCenter\BusinessAttentionController $controller) {
+                    abort_unless($request->user() && in_array((string) $request->user()->role, ['super_admin', 'admin'], true), 403, 'Executive Center hanya dapat diakses oleh Super Admin dan Admin.');
+                    return $controller->index($request);
+                })->name('business-attention');
+
+                Route::get('/business-attention/data', function (Request $request, \App\Http\Controllers\ExecutiveCenter\BusinessAttentionController $controller) {
+                    abort_unless($request->user() && in_array((string) $request->user()->role, ['super_admin', 'admin'], true), 403, 'Executive Center hanya dapat diakses oleh Super Admin dan Admin.');
+                    return $controller->json($request);
+                })->name('business-attention.data');
             });
 
         Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])

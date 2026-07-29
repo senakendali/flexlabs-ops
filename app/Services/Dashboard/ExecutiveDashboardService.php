@@ -99,8 +99,7 @@ class ExecutiveDashboardService
         private readonly TrelloDashboardStatsService $trelloDashboardStatsService,
         private readonly ExecutiveBriefAiService $executiveBriefAiService,
         private readonly StudentOnTrackRateCalculator $studentOnTrackRateCalculator
-    ) {
-    }
+    ) {}
 
     /**
      * Menyiapkan seluruh data Executive Dashboard untuk satu bulan.
@@ -109,29 +108,7 @@ class ExecutiveDashboardService
      */
     public function getData(array $filters = []): array
     {
-        $period = $this->resolvePeriod($filters);
-        $definitions = $this->getKpiDefinitions();
-        $targets = $this->getTargets($definitions, $period['month_start']);
-
-        $actuals = $period['is_future']
-            ? $this->futureActuals()
-            : $this->calculateActuals(
-                $period['date_from'],
-                $period['actual_date_to']
-            );
-
-        $previousActuals = $this->calculateActuals(
-            $period['previous_date_from'],
-            $period['previous_date_to']
-        );
-
-        $scorecard = $this->buildScorecard(
-            definitions: $definitions,
-            targets: $targets,
-            actuals: $actuals,
-            previousActuals: $previousActuals,
-            period: $period,
-        );
+        ['period' => $period, 'scorecard' => $scorecard] = $this->prepareKpiData($filters);
 
         $highlights = $this->buildHighlights($scorecard);
         $operationsHealth = $this->buildOperationsHealth();
@@ -229,8 +206,8 @@ class ExecutiveDashboardService
             'label' => $monthStart->translatedFormat('F Y'),
             'actual_label' => $actualDateTo
                 ? $monthStart->translatedFormat('d M Y')
-                    . ' – '
-                    . $actualDateTo->translatedFormat('d M Y')
+                    .' – '
+                    .$actualDateTo->translatedFormat('d M Y')
                 : 'Periode belum dimulai',
             'is_current' => $isCurrent,
             'is_future' => $isFuture,
@@ -381,7 +358,7 @@ class ExecutiveDashboardService
             return $defaults;
         }
 
-        $model = new SalesDailyReport();
+        $model = new SalesDailyReport;
         $table = $model->getTable();
 
         if (! Schema::hasTable($table)) {
@@ -485,13 +462,13 @@ class ExecutiveDashboardService
         $statuses = ['paid', 'confirmed', 'settled'];
 
         $periodQuery = DB::table('payments as p')
-            ->whereIn('p.' . $statusColumn, $statuses)
-            ->whereRaw('DATE(' . $dateExpression . ') >= ?', [$dateFrom])
-            ->whereRaw('DATE(' . $dateExpression . ') <= ?', [$dateTo]);
+            ->whereIn('p.'.$statusColumn, $statuses)
+            ->whereRaw('DATE('.$dateExpression.') >= ?', [$dateFrom])
+            ->whereRaw('DATE('.$dateExpression.') <= ?', [$dateTo]);
 
         $paymentCount = (int) (clone $periodQuery)->count();
         $latestDate = (clone $periodQuery)
-            ->selectRaw('MAX(' . $dateExpression . ') as latest_date')
+            ->selectRaw('MAX('.$dateExpression.') as latest_date')
             ->value('latest_date');
 
         $revenue = Schema::hasColumn('payments', 'amount')
@@ -521,10 +498,10 @@ class ExecutiveDashboardService
         }
 
         $firstPaymentQuery
-            ->whereIn('p.' . $statusColumn, $statuses)
-            ->whereRaw($studentExpression . ' IS NOT NULL')
-            ->selectRaw($studentExpression . ' as student_id')
-            ->selectRaw('MIN(' . $dateExpression . ') as first_paid_at')
+            ->whereIn('p.'.$statusColumn, $statuses)
+            ->whereRaw($studentExpression.' IS NOT NULL')
+            ->selectRaw($studentExpression.' as student_id')
+            ->selectRaw('MIN('.$dateExpression.') as first_paid_at')
             ->groupBy(DB::raw($studentExpression));
 
         $paidStudents = (int) DB::query()
@@ -575,7 +552,7 @@ class ExecutiveDashboardService
 
         foreach (['paid_at', 'payment_date', 'created_at'] as $column) {
             if (Schema::hasColumn('payments', $column)) {
-                $columns[] = $this->wrap($alias . '.' . $column);
+                $columns[] = $this->wrap($alias.'.'.$column);
             }
         }
 
@@ -585,7 +562,7 @@ class ExecutiveDashboardService
 
         return count($columns) === 1
             ? $columns[0]
-            : 'COALESCE(' . implode(', ', $columns) . ')';
+            : 'COALESCE('.implode(', ', $columns).')';
     }
 
     /**
@@ -628,8 +605,8 @@ class ExecutiveDashboardService
                 $message = trim((string) ($source['message'] ?? ''));
 
                 return $message !== ''
-                    ? $source['source_label'] . ': ' . $message
-                    : $source['source_label'] . ': data periode belum tersedia.';
+                    ? $source['source_label'].': '.$message
+                    : $source['source_label'].': data periode belum tersedia.';
             })
             ->values()
             ->all();
@@ -900,6 +877,47 @@ class ExecutiveDashboardService
         ];
     }
 
+    /**
+     * Deterministic KPI data for presentation layers that must not invoke AI.
+     *
+     * @param  array{month?: string|null}  $filters
+     */
+    public function getScorecardSourceData(array $filters = []): array
+    {
+        ['period' => $period, 'scorecard' => $scorecard] = $this->prepareKpiData($filters);
+
+        return [
+            'filters' => ['month' => $period['month']],
+            'period' => $period,
+            'kpiScorecard' => $scorecard,
+        ];
+    }
+
+    private function prepareKpiData(array $filters): array
+    {
+        $period = $this->resolvePeriod($filters);
+        $definitions = $this->getKpiDefinitions();
+        $targets = $this->getTargets($definitions, $period['month_start']);
+        $actuals = $period['is_future']
+            ? $this->futureActuals()
+            : $this->calculateActuals($period['date_from'], $period['actual_date_to']);
+        $previousActuals = $this->calculateActuals(
+            $period['previous_date_from'],
+            $period['previous_date_to']
+        );
+
+        return [
+            'period' => $period,
+            'scorecard' => $this->buildScorecard(
+                definitions: $definitions,
+                targets: $targets,
+                actuals: $actuals,
+                previousActuals: $previousActuals,
+                period: $period,
+            ),
+        ];
+    }
+
     private function calculateStudentOnTrackRate(string $evaluationDate): array
     {
         foreach (['batches', 'student_enrollments', 'student_lesson_progresses'] as $table) {
@@ -950,7 +968,7 @@ class ExecutiveDashboardService
                 'b.end_date as batch_end_date',
             ])
             ->get()
-            ->unique(fn (object $row): string => $row->batch_id . ':' . $row->student_id)
+            ->unique(fn (object $row): string => $row->batch_id.':'.$row->student_id)
             ->values();
 
         $programIds = $enrollments
@@ -1044,17 +1062,17 @@ class ExecutiveDashboardService
         $excluded = (int) $result['excluded_timeline_count']
             + (int) $result['excluded_progress_count'];
         $message = number_format((int) $result['on_track_students'])
-            . ' dari '
-            . number_format((int) $result['eligible_students'])
-            . ' student aktif berada sesuai jadwal. Average progress '
-            . number_format((float) $result['average_actual_progress'], 1, ',', '.')
-            . '% · Expected progress '
-            . number_format((float) $result['average_expected_progress'], 1, ',', '.')
-            . '%.';
+            .' dari '
+            .number_format((int) $result['eligible_students'])
+            .' student aktif berada sesuai jadwal. Average progress '
+            .number_format((float) $result['average_actual_progress'], 1, ',', '.')
+            .'% · Expected progress '
+            .number_format((float) $result['average_expected_progress'], 1, ',', '.')
+            .'%.';
 
         if ($excluded > 0) {
-            $message .= ' ' . number_format($excluded)
-                . ' enrollment dikeluarkan karena timeline atau data progress belum lengkap.';
+            $message .= ' '.number_format($excluded)
+                .' enrollment dikeluarkan karena timeline atau data progress belum lengkap.';
         }
 
         return $this->availableActual(
@@ -1159,24 +1177,24 @@ class ExecutiveDashboardService
             );
         }
 
-        $enrollmentQuery = DB::table($enrollmentsTable . ' as se')
+        $enrollmentQuery = DB::table($enrollmentsTable.' as se')
             ->join(
-                $batchesTable . ' as b',
-                'se.' . $batchIdColumn,
+                $batchesTable.' as b',
+                'se.'.$batchIdColumn,
                 '=',
                 'b.id'
             )
-            ->whereIn('se.' . $batchIdColumn, $eligibleBatches->keys()->all())
-            ->selectRaw('se.' . $batchIdColumn . ' as batch_id')
-            ->selectRaw('se.' . $studentIdColumn . ' as student_id');
+            ->whereIn('se.'.$batchIdColumn, $eligibleBatches->keys()->all())
+            ->selectRaw('se.'.$batchIdColumn.' as batch_id')
+            ->selectRaw('se.'.$studentIdColumn.' as student_id');
 
         if ($enrollmentProgramColumn) {
             $enrollmentQuery->selectRaw(
-                'se.' . $enrollmentProgramColumn . ' as program_id'
+                'se.'.$enrollmentProgramColumn.' as program_id'
             );
         } else {
             $enrollmentQuery->selectRaw(
-                'b.' . $batchProgramColumn . ' as program_id'
+                'b.'.$batchProgramColumn.' as program_id'
             );
         }
 
@@ -1194,10 +1212,10 @@ class ExecutiveDashboardService
             ))
             ->unique(fn (object $row) => (
                 (int) $row->batch_id
-                . ':'
-                . (int) $row->student_id
-                . ':'
-                . (int) $row->program_id
+                .':'
+                .(int) $row->student_id
+                .':'
+                .(int) $row->program_id
             ))
             ->values();
 
@@ -1320,7 +1338,7 @@ class ExecutiveDashboardService
         string $alias
     ): void {
         if (Schema::hasColumn($table, 'status')) {
-            $query->whereIn($alias . '.status', [
+            $query->whereIn($alias.'.status', [
                 'active',
                 'ongoing',
                 'enrolled',
@@ -1331,7 +1349,7 @@ class ExecutiveDashboardService
         }
 
         if (Schema::hasColumn($table, 'access_status')) {
-            $query->whereIn($alias . '.access_status', [
+            $query->whereIn($alias.'.access_status', [
                 'active',
                 'granted',
                 'available',
@@ -1388,15 +1406,15 @@ class ExecutiveDashboardService
             return [];
         }
 
-        $query = DB::table($subTopics . ' as st')
-            ->join($topics . ' as t', 'st.' . $subTopicTopic, '=', 't.id')
-            ->join($modules . ' as m', 't.' . $topicModule, '=', 'm.id')
+        $query = DB::table($subTopics.' as st')
+            ->join($topics.' as t', 'st.'.$subTopicTopic, '=', 't.id')
+            ->join($modules.' as m', 't.'.$topicModule, '=', 'm.id')
             ->selectRaw('st.id as sub_topic_id');
 
         if ($moduleProgram) {
             $query
-                ->selectRaw('m.' . $moduleProgram . ' as program_id')
-                ->whereIn('m.' . $moduleProgram, $programIds);
+                ->selectRaw('m.'.$moduleProgram.' as program_id')
+                ->whereIn('m.'.$moduleProgram, $programIds);
         } elseif ($moduleStage && $stages) {
             $stageProgram = $this->firstExistingColumn(
                 $stages,
@@ -1408,9 +1426,9 @@ class ExecutiveDashboardService
             }
 
             $query
-                ->join($stages . ' as ps', 'm.' . $moduleStage, '=', 'ps.id')
-                ->selectRaw('ps.' . $stageProgram . ' as program_id')
-                ->whereIn('ps.' . $stageProgram, $programIds);
+                ->join($stages.' as ps', 'm.'.$moduleStage, '=', 'ps.id')
+                ->selectRaw('ps.'.$stageProgram.' as program_id')
+                ->whereIn('ps.'.$stageProgram, $programIds);
 
             $this->applyActiveContentFilter($query, $stages, 'ps');
         } else {
@@ -1439,9 +1457,9 @@ class ExecutiveDashboardService
         string $alias
     ): void {
         if (Schema::hasColumn($table, 'is_active')) {
-            $query->where($alias . '.is_active', true);
+            $query->where($alias.'.is_active', true);
         } elseif (Schema::hasColumn($table, 'status')) {
-            $query->whereIn($alias . '.status', [
+            $query->whereIn($alias.'.status', [
                 'active',
                 'published',
                 'open',
@@ -1512,8 +1530,8 @@ class ExecutiveDashboardService
         $this->applyCompletionFilter($query, $table);
 
         $rows = (clone $query)
-            ->selectRaw($studentColumn . ' as student_id')
-            ->selectRaw($subTopicColumn . ' as sub_topic_id')
+            ->selectRaw($studentColumn.' as student_id')
+            ->selectRaw($subTopicColumn.' as sub_topic_id')
             ->get();
 
         $completed = [];
@@ -1929,8 +1947,7 @@ class ExecutiveDashboardService
     private function buildBusinessHealth(
         array $scorecard,
         array $operationsHealth
-    ): array
-    {
+    ): array {
         $byCode = collect($scorecard)->keyBy('code');
 
         return collect(self::CENTRES)
@@ -2147,17 +2164,17 @@ class ExecutiveDashboardService
             'critical_count' => $status === 'critical' ? 1 : 0,
             'watch_count' => $status === 'watch' ? 1 : 0,
             'message' => number_format($actual, 1, ',', '.')
-                . '% on-track dari target '
-                . number_format($target, 1, ',', '.')
-                . '%. '
-                . number_format($onTrackStudents)
-                . ' dari '
-                . number_format($eligibleStudents)
-                . ' student aktif berada sesuai jadwal. Average progress '
-                . number_format($averageActual, 1, ',', '.')
-                . '% · Expected progress '
-                . number_format($averageExpected, 1, ',', '.')
-                . '%.',
+                .'% on-track dari target '
+                .number_format($target, 1, ',', '.')
+                .'%. '
+                .number_format($onTrackStudents)
+                .' dari '
+                .number_format($eligibleStudents)
+                .' student aktif berada sesuai jadwal. Average progress '
+                .number_format($averageActual, 1, ',', '.')
+                .'% · Expected progress '
+                .number_format($averageExpected, 1, ',', '.')
+                .'%.',
         ];
     }
 
@@ -2335,13 +2352,13 @@ class ExecutiveDashboardService
             'critical_count' => $status === 'critical' ? 1 : 0,
             'watch_count' => $status === 'watch' ? 1 : 0,
             'message' => number_format($totalTasks)
-                . ' total task · '
-                . number_format($metrics['completed'])
-                . ' selesai · '
-                . number_format($metrics['active_work'])
-                . ' active work · '
-                . number_format($metrics['overdue'])
-                . ' overdue.',
+                .' total task · '
+                .number_format($metrics['completed'])
+                .' selesai · '
+                .number_format($metrics['active_work'])
+                .' active work · '
+                .number_format($metrics['overdue'])
+                .' overdue.',
             'last_recorded_at' => $this->latestTrelloRecordedAt(
                 $configuredSources
             ),
@@ -2574,9 +2591,9 @@ class ExecutiveDashboardService
 
         $headline = match (true) {
             $critical->isNotEmpty() => $critical->count()
-                . ' KPI kritis membutuhkan tindakan manajemen',
+                .' KPI kritis membutuhkan tindakan manajemen',
             $watch->isNotEmpty() => $watch->count()
-                . ' KPI perlu dijaga agar tetap sesuai target',
+                .' KPI perlu dijaga agar tetap sesuai target',
             $healthy->isNotEmpty() => 'KPI terukur berada dalam jalur target',
             default => 'Executive Dashboard belum memiliki data terukur lengkap',
         };
@@ -2585,17 +2602,17 @@ class ExecutiveDashboardService
 
         if ($healthy->isNotEmpty()) {
             $summaryParts[] = $healthy->pluck('name')->join(', ')
-                . ' berada dalam jalur target.';
+                .' berada dalam jalur target.';
         }
 
         if ($critical->isNotEmpty()) {
             $summaryParts[] = $critical->pluck('name')->join(', ')
-                . ' berstatus kritis berdasarkan target berjalan.';
+                .' berstatus kritis berdasarkan target berjalan.';
         }
 
         if ($unavailable->isNotEmpty()) {
             $summaryParts[] = $unavailable->pluck('name')->join(', ')
-                . ' belum memiliki actual yang cukup untuk dinilai.';
+                .' belum memiliki actual yang cukup untuk dinilai.';
         }
 
         if (empty($summaryParts)) {
@@ -2603,13 +2620,13 @@ class ExecutiveDashboardService
         }
 
         return [
-            'title' => 'Executive Brief — ' . $period['label'],
+            'title' => 'Executive Brief — '.$period['label'],
             'headline' => $headline,
             'summary' => implode(' ', $summaryParts),
             'root_causes' => collect($attention)
                 ->whereIn('severity', ['critical', 'watch'])
                 ->take(3)
-                ->map(fn (array $item) => $item['title'] . ': ' . $item['message'])
+                ->map(fn (array $item) => $item['title'].': '.$item['message'])
                 ->values()
                 ->all(),
             'recommendations' => collect($attention)
@@ -2634,8 +2651,7 @@ class ExecutiveDashboardService
     private function buildDataFreshness(
         array $scorecard,
         array $operationsHealth
-    ): array
-    {
+    ): array {
         $freshness = collect($scorecard)
             ->groupBy('source_key')
             ->map(function (Collection $rows, string $sourceKey) {
@@ -2775,13 +2791,13 @@ class ExecutiveDashboardService
     {
         return match ($unit) {
             KpiDefinition::UNIT_CURRENCY => 'Rp '
-                . number_format($value, 0, ',', '.'),
+                .number_format($value, 0, ',', '.'),
             KpiDefinition::UNIT_PERCENTAGE => number_format(
                 $value,
                 1,
                 ',',
                 '.'
-            ) . '%',
+            ).'%',
             KpiDefinition::UNIT_DECIMAL => number_format(
                 $value,
                 2,

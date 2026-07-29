@@ -2,10 +2,7 @@
 
 @section('title', 'AI Executive Brief')
 @section('page_title')
-    <span class="inline-flex items-center gap-3">
-        
-        <span>AI Executive Brief</span>
-    </span>
+    AI Executive Brief
 @endsection
 @section('meta_description', 'Management-ready explanation of performance, causes, risks, and next actions.')
 @section('page_description', 'Management-ready explanation of performance, causes, risks, and next actions.')
@@ -35,14 +32,18 @@
 <style>
     .executive-main-card { overflow: visible !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
     .executive-page-header { border: 1px solid #E5E1EE !important; border-radius: 1.25rem !important; background: #FFFFFF !important; box-shadow: 0 16px 45px rgba(31, 27, 46, 0.07) !important; }
-    .executive-content { padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
+    .executive-content { padding-top: 1.25rem !important; padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
     .brief-loading { opacity: .55; pointer-events: none; }
+    #briefPage > section:first-of-type { margin-top: 0 !important; }
+    @media (min-width: 640px) { .executive-content { padding-top: 1.5rem !important; } }
+    @media (min-width: 1024px) { .executive-content { padding-top: 1.75rem !important; } }
     @media (max-width: 639px) { .executive-page-header { border-radius: 1rem !important; } }
 </style>
 @endpush
 
 @section('content')
 <div id="briefPage" class="min-w-0 space-y-5" data-url="{{ route('executive-center.ai-executive-brief.data') }}">
+    <div id="briefLoading" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/10 backdrop-blur-[1px]" role="status" aria-live="polite"><div class="rounded-2xl border border-executive-line bg-white px-8 py-6 text-center shadow-panel"><svg class="mx-auto h-7 w-7 animate-spin text-executive-primary" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".2" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><p id="briefLoadingTitle" class="mt-3 text-sm font-extrabold text-executive-ink"></p><p class="mt-1 text-xs text-executive-muted">FlexOps is consolidating the latest KPI and business performance data.</p></div></div>
     <section class="rounded-2xl border border-executive-line bg-white p-5 shadow-panel">
         <div class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-stretch">
             <div class="min-w-0">
@@ -85,6 +86,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     const page = document.getElementById('briefPage');
     const filter = document.getElementById('briefPeriod');
+    const loading = document.getElementById('briefLoading');
+    let controller = null;
+    let historyNavigation = false;
     const escape = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
     const empty = message => `<div class="rounded-xl border border-dashed border-executive-line bg-white px-5 py-8 text-center"><p class="text-xs font-semibold text-executive-muted">${escape(message)}</p></div>`;
     const badge = (tone, label) => `<span class="inline-flex rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[.06em] ring-1 ring-inset ${tone}">${escape(label)}</span>`;
@@ -122,16 +126,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     render(@json(['executiveBrief' => $brief]));
     filter.addEventListener('change', async () => {
-        filter.disabled = true; page.classList.add('brief-loading');
+        controller?.abort(); controller = new AbortController();
+        filter.disabled = true; page.classList.add('brief-loading'); page.setAttribute('aria-busy', 'true'); loading.classList.remove('hidden'); loading.classList.add('flex');
+        document.getElementById('briefLoadingTitle').textContent = `Loading ${new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(new Date(filter.value+'-01T00:00:00'))} data...`;
         try {
-            const response = await fetch(`${page.dataset.url}?period=${encodeURIComponent(filter.value)}`, {headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+            const response = await fetch(`${page.dataset.url}?period=${encodeURIComponent(filter.value)}`, {headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}, signal: controller.signal});
             const payload = await response.json();
             if (!response.ok || !payload.success) throw new Error(payload.message || 'Brief gagal dimuat.');
-            render(payload.data); history.replaceState({}, '', `${location.pathname}?period=${encodeURIComponent(filter.value)}`);
+            render(payload.data); if (!historyNavigation) history.pushState({}, '', `${location.pathname}?period=${encodeURIComponent(filter.value)}`); historyNavigation = false;
         } catch (error) {
+            if (error.name === 'AbortError') return;
             if (window.Swal) Swal.fire({icon:'error', title:'Brief gagal dimuat', text:error.message}); else alert(error.message);
-        } finally { filter.disabled = false; page.classList.remove('brief-loading'); }
+        } finally { if (!controller.signal.aborted) { filter.disabled = false; page.classList.remove('brief-loading'); page.setAttribute('aria-busy','false'); loading.classList.add('hidden'); loading.classList.remove('flex'); } }
     });
+    window.addEventListener('popstate', () => { const value = new URLSearchParams(location.search).get('period'); if (value) { historyNavigation = true; filter.value = value; filter.dispatchEvent(new Event('change')); } });
 });
 </script>
 @endpush
