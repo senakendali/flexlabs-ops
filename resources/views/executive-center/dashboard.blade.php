@@ -297,6 +297,7 @@
 
                 <div id="executiveBusinessHealth" class="mt-5 space-y-4">
                     @forelse ($resolvedBusinessHealth as $centre)
+                        @continue(($centre['key'] ?? null) === 'talent_hub')
                         @php
                             $centreStatus = $centre['status'] ?? 'not_configured';
                             $centreStyle = $statusStyles[$centreStatus] ?? $defaultStatusStyle;
@@ -347,7 +348,7 @@
                 </div>
             </article>
 
-            <article class="rounded-2xl border border-violet-100 bg-gradient-to-br from-[#F5F1FA] to-[#EEE8F7] p-5 shadow-panel">
+            <article class="rounded-2xl border border-executive-line bg-white p-5 shadow-panel">
                 <div>
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -361,9 +362,9 @@
 
                         <span
                             id="executiveBriefType"
-                            class="rounded-full bg-white/80 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-executive-primary ring-1 ring-inset ring-violet-200"
+                            class="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-executive-primary ring-1 ring-inset ring-violet-200"
                         >
-                            {{ ($resolvedBrief['is_ai_generated'] ?? false) ? 'AI generated' : 'Baseline' }}
+                            {{ ($resolvedBrief['is_ai_generated'] ?? false) ? 'AI generated' : 'Local fallback' }}
                         </span>
                     </div>
 
@@ -376,22 +377,45 @@
                             {{ $resolvedBrief['summary'] ?? 'Data KPI belum cukup untuk membuat executive brief.' }}
                         </p>
 
-                        @if (!empty($resolvedBrief['recommendations']))
-                            <div class="mt-5 rounded-xl bg-white/85 p-3.5 ring-1 ring-inset ring-white">
+                        @if (!empty($resolvedBrief['root_causes']))
+                            <div class="mt-4">
                                 <p class="text-[9px] font-extrabold uppercase tracking-[0.12em] text-executive-primary">
-                                    Recommended action
+                                    Kemungkinan penyebab utama
                                 </p>
-
-                                <p class="mt-1.5 text-[11px] font-semibold leading-5 text-executive-ink">
-                                    {{ $resolvedBrief['recommendations'][0] }}
-                                </p>
+                                <ul class="mt-2 space-y-1.5 text-[11px] font-medium leading-5 text-slate-600">
+                                    @foreach ($resolvedBrief['root_causes'] as $cause)
+                                        <li class="flex gap-2">
+                                            <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#5B3E8E]"></span>
+                                            <span>{{ $cause }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
                             </div>
                         @endif
 
-                        @if (!empty($resolvedBrief['note']))
-                            <p class="mt-3 text-[9px] leading-4 text-executive-muted">
-                                {{ $resolvedBrief['note'] }}
-                            </p>
+                        @if (!empty($resolvedBrief['recommendations']))
+                            <div class="mt-5 rounded-xl bg-violet-50/70 p-3.5 ring-1 ring-inset ring-violet-100">
+                                <p class="text-[9px] font-extrabold uppercase tracking-[0.12em] text-executive-primary">
+                                    Recommended actions
+                                </p>
+                                <ul class="mt-2 space-y-1.5 text-[11px] font-semibold leading-5 text-executive-ink">
+                                    @foreach ($resolvedBrief['recommendations'] as $recommendation)
+                                        <li class="flex gap-2">
+                                            <span class="text-executive-primary">{{ $loop->iteration }}.</span>
+                                            <span>{{ $recommendation }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
+                        @if (!empty($resolvedBrief['priority']))
+                            <div class="mt-4 flex items-center gap-2 text-[10px] font-bold text-executive-muted">
+                                <span>Prioritas tindakan</span>
+                                <span class="rounded-full bg-violet-50 px-2.5 py-1 text-executive-primary ring-1 ring-inset ring-violet-200">
+                                    {{ $resolvedBrief['priority'] }}
+                                </span>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -766,7 +790,11 @@
                     return;
                 }
 
-                if (!Array.isArray(items) || items.length === 0) {
+                const visibleItems = Array.isArray(items)
+                    ? items.filter((centre) => centre.key !== 'talent_hub')
+                    : [];
+
+                if (visibleItems.length === 0) {
                     container.innerHTML = `
                         <div class="col-span-full rounded-2xl border border-dashed border-executive-line bg-white px-5 py-8 text-center">
                             <p class="text-sm font-bold text-executive-ink">Executive KPI belum tersedia</p>
@@ -839,7 +867,7 @@
                     return;
                 }
 
-                container.innerHTML = items.map(function (centre) {
+                container.innerHTML = visibleItems.map(function (centre) {
                     const style = styleFor(centre.status || 'not_configured');
                     const hasHealth = centre.health_percentage !== null && centre.health_percentage !== undefined;
                     const percentage = hasHealth ? clampPercentage(centre.health_percentage) : 0;
@@ -884,16 +912,46 @@
                 const recommendations = Array.isArray(brief.recommendations)
                     ? brief.recommendations
                     : [];
-                const recommendationHtml = recommendations.length > 0
+                const causes = Array.isArray(brief.root_causes)
+                    ? brief.root_causes
+                    : [];
+                const causesHtml = causes.length > 0
                     ? `
-                        <div class="mt-5 rounded-xl bg-white/85 p-3.5 ring-1 ring-inset ring-white">
-                            <p class="text-[9px] font-extrabold uppercase tracking-[0.12em] text-executive-primary">Recommended action</p>
-                            <p class="mt-1.5 text-[11px] font-semibold leading-5 text-executive-ink">${escapeHtml(recommendations[0])}</p>
+                        <div class="mt-4">
+                            <p class="text-[9px] font-extrabold uppercase tracking-[0.12em] text-executive-primary">Kemungkinan penyebab utama</p>
+                            <ul class="mt-2 space-y-1.5 text-[11px] font-medium leading-5 text-slate-600">
+                                ${causes.map((cause) => `
+                                    <li class="flex gap-2">
+                                        <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#5B3E8E]"></span>
+                                        <span>${escapeHtml(cause)}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
                         </div>
                     `
                     : '';
-                const noteHtml = brief.note
-                    ? `<p class="mt-3 text-[9px] leading-4 text-executive-muted">${escapeHtml(brief.note)}</p>`
+                const recommendationHtml = recommendations.length > 0
+                    ? `
+                        <div class="mt-5 rounded-xl bg-violet-50/70 p-3.5 ring-1 ring-inset ring-violet-100">
+                            <p class="text-[9px] font-extrabold uppercase tracking-[0.12em] text-executive-primary">Recommended actions</p>
+                            <ul class="mt-2 space-y-1.5 text-[11px] font-semibold leading-5 text-executive-ink">
+                                ${recommendations.map((recommendation, index) => `
+                                    <li class="flex gap-2">
+                                        <span class="text-executive-primary">${index + 1}.</span>
+                                        <span>${escapeHtml(recommendation)}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `
+                    : '';
+                const priorityHtml = brief.priority
+                    ? `
+                        <div class="mt-4 flex items-center gap-2 text-[10px] font-bold text-executive-muted">
+                            <span>Prioritas tindakan</span>
+                            <span class="rounded-full bg-violet-50 px-2.5 py-1 text-executive-primary ring-1 ring-inset ring-violet-200">${escapeHtml(brief.priority)}</span>
+                        </div>
+                    `
                     : '';
 
                 container.innerHTML = `
@@ -903,12 +961,13 @@
                     <p class="mt-3 text-xs leading-5 text-slate-600">
                         ${escapeHtml(brief.summary || 'Data KPI belum cukup untuk membuat executive brief.')}
                     </p>
+                    ${causesHtml}
                     ${recommendationHtml}
-                    ${noteHtml}
+                    ${priorityHtml}
                 `;
 
                 if (typeBadge) {
-                    typeBadge.textContent = brief.is_ai_generated ? 'AI generated' : 'Baseline';
+                    typeBadge.textContent = brief.is_ai_generated ? 'AI generated' : 'Local fallback';
                 }
             }
 

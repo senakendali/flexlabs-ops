@@ -96,7 +96,8 @@ class ExecutiveDashboardService
     ];
 
     public function __construct(
-        private readonly TrelloDashboardStatsService $trelloDashboardStatsService
+        private readonly TrelloDashboardStatsService $trelloDashboardStatsService,
+        private readonly ExecutiveBriefAiService $executiveBriefAiService
     ) {
     }
 
@@ -138,10 +139,15 @@ class ExecutiveDashboardService
             $operationsHealth
         );
         $businessAttention = $this->buildBusinessAttention($scorecard);
-        $executiveBrief = $this->buildExecutiveBrief(
+        $fallbackBrief = $this->buildExecutiveBriefFallback(
             $scorecard,
             $businessAttention,
             $period
+        );
+        $executiveBrief = $this->executiveBriefAiService->generate(
+            $scorecard,
+            $period,
+            $fallbackBrief
         );
 
         $summary = [
@@ -2368,7 +2374,7 @@ class ExecutiveDashboardService
             && $normalizedFirst === $normalizedSecond;
     }
 
-    private function buildExecutiveBrief(
+    private function buildExecutiveBriefFallback(
         array $scorecard,
         array $attention,
         array $period
@@ -2416,12 +2422,9 @@ class ExecutiveDashboardService
             'headline' => $headline,
             'summary' => implode(' ', $summaryParts),
             'root_causes' => collect($attention)
-                ->whereIn('severity', ['critical', 'unavailable', 'no_data'])
+                ->whereIn('severity', ['critical', 'watch'])
                 ->take(3)
-                ->map(fn (array $item) => [
-                    'title' => $item['title'],
-                    'detail' => $item['message'],
-                ])
+                ->map(fn (array $item) => $item['title'] . ': ' . $item['message'])
                 ->values()
                 ->all(),
             'recommendations' => collect($attention)
@@ -2431,10 +2434,12 @@ class ExecutiveDashboardService
                 ->unique()
                 ->values()
                 ->all(),
+            'priority' => $critical->isNotEmpty()
+                ? 'Immediate'
+                : ($watch->isNotEmpty() ? 'This Week' : 'Monitor'),
             'generated_at' => now()->toIso8601String(),
-            'generation_type' => 'rule_based',
+            'generation_type' => 'local_fallback',
             'is_ai_generated' => false,
-            'note' => 'Baseline decision brief. AI root-cause analysis akan ditambahkan pada halaman AI Executive Brief.',
         ];
     }
 
