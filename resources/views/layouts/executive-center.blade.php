@@ -198,7 +198,7 @@
             [
                 'label' => 'Strategic Reports',
                 'description' => 'Monthly and quarterly analysis',
-                'route' => 'executive-center.strategic-reports',
+                'route' => 'executive-center.strategic-reports.index',
                 'url' => url('/executive-center/strategic-reports'),
                 'pattern' => 'executive-center/strategic-reports*',
             ],

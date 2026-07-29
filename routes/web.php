@@ -875,6 +875,15 @@ Route::middleware(['auth', 'verified'])
                     abort_unless($request->user() && in_array((string) $request->user()->role, ['super_admin', 'admin'], true), 403, 'Executive Center hanya dapat diakses oleh Super Admin dan Admin.');
                     return $controller->json($request);
                 })->name('business-attention.data');
+
+                Route::prefix('strategic-reports')->name('strategic-reports.')->group(function () {
+                    Route::get('/', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'index'])->name('index');
+                    Route::post('/', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'store'])->name('store');
+                    Route::get('/{strategicReport}', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'show'])->name('show');
+                    Route::post('/{strategicReport}/regenerate', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'regenerate'])->name('regenerate');
+                    Route::post('/{strategicReport}/finalize', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'finalize'])->name('finalize');
+                    Route::get('/{strategicReport}/pdf', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'pdf'])->name('pdf');
+                });
             });
 
         Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])

@@ -75,6 +75,16 @@ class User extends Authenticatable
         return $this->hasMany(MarketingReport::class, 'updated_by');
     }
 
+    public function generatedStrategicReports(): HasMany
+    {
+        return $this->hasMany(StrategicReport::class, 'generated_by');
+    }
+
+    public function finalizedStrategicReports(): HasMany
+    {
+        return $this->hasMany(StrategicReport::class, 'finalized_by');
+    }
+
     public function student(): HasOne
     {
         return $this->hasOne(Student::class);
