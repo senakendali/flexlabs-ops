@@ -24,22 +24,28 @@ class ExecutiveBriefAiServiceTest extends TestCase
             ->once()
             ->withArgs(function (string $prompt): bool {
                 $this->assertStringContainsString('Revenue', $prompt);
-                $this->assertStringContainsString('Completion Rate', $prompt);
+                $this->assertStringContainsString('Student On-Track Rate', $prompt);
                 $this->assertStringContainsString('"status": "unavailable"', $prompt);
                 $this->assertStringContainsString('"previous_period"', $prompt);
+                $this->assertStringContainsString('"on_track_students": 0', $prompt);
+                $this->assertStringContainsString('"eligible_students": 0', $prompt);
+                $this->assertStringContainsString('"average_actual_progress": null', $prompt);
+                $this->assertStringContainsString('"unavailable_reason": "Snapshot belum tersedia."', $prompt);
 
                 return true;
             })
             ->andReturn([
                 'headline' => 'Revenue perlu tindakan segera',
-                'summary' => 'Revenue masih tertinggal, sedangkan Completion Rate belum dapat dinilai.',
-                'possible_causes' => [
-                    'Indikasi awal terlihat dari penurunan revenue dibanding periode sebelumnya.',
+                'executive_summary' => 'Revenue masih tertinggal, sedangkan Student On-Track Rate belum dapat dinilai.',
+                'root_causes' => [
+                    ['rank' => 1, 'title' => 'Revenue gap', 'evidence' => 'Revenue turun dibanding periode sebelumnya.', 'source' => 'Revenue', 'severity' => 'critical', 'finding_type' => 'confirmed'],
                 ],
-                'recommended_actions' => [
-                    'Tetapkan PIC untuk menutup gap KPI Revenue minggu ini.',
+                'risk_opportunity' => [
+                    ['type' => 'risk', 'title' => 'Revenue tertinggal', 'description' => 'Gap perlu ditutup.', 'evidence' => 'Achievement 60%.', 'related_kpi' => 'Revenue', 'urgency' => 'high'],
                 ],
-                'priority' => 'Immediate',
+                'recommended_decisions' => [
+                    ['priority' => 'P1', 'action' => 'Tetapkan recovery action Revenue.', 'pic_role' => 'Finance Lead', 'timeframe' => 'Within 48 Hours', 'related_kpi' => 'Revenue', 'expected_impact' => 'Gap lebih terkendali.', 'reason' => 'Revenue critical.'],
+                ],
             ]);
 
         $service = new ExecutiveBriefAiService($client);
@@ -53,7 +59,11 @@ class ExecutiveBriefAiServiceTest extends TestCase
         $this->assertTrue($first['is_ai_generated']);
         $this->assertSame('ai', $first['generation_type']);
         $this->assertSame($first['fingerprint'], $second['fingerprint']);
-        $this->assertSame('Immediate', $second['priority']);
+        $this->assertSame('Within 48 Hours', $second['priority']);
+        $this->assertSame('critical', $first['root_causes'][0]['severity']);
+        $this->assertSame(2, $first['confidence']['source_count']);
+        $this->assertSame('Moderate', $first['confidence']['label']);
+        $this->assertSame(63, $first['confidence']['score']);
     }
 
     public function test_it_returns_and_temporarily_caches_local_fallback_when_ai_fails(): void
@@ -71,6 +81,33 @@ class ExecutiveBriefAiServiceTest extends TestCase
         $this->assertFalse($first['is_ai_generated']);
         $this->assertSame('local_fallback', $first['generation_type']);
         $this->assertSame($first['fingerprint'], $second['fingerprint']);
+        $this->assertSame('critical', $first['root_causes'][0]['severity']);
+        $this->assertNotContains('unavailable', array_column($first['root_causes'], 'severity'));
+    }
+
+    public function test_changed_kpi_data_creates_a_new_fingerprint_and_ai_request(): void
+    {
+        $client = Mockery::mock(GeminiClientService::class);
+        $response = [
+            'headline' => 'Revenue perlu perhatian',
+            'executive_summary' => 'Data menunjukkan gap Revenue.',
+            'root_causes' => [],
+            'risk_opportunity' => [],
+            'recommended_decisions' => [[
+                'priority' => 'P1', 'action' => 'Tinjau Revenue.', 'pic_role' => 'Finance Lead',
+                'timeframe' => 'This Week', 'related_kpi' => 'Revenue',
+                'expected_impact' => 'Kendali gap membaik.', 'reason' => 'Gap tersedia pada KPI.',
+            ]],
+        ];
+        $client->shouldReceive('generateJson')->twice()->andReturn($response);
+        $service = new ExecutiveBriefAiService($client);
+
+        $first = $service->generate($this->scorecard(), $this->period(), $this->fallback());
+        $changed = $this->scorecard();
+        $changed[0]['actual_value'] = 61;
+        $second = $service->generate($changed, $this->period(), $this->fallback());
+
+        $this->assertNotSame($first['fingerprint'], $second['fingerprint']);
     }
 
     private function scorecard(): array
@@ -102,7 +139,7 @@ class ExecutiveBriefAiServiceTest extends TestCase
             ],
             [
                 'code' => 'student_completion_rate',
-                'name' => 'Completion Rate',
+                'name' => 'Student On-Track Rate',
                 'unit' => 'percentage',
                 'direction' => 'higher',
                 'actual_value' => null,
@@ -118,6 +155,14 @@ class ExecutiveBriefAiServiceTest extends TestCase
                 'source_label' => 'LMS',
                 'source_message' => 'Snapshot belum tersedia.',
                 'last_recorded_at' => null,
+                'actual_meta' => [
+                    'on_track_students' => 0,
+                    'eligible_students' => 0,
+                    'average_actual_progress' => null,
+                    'average_expected_progress' => null,
+                    'excluded_timeline_count' => 0,
+                    'excluded_progress_count' => 0,
+                ],
             ],
         ];
     }

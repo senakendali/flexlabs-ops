@@ -97,7 +97,8 @@ class ExecutiveDashboardService
 
     public function __construct(
         private readonly TrelloDashboardStatsService $trelloDashboardStatsService,
-        private readonly ExecutiveBriefAiService $executiveBriefAiService
+        private readonly ExecutiveBriefAiService $executiveBriefAiService,
+        private readonly StudentOnTrackRateCalculator $studentOnTrackRateCalculator
     ) {
     }
 
@@ -316,8 +317,7 @@ class ExecutiveDashboardService
         $learning = $this->safeSourceCalculation(
             'student_progress',
             fn () => [
-                'student_completion_rate' => $this->calculateCompletionRate(
-                    $dateFrom,
+                'student_completion_rate' => $this->calculateStudentOnTrackRate(
                     $dateTo
                 ),
             ],
@@ -900,6 +900,177 @@ class ExecutiveDashboardService
         ];
     }
 
+    private function calculateStudentOnTrackRate(string $evaluationDate): array
+    {
+        foreach (['batches', 'student_enrollments', 'student_lesson_progresses'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->unavailableActual(
+                    'student_progress',
+                    'Learning Progress',
+                    'Tabel batch, enrollment, atau learning progress belum tersedia.'
+                );
+            }
+        }
+
+        foreach ([
+            'batches' => ['start_date', 'end_date', 'program_id'],
+            'student_enrollments' => [
+                'student_id',
+                'program_id',
+                'batch_id',
+                'status',
+                'access_status',
+            ],
+            'student_lesson_progresses' => [
+                'student_id',
+                'sub_topic_id',
+                'progress_percentage',
+            ],
+        ] as $table => $columns) {
+            if (collect($columns)->contains(
+                fn (string $column): bool => ! Schema::hasColumn($table, $column)
+            )) {
+                return $this->unavailableActual(
+                    'student_progress',
+                    'Learning Progress',
+                    'Kolom timeline batch, enrollment aktif, atau progress belum lengkap.'
+                );
+            }
+        }
+
+        $enrollments = DB::table('student_enrollments as se')
+            ->join('batches as b', 'se.batch_id', '=', 'b.id')
+            ->where('se.status', 'active')
+            ->where('se.access_status', 'active')
+            ->select([
+                'se.student_id',
+                'se.program_id',
+                'se.batch_id',
+                'b.start_date as batch_start_date',
+                'b.end_date as batch_end_date',
+            ])
+            ->get()
+            ->unique(fn (object $row): string => $row->batch_id . ':' . $row->student_id)
+            ->values();
+
+        $programIds = $enrollments
+            ->pluck('program_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $subTopicsByProgram = $this->getActiveSubTopicsByProgram($programIds);
+        $allSubTopicIds = collect($subTopicsByProgram)
+            ->flatten()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $studentIds = $enrollments
+            ->pluck('student_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $progressRows = empty($studentIds) || empty($allSubTopicIds)
+            ? collect()
+            : DB::table('student_lesson_progresses')
+                ->whereIn('student_id', $studentIds)
+                ->whereIn('sub_topic_id', $allSubTopicIds)
+                ->select([
+                    'student_id',
+                    'sub_topic_id',
+                    'progress_percentage',
+                    'updated_at',
+                ])
+                ->get()
+                ->groupBy(fn (object $row): int => (int) $row->student_id);
+
+        $students = $enrollments->map(function (object $enrollment) use (
+            $subTopicsByProgram,
+            $progressRows
+        ): array {
+            $programSubTopics = $subTopicsByProgram[(int) $enrollment->program_id] ?? [];
+            $programSet = array_fill_keys($programSubTopics, true);
+            $studentProgressRows = $progressRows
+                ->get((int) $enrollment->student_id, collect())
+                ->filter(fn (object $row): bool => isset(
+                    $programSet[(int) $row->sub_topic_id]
+                ));
+
+            $actualProgress = ! empty($programSubTopics) && $studentProgressRows->isNotEmpty()
+                ? $studentProgressRows->sum(fn (object $row): float => max(
+                    0,
+                    min(100, (float) $row->progress_percentage)
+                )) / count($programSubTopics)
+                : null;
+
+            return [
+                'student_id' => (int) $enrollment->student_id,
+                'batch_id' => (int) $enrollment->batch_id,
+                'program_id' => (int) $enrollment->program_id,
+                'batch_start_date' => $enrollment->batch_start_date,
+                'batch_end_date' => $enrollment->batch_end_date,
+                'actual_progress' => $actualProgress,
+            ];
+        })->all();
+
+        $result = $this->studentOnTrackRateCalculator->calculate(
+            $students,
+            $evaluationDate
+        );
+        $summaryMeta = collect($result)->except('students')->all();
+        $lastRecordedAt = $progressRows
+            ->flatten(1)
+            ->pluck('updated_at')
+            ->filter()
+            ->sortDesc()
+            ->first();
+
+        if (! $result['has_data']) {
+            return $this->availableActual(
+                value: 0,
+                sourceKey: 'student_progress',
+                sourceLabel: 'Learning Progress',
+                lastRecordedAt: $lastRecordedAt,
+                hasData: false,
+                message: 'Tidak ada student aktif dengan timeline batch yang dapat dinilai pada periode ini.',
+                meta: $summaryMeta
+            );
+        }
+
+        $excluded = (int) $result['excluded_timeline_count']
+            + (int) $result['excluded_progress_count'];
+        $message = number_format((int) $result['on_track_students'])
+            . ' dari '
+            . number_format((int) $result['eligible_students'])
+            . ' student aktif berada sesuai jadwal. Average progress '
+            . number_format((float) $result['average_actual_progress'], 1, ',', '.')
+            . '% · Expected progress '
+            . number_format((float) $result['average_expected_progress'], 1, ',', '.')
+            . '%.';
+
+        if ($excluded > 0) {
+            $message .= ' ' . number_format($excluded)
+                . ' enrollment dikeluarkan karena timeline atau data progress belum lengkap.';
+        }
+
+        return $this->availableActual(
+            value: (float) $result['rate'],
+            sourceKey: 'student_progress',
+            sourceLabel: 'Learning Progress',
+            lastRecordedAt: $lastRecordedAt,
+            hasData: true,
+            message: $message,
+            meta: $summaryMeta
+        );
+    }
+
+    /**
+     * Legacy completion calculator retained for future completed-batch KPI use.
+     */
     private function calculateCompletionRate(
         string $dateFrom,
         string $dateTo
@@ -1454,8 +1625,12 @@ class ExecutiveDashboardService
 
                 return [
                     'code' => $definition->code,
-                    'name' => $definition->name,
-                    'description' => $definition->description,
+                    'name' => $definition->code === 'student_completion_rate'
+                        ? 'Student On-Track Rate'
+                        : $definition->name,
+                    'description' => $definition->code === 'student_completion_rate'
+                        ? 'Persentase student aktif yang progress aktualnya mencapai minimal 90% dari expected progress timeline batch.'
+                        : $definition->description,
                     'division' => $definition->division,
                     'category' => $definition->category,
                     'unit' => $definition->unit,
@@ -1470,12 +1645,12 @@ class ExecutiveDashboardService
                         : 'Not configured',
                     'target_status' => $target?->status,
                     'actual_value' => $actual['value'],
-                    'actual_formatted' => $actual['available']
+                    'actual_formatted' => $actual['available'] && $actual['has_data']
                         ? $this->formatValue(
                             (float) $actual['value'],
                             $definition->unit
                         )
-                        : 'Unavailable',
+                        : ($actual['available'] ? 'No data' : 'Unavailable'),
                     'actual_available' => (bool) $actual['available'],
                     'has_data' => (bool) $actual['has_data'],
                     'source_key' => $actual['source_key'],
@@ -1546,7 +1721,9 @@ class ExecutiveDashboardService
 
         $actualValue = max(0, (float) $actual['value']);
         $elapsedRatio = max(0.000001, (float) $period['elapsed_ratio']);
-        $expectedToDate = $targetValue * $elapsedRatio;
+        $expectedToDate = $definition->code === 'student_completion_rate'
+            ? $targetValue
+            : $targetValue * $elapsedRatio;
 
         if ($definition->isLowerBetter()) {
             $achievement = $actualValue <= 0
@@ -1844,10 +2021,8 @@ class ExecutiveDashboardService
     }
 
     /**
-     * Learning Centre wajib menggunakan Student Completion Rate terhadap
-     * target completion bulanan. Rate tidak diprorata berdasarkan hari karena
-     * actual-nya sendiri sudah hanya membaca batch yang dijadwalkan selesai
-     * pada periode monitoring.
+     * Learning Centre uses the existing reusable KPI status evaluation while
+     * the actual measures active students against each batch timeline.
      *
      * @return array<string, mixed>
      */
@@ -1866,20 +2041,23 @@ class ExecutiveDashboardService
             'watch_count' => 0,
             'source_key' => 'student_progress',
             'metrics' => [
-                'actual_completion_rate' => $completionKpi['actual_value'] ?? null,
-                'target_completion_rate' => $completionKpi['target_value'] ?? null,
+                'actual_on_track_rate' => $completionKpi['actual_value'] ?? null,
+                'target_on_track_rate' => $completionKpi['target_value'] ?? null,
                 'eligible_students' => data_get(
                     $completionKpi,
                     'actual_meta.eligible_students'
                 ),
-                'completed_students' => data_get(
+                'on_track_students' => data_get(
                     $completionKpi,
-                    'actual_meta.completed_students'
+                    'actual_meta.on_track_students'
                 ),
-                'completion_threshold' => data_get(
+                'average_actual_progress' => data_get(
                     $completionKpi,
-                    'actual_meta.completion_threshold',
-                    95
+                    'actual_meta.average_actual_progress'
+                ),
+                'average_expected_progress' => data_get(
+                    $completionKpi,
+                    'actual_meta.average_expected_progress'
                 ),
             ],
         ];
@@ -1890,7 +2068,7 @@ class ExecutiveDashboardService
                 'status' => 'not_configured',
                 'status_label' => 'Not configured',
                 'health_percentage' => null,
-                'message' => 'KPI Student Completion Rate belum tersedia.',
+                'message' => 'KPI Student On-Track Rate belum tersedia.',
             ];
         }
 
@@ -1902,7 +2080,7 @@ class ExecutiveDashboardService
                 'status' => 'not_configured',
                 'status_label' => 'Not configured',
                 'health_percentage' => null,
-                'message' => 'Target Student Completion Rate Active atau Locked belum tersedia.',
+                'message' => 'Target Student On-Track Rate Active atau Locked belum tersedia.',
             ];
         }
 
@@ -1940,15 +2118,20 @@ class ExecutiveDashboardService
             'actual_meta.eligible_students',
             0
         );
-        $completedStudents = (int) data_get(
+        $onTrackStudents = (int) data_get(
             $completionKpi,
-            'actual_meta.completed_students',
+            'actual_meta.on_track_students',
             0
         );
-        $threshold = (float) data_get(
+        $averageActual = (float) data_get(
             $completionKpi,
-            'actual_meta.completion_threshold',
-            95
+            'actual_meta.average_actual_progress',
+            0
+        );
+        $averageExpected = (float) data_get(
+            $completionKpi,
+            'actual_meta.average_expected_progress',
+            0
         );
 
         return [
@@ -1964,15 +2147,17 @@ class ExecutiveDashboardService
             'critical_count' => $status === 'critical' ? 1 : 0,
             'watch_count' => $status === 'watch' ? 1 : 0,
             'message' => number_format($actual, 1, ',', '.')
-                . '% completion dari target '
+                . '% on-track dari target '
                 . number_format($target, 1, ',', '.')
                 . '%. '
-                . number_format($completedStudents)
+                . number_format($onTrackStudents)
                 . ' dari '
                 . number_format($eligibleStudents)
-                . ' student mencapai minimal '
-                . number_format($threshold, 0, ',', '.')
-                . '% progress.',
+                . ' student aktif berada sesuai jadwal. Average progress '
+                . number_format($averageActual, 1, ',', '.')
+                . '% · Expected progress '
+                . number_format($averageExpected, 1, ',', '.')
+                . '%.',
         ];
     }
 

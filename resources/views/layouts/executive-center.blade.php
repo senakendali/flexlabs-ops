@@ -177,9 +177,9 @@
             [
                 'label' => 'AI Executive Brief',
                 'description' => 'Insights and recommendations',
-                'route' => 'executive-center.ai-brief',
-                'url' => url('/executive-center/ai-brief'),
-                'pattern' => 'executive-center/ai-brief*',
+                'route' => 'executive-center.ai-executive-brief',
+                'url' => url('/executive-center/ai-executive-brief'),
+                'pattern' => 'executive-center/ai-executive-brief*',
             ],
             [
                 'label' => 'KPI Scorecard',

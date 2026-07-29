@@ -823,6 +823,34 @@ Route::middleware(['auth', 'verified'])
                         );
                     }
                 )->name('dashboard.data');
+
+                Route::get('/ai-executive-brief', function (
+                    Request $request,
+                    ExecutiveDashboardController $executiveDashboardController
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $executiveDashboardController->brief($request);
+                })->name('ai-executive-brief');
+
+                Route::get('/ai-executive-brief/data', function (
+                    Request $request,
+                    ExecutiveDashboardController $executiveDashboardController
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $executiveDashboardController->briefData($request);
+                })->name('ai-executive-brief.data');
             });
 
         Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])

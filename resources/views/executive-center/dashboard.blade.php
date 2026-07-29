@@ -386,7 +386,7 @@
                                     @foreach ($resolvedBrief['root_causes'] as $cause)
                                         <li class="flex gap-2">
                                             <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#5B3E8E]"></span>
-                                            <span>{{ $cause }}</span>
+                                            <span>{{ is_array($cause) ? ($cause['evidence'] ?? $cause['title'] ?? '') : $cause }}</span>
                                         </li>
                                     @endforeach
                                 </ul>
@@ -417,6 +417,14 @@
                                 </span>
                             </div>
                         @endif
+
+                        <a
+                            id="executiveBriefDetailLink"
+                            href="{{ route('executive-center.ai-executive-brief', ['period' => $filters['month'] ?? now()->format('Y-m')]) }}"
+                            class="mt-5 inline-flex items-center gap-2 text-[11px] font-extrabold text-executive-primary hover:underline"
+                        >
+                            View Full Brief <span aria-hidden="true">→</span>
+                        </a>
                     </div>
                 </div>
             </article>
@@ -638,6 +646,7 @@
                 finance_centre: '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2ZM16 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
                 operations_centre: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64 1.7 1.7 0 0 0-.36 1.06V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.24 15a1.7 1.7 0 0 0-1.24-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06L7.03 4.2l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.64A1.7 1.7 0 0 0 10.36 3H14v.09A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.47.55.84 1.04 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
             };
+            const hiddenBusinessHealthKeys = new Set(['talent_hub']);
 
             let toastTimer = null;
             let requestController = null;
@@ -790,11 +799,7 @@
                     return;
                 }
 
-                const visibleItems = Array.isArray(items)
-                    ? items.filter((centre) => centre.key !== 'talent_hub')
-                    : [];
-
-                if (visibleItems.length === 0) {
+                if (!Array.isArray(items) || items.length === 0) {
                     container.innerHTML = `
                         <div class="col-span-full rounded-2xl border border-dashed border-executive-line bg-white px-5 py-8 text-center">
                             <p class="text-sm font-bold text-executive-ink">Executive KPI belum tersedia</p>
@@ -858,7 +863,11 @@
                     return;
                 }
 
-                if (!Array.isArray(items) || items.length === 0) {
+                const visibleItems = Array.isArray(items)
+                    ? items.filter((centre) => !hiddenBusinessHealthKeys.has(centre.key))
+                    : [];
+
+                if (visibleItems.length === 0) {
                     container.innerHTML = `
                         <div class="rounded-xl bg-slate-50 px-4 py-6 text-center text-xs font-semibold text-executive-muted">
                             Business Health belum dapat dihitung.
@@ -913,7 +922,9 @@
                     ? brief.recommendations
                     : [];
                 const causes = Array.isArray(brief.root_causes)
-                    ? brief.root_causes
+                    ? brief.root_causes.map((cause) => typeof cause === 'object'
+                        ? (cause.evidence || cause.title || '')
+                        : cause)
                     : [];
                 const causesHtml = causes.length > 0
                     ? `
@@ -1083,6 +1094,12 @@
                     data.dataFreshness || [],
                     data.executiveBrief?.generated_at || null
                 );
+                const detailLink = document.getElementById('executiveBriefDetailLink');
+                if (detailLink) {
+                    const detailUrl = new URL(detailLink.href, window.location.origin);
+                    detailUrl.searchParams.set('period', data.filters?.month || monthFilter.value);
+                    detailLink.href = detailUrl.toString();
+                }
             }
 
             async function loadMonth(month) {

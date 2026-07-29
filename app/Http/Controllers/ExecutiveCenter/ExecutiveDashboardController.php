@@ -12,8 +12,7 @@ class ExecutiveDashboardController extends Controller
 {
     public function __construct(
         private readonly ExecutiveDashboardService $executiveDashboardService
-    ) {
-    }
+    ) {}
 
     /**
      * Menampilkan Executive Dashboard untuk periode bulanan terpilih.
@@ -46,6 +45,26 @@ class ExecutiveDashboardController extends Controller
         ]);
     }
 
+    public function brief(Request $request): View
+    {
+        return view(
+            'executive-center.ai-executive-brief',
+            $this->executiveDashboardService->getData(
+                $this->validatedBriefFilters($request)
+            )
+        );
+    }
+
+    public function briefData(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->executiveDashboardService->getData(
+                $this->validatedBriefFilters($request)
+            ),
+        ]);
+    }
+
     /**
      * Validate and normalize the dashboard filters shared by the page and
      * asynchronous endpoint.
@@ -66,5 +85,17 @@ class ExecutiveDashboardController extends Controller
         return [
             'month' => $validated['month'] ?? now()->format('Y-m'),
         ];
+    }
+
+    /** @return array{month: string} */
+    private function validatedBriefFilters(Request $request): array
+    {
+        $validated = $request->validate([
+            'period' => ['nullable', 'date_format:Y-m'],
+        ], [
+            'period.date_format' => 'Format periode harus menggunakan format YYYY-MM.',
+        ]);
+
+        return ['month' => $validated['period'] ?? now()->format('Y-m')];
     }
 }
