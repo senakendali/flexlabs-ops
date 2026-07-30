@@ -569,9 +569,9 @@ class ExecutiveDashboardService
      * Marketing Spend hanya dinilai available bila seluruh source yang
      * didefinisikan KPI memiliki data yang dapat mewakili periode terpilih.
      *
-     * Meta Ads dibaca dari insight harian. Google Ads masih dibaca dari
-     * snapshot periode eksplisit sampai proses sinkronisasinya menyimpan
-     * cost harian.
+     * Meta Ads dan Google Ads sama-sama dibaca dari data harian yang sudah
+     * selesai agar actual bulan berjalan tidak memasukkan hari yang masih
+     * parsial.
      */
     private function calculateMarketingSpend(
         string $dateFrom,
@@ -788,9 +788,10 @@ class ExecutiveDashboardService
 
         if (
             ! Schema::hasTable($table)
-            || ! Schema::hasColumn($table, 'total_cost')
+            || ! Schema::hasColumn($table, 'date_preset')
             || ! Schema::hasColumn($table, 'date_start')
             || ! Schema::hasColumn($table, 'date_stop')
+            || ! Schema::hasColumn($table, 'total_cost')
         ) {
             return $this->platformSpendUnavailable(
                 'google_ads',
@@ -799,18 +800,51 @@ class ExecutiveDashboardService
             );
         }
 
+        $periodStart = Carbon::parse($dateFrom)->startOfDay();
+        $requestedDateTo = Carbon::parse($dateTo)->startOfDay();
+        $lastCompletedDate = now()->startOfDay()->subDay();
+        $expectedDateTo = $requestedDateTo->greaterThan($lastCompletedDate)
+            ? $lastCompletedDate
+            : $requestedDateTo;
+        $currentDayExcluded = $expectedDateTo->lt($requestedDateTo);
+
+        /*
+         * Sinkronisasi Google Ads menyimpan satu row date_preset=daily untuk
+         * setiap tanggal. Hanya hari yang sudah selesai yang dipakai sebagai
+         * actual agar bulan berjalan tidak memasukkan angka hari ini yang
+         * masih parsial.
+         */
+        if ($expectedDateTo->lt($periodStart)) {
+            return [
+                'value' => 0.0,
+                'available' => true,
+                'has_data' => false,
+                'source_key' => 'google_ads',
+                'source_label' => 'Google Ads',
+                'last_recorded_at' => null,
+                'message' => null,
+                'meta' => [
+                    'row_count' => 0,
+                    'customer_count' => 0,
+                    'granularity' => 'daily',
+                    'coverage_start' => null,
+                    'coverage_end' => null,
+                    'covered_date_count' => 0,
+                    'expected_date_count' => 0,
+                    'coverage_complete' => true,
+                    'requested_date_to' => $requestedDateTo->toDateString(),
+                    'expected_date_to' => null,
+                    'current_day_excluded' => $currentDayExcluded,
+                ],
+            ];
+        }
+
+        $expectedDateToString = $expectedDateTo->toDateString();
         $dailyRows = DB::table($table)
+            ->where('date_preset', 'daily')
             ->whereColumn('date_start', 'date_stop')
             ->whereDate('date_start', '>=', $dateFrom)
-            ->whereDate('date_start', '<=', $dateTo);
-
-        if (Schema::hasColumn($table, 'date_preset')) {
-            $dailyRows->where('date_preset', 'daily');
-        }
-
-        if (Schema::hasColumn($table, 'is_available')) {
-            $dailyRows->where('is_available', true);
-        }
+            ->whereDate('date_start', '<=', $expectedDateToString);
 
         $customerId = preg_replace(
             '/\D+/',
@@ -825,14 +859,33 @@ class ExecutiveDashboardService
             $dailyRows->where('customer_id', $customerId);
         }
 
+        if (Schema::hasColumn($table, 'is_available')) {
+            $dailyRows->where('is_available', true);
+        }
+
         if (! (clone $dailyRows)->exists()) {
             return $this->platformSpendUnavailable(
                 'google_ads',
                 'Google Ads',
-                'Snapshot harian belum tersedia pada periode terpilih. Jalankan sinkronisasi Google Ads harian.'
+                'Data harian belum tersedia pada periode terpilih. Jalankan backfill sinkronisasi Google Ads.'
             );
         }
 
+        $coverageStart = (string) (clone $dailyRows)->min('date_start');
+        $coverageEnd = (string) (clone $dailyRows)->max('date_stop');
+        $coveredDateCount = (int) (clone $dailyRows)
+            ->distinct()
+            ->count('date_start');
+        $expectedDateCount = (int) $periodStart
+            ->diffInDays($expectedDateTo) + 1;
+        $coverageComplete = $coverageStart <= $dateFrom
+            && $coverageEnd >= $expectedDateToString
+            && $coveredDateCount >= $expectedDateCount;
+
+        /*
+         * Bila tanggal yang sama pernah disinkronkan ulang, hanya row terbaru
+         * per customer dan tanggal yang dijumlahkan supaya spend tidak dobel.
+         */
         if (Schema::hasColumn($table, 'id')) {
             $identityColumns = ['date_start', 'date_stop'];
 
@@ -847,30 +900,24 @@ class ExecutiveDashboardService
                 ->filter()
                 ->all();
 
-            $resolvedRows = DB::table($table)->whereIn('id', $latestIds);
-            $value = (float) (clone $resolvedRows)->sum('total_cost');
+            $selectedRows = DB::table($table)->whereIn('id', $latestIds);
+            $value = (float) (clone $selectedRows)->sum('total_cost');
             $rowCount = count($latestIds);
-            $coverageStart = (string) (clone $resolvedRows)->min('date_start');
-            $coverageEnd = (string) (clone $resolvedRows)->max('date_stop');
-            $coveredDateCount = (int) (clone $resolvedRows)
-                ->distinct()
-                ->count('date_start');
+            $customerCount = Schema::hasColumn($table, 'customer_id')
+                ? (int) (clone $selectedRows)
+                    ->distinct()
+                    ->count('customer_id')
+                : ($rowCount > 0 ? 1 : 0);
         } else {
-            $resolvedRows = clone $dailyRows;
-            $value = (float) (clone $resolvedRows)->sum('total_cost');
-            $rowCount = (int) (clone $resolvedRows)->count();
-            $coverageStart = (string) (clone $resolvedRows)->min('date_start');
-            $coverageEnd = (string) (clone $resolvedRows)->max('date_stop');
-            $coveredDateCount = (int) (clone $resolvedRows)
-                ->distinct()
-                ->count('date_start');
+            $selectedRows = clone $dailyRows;
+            $value = (float) (clone $selectedRows)->sum('total_cost');
+            $rowCount = (int) (clone $selectedRows)->count();
+            $customerCount = Schema::hasColumn($table, 'customer_id')
+                ? (int) (clone $selectedRows)
+                    ->distinct()
+                    ->count('customer_id')
+                : ($rowCount > 0 ? 1 : 0);
         }
-
-        $expectedDateCount = Carbon::parse($dateFrom)
-            ->diffInDays(Carbon::parse($dateTo)) + 1;
-        $coverageComplete = $coverageStart <= $dateFrom
-            && $coverageEnd >= $dateTo
-            && $coveredDateCount >= $expectedDateCount;
 
         $freshnessColumn = $this->firstExistingColumn($table, [
             'synced_at',
@@ -886,27 +933,31 @@ class ExecutiveDashboardService
             'source_key' => 'google_ads',
             'source_label' => 'Google Ads',
             'last_recorded_at' => $freshnessColumn
-                ? (clone $resolvedRows)->max($freshnessColumn)
+                ? (clone $selectedRows)->max($freshnessColumn)
                 : $coverageEnd,
             'message' => $coverageComplete
                 ? null
                 : sprintf(
-                    'Data harian baru mencakup %s sampai %s (%d dari %d tanggal), sedangkan periode dashboard %s sampai %s. Lakukan backfill Google Ads sebelum dipakai sebagai actual bulanan.',
+                    'Data harian baru mencakup %s sampai %s (%d dari %d tanggal), sedangkan periode data selesai yang wajib tersedia adalah %s sampai %s. Lakukan backfill sebelum dipakai sebagai actual bulanan.',
                     $coverageStart,
                     $coverageEnd,
                     $coveredDateCount,
                     $expectedDateCount,
                     $dateFrom,
-                    $dateTo
+                    $expectedDateToString
                 ),
             'meta' => [
                 'row_count' => $rowCount,
+                'customer_count' => $customerCount,
                 'granularity' => 'daily',
                 'coverage_start' => $coverageStart,
                 'coverage_end' => $coverageEnd,
                 'covered_date_count' => $coveredDateCount,
                 'expected_date_count' => $expectedDateCount,
                 'coverage_complete' => $coverageComplete,
+                'requested_date_to' => $requestedDateTo->toDateString(),
+                'expected_date_to' => $expectedDateToString,
+                'current_day_excluded' => $currentDayExcluded,
             ],
         ];
     }
@@ -2580,7 +2631,11 @@ class ExecutiveDashboardService
         ];
 
         return collect($scorecard)
-            ->filter(fn (array $kpi) => isset($priority[$kpi['status']]))
+            ->filter(
+                fn (array $kpi) =>
+                    $kpi['code'] === 'marketing_spend'
+                    || isset($priority[$kpi['status']])
+            )
             ->map(function (array $kpi) use ($priority) {
                 return [
                     'kpi_code' => $kpi['code'],
@@ -2588,7 +2643,7 @@ class ExecutiveDashboardService
                     'centre' => $this->centreNameForKpi($kpi['code']),
                     'severity' => $kpi['status'],
                     'severity_label' => $kpi['status_label'],
-                    'priority_order' => $priority[$kpi['status']],
+                    'priority_order' => $priority[$kpi['status']] ?? 6,
                     'message' => $kpi['status_reason'],
                     'actual_formatted' => $kpi['actual_formatted'],
                     'target_formatted' => $kpi['target_formatted'],
