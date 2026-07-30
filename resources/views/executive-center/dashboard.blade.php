@@ -391,9 +391,9 @@
                     </div>
 
                     <div id="executiveBriefContent" class="mt-5">
-                        <h4 class="text-lg font-extrabold leading-6 tracking-[-0.025em] text-executive-ink">
+                        <p class="rounded-xl border border-violet-100 bg-violet-50/80 px-3.5 py-3 text-sm font-bold leading-5 text-executive-primary">
                             {{ $resolvedBrief['headline'] ?? 'Executive brief belum tersedia' }}
-                        </h4>
+                        </p>
 
                         <p class="mt-3 text-xs leading-5 text-slate-600">
                             {{ $resolvedBrief['summary'] ?? 'Data KPI belum cukup untuk membuat executive brief.' }}
@@ -989,9 +989,9 @@
                     : '';
 
                 container.innerHTML = `
-                    <h4 class="text-lg font-extrabold leading-6 tracking-[-0.025em] text-executive-ink">
+                    <p class="rounded-xl border border-violet-100 bg-violet-50/80 px-3.5 py-3 text-sm font-bold leading-5 text-executive-primary">
                         ${escapeHtml(brief.headline || 'Executive brief belum tersedia')}
-                    </h4>
+                    </p>
                     <p class="mt-3 text-xs leading-5 text-slate-600">
                         ${escapeHtml(brief.summary || 'Data KPI belum cukup untuk membuat executive brief.')}
                     </p>
