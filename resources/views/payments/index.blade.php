@@ -750,9 +750,9 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <div class="form-text">
+                                    <!--div class="form-text">
                                         Optional. Choose a schedule if this payment is for a specific installment.
-                                    </div>
+                                    </div-->
                                     <div class="invalid-feedback" id="error_payment_schedule_id"></div>
                                 </div>
                             </div>
