@@ -28,19 +28,38 @@
         }
 
         .executive-content {
+            padding-top: 0 !important;
             padding-right: 0 !important;
             padding-bottom: 0 !important;
             padding-left: 0 !important;
+        }
+
+        /*
+         * Gunakan satu sumber jarak antara page header card dan konten.
+         * Ini mencegah gap bertambah karena padding layout dan root page
+         * diterapkan bersamaan.
+         */
+        #executiveDashboardRoot {
+            margin: 0 !important;
+            padding-top: 1.25rem !important;
         }
 
         @media (max-width: 639px) {
             .executive-page-header {
                 border-radius: 1rem !important;
             }
+
+            #executiveDashboardRoot {
+                padding-top: 1rem !important;
+            }
         }
 
         @media print {
             .executive-content {
+                padding-top: 0 !important;
+            }
+
+            #executiveDashboardRoot {
                 padding-top: 0 !important;
             }
         }

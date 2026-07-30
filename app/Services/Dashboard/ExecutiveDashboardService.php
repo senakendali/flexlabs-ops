@@ -651,10 +651,48 @@ class ExecutiveDashboardService
             );
         }
 
+        $requestedDateTo = Carbon::parse($dateTo)->startOfDay();
+        $lastCompletedDate = now()->startOfDay()->subDay();
+        $expectedDateTo = $requestedDateTo->greaterThan($lastCompletedDate)
+            ? $lastCompletedDate
+            : $requestedDateTo;
+        $currentDayExcluded = $expectedDateTo->lt($requestedDateTo);
+
+        /*
+         * Insight harian hanya dianggap final sampai hari yang sudah selesai.
+         * Pada tanggal 30, misalnya, periode dashboard tetap 1–30 tetapi
+         * kelengkapan data platform cukup diperiksa sampai tanggal 29.
+         */
+        if ($expectedDateTo->lt(Carbon::parse($dateFrom)->startOfDay())) {
+            return [
+                'value' => 0.0,
+                'available' => true,
+                'has_data' => false,
+                'source_key' => 'meta_ads',
+                'source_label' => 'Meta Ads',
+                'last_recorded_at' => null,
+                'message' => null,
+                'meta' => [
+                    'row_count' => 0,
+                    'granularity' => 'daily',
+                    'coverage_start' => null,
+                    'coverage_end' => null,
+                    'covered_date_count' => 0,
+                    'expected_date_count' => 0,
+                    'coverage_complete' => true,
+                    'requested_date_to' => $requestedDateTo->toDateString(),
+                    'expected_date_to' => null,
+                    'current_day_excluded' => $currentDayExcluded,
+                ],
+            ];
+        }
+
+        $expectedDateToString = $expectedDateTo->toDateString();
+
         $dailyRows = DB::table($table)
             ->whereColumn('date_start', 'date_stop')
             ->whereDate('date_start', '>=', $dateFrom)
-            ->whereDate('date_start', '<=', $dateTo);
+            ->whereDate('date_start', '<=', $expectedDateToString);
 
         if (! (clone $dailyRows)->exists()) {
             return $this->platformSpendUnavailable(
@@ -666,8 +704,14 @@ class ExecutiveDashboardService
 
         $coverageStart = (string) (clone $dailyRows)->min('date_start');
         $coverageEnd = (string) (clone $dailyRows)->max('date_stop');
+        $coveredDateCount = (int) (clone $dailyRows)
+            ->distinct()
+            ->count('date_start');
+        $expectedDateCount = (int) Carbon::parse($dateFrom)
+            ->diffInDays($expectedDateTo) + 1;
         $coverageComplete = $coverageStart <= $dateFrom
-            && $coverageEnd >= $dateTo;
+            && $coverageEnd >= $expectedDateToString
+            && $coveredDateCount >= $expectedDateCount;
 
         if (
             Schema::hasColumn($table, 'id')
@@ -713,18 +757,25 @@ class ExecutiveDashboardService
             'message' => $coverageComplete
                 ? null
                 : sprintf(
-                    'Data harian baru mencakup %s sampai %s, sedangkan periode dashboard %s sampai %s. Lakukan backfill sebelum dipakai sebagai actual bulanan.',
+                    'Data harian baru mencakup %s sampai %s (%d dari %d tanggal), sedangkan periode data selesai yang wajib tersedia adalah %s sampai %s. Lakukan backfill sebelum dipakai sebagai actual bulanan.',
                     $coverageStart,
                     $coverageEnd,
+                    $coveredDateCount,
+                    $expectedDateCount,
                     $dateFrom,
-                    $dateTo
+                    $expectedDateToString
                 ),
             'meta' => [
                 'row_count' => $rowCount,
                 'granularity' => 'daily',
                 'coverage_start' => $coverageStart,
                 'coverage_end' => $coverageEnd,
+                'covered_date_count' => $coveredDateCount,
+                'expected_date_count' => $expectedDateCount,
                 'coverage_complete' => $coverageComplete,
+                'requested_date_to' => $requestedDateTo->toDateString(),
+                'expected_date_to' => $expectedDateToString,
+                'current_day_excluded' => $currentDayExcluded,
             ],
         ];
     }

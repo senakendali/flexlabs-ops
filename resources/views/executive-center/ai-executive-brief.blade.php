@@ -32,12 +32,18 @@
 <style>
     .executive-main-card { overflow: visible !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
     .executive-page-header { border: 1px solid #E5E1EE !important; border-radius: 1.25rem !important; background: #FFFFFF !important; box-shadow: 0 16px 45px rgba(31, 27, 46, 0.07) !important; }
-    .executive-content { padding-top: 1.25rem !important; padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
+    .executive-content { padding: 0 !important; }
+    #briefPage { margin: 0 !important; padding: 1.25rem 0 0 !important; }
     .brief-loading { opacity: .55; pointer-events: none; }
     #briefPage > section:first-of-type { margin-top: 0 !important; }
-    @media (min-width: 640px) { .executive-content { padding-top: 1.5rem !important; } }
-    @media (min-width: 1024px) { .executive-content { padding-top: 1.75rem !important; } }
-    @media (max-width: 639px) { .executive-page-header { border-radius: 1rem !important; } }
+    @media (max-width: 639px) {
+        .executive-page-header { border-radius: 1rem !important; }
+        #briefPage { padding-top: 1rem !important; }
+    }
+
+    @media print {
+        #briefPage { padding-top: 0 !important; }
+    }
 </style>
 @endpush
 

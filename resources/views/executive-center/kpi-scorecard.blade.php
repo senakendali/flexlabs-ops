@@ -24,8 +24,26 @@
 <style>
     .executive-main-card { overflow: visible !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
     .executive-page-header { border: 1px solid #E5E1EE !important; border-radius: 1.25rem !important; background: #FFF !important; box-shadow: 0 16px 45px rgba(31,27,46,.07) !important; }
-    .executive-content { padding-right: 0 !important; padding-bottom: 0 !important; padding-left: 0 !important; }
-    @media (max-width:639px) { .executive-page-header { border-radius: 1rem !important; } }
+    .executive-content { padding: 0 !important; }
+    #scorecardPage { padding-top: 20px; }
+    #scorecardPeriod {
+        color-scheme: light;
+    }
+    #scorecardPeriod::-webkit-calendar-picker-indicator {
+        position: absolute;
+        inset: 0;
+        width: auto;
+        height: auto;
+        cursor: pointer;
+        opacity: 0;
+    }
+    @media (max-width:639px) {
+        .executive-page-header { border-radius: 1rem !important; }
+        #scorecardPage { padding-top: 16px; }
+    }
+    @media print {
+        #scorecardPage { padding-top: 0 !important; }
+    }
 </style>
 @endpush
 
@@ -39,6 +57,22 @@
     $statusStyle = ['healthy' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'watch' => 'bg-amber-50 text-amber-700 ring-amber-200', 'critical' => 'bg-rose-50 text-rose-700 ring-rose-200', 'unavailable' => 'bg-slate-100 text-slate-600 ring-slate-200', 'no_data' => 'bg-slate-100 text-slate-600 ring-slate-200', 'not_configured' => 'bg-slate-100 text-slate-600 ring-slate-200', 'pending' => 'bg-violet-50 text-violet-700 ring-violet-200'];
     $barStyle = ['healthy' => 'bg-emerald-500', 'watch' => 'bg-amber-400', 'critical' => 'bg-rose-500'];
     $trendStyle = ['positive' => 'text-emerald-600', 'negative' => 'text-rose-600', 'neutral' => 'text-executive-muted'];
+    $divisionIcons = [
+        'all' => '<path d="M4 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M8 7h2M14 7h.01M8 11h2M14 11h.01M8 15h2M14 15h.01M3 21h18M9 21v-3h4v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+        'overall' => '<path d="M4 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M8 7h2M14 7h.01M8 11h2M14 11h.01M8 15h2M14 15h.01M3 21h18M9 21v-3h4v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+        'company' => '<path d="M4 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M8 7h2M14 7h.01M8 11h2M14 11h.01M8 15h2M14 15h.01M3 21h18M9 21v-3h4v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+        'growth' => '<path d="M4 18 10 12l4 4 6-8M15 8h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+        'growth_engine' => '<path d="M4 18 10 12l4 4 6-8M15 8h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+        'learning' => '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'learning_centre' => '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'talent' => '<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 20v-1.5a4 4 0 0 0-3-3.9M16 2.7a4 4 0 0 1 0 7.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'talent_hub' => '<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 20v-1.5a4 4 0 0 0-3-3.9M16 2.7a4 4 0 0 1 0 7.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'finance' => '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2ZM16 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'finance_centre' => '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2ZM16 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        'operations' => '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64 1.7 1.7 0 0 0-.36 1.06V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.24 15a1.7 1.7 0 0 0-1.24-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06L7.03 4.2l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.64A1.7 1.7 0 0 0 10.36 3H14v.09A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.47.55.84 1.04 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+        'operations_centre' => '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64 1.7 1.7 0 0 0-.36 1.06V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.24 15a1.7 1.7 0 0 0-1.24-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06L7.03 4.2l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.64A1.7 1.7 0 0 0 10.36 3H14v.09A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.47.55.84 1.04 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    ];
+    $defaultDivisionIcon = '<path d="M4 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M8 7h2M14 7h.01M8 11h2M14 11h.01M8 15h2M14 15h.01M3 21h18M9 21v-3h4v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
 @endphp
 
 @section('content')
@@ -62,10 +96,19 @@
 
     <nav class="executive-scrollbar flex max-w-full gap-2 overflow-x-auto rounded-2xl border border-executive-line bg-white p-2 shadow-panel" aria-label="KPI divisions">
         @foreach ($divisions as $tab)
+            @php
+                $divisionIcon = $divisionIcons[$tab['key']] ?? $defaultDivisionIcon;
+            @endphp
+
             <a href="{{ route('executive-center.kpi-scorecard', ['period' => $filters['period'], 'division' => $tab['key']]) }}"
                 class="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold transition {{ $filters['division'] === $tab['key'] ? 'bg-executive-primary text-white shadow-button' : 'text-executive-muted hover:bg-executive-primarySoft hover:text-executive-primary' }}"
                 @if ($filters['division'] === $tab['key']) aria-current="page" @endif>
-                {{ $tab['label'] }} <span class="text-[9px] opacity-70">{{ $tab['count'] }}</span>
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    {!! $divisionIcon !!}
+                </svg>
+
+                <span>{{ $tab['label'] }}</span>
+                <span class="text-[9px] opacity-70">{{ $tab['count'] }}</span>
             </a>
         @endforeach
     </nav>
