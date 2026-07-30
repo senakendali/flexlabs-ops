@@ -49,8 +49,6 @@ return [
         ],
 
         'academic' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -212,8 +210,6 @@ return [
         ],
 
         'marketing' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -299,8 +295,6 @@ return [
         ],
 
         'sales' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -401,8 +395,6 @@ return [
         ],
 
         'finance' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -455,8 +447,6 @@ return [
         ],
 
         'hr' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -516,8 +506,6 @@ return [
         ],
 
         'instructor' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -574,11 +562,6 @@ return [
                 'dashboard',
                 'management.dashboard',
                 'super-admin.dashboard',
-                'academic.dashboard*',
-                'sales.dashboard*',
-                'marketing.dashboard*',
-                'finance.dashboard*',
-                'hr.dashboard*',
             ],
         ],
 
