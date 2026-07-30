@@ -799,7 +799,11 @@ class ManagementDashboardService
 
             $overdue = (int) ($summary['overdue'] ?? 0);
             $unmapped = (int) ($summary['unmapped'] ?? 0);
-            $webhookStatus = (string) ($stats['webhook_status'] ?? 'inactive');
+            $webhookStatus = trim((string) (
+                $stats['sync_status']
+                ?? $stats['webhook_status']
+                ?? ''
+            ));
 
             if ($overdue > 0) {
                 $priorities[] = $this->managementPriority(
@@ -825,7 +829,7 @@ class ManagementDashboardService
                 );
             }
 
-            if (! in_array($webhookStatus, ['active', 'synced'], true)) {
+            if (! $this->isTrelloSynced($stats)) {
                 $priorities[] = $this->managementPriority(
                     key: 'trello_' . $sourceKey . '_sync',
                     division: $label,
@@ -1283,13 +1287,16 @@ class ManagementDashboardService
         foreach (($sources['trello'] ?? []) as $sourceKey => $stats) {
             $items[] = $this->freshnessItem(
                 key: 'trello_' . $sourceKey,
-                label: 'Trello ' . ucfirst((string) $sourceKey),
-                available: in_array(
-                    (string) ($stats['webhook_status'] ?? 'inactive'),
-                    ['active', 'synced'],
-                    true
-                ),
-                syncedAt: $stats['last_synced_at'] ?? null,
+                label: 'Trello ' . match ((string) $sourceKey) {
+                    'academic' => 'Academic',
+                    'marketing' => 'Marketing',
+                    'sei' => 'SEI',
+                    default => ucfirst((string) $sourceKey),
+                },
+                available: $this->isTrelloSynced($stats),
+                syncedAt: $stats['last_synced_at']
+                    ?? $stats['last_webhook_at']
+                    ?? null,
                 periodLabel: 'Snapshot operasional'
             );
         }
@@ -1345,6 +1352,33 @@ class ManagementDashboardService
             'total_sources' => count($items),
             'items' => $items,
         ];
+    }
+
+    /**
+     * Menentukan apakah sumber Trello sudah pernah berhasil tersinkron.
+     *
+     * Status webhook dan status sinkronisasi adalah dua hal berbeda. Webhook
+     * dapat berstatus inactive/kosong meskipun proses sync terakhir berhasil.
+     * Karena itu timestamp hasil sync/webhook juga menjadi bukti ketersediaan
+     * data untuk Management Dashboard.
+     */
+    protected function isTrelloSynced(array $stats): bool
+    {
+        $syncStatus = strtolower(trim((string) (
+            $stats['sync_status']
+            ?? $stats['webhook_status']
+            ?? ''
+        )));
+
+        return filled($stats['last_synced_at'] ?? null)
+            || filled($stats['last_webhook_at'] ?? null)
+            || in_array($syncStatus, [
+                'active',
+                'synced',
+                'connected',
+                'enabled',
+                'success',
+            ], true);
     }
 
     protected function freshnessItem(
@@ -2362,7 +2396,7 @@ class ManagementDashboardService
 
         $sourceKey = (string) ($trelloStats['source_key'] ?? 'academic');
         $boardName = trim((string) ($trelloStats['board_name'] ?? ''));
-        $webhookStatus = (string) ($trelloStats['webhook_status'] ?? 'inactive');
+        $trelloSynced = $this->isTrelloSynced($trelloStats);
 
         $totalOpenCards = (int) ($summary['total_open_cards'] ?? 0);
         $activeWork = (int) ($summary['active_work'] ?? 0);
@@ -2380,15 +2414,16 @@ class ManagementDashboardService
         $departmentLabel = match ($sourceKey) {
             'academic' => 'Academic',
             'marketing' => 'Marketing',
+            'sei' => 'SEI',
             default => ucfirst($sourceKey),
         };
 
         $type = 'info';
         $title = "{$departmentLabel} Trello Workload";
 
-        if ($webhookStatus !== 'active') {
+        if (! $trelloSynced) {
             $type = 'warning';
-            $title = "{$departmentLabel} Trello belum aktif";
+            $title = "{$departmentLabel} Trello belum tersinkron";
         } elseif ($unmapped > 0) {
             $type = 'warning';
             $title = "{$departmentLabel} Trello perlu mapping";
@@ -2424,7 +2459,7 @@ class ManagementDashboardService
             ...$this->managementSummaryParagraphs($managementSummary),
         ]);
 
-        if (! isset($managementSummary['headline']) || $overdue > 0 || $unmapped > 0 || $webhookStatus !== 'active') {
+        if (! isset($managementSummary['headline']) || $overdue > 0 || $unmapped > 0 || ! $trelloSynced) {
             $managementSummary['headline'] = $title;
         }
 

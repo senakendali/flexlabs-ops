@@ -406,14 +406,14 @@
                 </span>
             </div>
 
-            <div class="w-100 d-flex justify-content-end mt-2">
+            <div class="w-100 d-flex justify-content-start mt-2">
                 <a
                     href="{{ route('executive-center.dashboard') }}"
                     class="btn btn-sm btn-light btn-modern border"
                     title="Buka Executive Center"
                 >
                     <i class="bi bi-bar-chart-line-fill me-1"></i>
-                    Executive Center
+                    Go to Executive Center
                 </a>
             </div>
         </div>
