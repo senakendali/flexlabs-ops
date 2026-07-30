@@ -259,7 +259,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'invoice_number' => ['nullable', 'string', 'max:100', Rule::unique('payments', 'invoice_number')],
-            'payment_schedule_id' => ['nullable', 'integer', 'exists:payment_schedules,id'],
+            'payment_schedule_id' => ['required', 'integer', 'exists:payment_schedules,id'],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['nullable', 'date'],
             'payment_method' => ['nullable', 'string', 'max:255'],
@@ -358,7 +358,7 @@ class PaymentController extends Controller
                 'max:100',
                 Rule::unique('payments', 'invoice_number')->ignore($payment->id),
             ],
-            'payment_schedule_id' => ['nullable', 'integer', 'exists:payment_schedules,id'],
+            'payment_schedule_id' => ['required', 'integer', 'exists:payment_schedules,id'],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_date' => ['nullable', 'date'],
             'payment_method' => ['nullable', 'string', 'max:255'],
@@ -641,7 +641,7 @@ class PaymentController extends Controller
                 $batch?->name,
             ])
                 ->filter(fn ($value) => filled($value))
-                ->implode(' · ');
+                ->implode(' Â· ');
 
         $studentName = $student?->full_name ?: 'Unknown Student';
         $orderType = Str::headline((string) ($order->order_type ?: 'order'));
@@ -1050,7 +1050,7 @@ class PaymentController extends Controller
             : 'Total Due';
 
         $currentDescription = $schedule?->title
-            ? trim($schedule->title . ($schedule->due_date ? ' · Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
+            ? trim($schedule->title . ($schedule->due_date ? ' Â· Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
             : $this->buildGenericInstallmentDescription($sourceContext);
 
         $programDescription = $sourceContext['source_description'] ?: $this->resolveProgramDescription($payment);
@@ -1103,19 +1103,19 @@ class PaymentController extends Controller
             ),
             $this->makeFinancialRow(
                 label: 'Amount Before VAT',
-                details: $totalDueLabel . ' ÷ 1.11 because VAT is borne by FlexLabs',
+                details: $totalDueLabel . ' Ã· 1.11 because VAT is borne by FlexLabs',
                 amount: $amountBeforeVat,
                 type: 'amount_before_vat'
             ),
             $this->makeFinancialRow(
                 label: 'VAT Calculation Base',
-                details: 'Amount Before VAT × 11 / 12',
+                details: 'Amount Before VAT Ã— 11 / 12',
                 amount: $vatCalculationBase,
                 type: 'vat_calculation_base'
             ),
             $this->makeFinancialRow(
                 label: 'VAT (12%)',
-                details: 'VAT Calculation Base × 12%',
+                details: 'VAT Calculation Base Ã— 12%',
                 amount: $vatAmount,
                 type: 'vat_amount'
             ),
@@ -1425,7 +1425,7 @@ class PaymentController extends Controller
 
         return collect([$programName, $batchName])
             ->filter(fn ($value) => filled($value))
-            ->implode(' · ') ?: 'FlexLabs Program';
+            ->implode(' Â· ') ?: 'FlexLabs Program';
     }
 
     private function resolveFullPaymentScheduleForPayment(Payment $payment): ?PaymentSchedule
@@ -1554,7 +1554,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
+            ->implode(' Â· ');
 
         return [
             'source_type' => $sourceType,
@@ -1599,7 +1599,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
+            ->implode(' Â· ');
 
         return [
             'source_type' => $sourceType,
@@ -1763,7 +1763,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' · ');
+            ->implode(' Â· ');
 
         return [
             'source_type' => $sourceType,
@@ -1788,7 +1788,7 @@ class PaymentController extends Controller
 
         return collect([$programName, $batchName])
             ->filter(fn ($value) => filled($value))
-            ->implode(' · ') ?: null;
+            ->implode(' Â· ') ?: null;
     }
 
     private function resolveSourceModelName(?string $sourceType, mixed $sourceItemId): ?string
@@ -2075,10 +2075,10 @@ class PaymentController extends Controller
         |--------------------------------------------------------------------------
         | Format invoice bulanan
         |--------------------------------------------------------------------------
-        | Contoh: FLX-B1-SE-202606-0001
+        | Contoh: FLX-B1-SE-202606-001
         |
         | Nomor urut sekarang dihitung per bulan untuk kombinasi batch + program.
-        | Jadi bulan baru akan mulai lagi dari 0001.
+        | Jadi bulan baru akan mulai lagi dari 001.
         |
         | Pattern lama harian seperti FLX-B1-SE-20260602-0001 tetap ikut dibaca
         | agar invoice yang sudah dibuat pada bulan berjalan tidak diabaikan.
@@ -2106,7 +2106,7 @@ class PaymentController extends Controller
 
         $nextNumber = $maxSequence + 1;
 
-        return $documentPrefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+        return $documentPrefix . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     private function resolveInvoiceBatchCode(Order $order): string
@@ -2173,6 +2173,13 @@ class PaymentController extends Controller
             'software engineering',
         ])) {
             return 'SE';
+        }
+
+        if (
+            Str::contains($normalizedProgramName, 'artificial intelligence')
+            || preg_match('/\bai\b/', $normalizedProgramName)
+        ) {
+            return 'AI';
         }
 
         if (Str::contains($normalizedProgramName, [

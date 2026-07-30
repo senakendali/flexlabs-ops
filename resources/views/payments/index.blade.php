@@ -726,7 +726,7 @@
                                 <div class="col-md-6">
                                     <label for="payment_schedule_id" class="form-label">Payment Schedule</label>
                                     <select id="payment_schedule_id" class="form-select">
-                                        <option value="">Select Schedule (Optional)</option>
+                                        <option value="">Select Schedule</option>
                                         @foreach ($paymentSchedules as $schedule)
                                             @php
                                                 $scheduleSource = $resolveScheduleSource($schedule);
