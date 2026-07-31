@@ -1,5 +1,7 @@
 @extends('layouts.executive-center')
 
+{{-- Lucide is loaded once by the executive-center layout and refreshed after AJAX updates. --}}
+
 @section('title', 'Executive Dashboard')
 @section('page_title')
     Executive Dashboard
@@ -9,10 +11,7 @@
 
 @push('styles')
     <style>
-        /*
-         * Jadikan header halaman sebagai card mandiri.
-         * Rules ini hanya berlaku pada Executive Dashboard ini.
-         */
+        
         .executive-main-card {
             overflow: visible !important;
             border: 0 !important;
@@ -123,19 +122,19 @@
     $defaultStatusStyle = $statusStyles['not_configured'];
 
     $highlightIcons = [
-        'confirmed_revenue' => '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8"/><path d="M16 13.5h.01M8 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'total_leads' => '<path d="M15 19.5v-1.2a4.3 4.3 0 0 0-4.3-4.3H6.3A4.3 4.3 0 0 0 2 18.3v1.2M8.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM18 8v6M15 11h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        'closed_deals' => '<path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6v4H9z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        'paid_students' => '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12M21 9v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        'critical_kpis' => '<path d="M10.3 3.4 2.2 17.5A2 2 0 0 0 3.9 20h16.2a2 2 0 0 0 1.7-2.5L13.7 3.4a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v5M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+        'confirmed_revenue' => 'wallet-cards',
+        'total_leads' => 'user-plus',
+        'closed_deals' => 'trophy',
+        'paid_students' => 'graduation-cap',
+        'critical_kpis' => 'triangle-alert',
     ];
 
     $centreIcons = [
-        'growth_engine' => '<path d="M4 18 10 12l4 4 6-8M15 8h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-        'learning_centre' => '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-        'talent_hub' => '<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 20v-1.5a4 4 0 0 0-3-3.9M16 2.7a4 4 0 0 1 0 7.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-        'finance_centre' => '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2ZM16 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-        'operations_centre' => '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64 1.7 1.7 0 0 0-.36 1.06V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.24 15a1.7 1.7 0 0 0-1.24-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06L7.03 4.2l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.64A1.7 1.7 0 0 0 10.36 3H14v.09A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.47.55.84 1.04 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+        'growth_engine' => 'trending-up',
+        'learning_centre' => 'graduation-cap',
+        'talent_hub' => 'users',
+        'finance_centre' => 'wallet-cards',
+        'operations_centre' => 'settings-2',
     ];
 @endphp
 
@@ -194,14 +193,11 @@
                     autocomplete="off"
                 >
 
-                <svg
+                <i
+                    data-lucide="calendar-days"
                     class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-executive-muted"
-                    viewBox="0 0 24 24"
-                    fill="none"
                     aria-hidden="true"
-                >
-                    <path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
+                ></i>
             </label>
         </div>
     </div>
@@ -219,10 +215,11 @@
             aria-hidden="true"
         >
             <div class="rounded-2xl bg-white px-7 py-5 text-center shadow-panel ring-1 ring-black/5">
-                <svg class="h-5 w-5 animate-spin text-executive-primary" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-20"></circle>
-                    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
-                </svg>
+                <i
+                    data-lucide="loader-circle"
+                    class="mx-auto h-5 w-5 animate-spin text-executive-primary"
+                    aria-hidden="true"
+                ></i>
                 <p id="executiveLoadingTitle" class="mt-3 text-sm font-bold text-executive-ink">Updating executive data...</p>
                 <p class="mt-1 text-xs font-medium text-executive-muted">FlexOps is consolidating the latest KPI and business performance data.</p>
             </div>
@@ -260,9 +257,11 @@
                         </div>
 
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ $highlightStyle['icon'] }}">
-                            <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                {!! $highlightIcons[$highlight['code'] ?? ''] ?? $highlightIcons['critical_kpis'] !!}
-                            </svg>
+                            <i
+                                data-lucide="{{ $highlightIcons[$highlight['code'] ?? ''] ?? $highlightIcons['critical_kpis'] }}"
+                                class="h-[18px] w-[18px]"
+                                aria-hidden="true"
+                            ></i>
                         </span>
                     </div>
 
@@ -329,9 +328,11 @@
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-[160px_minmax(0,1fr)_52px_110px] sm:items-center sm:gap-3">
                             <div class="flex min-w-0 items-center gap-2.5">
                                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg {{ $centreStyle['icon'] }}">
-                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        {!! $centreIcons[$centre['key'] ?? ''] ?? $centreIcons['operations_centre'] !!}
-                                    </svg>
+                                    <i
+                                        data-lucide="{{ $centreIcons[$centre['key'] ?? ''] ?? $centreIcons['operations_centre'] }}"
+                                        class="h-4 w-4"
+                                        aria-hidden="true"
+                                    ></i>
                                 </span>
 
                                 <span class="truncate text-xs font-bold text-executive-ink">
@@ -445,7 +446,8 @@
                             href="{{ route('executive-center.ai-executive-brief', ['period' => $filters['month'] ?? now()->format('Y-m')]) }}"
                             class="mt-5 inline-flex items-center gap-2 text-[11px] font-extrabold text-executive-primary hover:underline"
                         >
-                            View Full Brief <span aria-hidden="true">→</span>
+                            View Full Brief
+                            <i data-lucide="arrow-right" class="h-3.5 w-3.5" aria-hidden="true"></i>
                         </a>
                     </div>
                 </div>
@@ -532,9 +534,7 @@
                             <tr>
                                 <td colspan="5" class="px-5 py-10 text-center">
                                     <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
+                                        <i data-lucide="check" class="h-5 w-5" aria-hidden="true"></i>
                                     </span>
                                     <p class="mt-3 text-xs font-bold text-executive-ink">Tidak ada isu prioritas</p>
                                     <p class="mt-1 text-[10px] text-executive-muted">Semua KPI terukur berada dalam kondisi yang tidak memerlukan attention.</p>
@@ -654,19 +654,19 @@
             };
 
             const highlightIcons = {
-                confirmed_revenue: '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8"/><path d="M16 13.5h.01M8 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-                total_leads: '<path d="M15 19.5v-1.2a4.3 4.3 0 0 0-4.3-4.3H6.3A4.3 4.3 0 0 0 2 18.3v1.2M8.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM18 8v6M15 11h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-                closed_deals: '<path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 11v5M8.5 20h7M9 16h6v4H9z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-                paid_students: '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12M21 9v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-                critical_kpis: '<path d="M10.3 3.4 2.2 17.5A2 2 0 0 0 3.9 20h16.2a2 2 0 0 0 1.7-2.5L13.7 3.4a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8v5M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+                confirmed_revenue: 'wallet-cards',
+                total_leads: 'user-plus',
+                closed_deals: 'trophy',
+                paid_students: 'graduation-cap',
+                critical_kpis: 'triangle-alert',
             };
 
             const centreIcons = {
-                growth_engine: '<path d="M4 18 10 12l4 4 6-8M15 8h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-                learning_centre: '<path d="m3 9 9-5 9 5-9 5-9-5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 12v4.5c2.7 2 7.3 2 10 0V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-                talent_hub: '<path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 20v-1.5a4 4 0 0 0-3-3.9M16 2.7a4 4 0 0 1 0 7.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-                finance_centre: '<path d="M4 7.5h16M6 4.5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2ZM16 13.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-                operations_centre: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64 1.7 1.7 0 0 0-.36 1.06V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.24 15a1.7 1.7 0 0 0-1.24-1H3v-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06L7.03 4.2l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.64A1.7 1.7 0 0 0 10.36 3H14v.09A1.7 1.7 0 0 0 15.04 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.47.55.84 1.04 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+                growth_engine: 'trending-up',
+                learning_centre: 'graduation-cap',
+                talent_hub: 'users',
+                finance_centre: 'wallet-cards',
+                operations_centre: 'settings-2',
             };
             const hiddenBusinessHealthKeys = new Set(['talent_hub']);
 
@@ -675,6 +675,22 @@
 
             function styleFor(status) {
                 return statusStyles[status] || statusStyles.not_configured;
+            }
+
+            function refreshLucideIcons(target = root) {
+                if (typeof window.renderLucideIcons === 'function') {
+                    window.renderLucideIcons(target);
+                    return;
+                }
+
+                if (window.lucide) {
+                    window.lucide.createIcons({
+                        root: target,
+                        attrs: {
+                            'stroke-width': 1.8,
+                        },
+                    });
+                }
             }
 
             function escapeHtml(value) {
@@ -866,9 +882,11 @@
                                     </p>
                                 </div>
                                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${style.icon}">
-                                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        ${highlightIcons[item.code] || highlightIcons.critical_kpis}
-                                    </svg>
+                                    <i
+                                        data-lucide="${highlightIcons[item.code] || highlightIcons.critical_kpis}"
+                                        class="h-[18px] w-[18px]"
+                                        aria-hidden="true"
+                                    ></i>
                                 </span>
                             </div>
                             <div class="mt-3 flex min-h-[20px] items-center gap-1.5 text-[10px] font-bold">
@@ -912,9 +930,11 @@
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-[160px_minmax(0,1fr)_52px_110px] sm:items-center sm:gap-3">
                             <div class="flex min-w-0 items-center gap-2.5">
                                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${style.icon}">
-                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        ${centreIcons[centre.key] || centreIcons.operations_centre}
-                                    </svg>
+                                    <i
+                                        data-lucide="${centreIcons[centre.key] || centreIcons.operations_centre}"
+                                        class="h-4 w-4"
+                                        aria-hidden="true"
+                                    ></i>
                                 </span>
                                 <span class="truncate text-xs font-bold text-executive-ink">${escapeHtml(centre.name || 'Centre')}</span>
                             </div>
@@ -1024,9 +1044,7 @@
                         <tr>
                             <td colspan="5" class="px-5 py-10 text-center">
                                 <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
+                                    <i data-lucide="check" class="h-5 w-5" aria-hidden="true"></i>
                                 </span>
                                 <p class="mt-3 text-xs font-bold text-executive-ink">Tidak ada isu prioritas</p>
                                 <p class="mt-1 text-[10px] text-executive-muted">Semua KPI terukur berada dalam kondisi yang tidak memerlukan attention.</p>
@@ -1123,6 +1141,8 @@
                     detailUrl.searchParams.set('period', data.filters?.month || monthFilter.value);
                     detailLink.href = detailUrl.toString();
                 }
+
+                refreshLucideIcons(root);
             }
 
             async function loadMonth(month, pushHistory = true) {
@@ -1191,6 +1211,8 @@
                 const month = new URLSearchParams(window.location.search).get('month');
                 if (month) { monthFilter.value = month; loadMonth(month, false); }
             });
+
+            refreshLucideIcons(root);
         });
     </script>
 @endpush

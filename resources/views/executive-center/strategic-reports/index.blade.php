@@ -13,9 +13,7 @@
         type="button"
         class="inline-flex h-10 items-center gap-2 rounded-xl bg-executive-primary px-4 text-xs font-extrabold text-white shadow-button transition hover:-translate-y-0.5 hover:bg-executive-primaryDark"
     >
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"/>
-        </svg>
+        <i data-lucide="plus" class="h-4 w-4" aria-hidden="true"></i>
 
         Generate Report
     </button>
@@ -219,23 +217,11 @@
             role="status"
         >
             <div class="rounded-2xl border border-executive-line bg-white px-8 py-6 text-center shadow-panel">
-                <svg class="mx-auto h-7 w-7 animate-spin text-executive-primary" viewBox="0 0 24 24" fill="none">
-                    <circle
-                        cx="12"
-                        cy="12"
-                        r="9"
-                        stroke="currentColor"
-                        stroke-opacity=".18"
-                        stroke-width="3"
-                    />
-
-                    <path
-                        d="M21 12a9 9 0 0 0-9-9"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-width="3"
-                    />
-                </svg>
+                <i
+                    data-lucide="loader-circle"
+                    class="mx-auto h-7 w-7 animate-spin text-executive-primary"
+                    aria-hidden="true"
+                ></i>
 
                 <p class="mt-3 text-sm font-extrabold text-executive-ink">
                     Loading reports
@@ -254,10 +240,7 @@
                 <div class="relative flex flex-wrap items-start justify-between gap-4">
                     <div class="flex items-center gap-3">
                         <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-executive-primary ring-1 ring-violet-100">
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5Z"/>
-                                <path d="M8 7h8M8 11h8M8 15h5"/>
-                            </svg>
+                            <i data-lucide="library" class="h-4 w-4" aria-hidden="true"></i>
                         </span>
 
                         <div>
@@ -337,10 +320,7 @@
                             href="{{ route('executive-center.strategic-reports.index') }}"
                             class="inline-flex items-center gap-1.5 rounded-lg border border-executive-line bg-white px-3 py-2 text-[10px] font-extrabold text-executive-muted transition hover:border-violet-200 hover:text-executive-primary"
                         >
-                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
-                                <path d="M3 3v5h5"/>
-                            </svg>
+                            <i data-lucide="rotate-ccw" class="h-3.5 w-3.5" aria-hidden="true"></i>
 
                             Reset Filters
                         </a>
@@ -402,16 +382,11 @@
                         </span>
 
                         <div class="relative">
-                            <svg
+                            <i
+                                data-lucide="search"
                                 class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <circle cx="11" cy="11" r="7"/>
-                                <path d="m20 20-3.5-3.5"/>
-                            </svg>
+                                aria-hidden="true"
+                            ></i>
 
                             <input
                                 name="search"
@@ -430,10 +405,7 @@
             @if($reports->isEmpty())
                 <section class="rounded-2xl border border-dashed border-violet-200 bg-white px-6 py-16 text-center shadow-panel">
                     <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-executive-primary ring-1 ring-violet-100">
-                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M6 2h9l5 5v15H6z"/>
-                            <path d="M14 2v6h6M9 13h8M9 17h5"/>
-                        </svg>
+                        <i data-lucide="file-text" class="h-6 w-6" aria-hidden="true"></i>
                     </span>
 
                     <h2 class="mt-5 text-sm font-extrabold text-executive-ink">
@@ -490,15 +462,9 @@
                                 <div class="flex min-w-0 items-start gap-3">
                                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-executive-primary ring-1 ring-violet-100">
                                         @if($report->period_type === 'quarterly')
-                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="3" y="4" width="18" height="17" rx="2"/>
-                                                <path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2"/>
-                                            </svg>
+                                            <i data-lucide="calendar-range" class="h-5 w-5" aria-hidden="true"></i>
                                         @else
-                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M6 2h9l5 5v15H6z"/>
-                                                <path d="M14 2v6h6M9 13h8M9 17h5"/>
-                                            </svg>
+                                            <i data-lucide="file-text" class="h-5 w-5" aria-hidden="true"></i>
                                         @endif
                                     </span>
 
@@ -520,10 +486,7 @@
                                         </h2>
 
                                         <p class="mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-semibold text-executive-muted">
-                                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="3" y="5" width="18" height="16" rx="2"/>
-                                                <path d="M16 3v4M8 3v4M3 10h18"/>
-                                            </svg>
+                                            <i data-lucide="calendar-days" class="h-3.5 w-3.5" aria-hidden="true"></i>
 
                                             {{ $report->period_start->format('d M Y') }}
                                             –
@@ -621,19 +584,14 @@
                                 >
                                     View Report
 
-                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="m9 18 6-6-6-6"/>
-                                    </svg>
+                                    <i data-lucide="chevron-right" class="h-3.5 w-3.5" aria-hidden="true"></i>
                                 </a>
 
                                 <a
                                     href="{{ route('executive-center.strategic-reports.pdf', $report) }}"
                                     class="inline-flex items-center justify-center gap-2 rounded-xl border border-executive-line bg-white px-4 py-2.5 text-[10px] font-extrabold text-executive-primary transition hover:border-violet-200 hover:bg-violet-50"
                                 >
-                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M12 3v12M7 10l5 5 5-5"/>
-                                        <path d="M5 21h14"/>
-                                    </svg>
+                                    <i data-lucide="download" class="h-3.5 w-3.5" aria-hidden="true"></i>
 
                                     Export PDF
                                 </a>
@@ -672,10 +630,7 @@
                 <div class="relative flex items-start justify-between gap-4">
                     <div class="flex items-start gap-3">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-executive-primary ring-1 ring-violet-100">
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M6 2h9l5 5v15H6z"/>
-                                <path d="M14 2v6h6M9 13h8M9 17h5"/>
-                            </svg>
+                            <i data-lucide="file-plus" class="h-5 w-5" aria-hidden="true"></i>
                         </span>
 
                         <div>
@@ -695,9 +650,7 @@
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-executive-muted transition hover:bg-slate-100 hover:text-executive-ink"
                         aria-label="Close dialog"
                     >
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 6 6 18M6 6l12 12"/>
-                        </svg>
+                        <i data-lucide="x" class="h-4 w-4" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
@@ -739,10 +692,11 @@
 
                 <div class="mt-4 rounded-xl border border-violet-100 bg-violet-50/50 p-4">
                     <div class="flex gap-3">
-                        <svg class="mt-0.5 h-4 w-4 shrink-0 text-executive-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="9"/>
-                            <path d="M12 11v5M12 8h.01"/>
-                        </svg>
+                        <i
+                            data-lucide="info"
+                            class="mt-0.5 h-4 w-4 shrink-0 text-executive-primary"
+                            aria-hidden="true"
+                        ></i>
 
                         <p id="reportPeriodHelp" class="text-[10px] leading-5 text-executive-muted">
                             FlexOps will create or refresh the Draft snapshot for the selected month.
@@ -773,9 +727,7 @@
                     id="submitGenerateReport"
                     class="inline-flex items-center justify-center gap-2 rounded-xl bg-executive-primary px-4 py-2.5 text-xs font-extrabold text-white transition hover:bg-executive-primaryDark disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
+                    <i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i>
 
                     <span>Generate Report</span>
                 </button>
@@ -867,6 +819,7 @@
                     }
 
                     currentContent.replaceWith(nextContent);
+                    window.renderLucideIcons?.(nextContent);
                     history.pushState({}, '', url);
                 } catch (error) {
                     if (error.name !== 'AbortError') {

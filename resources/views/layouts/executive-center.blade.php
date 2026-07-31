@@ -70,6 +70,19 @@
             background: #5B3E8E;
         }
 
+        .lucide {
+            flex-shrink: 0;
+            stroke-width: 1.8;
+            transition:
+                color 0.2s ease,
+                transform 0.2s ease;
+        }
+
+        a:hover > .lucide,
+        button:hover > .lucide {
+            transform: translateY(-1px);
+        }
+
         [x-cloak] {
             display: none !important;
         }
@@ -259,9 +272,7 @@
                             href="{{ $mainDashboardUrl }}"
                             class="hidden h-11 items-center justify-center gap-2 rounded-[1.1rem] bg-white/12 px-4 text-xs font-extrabold text-white transition hover:bg-white hover:text-executive-primary md:inline-flex"
                         >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                            <i data-lucide="arrow-left" class="h-4 w-4" aria-hidden="true"></i>
 
                             Main Dashboard
                         </a>
@@ -369,6 +380,33 @@
             </footer>
         </div>
     </div>
+
+    <script src="https://unpkg.com/lucide@1.27.0/dist/umd/lucide.min.js"></script>
+
+    <script>
+        window.renderLucideIcons = function (root = document) {
+            if (!window.lucide || typeof window.lucide.createIcons !== 'function') {
+                return;
+            }
+
+            window.lucide.createIcons({
+                root: root instanceof Element || root instanceof DocumentFragment
+                    ? root
+                    : document,
+                attrs: {
+                    'stroke-width': 1.8,
+                },
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            window.renderLucideIcons();
+        });
+
+        document.addEventListener('lucide:refresh', function (event) {
+            window.renderLucideIcons(event.detail?.root ?? document);
+        });
+    </script>
 
     @stack('scripts')
 </body>
