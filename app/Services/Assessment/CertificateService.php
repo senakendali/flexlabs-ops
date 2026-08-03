@@ -158,45 +158,74 @@ class CertificateService
             ->first();
     }
 
-    public function generateCertificateNo(ReportCard $reportCard, string $type = 'completion'): string
-    {
-        $reportCard->loadMissing([
-            'batch',
-            'program',
-        ]);
+    public function generateCertificateNo(
+        ReportCard $reportCard,
+        string $type = 'completion'
+    ): string {
+        $reportCard->loadMissing('batch');
 
-        $prefix = match ($type) {
-            'achievement' => 'COA',
-            'excellence' => 'COE',
-            'participation' => 'COP',
-            default => 'COC',
-        };
+        $batch = $reportCard->batch;
 
-        $date = now()->format('Ymd');
-        $programCode = $this->resolveProgramCode($reportCard);
-        $batchCode = $this->resolveBatchCode($reportCard);
+        /*
+        * Prioritaskan field nomor batch jika tersedia.
+        * Jika tidak ada, ambil angka dari name/title/code.
+        * Contoh: "Batch 3" menjadi "3".
+        */
+        $batchSource = $batch?->batch_number
+            ?? $batch?->number
+            ?? $batch?->name
+            ?? $batch?->title
+            ?? $batch?->code
+            ?? $reportCard->batch_id;
 
-        $base = "{$prefix}-{$date}-{$programCode}-{$batchCode}";
+        preg_match('/\d+/', (string) $batchSource, $batchMatches);
 
-        $latestCount = Certificate::query()
-            ->where('certificate_no', 'like', "{$base}-%")
+        $batchNumber = $batchMatches[0] ?? $reportCard->batch_id;
+
+        $yearMonth = now()->format('Ym');
+
+        $base = "SEI/FLX/{$yearMonth}-B{$batchNumber}";
+
+        /*
+        * Ambil nomor urut terbesar yang sudah pernah digunakan,
+        * termasuk certificate yang di-soft-delete.
+        */
+        $latestSequence = Certificate::query()
             ->withTrashed()
-            ->count();
+            ->where('certificate_no', 'like', "{$base}-%")
+            ->pluck('certificate_no')
+            ->map(function (string $certificateNo) use ($base) {
+                if (
+                    preg_match(
+                        '/^' . preg_quote($base, '/') . '-(\d+)$/',
+                        $certificateNo,
+                        $matches
+                    )
+                ) {
+                    return (int) $matches[1];
+                }
 
-        $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
+                return 0;
+            })
+            ->max() ?? 0;
 
-        $certificateNo = "{$base}-{$sequence}";
+        do {
+            $latestSequence++;
 
-        while (
+            $sequence = str_pad(
+                (string) $latestSequence,
+                3,
+                '0',
+                STR_PAD_LEFT
+            );
+
+            $certificateNo = "{$base}-{$sequence}";
+        } while (
             Certificate::query()
                 ->withTrashed()
                 ->where('certificate_no', $certificateNo)
                 ->exists()
-        ) {
-            $latestCount++;
-            $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
-            $certificateNo = "{$base}-{$sequence}";
-        }
+        );
 
         return $certificateNo;
     }

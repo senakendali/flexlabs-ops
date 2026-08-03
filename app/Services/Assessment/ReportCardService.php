@@ -178,28 +178,82 @@ class ReportCardService
 
     public function generateReportNo(Batch $batch): string
     {
-        $prefix = 'RC';
-        $date = now()->format('Ymd');
+        /*
+        * Prioritaskan field nomor batch.
+        * Jika tidak tersedia, ambil angka dari nama, title, atau code.
+        */
+        $batchSource = $batch->batch_number
+            ?? $batch->number
+            ?? $batch->name
+            ?? $batch->title
+            ?? $batch->code
+            ?? $batch->id;
 
-        $programCode = $this->resolveProgramCode($batch);
-        $batchCode = $this->resolveBatchCode($batch);
+        $batchNumber = null;
 
-        $base = "{$prefix}-{$date}-{$programCode}-{$batchCode}";
-
-        $latestCount = ReportCard::query()
-            ->where('report_no', 'like', "{$base}-%")
-            ->withTrashed()
-            ->count();
-
-        $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
-
-        $reportNo = "{$base}-{$sequence}";
-
-        while (ReportCard::query()->withTrashed()->where('report_no', $reportNo)->exists()) {
-            $latestCount++;
-            $sequence = str_pad((string) ($latestCount + 1), 4, '0', STR_PAD_LEFT);
-            $reportNo = "{$base}-{$sequence}";
+        /*
+        * Contoh:
+        * "Batch 3" => 3
+        * "B3"      => 3
+        */
+        if (
+            preg_match(
+                '/(?:batch|b)[\s\-_]*(\d+)/i',
+                (string) $batchSource,
+                $matches
+            )
+        ) {
+            $batchNumber = $matches[1];
+        } elseif (
+            preg_match('/\d+/', (string) $batchSource, $matches)
+        ) {
+            $batchNumber = $matches[0];
         }
+
+        $batchNumber = $batchNumber ?: $batch->id;
+        $yearMonth = now()->format('Ym');
+
+        $base = "SEI/FLX/{$yearMonth}-B{$batchNumber}";
+
+        /*
+        * Cari nomor urut terbesar, termasuk data yang sudah dihapus.
+        */
+        $latestSequence = ReportCard::query()
+            ->withTrashed()
+            ->where('report_no', 'like', "{$base}-%")
+            ->pluck('report_no')
+            ->map(function ($reportNo) use ($base) {
+                if (
+                    preg_match(
+                        '/^' . preg_quote($base, '/') . '-(\d+)$/',
+                        (string) $reportNo,
+                        $matches
+                    )
+                ) {
+                    return (int) $matches[1];
+                }
+
+                return 0;
+            })
+            ->max() ?? 0;
+
+        do {
+            $latestSequence++;
+
+            $sequence = str_pad(
+                (string) $latestSequence,
+                3,
+                '0',
+                STR_PAD_LEFT
+            );
+
+            $reportNo = "{$base}-{$sequence}";
+        } while (
+            ReportCard::query()
+                ->withTrashed()
+                ->where('report_no', $reportNo)
+                ->exists()
+        );
 
         return $reportNo;
     }

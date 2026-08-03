@@ -28,6 +28,17 @@
 
     $logoPath = public_path('images/logo-black.png');
 
+    /*
+     * Signature berada di private storage dan tidak memiliki URL publik.
+     * Embed sebagai data URI agar dapat dirender secara konsisten oleh Dompdf.
+     */
+    $signaturePath = storage_path('app/private/signatures/sena.png');
+    $signatureDataUri = file_exists($signaturePath) && is_readable($signaturePath)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($signaturePath))
+        : null;
+
+    $academicRepresentativeName = 'Sena Kendali';
+
     $resultPassed = in_array($reportCard->status, ['passed', 'published'], true);
 
     $issuedDate = optional($reportCard->published_at)->format('d M Y')
@@ -244,23 +255,32 @@
 
         .result-status {
             display: inline-block;
-            padding: 4px 9px;
-            font-size: 9px;
+            padding: 0;
+            font-size: 10px;
             font-weight: bold;
-            border: 1px solid #d1d5db;
-            background: #ffffff;
+            border: 0;
+            background: transparent;
             color: #374151;
         }
 
         .result-status.passed {
-            border-color: #b7dfc5;
-            background: #eefaf2;
             color: #237a3b;
         }
 
         .result-status.failed {
-            border-color: #f2bec5;
-            background: #fff1f2;
+            color: #b42335;
+        }
+
+        .status-text {
+            font-size: 8.5px;
+            font-weight: bold;
+        }
+
+        .status-text.passed {
+            color: #237a3b;
+        }
+
+        .status-text.failed {
             color: #b42335;
         }
 
@@ -328,9 +348,9 @@
 
         .rubric-block {
             margin-top: 6px;
-            padding: 6px 7px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
+            padding: 0;
+            border: 0;
+            background: transparent;
         }
 
         .rubric-title {
@@ -371,32 +391,41 @@
 
         .signature-table {
             margin-top: 34px;
+            width: 220px;
+            margin-left: auto;
+            margin-right: 0;
             page-break-inside: avoid;
         }
 
         .signature-table td {
-            width: 50%;
-            text-align: center;
+            text-align: left;
             vertical-align: top;
-            padding-top: 6px;
+            padding: 0;
         }
 
-        .signature-role {
-            font-size: 9px;
-            color: #6b7280;
-            margin-bottom: 42px;
-        }
-
-        .signature-line {
-            border-top: 1px solid #111827;
+        .signature-space {
             width: 180px;
-            margin: 0 auto 5px auto;
+            height: 48px;
+        }
+
+        .signature-image {
+            display: block;
+            width: auto;
+            height: 48px;
+            max-width: 180px;
         }
 
         .signature-name {
+            margin-top: 5px;
             font-size: 10px;
             font-weight: bold;
             color: #111827;
+        }
+
+        .signature-role {
+            margin-top: 1px;
+            font-size: 8.5px;
+            color: #6b7280;
         }
 
         .small-note {
@@ -528,9 +557,9 @@
                     <td class="text-center">{{ $rule['actual'] }}</td>
                     <td class="text-center">
                         @if($rule['passed'])
-                            <span class="status-pill status-pass">Passed</span>
+                            <span class="status-text passed">Passed</span>
                         @else
-                            <span class="status-pill status-fail">Not Passed</span>
+                            <span class="status-text failed">Not Passed</span>
                         @endif
                     </td>
                 </tr>
@@ -555,12 +584,11 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 34%; text-align: left;">Component</th>
-                    <th style="width: 14%;">Type</th>
-                    <th style="width: 14%;">Raw Score</th>
-                    <th style="width: 12%;">Weight</th>
-                    <th style="width: 14%;">Weighted</th>
-                    <th style="width: 12%;">Status</th>
+                    <th style="width: 40%; text-align: left;">Component</th>
+                    <th style="width: 15%;">Type</th>
+                    <th style="width: 15%;">Raw Score</th>
+                    <th style="width: 15%;">Weight</th>
+                    <th style="width: 15%;">Weighted</th>
                 </tr>
             </thead>
             <tbody>
@@ -607,21 +635,16 @@
                         <td class="text-right">
                             {{ number_format((float)($component['weighted_score'] ?? 0), 2) }}
                         </td>
-                        <td class="text-center">
-                            @if(!empty($component['has_score']))
-                                <span class="status-pill status-pass">Filled</span>
-                            @else
-                                <span class="status-pill status-fail">Missing</span>
-                            @endif
-                        </td>
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr>
                     <td colspan="4" class="text-right">Final Score</td>
-                    <td class="text-right">{{ number_format((float) $reportCard->final_score, 2) }}</td>
-                    <td class="text-center">Grade {{ $reportCard->grade ?? '-' }}</td>
+                    <td class="text-right">
+                        {{ number_format((float) $reportCard->final_score, 2) }}
+                        &nbsp;&middot;&nbsp; Grade {{ $reportCard->grade ?? '-' }}
+                    </td>
                 </tr>
             </tfoot>
         </table>
@@ -672,14 +695,17 @@
 <table class="signature-table">
     <tr>
         <td>
+            <div class="signature-space">
+                @if($signatureDataUri)
+                    <img
+                        src="{{ $signatureDataUri }}"
+                        class="signature-image"
+                        alt="Sena Kendali Signature"
+                    >
+                @endif
+            </div>
+            <div class="signature-name">{{ $academicRepresentativeName }}</div>
             <div class="signature-role">Academic Representative</div>
-            <div class="signature-line"></div>
-            <div class="signature-name">FlexLabs Academic Team</div>
-        </td>
-        <td>
-            <div class="signature-role">Student</div>
-            <div class="signature-line"></div>
-            <div class="signature-name">{{ $studentName }}</div>
         </td>
     </tr>
 </table>
