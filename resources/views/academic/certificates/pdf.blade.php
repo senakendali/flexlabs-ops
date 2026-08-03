@@ -46,6 +46,25 @@
     $finalScore = is_null($certificate->final_score) ? '-' : number_format((float) $certificate->final_score, 2);
     $grade = $certificate->grade ?: '-';
     $issuerName = data_get($certificate, 'issuer.name', 'Academic Team');
+
+    /*
+     * Cormorant Garamond memberi karakter formal yang umum dipakai pada
+     * certificate. Jika file font belum tersedia, Dompdf otomatis memakai
+     * DejaVu Serif agar PDF tetap dapat dibuat tanpa error.
+     */
+    $certificateFontPath = public_path('fonts/certificate/CormorantGaramond-SemiBoldItalic.ttf');
+    $certificateFontUrl = file_exists($certificateFontPath)
+        ? 'file://' . str_replace('\\', '/', $certificateFontPath)
+        : null;
+
+    /*
+     * Signature disimpan di private storage, sehingga tidak dapat diakses
+     * melalui URL publik. Embed sebagai data URI agar stabil di Dompdf.
+     */
+    $signaturePath = storage_path('app/private/signatures/sena.png');
+    $signatureDataUri = file_exists($signaturePath)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($signaturePath))
+        : null;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -54,22 +73,71 @@
     <title>Certificate - {{ $studentName }}</title>
     <style>
         @page {
-            size: A4 landscape;
-            margin: 30px 36px 34px 36px;
+            /* A4 landscape dalam satuan native PDF. */
+            size: 841.89pt 595.28pt;
+            margin: 0;
         }
+
+        @if($certificateFontUrl)
+            @font-face {
+                font-family: 'Certificate Script';
+                font-style: italic;
+                font-weight: 600;
+                src: url('{{ $certificateFontUrl }}') format('truetype');
+            }
+        @endif
 
         * {
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
             padding: 0;
+        }
+
+        body {
             font-family: DejaVu Sans, Arial, sans-serif;
-            font-size: 10.5px;
-            line-height: 1.45;
-            color: #1f2937;
+            color: #24212c;
+            /*
+             * Warna ungu menjadi alas halaman. Bidang putih sertifikat
+             * dibuat oleh .paper-surface agar terlihat seperti lembar kertas
+             * yang berada di atas background ungu.
+             */
+            background-color: #5B3E8E;
+            background-image: linear-gradient(135deg, #3f286b 0%, #5B3E8E 48%, #7651a4 100%);
+        }
+
+        /*
+         * Shadow dibuat sebagai layer tersendiri supaya tidak menambah ukuran
+         * bidang putih dan tidak menggeser layout sertifikat di Dompdf.
+         */
+        .paper-shadow {
+            position: fixed;
+            top: 25pt;
+            right: 15pt;
+            bottom: 15pt;
+            left: 25pt;
+            z-index: 0;
+            background: rgba(31, 18, 54, .28);
+            border-radius: 14pt;
+        }
+
+        /*
+         * Bidang putih dibuat sebagai layer tetap tanpa border dan tidak masuk
+         * ke document flow. Inset yang lebih besar membuat alas ungu lebih
+         * terlihat tanpa mengubah titik tengah konten sertifikat.
+         */
+        .paper-surface {
+            position: fixed;
+            top: 20pt;
+            right: 20pt;
+            bottom: 20pt;
+            left: 20pt;
+            z-index: 1;
             background: #ffffff;
+            border-radius: 14pt;
         }
 
         table {
@@ -77,356 +145,313 @@
             border-collapse: collapse;
         }
 
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .text-muted { color: #6b7280; }
-        .text-primary { color: #5B3E8E; }
-        .fw-bold { font-weight: bold; }
-
-        .header-table {
-            margin-bottom: 14px;
+        .certificate-frame {
+            position: relative;
+            z-index: 3;
+            width: 100%;
+            padding: 38pt 0 12pt;
+            background: transparent;
+            text-align: center;
         }
 
-        .header-table td {
+        .page-layout {
+            width: 757pt;
+            height: 520pt;
+            margin-left: auto;
+            margin-right: auto;
+            table-layout: fixed;
+        }
+
+        .page-layout > tbody > tr > td {
+            padding: 0;
+            text-align: center;
+        }
+
+        .logo-row {
+            height: 42pt;
+        }
+
+        .logo-cell {
             vertical-align: top;
+        }
+
+        .content-row,
+        .content-cell {
+            height: 478pt;
+        }
+
+        .content-cell {
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .content-stack {
+            width: 700pt;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
         }
 
         .brand-logo {
-            width: 145px;
+            width: 180px;
             height: auto;
+            max-height: 48px;
+            object-fit: contain;
         }
 
         .brand-fallback {
+            font-family: DejaVu Serif, Georgia, serif;
             font-size: 22px;
+            font-weight: bold;
             color: #5B3E8E;
-            font-weight: bold;
         }
 
-        .document-title h1 {
-            margin: 0;
-            padding: 0;
-            font-size: 23px;
-            line-height: 1.08;
-            letter-spacing: .8px;
-            color: #111827;
+        .certificate-kicker {
+            margin-top: 3px;
+            font-size: 9px;
             font-weight: bold;
+            letter-spacing: 3.5px;
             text-transform: uppercase;
+            color: #9b7b2f;
         }
 
-        .document-subtitle {
-            margin-top: 5px;
-            font-size: 9.3px;
-            color: #6b7280;
-        }
-
-        .accent-line {
-            height: 4px;
-            background: #5B3E8E;
-            margin-bottom: 14px;
-        }
-
-        .certificate-box {
-            border: 1px solid #d9d4e6;
-            background: #fbfafc;
-            padding: 16px 18px 17px;
-            margin-bottom: 13px;
-            position: relative;
-        }
-
-        .certificate-box:before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 5px;
-            background: #5B3E8E;
-        }
-
-        .certificate-label {
-            display: inline-block;
-            padding: 4px 12px;
-            border: 1px solid #d9d4e6;
-            background: #ffffff;
-            color: #5B3E8E;
-            font-size: 8.4px;
+        .certificate-title {
+            margin: 1px 0 0;
+            font-family: DejaVu Serif, Georgia, serif;
+            font-size: 40px;
+            line-height: 1.05;
             font-weight: bold;
-            letter-spacing: .8px;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            margin-top: 4px;
+            color: #34254f;
+        }
+
+        .presented-label {
+            margin: 8pt 0 0;
+            font-family: DejaVu Serif, Georgia, serif;
+            font-size: 12px;
+            font-style: italic;
+            color: #6d6875;
         }
 
         .student-name {
-            margin: 10px 0 4px;
+            margin: 4pt auto 3pt;
+            width: 82%;
+            padding-bottom: 2pt;
+            font-family: 'Certificate Script', 'Cormorant Garamond', DejaVu Serif, Georgia, serif;
+            font-size: 37px;
+            line-height: 1.12;
+            font-weight: 600;
+            font-style: italic;
+            color: #17131e;
+        }
+
+        .achievement-copy {
+            width: 76%;
+            margin: 4px auto 0;
             font-family: DejaVu Serif, Georgia, serif;
-            font-size: 29px;
-            line-height: 1.15;
-            font-weight: bold;
-            color: #111827;
-        }
-
-        .student-email {
-            font-size: 9px;
-            color: #6b7280;
-            margin-bottom: 9px;
-        }
-
-        .certificate-statement {
-            width: 92%;
-            margin: 0 auto;
             font-size: 11px;
-            color: #374151;
-            line-height: 1.65;
+            line-height: 1.55;
+            color: #554f5d;
         }
 
-        .certificate-statement strong {
-            color: #111827;
-        }
-
-        .section {
-            margin-top: 12px;
-            page-break-inside: avoid;
-        }
-
-        .section-title {
-            font-size: 11.5px;
+        .program-name {
+            width: 84%;
+            margin: 3px auto 0;
+            font-family: DejaVu Serif, Georgia, serif;
+            font-size: 16px;
+            line-height: 1.25;
             font-weight: bold;
-            color: #111827;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: .35px;
-        }
-
-        .info-table td {
-            border: 1px solid #e5e7eb;
-            padding: 8px 9px;
-            vertical-align: top;
-            background: #ffffff;
-        }
-
-        .info-label {
-            display: block;
-            margin-bottom: 2px;
-            font-size: 8px;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: .25px;
-        }
-
-        .info-value {
-            display: block;
-            font-size: 10.2px;
-            color: #111827;
-            font-weight: bold;
-            word-break: break-word;
-        }
-
-        .summary-table td {
-            border: 1px solid #d9d4e6;
-            padding: 9px 8px;
-            vertical-align: middle;
-            text-align: center;
-            background: #ffffff;
-        }
-
-        .summary-label {
-            margin-bottom: 3px;
-            font-size: 8px;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: .25px;
-        }
-
-        .summary-value {
-            font-size: 18px;
-            color: #111827;
-            font-weight: bold;
-            line-height: 1.15;
-        }
-
-        .summary-value.primary {
             color: #5B3E8E;
         }
 
+        .details-table {
+            width: 78%;
+            margin: 10pt auto 0;
+        }
+
+        .details-table td {
+            padding: 6px 8px 5px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .detail-label {
+            margin-bottom: 2px;
+            font-size: 7px;
+            font-weight: bold;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            color: #8b8492;
+        }
+
+        .detail-value {
+            font-family: DejaVu Serif, Georgia, serif;
+            font-size: 10px;
+            font-weight: bold;
+            color: #2b2630;
+        }
+
         .footer-table {
-            margin-top: 16px;
+            width: 78%;
+            margin: 22pt auto 0;
         }
 
         .footer-table td {
             vertical-align: bottom;
         }
 
-        .signature-box {
-            height: 80px;
+        .signature-cell {
+            width: 50%;
+            text-align: left;
         }
 
         .signature-line {
-            width: 190px;
-            height: 46px;
-            border-bottom: 1px solid #9ca3af;
-            margin-bottom: 5px;
+            width: 210px;
+            height: 48px;
+        }
+
+        .signature-image {
+            display: block;
+            width: auto;
+            height: 48px;
+            max-width: 180px;
+            object-fit: contain;
         }
 
         .signature-name {
+            margin-top: 5px;
+            font-family: DejaVu Serif, Georgia, serif;
             font-size: 10px;
             font-weight: bold;
-            color: #111827;
+            color: #28232e;
         }
 
         .signature-role {
-            margin-top: 2px;
-            font-size: 8.5px;
-            color: #6b7280;
+            margin-top: 1px;
+            font-size: 7.5px;
+            letter-spacing: .25px;
+            color: #7a7480;
         }
 
-        .verification-box {
-            width: 116px;
-            margin-left: auto;
-            border: 1px solid #d9d4e6;
-            background: #fbfafc;
-            padding: 8px 9px;
+        .verification-cell {
+            width: 50%;
+            text-align: right;
+        }
+
+        .verification-wrap {
+            display: inline-block;
             text-align: center;
         }
 
         .qr-image {
-            width: 74px;
-            height: 74px;
+            width: 60px;
+            height: 60px;
             display: block;
-            margin: 0 auto 5px;
+            margin: 0 auto 3px;
         }
 
         .qr-placeholder {
-            width: 74px;
-            height: 74px;
-            line-height: 74px;
-            border: 1px dashed #9ca3af;
-            color: #6b7280;
-            font-size: 8px;
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            color: #817a87;
+            font-size: 7px;
             text-align: center;
-            margin: 0 auto 5px;
+            margin: 0 auto 3px;
         }
 
         .verify-title {
-            font-size: 8.8px;
-            color: #111827;
+            font-size: 7.5px;
             font-weight: bold;
-            margin-bottom: 2px;
-        }
-
-        .verify-subtitle {
-            font-size: 7.4px;
-            color: #6b7280;
-            line-height: 1.25;
-        }
-
-        .note {
-            margin-top: 8px;
-            font-size: 8px;
-            color: #6b7280;
-            text-align: center;
+            letter-spacing: .35px;
+            text-transform: uppercase;
+            color: #5B3E8E;
         }
     </style>
 </head>
 <body>
-    <table class="header-table">
-        <tr>
-            <td style="width: 50%;">
-                @if($logoDataUri)
-                    <img src="{{ $logoDataUri }}" class="brand-logo" alt="FlexLabs">
-                @else
-                    <div class="brand-fallback">FlexLabs</div>
-                @endif
-            </td>
-            <td style="width: 50%;" class="document-title text-right">
-                <h1>Certificate</h1>
-                <div class="document-subtitle">Official academic achievement record</div>
-            </td>
-        </tr>
-    </table>
+    <div class="paper-shadow"></div>
+    <div class="paper-surface"></div>
 
-    
-
-    <div class="certificate-box text-center">
-        <div class="certificate-label">Presented To</div>
-
-        <div class="student-name">{{ $studentName }}</div>
-
-        @if($studentEmail)
-            <div class="student-email">{{ $studentEmail }}</div>
-        @endif
-
-        <div class="certificate-statement">
-            This certificate is awarded to recognize the successful completion of
-            <strong>{{ $programName }}</strong>. The recipient has demonstrated learning commitment,
-            competency, and academic performance in accordance with FlexLabs standards.
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-title">Certificate Information</div>
-        <table class="info-table">
-            <tr>
-                <td style="width: 25%;">
-                    <span class="info-label">Program</span>
-                    <span class="info-value">{{ $programName }}</span>
-                </td>
-                <td style="width: 25%;">
-                    <span class="info-label">Batch</span>
-                    <span class="info-value">{{ $batchName }}</span>
-                </td>
-                <td style="width: 25%;">
-                    <span class="info-label">Completed Date</span>
-                    <span class="info-value">{{ $completedDate }}</span>
-                </td>
-                <td style="width: 25%;">
-                    <span class="info-label">Issued Date</span>
-                    <span class="info-value">{{ $issuedDate }}</span>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="section">
-        <div class="section-title">Final Result</div>
-        <table class="summary-table">
-            <tr>
-                <td style="width: 50%;">
-                    <div class="summary-label">Final Score</div>
-                    <div class="summary-value primary">{{ $finalScore }}</div>
-                </td>
-                <td style="width: 50%;">
-                    <div class="summary-label">Grade</div>
-                    <div class="summary-value">{{ $grade }}</div>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <table class="footer-table">
-        <tr>
-            <td style="width: 60%;">
-                <div class="signature-box">
-                    <div class="signature-line"></div>
-                    <div class="signature-name">{{ $issuerName }}</div>
-                    <div class="signature-role">Academic Representative</div>
-                </div>
-            </td>
-            <td style="width: 40%;">
-                <div class="verification-box">
-                    @if($qrDataUri)
-                        <img src="{{ $qrDataUri }}" class="qr-image" alt="Certificate QR Code">
+    <div class="certificate-frame">
+        <table class="page-layout">
+            <tr class="logo-row">
+                <td class="logo-cell">
+                    @if($logoDataUri)
+                        <img src="{{ $logoDataUri }}" class="brand-logo" alt="FlexLabs">
                     @else
-                        <div class="qr-placeholder">QR Code</div>
+                        <div class="brand-fallback">FlexLabs</div>
                     @endif
-                    <div class="verify-title">Scan to Verify</div>
-                    <div class="verify-subtitle">Official verification QR</div>
-                </div>
-            </td>
-        </tr>
-    </table>
+                </td>
+            </tr>
+            <tr class="content-row">
+                <td class="content-cell" align="center">
+                    <div class="content-stack">
 
-    <div class="note">
-        This certificate is digitally generated by FlexLabs and can be verified through the QR code.
+                        <div class="certificate-kicker">Certificate of Achievement</div>
+                        <h1 class="certificate-title">Certificate</h1>
+
+                        <p class="presented-label">This certificate is proudly presented to</p>
+                        <div class="student-name">{{ $studentName }}</div>
+
+                        <div class="achievement-copy">
+                            In recognition of the successful completion of the learning program
+                        </div>
+                        <div class="program-name">{{ $programName }}</div>
+                        <div class="achievement-copy">
+                            and for demonstrating commitment, competency, and academic achievement
+                            in accordance with FlexLabs standards.
+                        </div>
+
+                        <table class="details-table">
+                            <tr>
+                                <td style="width: 25%;">
+                                    <div class="detail-label">Batch</div>
+                                    <div class="detail-value">{{ $batchName }}</div>
+                                </td>
+                                <td style="width: 25%;">
+                                    <div class="detail-label">Completed</div>
+                                    <div class="detail-value">{{ $completedDate }}</div>
+                                </td>
+                                <td style="width: 25%;">
+                                    <div class="detail-label">Final Score</div>
+                                    <div class="detail-value">{{ $finalScore }}</div>
+                                </td>
+                                <td style="width: 25%;">
+                                    <div class="detail-label">Grade</div>
+                                    <div class="detail-value">{{ $grade }}</div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table class="footer-table">
+                            <tr>
+                                <td class="signature-cell">
+                                    <div class="signature-line">
+                                        @if($signatureDataUri)
+                                            <img src="{{ $signatureDataUri }}" class="signature-image" alt="Sena Kendali Signature">
+                                        @endif
+                                    </div>
+                                    <div class="signature-name">{{ $issuerName }}</div>
+                                    <div class="signature-role">Academic Representative</div>
+                                </td>
+                                <td class="verification-cell">
+                                    <div class="verification-wrap">
+                                        @if($qrDataUri)
+                                            <img src="{{ $qrDataUri }}" class="qr-image" alt="Certificate QR Code">
+                                        @else
+                                            <div class="qr-placeholder">QR Code</div>
+                                        @endif
+                                        <div class="verify-title">Scan to Verify</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
 </body>
 </html>

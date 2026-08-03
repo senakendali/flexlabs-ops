@@ -234,6 +234,10 @@ class CertificateController extends Controller
     public function generatePdf(Request $request, Certificate $certificate)
     {
         try {
+            // Paksa hapus PDF lama supaya perubahan template Blade selalu
+            // dirender ulang. Tanpa ini service dapat memakai pdf_path lama.
+            $this->deleteGeneratedPdfIfExists($certificate);
+
             $certificate = $this->prepareCertificatePdf($certificate);
         } catch (\Throwable $exception) {
             report($exception);
@@ -264,7 +268,23 @@ class CertificateController extends Controller
 
     public function streamPdf(Certificate $certificate)
     {
-        return $this->pdfService->stream($certificate);
+        try {
+            // Route preview harus selalu merefleksikan template terbaru,
+            // bukan file PDF lama yang masih tersimpan di pdf_path.
+            $this->deleteGeneratedPdfIfExists($certificate);
+            $certificate = $this->prepareCertificatePdf($certificate);
+
+            $response = $this->pdfService->stream($certificate);
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+
+            return $response;
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            abort(500, 'Gagal menampilkan certificate PDF.');
+        }
     }
 
     /**
@@ -339,6 +359,7 @@ class CertificateController extends Controller
             'data' => $this->certificatePayload($certificate),
             'redirect_url' => route('academic.certificates.show', $certificate),
             'show_url' => route('academic.certificates.show', $certificate),
+            'view_pdf_url' => route('academic.certificates.view-pdf', $certificate),
             'download_pdf_url' => route('academic.certificates.download-pdf', $certificate),
             'verify_url' => $certificate->verification_url,
         ]);

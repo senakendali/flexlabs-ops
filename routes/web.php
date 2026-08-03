@@ -2353,6 +2353,10 @@ Route::middleware('auth')->group(function () {
                     ->whereNumber('certificate')
                     ->name('download-pdf');
 
+                Route::get('/{certificate}/view-pdf', [CertificateController::class, 'streamPdf'])
+                    ->whereNumber('certificate')
+                    ->name('view-pdf');
+
                 Route::get('/{certificate}', [CertificateController::class, 'show'])
                     ->whereNumber('certificate')
                     ->name('show');
