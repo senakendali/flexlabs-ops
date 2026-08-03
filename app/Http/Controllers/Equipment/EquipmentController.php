@@ -150,7 +150,6 @@ class EquipmentController extends Controller
             $validated['name']
         );
 
-        $validated['code'] = $this->generateUniqueCode();
         $validated['is_active'] = (bool) ($validated['is_active'] ?? true);
         $validated['type'] = $validated['type'] ?? 'borrowable';
 
@@ -272,8 +271,20 @@ class EquipmentController extends Controller
 
     private function validateEquipment(Request $request, ?Equipment $equipment = null): array
     {
+        $request->merge([
+            'code' => filled($request->input('code'))
+                ? trim((string) $request->input('code'))
+                : null,
+        ]);
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'code' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('equipments', 'code')->ignore($equipment?->id),
+            ],
             'slug' => [
                 'nullable',
                 'string',
@@ -291,7 +302,7 @@ class EquipmentController extends Controller
             'description' => ['nullable', 'string'],
             'condition' => ['required', Rule::in(['good', 'minor_damage', 'damaged'])],
             'status' => ['required', Rule::in(['available', 'borrowed', 'maintenance'])],
-            'type' => ['nullable', Rule::in(['assigned', 'borrowable'])],
+            'type' => ['nullable', Rule::in(['assigned', 'borrowable', 'fixed'])],
             'assigned_user_id' => ['nullable', 'exists:users,id'],
             'location' => ['nullable', 'string', 'max:255'],
             'purchase_date' => ['nullable', 'date'],
@@ -348,6 +359,8 @@ class EquipmentController extends Controller
             ? trim((string) $validated['serial_number'])
             : null;
 
+        $validated['code'] = trim((string) $validated['code']);
+
         $validated['description'] = filled($validated['description'] ?? null)
             ? trim((string) $validated['description'])
             : null;
@@ -373,25 +386,4 @@ class EquipmentController extends Controller
         return $slug;
     }
 
-    private function generateUniqueCode(): string
-    {
-        $latest = Equipment::query()
-            ->where('code', 'like', 'EQ-%')
-            ->latest('id')
-            ->value('code');
-
-        $nextNumber = 1;
-
-        if ($latest && preg_match('/EQ-(\d+)/', $latest, $matches)) {
-            $nextNumber = ((int) $matches[1]) + 1;
-        }
-
-        do {
-            $code = 'EQ-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
-            $exists = Equipment::query()->where('code', $code)->exists();
-            $nextNumber++;
-        } while ($exists);
-
-        return $code;
-    }
 }
