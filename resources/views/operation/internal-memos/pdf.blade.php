@@ -291,27 +291,64 @@
             min-height: 16px;
         }
 
+        /*
+         * Seluruh kolom memakai tinggi area tanda tangan yang sama.
+         * Dengan begitu posisi nama selalu berada pada satu garis horizontal.
+         */
         .signature-space {
-            height: 62px;
-            line-height: 62px;
+            height: 82px;
+            line-height: 82px;
             text-align: center;
-            overflow: hidden;
+            overflow: visible;
         }
 
+        /*
+         * Gunakan width, bukan hanya max-width, agar gambar kecil ikut
+         * diperbesar oleh DomPDF dan tidak dirender sesuai ukuran aslinya.
+         */
         .signature-image {
             display: inline-block;
-            max-width: 105px;
-            max-height: 58px;
-            width: auto;
+            width: 138px;
+            max-width: 138px;
+            max-height: 76px;
             height: auto;
             vertical-align: middle;
         }
 
+        .signature-space.requested-by-signature-space {
+            position: relative;
+        }
+
+        .signature-image.requested-by-signature-image {
+            width: 145px;
+            max-width: 145px;
+            max-height: 78px;
+        }
+
+        /*
+         * Tinggi slot tetap sama seperti kolom lain supaya nama sejajar.
+         * Hanya gambarnya yang digeser sedikit ke bawah.
+         */
+        .signature-space.first-acknowledgement {
+            height: 88px;
+            line-height: 88px;
+            overflow: visible;
+        }
+
+        .signature-image.first-acknowledgement-image {
+            width: 150px;
+            max-width: 150px;
+            max-height: 76px;
+            position: relative;
+            top: 18px;
+        }
+
         .signature-name {
+            height: 28px;
+            min-height: 28px;
             font-weight: bold;
             text-decoration: underline;
             line-height: 1.25;
-            min-height: 28px;
         }
 
         .signature-position {
@@ -430,6 +467,77 @@
         ];
 
         $approvalSignatures = collect($approvalSignatures ?? []);
+
+        /*
+         * Requested by selalu memakai tanda tangan user yang membuat memo.
+         * Contoh file:
+         * storage/app/private/signatures/sena.png
+         * storage/app/private/signatures/reza.png
+         *
+         * Prioritas identitas:
+         * 1. username user pembuat
+         * 2. nama user pembuat
+         * 3. nama pada field from_name
+         */
+        $requesterDisplayName = trim((string) (
+            data_get($memo, 'creator.name')
+            ?: $memo->from_name
+            ?: '-'
+        ));
+
+        $requesterIdentity = trim((string) (
+            data_get($memo, 'creator.username')
+            ?: data_get($memo, 'creator.name')
+            ?: $memo->from_name
+            ?: ''
+        ));
+
+        $requesterSignature = null;
+
+        if ($requesterIdentity !== '') {
+            $asciiIdentity = \Illuminate\Support\Str::ascii($requesterIdentity);
+            $firstName = trim((string) preg_split('/\s+/', $asciiIdentity)[0]);
+            $emailPrefix = trim((string) \Illuminate\Support\Str::before(
+                (string) data_get($memo, 'creator.email', ''),
+                '@'
+            ));
+
+            $requesterSignatureCandidates = collect([
+                data_get($memo, 'creator.username'),
+                $firstName,
+                $emailPrefix,
+                \Illuminate\Support\Str::slug($asciiIdentity, '-'),
+                \Illuminate\Support\Str::slug($asciiIdentity, '_'),
+            ])
+                ->filter(fn ($candidate) => filled($candidate))
+                ->map(function ($candidate) {
+                    return preg_replace(
+                        '/[^a-z0-9_-]/',
+                        '',
+                        strtolower(\Illuminate\Support\Str::ascii((string) $candidate))
+                    );
+                })
+                ->filter()
+                ->unique()
+                ->values();
+
+            foreach ($requesterSignatureCandidates as $candidate) {
+                $signaturePath = storage_path('app/private/signatures/' . $candidate . '.png');
+
+                if (! is_file($signaturePath) || ! is_readable($signaturePath)) {
+                    continue;
+                }
+
+                $signatureBinary = @file_get_contents($signaturePath);
+
+                if ($signatureBinary === false) {
+                    continue;
+                }
+
+                $requesterSignature = 'data:image/png;base64,' . base64_encode($signatureBinary);
+                break;
+            }
+        }
 
         $getSignerName = function ($approval) {
             return data_get($approval, 'approver_name')
@@ -636,18 +744,26 @@
                 <tr>
                     <td>
                         <div class="signature-title">Requested by</div>
-                        <div class="signature-space"></div>
-                        <div class="signature-name">{{ $memo->from_name ?: optional($memo->creator)->name ?: '-' }}</div>
+                        <div class="signature-space requested-by-signature-space">
+                            @if ($requesterSignature)
+                                <img
+                                    src="{{ $requesterSignature }}"
+                                    class="signature-image requested-by-signature-image"
+                                    alt="Signature of {{ $requesterDisplayName }}"
+                                >
+                            @endif
+                        </div>
+                        <div class="signature-name">{{ $requesterDisplayName }}</div>
                         <div class="signature-position">{{ $memo->from_position ?: '-' }}</div>
                     </td>
 
                     <td>
                         <div class="signature-title">Acknowledged by</div>
-                        <div class="signature-space">
+                        <div class="signature-space first-acknowledgement">
                             @if ($approvalSignatures->get(1))
                                 <img
                                     src="{{ $approvalSignatures->get(1) }}"
-                                    class="signature-image"
+                                    class="signature-image first-acknowledgement-image"
                                     alt="Signature of {{ $getSignerName($signerOne) }}"
                                 >
                             @endif
