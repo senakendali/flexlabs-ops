@@ -47,6 +47,12 @@
     $grade = $certificate->grade ?: '-';
     $issuerName = data_get($certificate, 'issuer.name', 'Academic Team');
 
+    $certificateNumber = data_get($certificate, 'certificate_number')
+        ?: data_get($certificate, 'certificate_no')
+        ?: data_get($certificate, 'number')
+        ?: data_get($certificate, 'code')
+        ?: '-';
+
     /*
      * Cormorant Garamond memberi karakter formal yang umum dipakai pada
      * certificate. Jika file font belum tersedia, Dompdf otomatis memakai
@@ -64,6 +70,15 @@
     $signaturePath = storage_path('app/private/signatures/sena.png');
     $signatureDataUri = file_exists($signaturePath)
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($signaturePath))
+        : null;
+
+    /*
+     * Logo F ditempatkan di kiri bawah certificate. Embed sebagai data URI
+     * agar tetap konsisten ketika dirender menggunakan Dompdf.
+     */
+    $footerLogoPath = public_path('images/f-logo.png');
+    $footerLogoDataUri = file_exists($footerLogoPath)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($footerLogoPath))
         : null;
 @endphp
 <!DOCTYPE html>
@@ -136,6 +151,7 @@
             bottom: 20pt;
             left: 20pt;
             z-index: 1;
+            overflow: hidden;
             background: #ffffff;
             border-radius: 14pt;
         }
@@ -145,6 +161,13 @@
             border-collapse: collapse;
         }
 
+        /*
+         * Jangan memberi height setinggi halaman pada frame karena Dompdf
+         * dapat membulatkan ukuran tersebut dan membuat halaman kedua.
+         *
+         * Frame hanya mengikuti tinggi konten dan selalu berada di atas
+         * watermark logo F.
+         */
         .certificate-frame {
             position: relative;
             z-index: 3;
@@ -206,8 +229,15 @@
             color: #5B3E8E;
         }
 
+        .certificate-heading-group {
+            position: relative;
+            top: -9pt;
+            margin-bottom: 13pt;
+            text-align: center;
+        }
+
         .certificate-kicker {
-            margin-top: 3px;
+            margin-top: 0;
             font-size: 9px;
             font-weight: bold;
             letter-spacing: 3.5px;
@@ -226,8 +256,18 @@
             color: #34254f;
         }
 
+        .certificate-number {
+            margin-top: 4px;
+            font-size: 8px;
+            line-height: 1.3;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #81778d;
+        }
+
         .presented-label {
-            margin: 8pt 0 0;
+            margin: 0;
             font-family: DejaVu Serif, Georgia, serif;
             font-size: 12px;
             font-style: italic;
@@ -339,6 +379,22 @@
             text-align: right;
         }
 
+        /*
+         * Logo F ditempatkan sebagai child dari bidang putih.
+         *
+         * Ini lebih stabil untuk Dompdf dibanding mengandalkan z-index
+         * antar beberapa elemen position: fixed.
+         */
+        .footer-brand-logo {
+            position: absolute;
+            left: -50pt;
+            bottom: 0pt;
+            width: auto;
+            height: 500px;
+            max-width: none;
+            opacity: 0.60;
+        }
+
         .verification-wrap {
             display: inline-block;
             text-align: center;
@@ -372,7 +428,10 @@
 </head>
 <body>
     <div class="paper-shadow"></div>
-    <div class="paper-surface"></div>
+
+    <div class="paper-surface">
+        
+    </div>
 
     <div class="certificate-frame">
         <table class="page-layout">
@@ -389,8 +448,13 @@
                 <td class="content-cell" align="center">
                     <div class="content-stack">
 
-                        <div class="certificate-kicker">Certificate of Achievement</div>
-                        <h1 class="certificate-title">Certificate</h1>
+                        <div class="certificate-heading-group">
+                            <div class="certificate-kicker">Certificate of Achievement</div>
+                            <h1 class="certificate-title">Certificate</h1>
+                            <div class="certificate-number">
+                                Certificate No. {{ $certificateNumber }}
+                            </div>
+                        </div>
 
                         <p class="presented-label">This certificate is proudly presented to</p>
                         <div class="student-name">{{ $studentName }}</div>
