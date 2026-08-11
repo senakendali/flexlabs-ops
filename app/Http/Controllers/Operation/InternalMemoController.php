@@ -50,6 +50,13 @@ class InternalMemoController extends Controller
         'AC' => 'Academic',
     ];
 
+    private const ROLE_DEPARTMENT_CODES = [
+        'marketing' => 'MK',
+        'ba' => 'BA',
+        'sales' => 'SA',
+        'academic' => 'AC',
+    ];
+
     private const DEFAULT_APPROVAL_SIGNERS = [
         [
             'role_label' => 'Acknowledged by',
@@ -78,7 +85,7 @@ class InternalMemoController extends Controller
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
 
-        $memos = InternalMemo::query()
+        $memos = $this->visibleMemosQuery(Auth::user())
             ->with([
                 'creator:id,name,email',
                 'submitter:id,name,email',
@@ -313,6 +320,8 @@ class InternalMemoController extends Controller
 
     public function show(InternalMemo $internalMemo): View
     {
+        $this->authorizeMemoVisibility($internalMemo);
+
         $internalMemo->load([
             'creator:id,name,email',
             'submitter:id,name,email',
@@ -336,6 +345,7 @@ class InternalMemoController extends Controller
 
     public function edit(InternalMemo $internalMemo): View
     {
+        $this->authorizeMemoVisibility($internalMemo);
         abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
         $internalMemo->load([
@@ -357,6 +367,7 @@ class InternalMemoController extends Controller
 
     public function update(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
         abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
         $action = $this->validateFormAction($request);
@@ -433,6 +444,7 @@ class InternalMemoController extends Controller
 
     public function destroy(InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
         abort_unless($this->canDeleteMemo($internalMemo), 403, 'Memo ini tidak bisa dihapus.');
 
         $internalMemo->delete();
@@ -444,6 +456,7 @@ class InternalMemoController extends Controller
 
     public function submit(InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
         abort_unless($this->canSubmitMemo($internalMemo), 403, 'Memo ini tidak bisa disubmit.');
 
         $internalMemo->load(['items', 'approvals']);
@@ -480,6 +493,8 @@ class InternalMemoController extends Controller
 
     public function approve(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
+
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
@@ -548,6 +563,8 @@ class InternalMemoController extends Controller
 
     public function reject(Request $request, InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
+
         $validated = $request->validate([
             'notes' => ['required', 'string', 'max:5000'],
         ], [
@@ -591,6 +608,9 @@ class InternalMemoController extends Controller
 
     public function cancel(InternalMemo $internalMemo): RedirectResponse
     {
+        $this->authorizeMemoVisibility($internalMemo);
+        abort_unless($this->canManageMemo($internalMemo), 403, 'Anda tidak berhak membatalkan memo ini.');
+
         abort_unless(
             in_array($internalMemo->status, [
                 self::STATUS_DRAFT,
@@ -617,6 +637,8 @@ class InternalMemoController extends Controller
 
     public function downloadPdf(InternalMemo $internalMemo)
     {
+        $this->authorizeMemoVisibility($internalMemo);
+
         $internalMemo->load([
             'creator:id,name,email',
             'submitter:id,name,email',
@@ -1233,17 +1255,108 @@ class InternalMemoController extends Controller
 
     private function canEditMemo(InternalMemo $memo): bool
     {
-        return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+        return $this->canManageMemo($memo)
+            && in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
     }
 
     private function canDeleteMemo(InternalMemo $memo): bool
     {
-        return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+        return $this->canManageMemo($memo)
+            && in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
     }
 
     private function canSubmitMemo(InternalMemo $memo): bool
     {
-        return in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+        return $this->canManageMemo($memo)
+            && in_array($memo->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+    }
+
+    private function visibleMemosQuery(?User $user)
+    {
+        $query = InternalMemo::query();
+
+        abort_unless($user, 403);
+
+        if ($this->isPrivilegedUser($user)) {
+            return $query;
+        }
+
+        $departmentCode = $this->departmentCodeForUser($user);
+
+        return $query->where(function ($visibilityQuery) use ($user, $departmentCode) {
+            $visibilityQuery->where('created_by', $user->id)
+                ->orWhereHas('approvals', fn ($approvalQuery) => $approvalQuery
+                    ->where('approver_id', $user->id));
+
+            if ($departmentCode) {
+                $visibilityQuery->orWhere(function ($departmentQuery) use ($departmentCode) {
+                    $departmentQuery
+                        ->where('status', '!=', self::STATUS_DRAFT)
+                        ->where('memo_number', 'like', '%/IM-' . $departmentCode . '/%');
+                });
+            }
+        });
+    }
+
+    private function authorizeMemoVisibility(InternalMemo $memo): void
+    {
+        abort_unless($this->canViewMemo($memo), 403, 'Anda tidak memiliki akses ke internal memo ini.');
+    }
+
+    private function canViewMemo(InternalMemo $memo): bool
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($this->isPrivilegedUser($user) || (int) $memo->created_by === (int) $user->id) {
+            return true;
+        }
+
+        if ($memo->approvals()->where('approver_id', $user->id)->exists()) {
+            return true;
+        }
+
+        if ($memo->status === self::STATUS_DRAFT) {
+            return false;
+        }
+
+        $departmentCode = $this->departmentCodeForUser($user);
+
+        return $departmentCode !== null
+            && Str::contains((string) $memo->memo_number, '/IM-' . $departmentCode . '/');
+    }
+
+    private function canManageMemo(InternalMemo $memo): bool
+    {
+        $user = Auth::user();
+
+        return $user
+            && ($this->isPrivilegedUser($user) || (int) $memo->created_by === (int) $user->id);
+    }
+
+    private function departmentCodeForUser(User $user): ?string
+    {
+        $role = Str::lower(trim((string) $user->role));
+
+        return self::ROLE_DEPARTMENT_CODES[$role] ?? null;
+    }
+
+    private function isPrivilegedUser(User $user): bool
+    {
+        if (method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('HR'))) {
+            return true;
+        }
+
+        foreach (['role', 'role_name', 'user_role'] as $field) {
+            if (isset($user->{$field}) && in_array(Str::lower((string) $user->{$field}), ['admin', 'hr'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function canActOnMemo(InternalMemo $memo): bool
