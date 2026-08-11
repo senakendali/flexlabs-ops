@@ -216,16 +216,11 @@
 @endsection
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script>
-        const copyWhatsAppBtn = document.getElementById('copyWhatsAppBtn');
-        const downloadPngBtn = document.getElementById('downloadPngBtn');
-        const exportWrapper = document.getElementById('exportWrapper');
-
-        const reportData = @json([
+    @php
+        $whatsAppReportData = [
             'date' => optional($report->report_date)->format('l, d F Y'),
             'short_date' => optional($report->report_date)->format('d M Y'),
-            'created_by' => $report->creator?->name ?? '-',
+            'created_by' => optional($report->creator)->name ?? '-',
             'total_leads' => $report->total_leads ?? 0,
             'interacted' => $report->interacted ?? 0,
             'closed_deal' => $report->closed_deal ?? 0,
@@ -239,7 +234,16 @@
             'summary' => $report->summary ?: '-',
             'highlight' => $report->highlight ?: '-',
             'notes' => $report->notes ?: '-',
-        ]);
+        ];
+    @endphp
+
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+        const copyWhatsAppBtn = document.getElementById('copyWhatsAppBtn');
+        const downloadPngBtn = document.getElementById('downloadPngBtn');
+        const exportWrapper = document.getElementById('exportWrapper');
+
+        const reportData = @json($whatsAppReportData);
 
         function formatRupiah(value) {
             return new Intl.NumberFormat('id-ID', {
