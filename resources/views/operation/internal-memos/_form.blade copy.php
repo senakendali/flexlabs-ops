@@ -94,15 +94,6 @@
         'non_pkp' => 'Non PKP',
     ];
 
-    $departments = [
-        'MK' => 'Marketing',
-        'BA' => 'BA',
-        'SA' => 'Sales',
-        'AC' => 'Academic',
-    ];
-
-    $departmentValue = old('department');
-
     $memoDateValue = old(
         'memo_date',
         optional($memo->memo_date)->format('Y-m-d') ?: $memo->memo_date
@@ -293,7 +284,7 @@
 
                     <div class="content-card-body">
                         <div class="row g-3">
-                            <div class="{{ $isEdit ? 'col-md-4' : 'col-md-3' }}">
+                            <div class="col-md-4">
                                 <label class="form-label">Memo Date <span class="text-danger">*</span></label>
                                 <input
                                     type="date"
@@ -307,28 +298,7 @@
                                 @enderror
                             </div>
 
-                            @if (! $isEdit)
-                                <div class="col-md-3">
-                                    <label class="form-label">Department <span class="text-danger">*</span></label>
-                                    <select
-                                        name="department"
-                                        class="form-select @error('department') is-invalid @enderror"
-                                        required
-                                    >
-                                        <option value="">Select department</option>
-                                        @foreach ($departments as $code => $label)
-                                            <option value="{{ $code }}" @selected($departmentValue === $code)>
-                                                {{ $label }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    @error('department')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            @endif
-
-                            <div class="{{ $isEdit ? 'col-md-4' : 'col-md-3' }}">
+                            <div class="col-md-4">
                                 <label class="form-label">Due Date</label>
                                 <input
                                     type="date"
@@ -341,11 +311,12 @@
                                 @enderror
                             </div>
 
-                            <div class="{{ $isEdit ? 'col-md-4' : 'col-md-3' }}">
+                            <div class="col-md-4">
                                 <label class="form-label">Payment Source <span class="text-danger">*</span></label>
                                 <select
                                     name="payment_source"
                                     class="form-select @error('payment_source') is-invalid @enderror"
+                                    required
                                 >
                                     @foreach ($paymentSources as $value => $label)
                                         <option value="{{ $value }}" @selected($paymentSourceValue === $value)>
@@ -366,6 +337,7 @@
                                     class="form-control @error('subject') is-invalid @enderror"
                                     value="{{ old('subject', $memo->subject) }}"
                                     placeholder="Contoh: Learning Platform Experience Research"
+                                    required
                                 >
                                 @error('subject')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -411,6 +383,7 @@
                                     class="form-control @error('to_name') is-invalid @enderror"
                                     value="{{ old('to_name', $memo->to_name) }}"
                                     placeholder="Nama penerima memo"
+                                    required
                                 >
                                 @error('to_name')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -439,6 +412,7 @@
                                     class="form-control @error('from_name') is-invalid @enderror"
                                     value="{{ old('from_name', $memo->from_name) }}"
                                     placeholder="Nama pengirim memo"
+                                    required
                                 >
                                 @error('from_name')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -566,6 +540,7 @@
                                                     name="acknowledgements[{{ $index }}][approver_id]"
                                                     class="form-select signer-user-select @error("acknowledgements.$index.approver_id") is-invalid @enderror"
                                                     data-index="{{ $index }}"
+                                                    required
                                                 >
                                                     <option value="">Select user</option>
                                                     @foreach ($users as $user)
@@ -600,6 +575,7 @@
                                                     class="form-control signer-position-input @error("acknowledgements.$index.position") is-invalid @enderror"
                                                     value="{{ $selectedPosition }}"
                                                     placeholder="Jabatan signer"
+                                                    required
                                                 >
                                                 @error("acknowledgements.$index.position")
                                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -652,6 +628,7 @@
                                                 rows="2"
                                                 class="form-control item-details @error("items.$index.details") is-invalid @enderror"
                                                 placeholder="Detail item..."
+                                                required
                                             >{{ $item['details'] ?? '' }}</textarea>
 
                                             @error("items.$index.details")
@@ -668,6 +645,7 @@
                                                 value="{{ $item['price'] ?? 0 }}"
                                                 min="0"
                                                 step="0.01"
+                                                required
                                             >
                                             @error("items.$index.price")
                                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -683,6 +661,7 @@
                                                 value="{{ $item['quantity'] ?? 1 }}"
                                                 min="1"
                                                 step="1"
+                                                required
                                             >
                                             @error("items.$index.quantity")
                                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -750,6 +729,7 @@
                                         name="tax_treatment"
                                         id="taxTreatmentInput"
                                         class="form-select @error('tax_treatment') is-invalid @enderror"
+                                        required
                                     >
                                         @foreach ($taxTreatments as $value => $label)
                                             <option value="{{ $value }}" @selected($taxTreatmentValue === $value)>
@@ -770,6 +750,7 @@
                                         name="tax_entity_type"
                                         id="taxEntityTypeInput"
                                         class="form-select @error('tax_entity_type') is-invalid @enderror"
+                                        required
                                     >
                                         @foreach ($taxEntityTypes as $value => $label)
                                             <option value="{{ $value }}" @selected($taxEntityTypeValue === $value)>
@@ -837,12 +818,8 @@
                         Cancel
                     </a>
 
-                    <button type="submit" name="action" value="draft" class="btn btn-primary btn-modern px-4">
-                        <i class="bi bi-save me-2"></i>{{ $isEdit ? 'Save Draft Changes' : 'Save as Draft' }}
-                    </button>
-
-                    <button type="submit" name="action" value="submit" class="btn btn-primary btn-modern px-4">
-                        <i class="bi bi-send me-2"></i>Submit Internal Memo
+                    <button type="submit" class="btn btn-primary btn-modern px-4">
+                        <i class="bi bi-save me-2"></i>{{ $isEdit ? 'Update Memo' : 'Create Memo' }}
                     </button>
                 </div>
             </div>
@@ -1117,17 +1094,17 @@
                             </div>
                         </div>
 
-                        <textarea name="items[${index}][details]" rows="2" class="form-control item-details" placeholder="Detail item..."></textarea>
+                        <textarea name="items[${index}][details]" rows="2" class="form-control item-details" placeholder="Detail item..." required></textarea>
                     </div>
 
                     <div class="col-xl-2 col-md-4">
                         <label class="form-label">Price <span class="text-danger">*</span></label>
-                        <input type="number" name="items[${index}][price]" class="form-control item-price" value="0" min="0" step="0.01">
+                        <input type="number" name="items[${index}][price]" class="form-control item-price" value="0" min="0" step="0.01" required>
                     </div>
 
                     <div class="col-xl-1 col-md-4">
                         <label class="form-label">Qty <span class="text-danger">*</span></label>
-                        <input type="number" name="items[${index}][quantity]" class="form-control item-quantity" value="1" min="1" step="1">
+                        <input type="number" name="items[${index}][quantity]" class="form-control item-quantity" value="1" min="1" step="1" required>
                     </div>
 
                     <div class="col-xl-2 col-md-4">

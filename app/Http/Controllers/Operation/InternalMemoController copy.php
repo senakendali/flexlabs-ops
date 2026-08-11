@@ -613,12 +613,74 @@ class InternalMemoController extends Controller
         ]);
 
         $filename = Str::slug($internalMemo->memo_number ?: 'internal-memo') . '.pdf';
+        $approvalSignatures = $this->buildApprovalSignatureDataUris($internalMemo);
 
         return Pdf::loadView('operation.internal-memos.pdf', [
                 'memo' => $internalMemo,
+                'approvalSignatures' => $approvalSignatures,
             ])
             ->setPaper('a4', 'portrait')
             ->download($filename);
+    }
+
+    /**
+     * Prepare private signature PNG files for the PDF template.
+     *
+     * Signature mapping:
+     * - step_order 1 => storage/app/private/signatures/1.png
+     * - step_order 2 => storage/app/private/signatures/2.png
+     * - step_order 3 => storage/app/private/signatures/3.png
+     *
+     * A signature is only returned when its own approval has been approved.
+     * The private file is converted to a data URI, so no public URL is exposed.
+     */
+    private function buildApprovalSignatureDataUris(InternalMemo $memo): array
+    {
+        $signatures = [
+            1 => null,
+            2 => null,
+            3 => null,
+        ];
+
+        foreach ($memo->approvals as $approval) {
+            $stepOrder = (int) $approval->step_order;
+
+            if (! array_key_exists($stepOrder, $signatures)) {
+                continue;
+            }
+
+            if (
+                $approval->status !== self::APPROVAL_APPROVED
+                || ! $approval->approved_at
+            ) {
+                continue;
+            }
+
+            $signaturePath = storage_path(
+                "app/private/signatures/{$stepOrder}.png"
+            );
+
+            if (! is_file($signaturePath) || ! is_readable($signaturePath)) {
+                continue;
+            }
+
+            $mimeType = mime_content_type($signaturePath);
+
+            if ($mimeType !== 'image/png') {
+                continue;
+            }
+
+            $contents = file_get_contents($signaturePath);
+
+            if ($contents === false || $contents === '') {
+                continue;
+            }
+
+            $signatures[$stepOrder] = 'data:image/png;base64,'
+                . base64_encode($contents);
+        }
+
+        return $signatures;
     }
 
     private function validateMemo(Request $request, ?InternalMemo $memo = null): array

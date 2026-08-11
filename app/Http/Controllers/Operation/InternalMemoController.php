@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -42,11 +43,12 @@ class InternalMemoController extends Controller
     private const TAX_ENTITY_PKP = 'pkp';
     private const TAX_ENTITY_NON_PKP = 'non_pkp';
 
-    /**
-     * Create memo now means create + publish.
-     * Signer 1 will receive notification right after memo is created.
-     */
-    private const AUTO_PUBLISH_ON_CREATE = true;
+    private const DEPARTMENT_CODES = [
+        'MK' => 'Marketing',
+        'BA' => 'BA',
+        'SA' => 'Sales',
+        'AC' => 'Academic',
+    ];
 
     private const DEFAULT_APPROVAL_SIGNERS = [
         [
@@ -230,7 +232,8 @@ class InternalMemoController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $this->validateMemo($request);
+        $action = $this->validateFormAction($request);
+        $validated = $this->validateMemoDraft($request, true);
 
         $amounts = $this->calculateAmounts(
             $validated['items'],
@@ -239,9 +242,12 @@ class InternalMemoController extends Controller
             $validated['tax_entity_type']
         );
 
-        $memo = DB::transaction(function () use ($validated, $amounts) {
+        $memo = DB::transaction(function () use ($validated, $amounts, $action) {
             $memo = InternalMemo::create([
-                'memo_number' => $this->generateMemoNumber(),
+                'memo_number' => $this->generateMemoNumber(
+                    $validated['memo_date'],
+                    $validated['department']
+                ),
                 'memo_date' => $validated['memo_date'],
                 'due_date' => $validated['due_date'] ?? null,
 
@@ -267,13 +273,11 @@ class InternalMemoController extends Controller
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
 
-                'status' => self::AUTO_PUBLISH_ON_CREATE
-                    ? self::STATUS_WAITING_ACKNOWLEDGEMENT
-                    : self::STATUS_DRAFT,
+                'status' => self::STATUS_DRAFT,
 
                 'created_by' => Auth::id(),
-                'submitted_by' => self::AUTO_PUBLISH_ON_CREATE ? Auth::id() : null,
-                'submitted_at' => self::AUTO_PUBLISH_ON_CREATE ? now() : null,
+                'submitted_by' => null,
+                'submitted_at' => null,
 
                 'approved_at' => null,
                 'rejected_at' => null,
@@ -283,19 +287,27 @@ class InternalMemoController extends Controller
             $this->syncItems($memo, $validated['items']);
             $this->syncApprovals($memo, $validated);
 
+            if ($action === 'submit') {
+                $memo->load(['items', 'approvals']);
+                $this->validateMemoForSubmission($memo);
+                $this->markMemoAsSubmitted($memo);
+            }
+
             return $memo;
         });
 
-        if (self::AUTO_PUBLISH_ON_CREATE) {
+        if ($action === 'submit') {
             $memo->refresh();
             $this->notifyActiveApproval($memo);
         }
 
         return redirect()
             ->route('internal-memos.show', $memo)
-            ->with('success', self::AUTO_PUBLISH_ON_CREATE
-                ? 'Internal memo berhasil dibuat dan dikirim ke signer pertama.'
-                : 'Internal memo berhasil dibuat sebagai draft.'
+            ->with(
+                'success',
+                $action === 'submit'
+                    ? 'Internal memo berhasil disubmit dan dikirim ke signer pertama.'
+                    : 'Internal memo berhasil disimpan sebagai draft.'
             );
     }
 
@@ -347,7 +359,8 @@ class InternalMemoController extends Controller
     {
         abort_unless($this->canEditMemo($internalMemo), 403, 'Memo ini tidak bisa diedit.');
 
-        $validated = $this->validateMemo($request, $internalMemo);
+        $action = $this->validateFormAction($request);
+        $validated = $this->validateMemoDraft($request);
 
         $amounts = $this->calculateAmounts(
             $validated['items'],
@@ -356,7 +369,7 @@ class InternalMemoController extends Controller
             $validated['tax_entity_type']
         );
 
-        DB::transaction(function () use ($internalMemo, $validated, $amounts) {
+        DB::transaction(function () use ($internalMemo, $validated, $amounts, $action) {
             $internalMemo->update([
                 'memo_date' => $validated['memo_date'],
                 'due_date' => $validated['due_date'] ?? null,
@@ -383,12 +396,10 @@ class InternalMemoController extends Controller
                 'tax_amount' => $amounts['tax_amount'],
                 'grand_total_amount' => $amounts['grand_total_amount'],
 
-                'status' => self::AUTO_PUBLISH_ON_CREATE
-                    ? self::STATUS_WAITING_ACKNOWLEDGEMENT
-                    : self::STATUS_DRAFT,
+                'status' => self::STATUS_DRAFT,
 
-                'submitted_by' => self::AUTO_PUBLISH_ON_CREATE ? Auth::id() : null,
-                'submitted_at' => self::AUTO_PUBLISH_ON_CREATE ? now() : null,
+                'submitted_by' => null,
+                'submitted_at' => null,
 
                 'approved_at' => null,
                 'rejected_at' => null,
@@ -397,18 +408,26 @@ class InternalMemoController extends Controller
 
             $this->syncItems($internalMemo, $validated['items']);
             $this->syncApprovals($internalMemo, $validated);
+
+            if ($action === 'submit') {
+                $internalMemo->load(['items', 'approvals']);
+                $this->validateMemoForSubmission($internalMemo);
+                $this->markMemoAsSubmitted($internalMemo);
+            }
         });
 
-        if (self::AUTO_PUBLISH_ON_CREATE) {
+        if ($action === 'submit') {
             $internalMemo->refresh();
             $this->notifyActiveApproval($internalMemo);
         }
 
         return redirect()
             ->route('internal-memos.show', $internalMemo)
-            ->with('success', self::AUTO_PUBLISH_ON_CREATE
-                ? 'Internal memo berhasil diperbarui dan dikirim ke signer pertama.'
-                : 'Internal memo berhasil diperbarui.'
+            ->with(
+                'success',
+                $action === 'submit'
+                    ? 'Internal memo berhasil disubmit dan dikirim ke signer pertama.'
+                    : 'Draft internal memo berhasil diperbarui.'
             );
     }
 
@@ -429,13 +448,7 @@ class InternalMemoController extends Controller
 
         $internalMemo->load(['items', 'approvals']);
 
-        if ($internalMemo->items->isEmpty()) {
-            return back()->with('error', 'Memo belum bisa disubmit karena budget item masih kosong.');
-        }
-
-        if ($internalMemo->approvals->count() < 3) {
-            return back()->with('error', 'Memo belum bisa disubmit karena approval signer belum lengkap.');
-        }
+        $this->validateMemoForSubmission($internalMemo);
 
         DB::transaction(function () use ($internalMemo) {
             $internalMemo->approvals()->update([
@@ -683,9 +696,14 @@ class InternalMemoController extends Controller
         return $signatures;
     }
 
-    private function validateMemo(Request $request, ?InternalMemo $memo = null): array
+    /**
+     * Draft validation is intentionally permissive. Only memo_date is required
+     * because it is used when the permanent memo number is generated.
+     */
+    private function validateMemoDraft(Request $request, bool $requireDepartment = false): array
     {
         $request->merge([
+            'memo_date' => $request->input('memo_date', now()->toDateString()),
             'payment_source' => $request->input('payment_source', self::PAYMENT_SOURCE_BANK),
             'tax_treatment' => $request->input('tax_treatment', self::TAX_TREATMENT_NOT_INCLUDE),
             'tax_entity_type' => $request->input('tax_entity_type', self::TAX_ENTITY_PKP),
@@ -693,20 +711,26 @@ class InternalMemoController extends Controller
         ]);
 
         $validated = $request->validate([
+            'department' => [
+                Rule::requiredIf($requireDepartment),
+                'nullable',
+                'string',
+                Rule::in(array_keys(self::DEPARTMENT_CODES)),
+            ],
             'memo_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:memo_date'],
 
-            'subject' => ['required', 'string', 'max:255'],
+            'subject' => ['nullable', 'string', 'max:255'],
             'attachment_label' => ['nullable', 'string', 'max:255'],
             'attachment_url' => ['nullable', 'url', 'max:2048'],
 
-            'to_name' => ['required', 'string', 'max:255'],
+            'to_name' => ['nullable', 'string', 'max:255'],
             'to_position' => ['nullable', 'string', 'max:255'],
 
-            'from_name' => ['required', 'string', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:255'],
             'from_position' => ['nullable', 'string', 'max:255'],
 
-            'purpose' => ['required', 'string'],
+            'purpose' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
 
             'payment_source' => ['required', Rule::in(array_keys($this->paymentSources()))],
@@ -715,10 +739,10 @@ class InternalMemoController extends Controller
             'tax_treatment' => ['required', Rule::in(array_keys($this->taxTreatments()))],
             'tax_entity_type' => ['required', Rule::in(array_keys($this->taxEntityTypes()))],
 
-            'acknowledgements' => ['required', 'array', 'size:3'],
-            'acknowledgements.*.role_label' => ['required', 'string', 'max:255'],
+            'acknowledgements' => ['nullable', 'array', 'max:3'],
+            'acknowledgements.*.role_label' => ['nullable', 'string', 'max:255'],
             'acknowledgements.*.approver_id' => [
-                'required',
+                'nullable',
                 'integer',
                 'distinct',
                 Rule::exists('users', 'id')->where(function ($query) {
@@ -726,37 +750,30 @@ class InternalMemoController extends Controller
                 }),
             ],
             'acknowledgements.*.name' => ['nullable', 'string', 'max:255'],
-            'acknowledgements.*.position' => ['required', 'string', 'max:255'],
+            'acknowledgements.*.position' => ['nullable', 'string', 'max:255'],
 
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.details' => ['required', 'string', 'max:5000'],
-            'items.*.price' => ['required', 'numeric', 'min:0'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items' => ['nullable', 'array'],
+            'items.*.details' => ['nullable', 'string', 'max:5000'],
+            'items.*.price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1'],
             'items.*.remarks' => ['nullable', 'string', 'max:5000'],
         ], [
+            'department.required' => 'Department wajib dipilih untuk membuat nomor memo.',
+            'department.in' => 'Department yang dipilih tidak valid.',
             'due_date.after_or_equal' => 'Due date tidak boleh lebih awal dari memo date.',
-            'purpose.required' => 'Purpose wajib diisi minimal 2 poin.',
             'attachment_url.url' => 'Attachment Google Drive Link harus berupa URL yang valid.',
-
-            'acknowledgements.required' => 'Approval signer wajib diisi.',
-            'acknowledgements.size' => 'Approval signer harus berisi 3 orang.',
-            'acknowledgements.*.role_label.required' => 'Role label signer wajib diisi.',
-            'acknowledgements.*.approver_id.required' => 'User signer wajib dipilih.',
             'acknowledgements.*.approver_id.distinct' => 'Signer tidak boleh orang yang sama.',
             'acknowledgements.*.approver_id.exists' => 'User signer harus merupakan staff yang valid.',
-            'acknowledgements.*.position.required' => 'Jabatan signer wajib diisi.',
-
-            'items.required' => 'Minimal harus ada 1 budget item.',
-            'items.*.details.required' => 'Detail budget item wajib diisi.',
         ]);
 
-        $validated['purpose'] = $this->sanitizeQuillHtml($validated['purpose']);
-
-        if ($this->countPurposePoints($validated['purpose']) < 2) {
-            throw ValidationException::withMessages([
-                'purpose' => 'Purpose minimal harus berisi 2 poin.',
-            ]);
-        }
+        $validated['subject'] = trim((string) ($validated['subject'] ?? ''));
+        $validated['to_name'] = trim((string) ($validated['to_name'] ?? ''));
+        $validated['from_name'] = trim((string) ($validated['from_name'] ?? ''));
+        $validated['purpose'] = $this->sanitizeQuillHtml($validated['purpose'] ?? null);
+        $validated['items'] = $this->cleanDraftItems($validated['items'] ?? []);
+        $validated['acknowledgements'] = $this->cleanDraftApprovals(
+            $validated['acknowledgements'] ?? []
+        );
 
         $validated['tax_rate'] = (float) ($validated['tax_rate'] ?? 0);
 
@@ -769,14 +786,146 @@ class InternalMemoController extends Controller
             $validated['tax_treatment']
         );
 
-        $validated['acknowledgements'] = array_values(array_slice($validated['acknowledgements'], 0, 3));
-
         foreach ($validated['acknowledgements'] as $index => $acknowledgement) {
-            $validated['acknowledgements'][$index]['role_label'] = $acknowledgement['role_label']
+            $validated['acknowledgements'][$index]['role_label'] = ($acknowledgement['role_label'] ?? null)
                 ?: (self::DEFAULT_APPROVAL_SIGNERS[$index]['role_label'] ?? 'Acknowledged by');
         }
 
         return $validated;
+    }
+
+    private function validateFormAction(Request $request): string
+    {
+        return $request->validate([
+            'action' => ['required', Rule::in(['draft', 'submit'])],
+        ], [
+            'action.required' => 'Pilih Save as Draft atau Submit Internal Memo.',
+            'action.in' => 'Aksi penyimpanan internal memo tidak valid.',
+        ])['action'];
+    }
+
+    private function markMemoAsSubmitted(InternalMemo $memo): void
+    {
+        $memo->approvals()->update([
+            'status' => self::APPROVAL_PENDING,
+            'notes' => null,
+            'notification_sent_at' => null,
+            'reminder_sent_at' => null,
+            'approved_at' => null,
+            'rejected_at' => null,
+        ]);
+
+        $memo->update([
+            'status' => self::STATUS_WAITING_ACKNOWLEDGEMENT,
+            'submitted_by' => Auth::id(),
+            'submitted_at' => now(),
+            'approved_at' => null,
+            'rejected_at' => null,
+            'cancelled_at' => null,
+        ]);
+    }
+
+    private function cleanDraftItems(array $items): array
+    {
+        return collect($items)
+            ->filter(function ($item) {
+                return trim((string) ($item['details'] ?? '')) !== ''
+                    || ($item['price'] ?? null) !== null
+                    || ($item['quantity'] ?? null) !== null
+                    || trim((string) ($item['remarks'] ?? '')) !== '';
+            })
+            ->map(function ($item) {
+                return [
+                    'details' => trim((string) ($item['details'] ?? '')),
+                    'price' => (float) ($item['price'] ?? 0),
+                    'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
+                    'remarks' => $item['remarks'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function cleanDraftApprovals(array $approvals): array
+    {
+        return collect(array_slice($approvals, 0, 3))
+            ->filter(fn ($approval) => ! empty($approval['approver_id']))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Run strict validation against the saved draft immediately before publish.
+     */
+    private function validateMemoForSubmission(InternalMemo $memo): void
+    {
+        $memo->loadMissing(['items', 'approvals']);
+
+        $data = [
+            'memo_date' => $memo->memo_date,
+            'due_date' => $memo->due_date,
+            'subject' => $memo->subject,
+            'to_name' => $memo->to_name,
+            'from_name' => $memo->from_name,
+            'purpose' => $memo->purpose,
+            'payment_source' => $memo->payment_source,
+            'tax_treatment' => $memo->tax_treatment,
+            'tax_entity_type' => $memo->tax_entity_type,
+            'items' => $memo->items->map(fn ($item) => [
+                'details' => $item->details,
+                'price' => $item->price,
+                'quantity' => $item->quantity,
+            ])->all(),
+            'acknowledgements' => $memo->approvals->map(fn ($approval) => [
+                'approver_id' => $approval->approver_id,
+                'position' => $approval->approver_position,
+            ])->all(),
+        ];
+
+        $validator = Validator::make($data, [
+            'memo_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:memo_date'],
+            'subject' => ['required', 'string', 'max:255'],
+            'to_name' => ['required', 'string', 'max:255'],
+            'from_name' => ['required', 'string', 'max:255'],
+            'purpose' => ['required', 'string'],
+            'payment_source' => ['required', Rule::in(array_keys($this->paymentSources()))],
+            'tax_treatment' => ['required', Rule::in(array_keys($this->taxTreatments()))],
+            'tax_entity_type' => ['required', Rule::in(array_keys($this->taxEntityTypes()))],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.details' => ['required', 'string', 'max:5000'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'acknowledgements' => ['required', 'array', 'size:3'],
+            'acknowledgements.*.approver_id' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('users', 'id')->where(fn ($query) => $query->where('user_type', 'staff')),
+            ],
+            'acknowledgements.*.position' => ['required', 'string', 'max:255'],
+        ], [
+            'subject.required' => 'Subject wajib diisi sebelum memo disubmit.',
+            'to_name.required' => 'Tujuan memo wajib diisi sebelum memo disubmit.',
+            'from_name.required' => 'Pengirim memo wajib diisi sebelum memo disubmit.',
+            'purpose.required' => 'Purpose wajib diisi minimal 2 poin.',
+            'items.required' => 'Minimal harus ada 1 budget item.',
+            'items.min' => 'Minimal harus ada 1 budget item.',
+            'items.*.details.required' => 'Detail budget item wajib diisi.',
+            'acknowledgements.size' => 'Approval signer harus berisi 3 orang.',
+            'acknowledgements.*.approver_id.required' => 'User signer wajib dipilih.',
+            'acknowledgements.*.approver_id.distinct' => 'Signer tidak boleh orang yang sama.',
+            'acknowledgements.*.approver_id.exists' => 'User signer harus merupakan staff yang valid.',
+            'acknowledgements.*.position.required' => 'Jabatan signer wajib diisi.',
+        ]);
+
+        $validator->after(function ($validator) use ($memo) {
+            if ($this->countPurposePoints($memo->purpose) < 2) {
+                $validator->errors()->add('purpose', 'Purpose minimal harus berisi 2 poin.');
+            }
+        });
+
+        $validator->validate();
     }
 
     private function syncItems(InternalMemo $memo, array $items): void
@@ -1018,25 +1167,41 @@ class InternalMemoController extends Controller
         return $notes !== '' ? $notes : null;
     }
 
-    private function generateMemoNumber(): string
+    /**
+     * Format: 048/SEI-EDU/IM-MK/08-03
+     *
+     * The sequence is global and never resets. The MM-DD suffix follows the
+     * memo date, while the sequence is permanently assigned on first save.
+     */
+    private function generateMemoNumber(string $memoDate, string $departmentCode): string
     {
-        $prefix = 'IM-' . now()->format('Ym');
-
-        $latestNumber = InternalMemo::query()
+        $latestMemo = InternalMemo::query()
             ->withTrashed()
-            ->where('memo_number', 'like', $prefix . '-%')
             ->lockForUpdate()
             ->orderByDesc('id')
-            ->value('memo_number');
+            ->first(['id', 'memo_number']);
 
-        $nextNumber = 1;
+        $latestSequence = 0;
 
-        if ($latestNumber) {
-            $lastSequence = (int) Str::afterLast($latestNumber, '-');
-            $nextNumber = $lastSequence + 1;
+        if ($latestMemo) {
+            if (preg_match('/^(\d+)\//', (string) $latestMemo->memo_number, $matches)) {
+                $latestSequence = (int) $matches[1];
+            } else {
+                // Migration fallback for existing IM-YYYYMM-0001 numbers.
+                // Using the latest ID keeps the new sequence aligned with the
+                // number of memo records already issued.
+                $latestSequence = (int) $latestMemo->id;
+            }
         }
 
-        return $prefix . '-' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+        $nextSequence = $latestSequence + 1;
+        $dateSuffix = date('m-d', strtotime($memoDate));
+
+        return str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT)
+            . '/SEI-EDU/IM-'
+            . $departmentCode
+            . '/'
+            . $dateSuffix;
     }
 
     private function activeApproval(InternalMemo $memo): ?InternalMemoApproval
