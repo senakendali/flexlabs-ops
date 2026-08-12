@@ -6,12 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\BatchLearningQuiz;
 use App\Models\LearningQuiz;
-use App\Notifications\QuizPublishedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -140,16 +138,11 @@ class BatchLearningQuizController extends Controller
                 ]);
             });
 
-            $notificationSentCount = $this->sendQuizPublishedNotificationIfNeeded($batchLearningQuiz);
-
             return response()->json([
                 'success' => true,
-                'message' => $notificationSentCount > 0
-                    ? "Batch learning quiz berhasil ditambahkan. Email notifikasi dikirim ke {$notificationSentCount} student."
-                    : 'Batch learning quiz berhasil ditambahkan.',
+                'message' => 'Batch learning quiz berhasil ditambahkan.',
                 'data' => [
                     'id' => $batchLearningQuiz->id,
-                    'notification_sent_count' => $notificationSentCount,
                 ],
             ]);
         } catch (ValidationException $e) {
@@ -186,18 +179,11 @@ class BatchLearningQuizController extends Controller
                 ]);
             });
 
-            $batchLearningQuiz->refresh();
-
-            $notificationSentCount = $this->sendQuizPublishedNotificationIfNeeded($batchLearningQuiz);
-
             return response()->json([
                 'success' => true,
-                'message' => $notificationSentCount > 0
-                    ? "Batch learning quiz berhasil diperbarui. Email notifikasi dikirim ke {$notificationSentCount} student."
-                    : 'Batch learning quiz berhasil diperbarui.',
+                'message' => 'Batch learning quiz berhasil diperbarui.',
                 'data' => [
                     'id' => $batchLearningQuiz->id,
-                    'notification_sent_count' => $notificationSentCount,
                 ],
             ]);
         } catch (ValidationException $e) {
@@ -221,77 +207,6 @@ class BatchLearningQuizController extends Controller
         } catch (Throwable $e) {
             return $this->errorResponse('Gagal menghapus batch learning quiz.', $e);
         }
-    }
-
-    private function sendQuizPublishedNotificationIfNeeded(BatchLearningQuiz $batchLearningQuiz): int
-    {
-        $batchLearningQuiz->loadMissing([
-            'learningQuiz:id,title,quiz_type,duration_minutes,passing_score,max_attempts',
-            'batch:id,name',
-        ]);
-
-        if ($batchLearningQuiz->status !== 'published') {
-            return 0;
-        }
-
-        if (! $batchLearningQuiz->is_active) {
-            return 0;
-        }
-
-        if ($batchLearningQuiz->notification_sent_at) {
-            return 0;
-        }
-
-        if (! $batchLearningQuiz->batch) {
-            return 0;
-        }
-
-        $students = $batchLearningQuiz->batch
-            ->activeStudentEnrollments()
-            ->with([
-                'student:id,full_name,email,status',
-            ])
-            ->where(function ($query) {
-                $query->whereNull('access_expires_at')
-                    ->orWhere('access_expires_at', '>', now());
-            })
-            ->get()
-            ->pluck('student')
-            ->filter(function ($student) {
-                return $student
-                    && filled($student->email)
-                    && ($student->status ?? 'active') === 'active';
-            })
-            ->unique('email')
-            ->values();
-
-        if ($students->isEmpty()) {
-            return 0;
-        }
-
-        $sentCount = 0;
-
-        foreach ($students as $student) {
-            try {
-                $student->notify(new QuizPublishedNotification($batchLearningQuiz));
-                $sentCount++;
-            } catch (Throwable $e) {
-                Log::warning('Failed to send quiz published notification.', [
-                    'batch_learning_quiz_id' => $batchLearningQuiz->id,
-                    'student_id' => $student->id ?? null,
-                    'student_email' => $student->email ?? null,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        if ($sentCount > 0) {
-            $batchLearningQuiz->forceFill([
-                'notification_sent_at' => now(),
-            ])->saveQuietly();
-        }
-
-        return $sentCount;
     }
 
     private function validateBatchLearningQuiz(Request $request, ?BatchLearningQuiz $batchLearningQuiz = null): array

@@ -18,7 +18,7 @@
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <button
                     type="button"
-                    class="btn btn-primary btn-modern"
+                    class="btn btn-light btn-modern"
                     data-bs-toggle="modal"
                     data-bs-target="#learningQuizModal"
                     data-mode="create"
