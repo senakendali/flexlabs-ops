@@ -16,7 +16,7 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">
+                <button type="button" class="btn btn-primary btn-modern" onclick="openCreateModal()">
                     <i class="bi bi-plus-lg me-2"></i>Add Student
                 </button>
             </div>
@@ -373,7 +373,7 @@
 
 {{-- Student Form Modal --}}
 <div class="modal fade" id="studentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="studentForm">
             @csrf
             <input type="hidden" id="student_id">
@@ -521,163 +521,6 @@
                             <label for="goal" class="form-label">Goal</label>
                             <textarea id="goal" rows="4" class="form-control" placeholder="Why does this student want to join the program?"></textarea>
                             <div class="invalid-feedback" id="error_goal"></div>
-                        </div>
-
-                        <div class="col-12" id="initialPaymentSection">
-                            <div class="initial-payment-section mt-2">
-                                <div class="section-heading-row">
-                                    <div>
-                                        <div class="section-kicker">First Transaction</div>
-                                        <h6 class="section-title mb-1">Initial Program & Payment</h6>
-                                        <p class="section-description mb-0">
-                                            Pilih kelas pertama student dan atur rencana pembayarannya. Sistem akan menyiapkan sales order, payment schedule, invoice, dan payment link.
-                                        </p>
-                                    </div>
-                                    <span class="badge rounded-pill payment-flow-badge">
-                                        <i class="bi bi-lightning-charge-fill me-1"></i>Auto Generate
-                                    </span>
-                                </div>
-
-                                <div class="row g-3 mt-1">
-                                    <div class="col-12">
-                                        <label for="initial_batch_id" class="form-label">
-                                            Initial Program & Batch <span class="text-danger">*</span>
-                                        </label>
-                                        <select id="initial_batch_id" class="form-select">
-                                            <option value="">Select program and batch</option>
-                                            @foreach($batches ?? [] as $batch)
-                                                <option
-                                                    value="{{ $batch->id }}"
-                                                    data-price="{{ (int) round((float) ($batch->price ?? 0)) }}"
-                                                >
-                                                    {{ $batch->program->name ?? 'Program' }} - {{ $batch->name }}
-                                                    - Rp {{ number_format((float) ($batch->price ?? 0), 0, ',', '.') }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <div class="form-text">Kelas pertama yang akan dibeli oleh student.</div>
-                                        <div class="invalid-feedback" id="error_initial_batch_id"></div>
-                                    </div>
-
-                                    <div class="col-md-4">
-                                        <label for="regular_price" class="form-label">Regular Price <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">Rp</span>
-                                            <input type="number" id="regular_price" class="form-control" min="0" step="1000" value="0" readonly>
-                                        </div>
-                                        <div class="form-text" id="regularPriceDisplay">Rp 0</div>
-                                        <div class="invalid-feedback" id="error_regular_price"></div>
-                                    </div>
-
-                                    <div class="col-md-4">
-                                        <label for="discount_type" class="form-label">Discount</label>
-                                        <select id="discount_type" class="form-select">
-                                            <option value="none">No Discount</option>
-                                            <option value="fixed">Fixed Amount</option>
-                                            <option value="percentage">Percentage</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="error_discount_type"></div>
-                                    </div>
-
-                                    <div class="col-md-4">
-                                        <label for="discount_value" class="form-label">Discount Value</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text" id="discountPrefix">Rp</span>
-                                            <input type="number" id="discount_value" class="form-control" min="0" step="1" value="0" disabled>
-                                            <span class="input-group-text d-none" id="discountSuffix">%</span>
-                                        </div>
-                                        <div class="invalid-feedback" id="error_discount_value"></div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <div class="price-summary-card">
-                                            <div>
-                                                <span class="price-summary-label">Final Price</span>
-                                                <div class="small text-muted">
-                                                    Diskon: <span id="discountAmountDisplay">Rp 0</span>
-                                                </div>
-                                            </div>
-                                            <strong class="price-summary-value" id="finalPriceDisplay">Rp0</strong>
-                                            <input type="hidden" id="discount_amount" value="0">
-                                            <input type="hidden" id="final_price" value="0">
-                                        </div>
-                                        <div class="invalid-feedback d-block" id="error_final_price"></div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label d-block mb-2">Payment Scheme <span class="text-danger">*</span></label>
-                                        <div class="payment-scheme-grid">
-                                            <label class="payment-option active" id="fullPaymentOption">
-                                                <input type="radio" name="payment_scheme" value="full" checked>
-                                                <span class="payment-option-icon"><i class="bi bi-credit-card-2-front"></i></span>
-                                                <span><strong>Full Payment</strong><small>Satu invoice untuk seluruh pembayaran.</small></span>
-                                            </label>
-                                            <label class="payment-option" id="installmentOption">
-                                                <input type="radio" name="payment_scheme" value="installment">
-                                                <span class="payment-option-icon"><i class="bi bi-calendar2-week"></i></span>
-                                                <span><strong>Installment</strong><small>Bagi pembayaran menjadi beberapa termin.</small></span>
-                                            </label>
-                                        </div>
-                                        <div class="invalid-feedback d-block" id="error_payment_scheme"></div>
-                                    </div>
-
-                                    <div class="col-12 d-none" id="installmentCountWrap">
-                                        <label for="installment_count" class="form-label">Number of Terms</label>
-                                        <select id="installment_count" class="form-select" style="max-width: 240px;">
-                                            @foreach(range(2, 12) as $termCount)
-                                                <option value="{{ $termCount }}" {{ $termCount === 2 ? 'selected' : '' }}>{{ $termCount }} Terms</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <div class="terms-card">
-                                            <div class="terms-header">
-                                                <div>
-                                                    <h6 class="mb-1" id="termsTitle">Payment Detail</h6>
-                                                    <p class="small text-muted mb-0">Tentukan nominal dan tanggal pembayaran.</p>
-                                                </div>
-                                                <span class="terms-status" id="termsStatus">Total sesuai</span>
-                                            </div>
-                                            <div id="paymentTermsContainer"></div>
-                                            <div class="terms-total-row">
-                                                <span>Total Payment Terms</span>
-                                                <strong id="termsTotalDisplay">Rp0</strong>
-                                            </div>
-                                            <div class="text-danger small mt-2 d-none" id="termsMismatchMessage">
-                                                Total nominal seluruh termin harus sama dengan Final Price.
-                                            </div>
-                                            <div class="invalid-feedback d-block" id="error_payment_terms"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="invoice_expiry_days" class="form-label">Payment Link Validity</label>
-                                        <div class="input-group">
-                                            <input type="number" id="invoice_expiry_days" class="form-control" min="1" max="365" value="3">
-                                            <span class="input-group-text">Days</span>
-                                        </div>
-                                        <div class="form-text">Masa berlaku link dihitung sejak invoice dibuat.</div>
-                                        <div class="invalid-feedback" id="error_invoice_expiry_days"></div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label for="payment_notes" class="form-label">Payment Notes</label>
-                                        <textarea id="payment_notes" class="form-control" rows="2" placeholder="Optional notes for this order"></textarea>
-                                        <div class="invalid-feedback" id="error_payment_notes"></div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <div class="generation-preview">
-                                            <i class="bi bi-info-circle-fill"></i>
-                                            <div>
-                                                <strong>Data yang dibuat setelah disimpan</strong>
-                                                <span id="generationPreviewText">1 student, 1 sales order, 1 payment schedule, dan 1 invoice/payment link.</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -912,74 +755,7 @@
         z-index: 1080;
     }
 
-    #studentModal .modal-dialog {
-        height: calc(100vh - 2rem);
-        max-height: calc(100vh - 2rem);
-        margin-top: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    #studentModal #studentForm {
-        display: flex;
-        width: 100%;
-        max-height: 100%;
-    }
-
-    #studentModal .modal-content {
-        display: flex;
-        width: 100%;
-        max-height: 100%;
-        overflow: hidden;
-    }
-
-    #studentModal .modal-header,
-    #studentModal .modal-footer {
-        flex: 0 0 auto;
-        background: #fff;
-    }
-
-    #studentModal .modal-body {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .initial-payment-section { padding: 1.25rem; border: 1px solid #e9e2f4; border-radius: 16px; background: linear-gradient(180deg, #fcfaff 0%, #fff 100%); }
-    .section-heading-row, .terms-header, .price-summary-card, .terms-total-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-    .section-kicker { margin-bottom: .25rem; color: #5B3E8E; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-    .section-title { color: #2d2438; font-weight: 700; }
-    .section-description { color: #6c757d; font-size: .875rem; max-width: 760px; }
-    .payment-flow-badge { color: #5B3E8E; background: #eee7f8; padding: .55rem .75rem; }
-    .price-summary-card { padding: 1rem 1.1rem; border: 1px solid #e5dcf1; border-radius: 12px; background: #fff; }
-    .price-summary-label { color: #4f455a; font-size: .85rem; font-weight: 600; }
-    .price-summary-value { color: #5B3E8E; font-size: 1.45rem; }
-    .payment-scheme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
-    .payment-option { display: flex; align-items: center; gap: .8rem; padding: 1rem; border: 1px solid #dee2e6; border-radius: 12px; background: #fff; cursor: pointer; transition: .18s ease; }
-    .payment-option:hover { border-color: #a992c9; }
-    .payment-option.active { border-color: #5B3E8E; box-shadow: 0 0 0 3px rgba(91, 62, 142, .1); }
-    .payment-option input { margin: 0; accent-color: #5B3E8E; }
-    .payment-option-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; color: #5B3E8E; background: #eee7f8; }
-    .payment-option strong, .payment-option small { display: block; }
-    .payment-option small { margin-top: .15rem; color: #6c757d; }
-    .terms-card { padding: 1rem; border: 1px solid #e5e7eb; border-radius: 14px; background: #f9fafb; }
-    .terms-status { padding: .3rem .6rem; border-radius: 999px; color: #20754a; background: #dcf5e7; font-size: .75rem; font-weight: 700; }
-    .terms-status.mismatch { color: #a33a3a; background: #fde2e2; }
-    .payment-term-row { display: grid; grid-template-columns: 90px minmax(180px, 1fr) minmax(170px, 1fr); gap: .75rem; align-items: end; padding: .85rem 0; border-bottom: 1px solid #e5e7eb; }
-    .term-number { align-self: center; color: #5B3E8E; font-weight: 700; }
-    .terms-total-row { padding-top: 1rem; }
-    .generation-preview { display: flex; gap: .75rem; padding: .9rem 1rem; border-radius: 12px; color: #49336f; background: #eee7f8; }
-    .generation-preview span { display: block; margin-top: .15rem; font-size: .85rem; }
-
     @media (max-width: 768px) {
-        #studentModal .modal-dialog {
-            height: calc(100vh - 1rem);
-            max-height: calc(100vh - 1rem);
-            margin: .5rem;
-        }
-
         .container-fluid.px-4 {
             padding-left: 1rem !important;
             padding-right: 1rem !important;
@@ -993,10 +769,6 @@
         .student-admin-table {
             min-width: 1080px;
         }
-
-        .payment-scheme-grid, .payment-term-row { grid-template-columns: 1fr; }
-        .term-number { padding-top: .25rem; }
-        .section-heading-row { align-items: flex-start; flex-direction: column; }
     }
 </style>
 @endpush
@@ -1017,139 +789,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('studentForm').addEventListener('submit', submitStudentForm);
     document.getElementById('confirmDeleteBtn').addEventListener('click', deleteStudent);
     document.getElementById('enrollForm').addEventListener('submit', submitEnrollForm);
-    document.getElementById('initial_batch_id').addEventListener('change', handleInitialBatchChange);
-    document.getElementById('discount_type').addEventListener('change', handleDiscountTypeChange);
-    document.getElementById('discount_value').addEventListener('input', syncPaymentPlan);
-    document.getElementById('installment_count').addEventListener('change', renderPaymentTerms);
-    document.querySelectorAll('input[name="payment_scheme"]').forEach(input => input.addEventListener('change', handlePaymentSchemeChange));
 });
-
-function formatRupiah(value) {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
-}
-
-function calculateFinalPrice() {
-    const regularPrice = Math.max(0, Number(document.getElementById('regular_price').value) || 0);
-    const type = document.getElementById('discount_type').value;
-    let discount = Math.max(0, Number(document.getElementById('discount_value').value) || 0);
-    if (type === 'percentage') discount = regularPrice * Math.min(discount, 100) / 100;
-    if (type === 'none') discount = 0;
-    return Math.max(0, Math.round(regularPrice - discount));
-}
-
-function calculateDiscountAmount() {
-    const regularPrice = Math.max(0, Number(document.getElementById('regular_price').value) || 0);
-    const type = document.getElementById('discount_type').value;
-    const input = Math.max(0, Number(document.getElementById('discount_value').value) || 0);
-
-    if (type === 'percentage') {
-        return Math.min(regularPrice, Math.round(regularPrice * Math.min(input, 100) / 100));
-    }
-
-    if (type === 'fixed') {
-        return Math.min(regularPrice, Math.round(input));
-    }
-
-    return 0;
-}
-
-function handleInitialBatchChange() {
-    const select = document.getElementById('initial_batch_id');
-    const selectedOption = select.options[select.selectedIndex];
-    const regularPrice = select.value && selectedOption
-        ? Math.max(0, Number(selectedOption.dataset.price) || 0)
-        : 0;
-
-    document.getElementById('regular_price').value = Math.round(regularPrice);
-    document.getElementById('regularPriceDisplay').innerText = formatRupiah(regularPrice);
-    syncPaymentPlan();
-}
-
-function handleDiscountTypeChange() {
-    const type = document.getElementById('discount_type').value;
-    const input = document.getElementById('discount_value');
-    input.disabled = type === 'none';
-    input.value = type === 'none' ? 0 : input.value;
-    input.max = type === 'percentage' ? 100 : '';
-    document.getElementById('discountPrefix').classList.toggle('d-none', type === 'percentage');
-    document.getElementById('discountSuffix').classList.toggle('d-none', type !== 'percentage');
-    syncPaymentPlan();
-}
-
-function handlePaymentSchemeChange() {
-    const scheme = document.querySelector('input[name="payment_scheme"]:checked').value;
-    document.getElementById('installmentCountWrap').classList.toggle('d-none', scheme !== 'installment');
-    document.getElementById('fullPaymentOption').classList.toggle('active', scheme === 'full');
-    document.getElementById('installmentOption').classList.toggle('active', scheme === 'installment');
-    document.getElementById('termsTitle').innerText = scheme === 'full' ? 'Payment Detail' : 'Installment Schedule';
-    document.getElementById('generationPreviewText').innerText = scheme === 'full'
-        ? '1 student, 1 sales order, 1 payment schedule, dan 1 invoice/payment link.'
-        : `${document.getElementById('installment_count').value} payment schedules dan invoice/payment link akan dibuat untuk student ini.`;
-    renderPaymentTerms();
-}
-
-function syncPaymentPlan() {
-    const discountAmount = calculateDiscountAmount();
-    const finalPrice = calculateFinalPrice();
-    document.getElementById('discount_amount').value = discountAmount;
-    document.getElementById('discountAmountDisplay').innerText = formatRupiah(discountAmount);
-    document.getElementById('final_price').value = finalPrice;
-    document.getElementById('finalPriceDisplay').innerText = formatRupiah(finalPrice);
-    renderPaymentTerms();
-}
-
-function renderPaymentTerms() {
-    const container = document.getElementById('paymentTermsContainer');
-    const scheme = document.querySelector('input[name="payment_scheme"]:checked')?.value || 'full';
-    const count = scheme === 'installment' ? Number(document.getElementById('installment_count').value) : 1;
-    const finalPrice = calculateFinalPrice();
-    const existingDates = [...container.querySelectorAll('.term-due-date')].map(input => input.value);
-    const baseAmount = Math.floor(finalPrice / count);
-    const remainder = finalPrice - (baseAmount * count);
-    container.innerHTML = '';
-
-    for (let index = 0; index < count; index++) {
-        const amount = baseAmount + (index === count - 1 ? remainder : 0);
-        const row = document.createElement('div');
-        row.className = 'payment-term-row';
-        row.innerHTML = `
-            <div class="term-number">${scheme === 'full' ? 'Payment' : `Term ${index + 1}`}</div>
-            <div>
-                <label class="form-label small">Amount <span class="text-danger">*</span></label>
-                <div class="input-group"><span class="input-group-text">Rp</span><input type="number" class="form-control term-amount" min="0" step="1000" value="${amount}"></div>
-            </div>
-            <div>
-                <label class="form-label small">Due Date <span class="text-danger">*</span></label>
-                <input type="date" class="form-control term-due-date" value="${existingDates[index] || ''}">
-            </div>`;
-        container.appendChild(row);
-    }
-    container.querySelectorAll('.term-amount').forEach(input => input.addEventListener('input', updateTermsTotal));
-    updateTermsTotal();
-}
-
-function updateTermsTotal() {
-    const total = [...document.querySelectorAll('.term-amount')].reduce((sum, input) => sum + (Number(input.value) || 0), 0);
-    const matches = total === calculateFinalPrice();
-    document.getElementById('termsTotalDisplay').innerText = formatRupiah(total);
-    document.getElementById('termsMismatchMessage').classList.toggle('d-none', matches);
-    document.getElementById('termsStatus').innerText = matches ? 'Total sesuai' : 'Total belum sesuai';
-    document.getElementById('termsStatus').classList.toggle('mismatch', !matches);
-}
-
-function resetInitialPaymentForm() {
-    document.getElementById('initial_batch_id').value = '';
-    document.getElementById('regular_price').value = 0;
-    document.getElementById('regularPriceDisplay').innerText = formatRupiah(0);
-    document.getElementById('discount_type').value = 'none';
-    document.getElementById('discount_value').value = 0;
-    document.getElementById('invoice_expiry_days').value = 3;
-    document.getElementById('payment_notes').value = '';
-    document.getElementById('installment_count').value = 2;
-    document.querySelector('input[name="payment_scheme"][value="full"]').checked = true;
-    handleDiscountTypeChange();
-    handlePaymentSchemeChange();
-}
 
 function csrfToken() {
     return document.querySelector('#studentForm input[name="_token"]')?.value || '{{ csrf_token() }}';
@@ -1230,7 +870,6 @@ function openCreateModal() {
 
     document.getElementById('studentModalTitle').innerText = 'Add Student';
     document.getElementById('student_id').value = '';
-    document.getElementById('initialPaymentSection').classList.remove('d-none');
 
     document.getElementById('full_name').value = '';
     document.getElementById('status').value = 'inactive';
@@ -1244,7 +883,6 @@ function openCreateModal() {
     document.getElementById('current_status').value = '';
     document.getElementById('source').value = '';
     document.getElementById('goal').value = '';
-    resetInitialPaymentForm();
 
     studentModal.show();
 }
@@ -1274,7 +912,6 @@ async function editStudent(id) {
 
         document.getElementById('studentModalTitle').innerText = 'Edit Student';
         document.getElementById('student_id').value = student.id;
-        document.getElementById('initialPaymentSection').classList.add('d-none');
 
         document.getElementById('full_name').value = student.full_name || '';
         document.getElementById('status').value = student.status || 'inactive';
@@ -1299,39 +936,10 @@ async function submitStudentForm(event) {
     event.preventDefault();
     resetStudentErrors();
 
-    const id = document.getElementById('student_id').value;
-
-    if (!id) {
-        const termRows = [...document.querySelectorAll('.payment-term-row')];
-        const termsTotal = termRows.reduce((sum, row) => sum + (Number(row.querySelector('.term-amount').value) || 0), 0);
-        const hasEmptyDueDate = termRows.some(row => !row.querySelector('.term-due-date').value);
-
-        if (!document.getElementById('initial_batch_id').value) {
-            document.getElementById('initial_batch_id').classList.add('is-invalid');
-            document.getElementById('error_initial_batch_id').innerText = 'Please select the initial program and batch.';
-            document.getElementById('initialPaymentSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
-
-        if (document.getElementById('regular_price').value === '') {
-            document.getElementById('regular_price').classList.add('is-invalid');
-            document.getElementById('error_regular_price').innerText = 'Regular price is required.';
-            document.getElementById('initialPaymentSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
-
-        if (termsTotal !== calculateFinalPrice() || hasEmptyDueDate) {
-            const message = hasEmptyDueDate
-                ? 'Please complete the due date for every payment term.'
-                : 'Total payment terms must be equal to the final price.';
-            document.getElementById('error_payment_terms').innerText = message;
-            document.getElementById('initialPaymentSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
-    }
-
     const submitBtn = document.getElementById('submitBtn');
     setButtonLoading(submitBtn, true);
+
+    const id = document.getElementById('student_id').value;
 
     const formData = new FormData();
     formData.append('_token', csrfToken());
@@ -1347,24 +955,6 @@ async function submitStudentForm(event) {
     formData.append('current_status', document.getElementById('current_status').value);
     formData.append('source', document.getElementById('source').value);
     formData.append('goal', document.getElementById('goal').value);
-
-    if (!id) {
-        const paymentScheme = document.querySelector('input[name="payment_scheme"]:checked').value;
-        formData.append('initial_batch_id', document.getElementById('initial_batch_id').value);
-        formData.append('regular_price', document.getElementById('regular_price').value);
-        formData.append('discount_type', document.getElementById('discount_type').value);
-        formData.append('discount_value', document.getElementById('discount_value').value);
-        formData.append('discount_amount', document.getElementById('discount_amount').value);
-        formData.append('final_price', document.getElementById('final_price').value);
-        formData.append('payment_scheme', paymentScheme);
-        formData.append('invoice_expiry_days', document.getElementById('invoice_expiry_days').value);
-        formData.append('payment_notes', document.getElementById('payment_notes').value);
-        document.querySelectorAll('.payment-term-row').forEach((row, index) => {
-            formData.append(`payment_terms[${index}][title]`, paymentScheme === 'full' ? 'Full Payment' : `Term ${index + 1}`);
-            formData.append(`payment_terms[${index}][amount]`, row.querySelector('.term-amount').value);
-            formData.append(`payment_terms[${index}][due_date]`, row.querySelector('.term-due-date').value);
-        });
-    }
 
     let url = '{{ route('students.store') }}';
 
