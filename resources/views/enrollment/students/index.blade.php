@@ -1116,7 +1116,7 @@ function renderPaymentTerms() {
             <div class="term-number">${scheme === 'full' ? 'Payment' : `Term ${index + 1}`}</div>
             <div>
                 <label class="form-label small">Amount <span class="text-danger">*</span></label>
-                <div class="input-group"><span class="input-group-text">Rp</span><input type="number" class="form-control term-amount" min="0" step="1000" value="${amount}"></div>
+                <div class="input-group"><span class="input-group-text">Rp</span><input type="number" class="form-control term-amount" min="0" step="1000" value="${amount}" ${scheme === 'full' || index === count - 1 ? 'readonly' : ''}></div>
             </div>
             <div>
                 <label class="form-label small">Due Date <span class="text-danger">*</span></label>
@@ -1124,7 +1124,46 @@ function renderPaymentTerms() {
             </div>`;
         container.appendChild(row);
     }
-    container.querySelectorAll('.term-amount').forEach(input => input.addEventListener('input', updateTermsTotal));
+    container.querySelectorAll('.term-amount').forEach((input, index) => {
+        input.addEventListener('input', () => redistributeRemainingTerms(index));
+    });
+    updateTermsTotal();
+}
+
+function redistributeRemainingTerms(changedIndex) {
+    const inputs = [...document.querySelectorAll('.term-amount')];
+    const finalPrice = calculateFinalPrice();
+
+    if (inputs.length <= 1) {
+        if (inputs[0]) inputs[0].value = finalPrice;
+        updateTermsTotal();
+        return;
+    }
+
+    const previousTotal = inputs
+        .slice(0, changedIndex)
+        .reduce((sum, input) => sum + Math.max(0, Number(input.value) || 0), 0);
+    const maximumCurrentAmount = Math.max(0, finalPrice - previousTotal);
+    const currentAmount = Math.min(
+        maximumCurrentAmount,
+        Math.max(0, Number(inputs[changedIndex]?.value) || 0)
+    );
+
+    inputs[changedIndex].value = currentAmount;
+
+    const fixedTotal = previousTotal + currentAmount;
+    const remainingInputs = inputs.slice(changedIndex + 1);
+    const remainingAmount = Math.max(0, finalPrice - fixedTotal);
+
+    if (remainingInputs.length > 0) {
+        const baseAmount = Math.floor(remainingAmount / remainingInputs.length);
+        const remainder = remainingAmount - (baseAmount * remainingInputs.length);
+
+        remainingInputs.forEach((input, index) => {
+            input.value = baseAmount + (index === remainingInputs.length - 1 ? remainder : 0);
+        });
+    }
+
     updateTermsTotal();
 }
 
