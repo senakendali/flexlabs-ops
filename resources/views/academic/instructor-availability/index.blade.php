@@ -83,7 +83,7 @@
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <button
                     type="button"
-                    class="btn btn-primary btn-modern"
+                    class="btn btn-light btn-modern"
                     onclick="openCreateModal()"
                 >
                     <i class="bi bi-plus-circle me-2"></i>Add Slot
