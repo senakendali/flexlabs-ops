@@ -80,7 +80,7 @@
                 <p class="page-subtitle mb-0">Manage markers for classes, deadlines, mentoring, presentations, and other academic activities.</p>
             </div>
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('academic.calendar.index') }}" class="btn btn-outline-light btn-modern">
+                <a href="{{ route('academic.calendar.index') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-calendar3 me-2"></i>View Calendar
                 </a>
                 <button type="button" class="btn btn-light btn-modern" onclick="openCreateModal()">

@@ -1527,6 +1527,18 @@ Route::middleware('auth')->group(function () {
             Route::get('/kommo-summary', [SalesDailyReportController::class, 'kommoSummary'])
                 ->name('kommo-summary');
 
+            /*
+            |--------------------------------------------------------------------------
+            | Paid Payment Revenue Summary
+            |--------------------------------------------------------------------------
+            |
+            | Mengambil total payment berstatus paid berdasarkan tanggal laporan.
+            | Harus diletakkan sebelum route /{salesDailyReport}.
+            |
+            */
+            Route::get('/payment-summary', [SalesDailyReportController::class, 'paymentSummary'])
+                ->name('payment-summary');
+
             Route::get('/{salesDailyReport}', [SalesDailyReportController::class, 'show'])->name('show');
             Route::get('/{salesDailyReport}/edit', [SalesDailyReportController::class, 'edit'])->middleware('permission:sales_daily_reports.update')->name('edit');
             Route::put('/{salesDailyReport}', [SalesDailyReportController::class, 'update'])->middleware('permission:sales_daily_reports.update')->name('update');

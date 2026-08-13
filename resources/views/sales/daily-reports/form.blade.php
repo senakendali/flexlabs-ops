@@ -34,6 +34,7 @@
         method="POST"
         data-redirect="{{ route('sales-daily-reports.index') }}"
         data-kommo-summary-url="{{ route('sales-daily-reports.kommo-summary') }}"
+        data-payment-summary-url="{{ route('sales-daily-reports.payment-summary') }}"
     >
         @csrf
         @if ($isEdit)
@@ -223,12 +224,26 @@
         </div>
 
         <div class="content-card mb-4">
-            <div class="content-card-header">
+            <div class="content-card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
                 <div>
                     <h5 class="content-card-title mb-1">Sales Outcome</h5>
                     <p class="content-card-subtitle mb-0">
                         Hasil akhir dari aktivitas sales hari ini. Bagian ini membantu management melihat performa nyata dalam bentuk deal dan revenue.
                     </p>
+                </div>
+
+                <div
+                    id="paymentSummaryStatus"
+                    class="d-inline-flex align-items-center gap-2 rounded-pill bg-light border px-3 py-2 small text-muted"
+                >
+                    <span
+                        id="paymentSummarySpinner"
+                        class="spinner-border spinner-border-sm d-none"
+                        role="status"
+                        aria-hidden="true"
+                    ></span>
+                    <i id="paymentSummaryIcon" class="bi bi-cash-coin"></i>
+                    <span id="paymentSummaryText">Menunggu tanggal laporan.</span>
                 </div>
             </div>
 
@@ -259,7 +274,9 @@
                             name="revenue"
                             class="form-control @error('revenue') is-invalid @enderror"
                             value="{{ old('revenue', $report->revenue ?? 0) }}"
+                            readonly
                         >
+                        <div class="form-text">Otomatis dari total payment berstatus paid pada tanggal laporan.</div>
                         <div class="invalid-feedback" id="error_revenue">
                             @error('revenue') {{ $message }} @enderror
                         </div>
@@ -355,13 +372,20 @@
     const submitBtn = document.getElementById('submitBtn');
     const formAlert = document.getElementById('formAlert');
     const kommoSummaryUrl = salesDailyReportForm.dataset.kommoSummaryUrl;
+    const paymentSummaryUrl = salesDailyReportForm.dataset.paymentSummaryUrl;
     const kommoSummaryStatus = document.getElementById('kommoSummaryStatus');
     const kommoSummarySpinner = document.getElementById('kommoSummarySpinner');
     const kommoSummaryIcon = document.getElementById('kommoSummaryIcon');
     const kommoSummaryText = document.getElementById('kommoSummaryText');
+    const paymentSummaryStatus = document.getElementById('paymentSummaryStatus');
+    const paymentSummarySpinner = document.getElementById('paymentSummarySpinner');
+    const paymentSummaryIcon = document.getElementById('paymentSummaryIcon');
+    const paymentSummaryText = document.getElementById('paymentSummaryText');
 
     let kommoSummaryAbortController = null;
     let kommoSummaryDebounceTimer = null;
+    let paymentSummaryAbortController = null;
+    let paymentSummaryDebounceTimer = null;
 
     const fields = {
         report_date: document.getElementById('report_date'),
@@ -484,6 +508,40 @@
         }
     }
 
+    function setPaymentSummaryStatus(type, message, isLoading = false) {
+        if (!paymentSummaryStatus || !paymentSummaryText) {
+            return;
+        }
+
+        const statusClasses = {
+            idle: 'd-inline-flex align-items-center gap-2 rounded-pill bg-light border px-3 py-2 small text-muted',
+            loading: 'd-inline-flex align-items-center gap-2 rounded-pill bg-info-subtle border border-info-subtle px-3 py-2 small text-info-emphasis',
+            success: 'd-inline-flex align-items-center gap-2 rounded-pill bg-success-subtle border border-success-subtle px-3 py-2 small text-success-emphasis',
+            warning: 'd-inline-flex align-items-center gap-2 rounded-pill bg-warning-subtle border border-warning-subtle px-3 py-2 small text-warning-emphasis',
+            danger: 'd-inline-flex align-items-center gap-2 rounded-pill bg-danger-subtle border border-danger-subtle px-3 py-2 small text-danger-emphasis',
+        };
+
+        const iconClasses = {
+            idle: 'bi bi-cash-coin',
+            loading: 'bi bi-cash-coin',
+            success: 'bi bi-check-circle',
+            warning: 'bi bi-exclamation-triangle',
+            danger: 'bi bi-x-circle',
+        };
+
+        paymentSummaryStatus.className = statusClasses[type] || statusClasses.idle;
+        paymentSummaryText.textContent = message;
+
+        if (paymentSummarySpinner) {
+            paymentSummarySpinner.classList.toggle('d-none', !isLoading);
+        }
+
+        if (paymentSummaryIcon) {
+            paymentSummaryIcon.className = iconClasses[type] || iconClasses.idle;
+            paymentSummaryIcon.classList.toggle('d-none', isLoading);
+        }
+    }
+
     function setKommoMetricFields(data = {}) {
         const metricKeys = [
             'total_leads',
@@ -573,13 +631,81 @@
         }, 350);
     }
 
+    async function fetchPaymentSummary(reportDate, options = {}) {
+        if (!reportDate) {
+            setPaymentSummaryStatus('idle', 'Menunggu tanggal laporan.');
+            return;
+        }
+
+        if (!paymentSummaryUrl) {
+            setPaymentSummaryStatus('warning', 'Endpoint payment summary belum tersedia.');
+            return;
+        }
+
+        if (paymentSummaryAbortController) {
+            paymentSummaryAbortController.abort();
+        }
+
+        paymentSummaryAbortController = new AbortController();
+        setPaymentSummaryStatus('loading', 'Menghitung revenue...', true);
+
+        try {
+            const url = new URL(paymentSummaryUrl, window.location.origin);
+            url.searchParams.set('date', reportDate);
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: paymentSummaryAbortController.signal,
+            });
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Gagal menghitung revenue dari payment.');
+            }
+
+            const revenue = Number(result.data?.revenue ?? 0);
+            fields.revenue.value = Number.isFinite(revenue) && revenue >= 0 ? revenue : 0;
+            fields.revenue.classList.remove('is-invalid');
+            setPaymentSummaryStatus('success', `Revenue ${reportDate} berhasil dihitung.`);
+
+            if (options.showToast) {
+                showToast(result.message || 'Revenue dari payment berhasil diperbarui.', 'success');
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
+            setPaymentSummaryStatus('danger', error.message || 'Gagal menghitung revenue dari payment.');
+
+            if (options.showToast) {
+                showToast(error.message || 'Gagal menghitung revenue dari payment.', 'danger');
+            }
+        }
+    }
+
+    function schedulePaymentSummaryFetch(reportDate, options = {}) {
+        clearTimeout(paymentSummaryDebounceTimer);
+
+        paymentSummaryDebounceTimer = setTimeout(() => {
+            fetchPaymentSummary(reportDate, options);
+        }, 350);
+    }
+
     if (fields.report_date) {
         fields.report_date.addEventListener('change', function () {
             scheduleKommoSummaryFetch(this.value, { showToast: true });
+            schedulePaymentSummaryFetch(this.value, { showToast: true });
         });
 
         if (fields.report_date.value) {
             scheduleKommoSummaryFetch(fields.report_date.value);
+            schedulePaymentSummaryFetch(fields.report_date.value);
         }
     }
 

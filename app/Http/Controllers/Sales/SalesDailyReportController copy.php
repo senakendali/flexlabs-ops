@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
 use App\Models\SalesDailyReport;
 use App\Services\KommoService;
 use Illuminate\Http\JsonResponse;
@@ -207,56 +206,6 @@ class SalesDailyReportController extends Controller
                 'meta' => [
                     'date' => $date,
                     'source' => 'kommo',
-                ],
-            ], 500);
-        }
-    }
-
-    public function paymentSummary(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'date' => ['required', 'date'],
-        ]);
-
-        $date = Carbon::parse($validated['date'])->toDateString();
-
-        try {
-            $revenue = Payment::query()
-                ->where('status', 'paid')
-                ->whereDate('payment_date', $date)
-                ->sum('amount');
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Revenue dari payment berhasil dihitung.',
-                'data' => [
-                    'revenue' => (float) $revenue,
-                ],
-                'meta' => [
-                    'date' => $date,
-                    'status' => 'paid',
-                    'source' => 'payments',
-                ],
-            ]);
-        } catch (Throwable $exception) {
-            Log::error('Failed to calculate paid payment revenue.', [
-                'date' => $date,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Revenue dari payment belum bisa dihitung. Silakan coba lagi.',
-                'error' => app()->hasDebugModeEnabled()
-                    ? $exception->getMessage()
-                    : null,
-                'data' => [
-                    'revenue' => 0,
-                ],
-                'meta' => [
-                    'date' => $date,
-                    'status' => 'paid',
-                    'source' => 'payments',
                 ],
             ], 500);
         }

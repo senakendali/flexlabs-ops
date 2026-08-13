@@ -120,7 +120,7 @@
             <div><div class="page-eyebrow">Academic</div><h1 class="page-title mb-2">Academic Calendar</h1><p class="page-subtitle mb-0">Monitor all running batches and academic activities in one monthly calendar.</p></div>
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <a href="{{ route('academic.schedules.index') }}" class="btn btn-light btn-modern"><i class="bi bi-list-check me-2"></i>Manage Schedules</a>
-                <a href="{{ route('academic.schedules.index') }}" class="btn btn-outline-light btn-modern"><i class="bi bi-plus-lg me-2"></i>Add Schedule</a>
+                <a href="{{ route('academic.schedules.index') }}" class="btn btn-light btn-modern"><i class="bi bi-plus-lg me-2"></i>Add Schedule</a>
             </div>
         </div>
     </div>

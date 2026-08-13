@@ -38,6 +38,8 @@ use App\Http\Controllers\Payment\XenditWebhookController;
 use App\Http\Controllers\Sales\SalesDailyReportController;
 use App\Http\Controllers\Sales\SalesPerformanceController;
 use App\Http\Controllers\Academic\CurriculumController;
+use App\Http\Controllers\Academic\AcademicCalendarController;
+use App\Http\Controllers\Academic\AcademicScheduleController;
 use App\Http\Controllers\Academic\AssignmentController;
 use App\Http\Controllers\Academic\BatchAssignmentController;
 use App\Http\Controllers\Academic\AssignmentSubmissionController;
@@ -1873,6 +1875,78 @@ Route::middleware('auth')->group(function () {
                         ->name('destroy');
                 });
         });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic - Calendar & Schedules
+    |--------------------------------------------------------------------------
+    |
+    | Academic Calendar:
+    | - academic.calendar.index
+    | - academic.calendar.events
+    |
+    | Academic Schedules:
+    | - academic.schedules.index
+    | - academic.schedules.create
+    | - academic.schedules.store
+    | - academic.schedules.show
+    | - academic.schedules.edit
+    | - academic.schedules.update
+    | - academic.schedules.destroy
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('academic')->name('academic.')->group(function () {
+        Route::prefix('calendar')
+            ->name('calendar.')
+            ->middleware('permission:academic_calendar.view')
+            ->controller(AcademicCalendarController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/events', 'events')->name('events');
+            });
+
+        Route::prefix('schedules')
+            ->name('schedules.')
+            ->controller(AcademicScheduleController::class)
+            ->group(function () {
+                Route::get('/', 'index')
+                    ->middleware('permission:academic_schedules.view')
+                    ->name('index');
+
+                Route::get('/create', 'create')
+                    ->middleware('permission:academic_schedules.create')
+                    ->name('create');
+
+                Route::post('/', 'store')
+                    ->middleware('permission:academic_schedules.create')
+                    ->name('store');
+
+                Route::get('/{academicSchedule}', 'show')
+                    ->whereNumber('academicSchedule')
+                    ->middleware('permission:academic_schedules.view')
+                    ->name('show');
+
+                Route::get('/{academicSchedule}/edit', 'edit')
+                    ->whereNumber('academicSchedule')
+                    ->middleware('permission:academic_schedules.update')
+                    ->name('edit');
+
+                Route::put('/{academicSchedule}', 'update')
+                    ->whereNumber('academicSchedule')
+                    ->middleware('permission:academic_schedules.update')
+                    ->name('update');
+
+                Route::patch('/{academicSchedule}', 'update')
+                    ->whereNumber('academicSchedule')
+                    ->middleware('permission:academic_schedules.update')
+                    ->name('patch');
+
+                Route::delete('/{academicSchedule}', 'destroy')
+                    ->whereNumber('academicSchedule')
+                    ->middleware('permission:academic_schedules.delete')
+                    ->name('destroy');
+            });
+    });
 
     /*
     |--------------------------------------------------------------------------
