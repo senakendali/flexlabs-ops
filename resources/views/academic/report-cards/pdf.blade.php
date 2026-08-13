@@ -705,7 +705,7 @@
                 @endif
             </div>
             <div class="signature-name">{{ $academicRepresentativeName }}</div>
-            <div class="signature-role">Academic Representative</div>
+            <div class="signature-role">Academic Manager</div>
         </td>
     </tr>
 </table>

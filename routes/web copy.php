@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Program\ProgramController;
 use App\Http\Controllers\Instructor\InstructorController;
@@ -11,6 +12,15 @@ use App\Http\Controllers\Trial\TrialScheduleController;
 use App\Http\Controllers\Trial\TrialParticipantController;
 use App\Http\Controllers\Trial\PublicTrialRegistrationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardLandingController;
+use App\Http\Controllers\ExecutiveCenter\ExecutiveDashboardController;
+use App\Http\Controllers\Sales\SalesDashboardController;
+use App\Http\Controllers\Finance\FinanceDashboardController;
+use App\Http\Controllers\Hr\HrDashboardController;
+use App\Http\Controllers\Hr\AttendanceImportController;
+use App\Http\Controllers\Hr\EmployeeController;
+use App\Http\Controllers\Hr\WorkingHourTemplateController;
+use App\Http\Controllers\Hr\CompanyHolidayController;
 use App\Http\Controllers\Operation\QuizController;
 use App\Http\Controllers\Operation\QuizQuestionController;
 use App\Http\Controllers\Operation\QuizOptionController;
@@ -73,6 +83,7 @@ use App\Http\Controllers\Academic\WorkshopScheduleController;
 use App\Http\Controllers\Academic\WorkshopParticipantController;
 use App\Http\Controllers\Academic\AcademicDashboardController;
 use App\Http\Controllers\Settings\UserManagementController;
+use App\Http\Controllers\Settings\TargetController;
 use App\Http\Controllers\PublicEventLeadController;
 use App\Http\Controllers\PublicSemLeadController;
 use App\Http\Controllers\Webhook\MetaLeadGoogleSheetWebhookController;
@@ -594,12 +605,382 @@ Route::post('/webhooks/meta-leads/google-sheet', [MetaLeadGoogleSheetWebhookCont
 
 /*
 |--------------------------------------------------------------------------
-| Dashboard
+| Dashboard Landing & Division Dashboards
+|--------------------------------------------------------------------------
+|
+| Smart landing:
+| - GET /dashboard
+|   Redirect berdasarkan role melalui DashboardLandingController.
+|
+| Management:
+| - GET /management/dashboard
+| - GET /super-admin/dashboard (legacy alias)
+|
+| Executive Center:
+| - GET /executive-center
+| - GET /executive-center/dashboard
+| - GET /executive-center/dashboard/data
+|
+| Division dashboards:
+| - academic.dashboard
+| - sales.dashboard
+| - sales.dashboard.chart-data
+| - marketing.dashboard
+| - finance.dashboard
+| - hr.dashboard
+| - hr.dashboard.chart-data
+| - hr.dashboard.monthly-report
+| - hr.dashboard.monthly-report-data
+| - hr.dashboard.employee-detail
+| - hr.dashboard.employee-detail-data
+|
+| Role mapping:
+| - super_admin / admin -> management.dashboard
+| - academic            -> academic.dashboard
+| - marketing           -> marketing.dashboard
+| - sales               -> sales.dashboard
+| - finance             -> finance.dashboard
+| - hr                  -> hr.dashboard
+|
+| Notes:
+| - Route "dashboard" tetap dipakai menu utama dan login redirect.
+| - Management Dashboard hanya dapat dibuka oleh Super Admin dan Admin.
+| - Executive Center terpisah dari Management Dashboard dan hanya dapat
+|   dibuka oleh Super Admin dan Admin.
+| - Alias "super-admin.dashboard" dipertahankan agar link lama tidak rusak.
+| - Setiap dashboard divisi tetap dilindungi permission masing-masing.
 |--------------------------------------------------------------------------
 */
-Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified', 'permission:dashboard.view'])
-    ->name('dashboard');
+Route::middleware(['auth', 'verified'])
+    ->group(function () {
+        /*
+        |--------------------------------------------------------------------------
+        | Smart Dashboard Landing
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/dashboard',
+            DashboardLandingController::class
+        )->name('dashboard');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Management Dashboard
+        |--------------------------------------------------------------------------
+        |
+        | Config akses saat ini memberikan wildcard "*" kepada:
+        | - super_admin
+        | - admin
+        |
+        | Karena belum ada middleware role khusus yang terkonfirmasi,
+        | validasi role dilakukan langsung pada route ini agar user divisi
+        | tidak dapat membuka Management Dashboard melalui URL.
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/management/dashboard',
+            function (
+                Request $request,
+                DashboardController $dashboardController
+            ) {
+                $user = $request->user();
+
+                abort_unless(
+                    $user
+                    && in_array(
+                        (string) $user->role,
+                        ['super_admin', 'admin'],
+                        true
+                    ),
+                    403,
+                    'Management Dashboard hanya dapat diakses oleh Super Admin dan Admin.'
+                );
+
+                return $dashboardController->index(
+                    $request
+                );
+            }
+        )->name('management.dashboard');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Legacy Super Admin Dashboard Alias
+        |--------------------------------------------------------------------------
+        */
+        Route::get(
+            '/super-admin/dashboard',
+            function () {
+                $user = request()->user();
+
+                abort_unless(
+                    $user
+                    && in_array(
+                        (string) $user->role,
+                        ['super_admin', 'admin'],
+                        true
+                    ),
+                    403,
+                    'Management Dashboard hanya dapat diakses oleh Super Admin dan Admin.'
+                );
+
+                return redirect()->route(
+                    'management.dashboard'
+                );
+            }
+        )->name('super-admin.dashboard');
+
+        /*
+        |----------------------------------------------------------------------
+        | Executive Center
+        |----------------------------------------------------------------------
+        |
+        | Executive Center merupakan modul read-only yang terpisah dari
+        | Management Dashboard. Halaman dashboard menyediakan monitoring KPI
+        | lintas centre, sedangkan endpoint data digunakan untuk pembaruan
+        | periode bulanan secara async.
+        |
+        | Route names:
+        | - executive-center.index
+        | - executive-center.dashboard
+        | - executive-center.dashboard.data
+        |
+        | Access:
+        | - super_admin
+        | - admin
+        |
+        | Role guard sengaja mengikuti Management Dashboard karena middleware
+        | role khusus untuk Executive Center belum tersedia.
+        |----------------------------------------------------------------------
+        */
+        Route::prefix('executive-center')
+            ->name('executive-center.')
+            ->group(function () {
+                Route::get('/', function (Request $request) {
+                    $user = $request->user();
+
+                    abort_unless(
+                        $user
+                        && in_array(
+                            (string) $user->role,
+                            ['super_admin', 'admin'],
+                            true
+                        ),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return redirect()->route(
+                        'executive-center.dashboard'
+                    );
+                })->name('index');
+
+                Route::get(
+                    '/dashboard',
+                    function (
+                        Request $request,
+                        ExecutiveDashboardController $executiveDashboardController
+                    ) {
+                        $user = $request->user();
+
+                        abort_unless(
+                            $user
+                            && in_array(
+                                (string) $user->role,
+                                ['super_admin', 'admin'],
+                                true
+                            ),
+                            403,
+                            'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                        );
+
+                        return $executiveDashboardController->index(
+                            $request
+                        );
+                    }
+                )->name('dashboard');
+
+                Route::get(
+                    '/dashboard/data',
+                    function (
+                        Request $request,
+                        ExecutiveDashboardController $executiveDashboardController
+                    ) {
+                        $user = $request->user();
+
+                        abort_unless(
+                            $user
+                            && in_array(
+                                (string) $user->role,
+                                ['super_admin', 'admin'],
+                                true
+                            ),
+                            403,
+                            'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                        );
+
+                        return $executiveDashboardController->data(
+                            $request
+                        );
+                    }
+                )->name('dashboard.data');
+
+                Route::get('/ai-executive-brief', function (
+                    Request $request,
+                    ExecutiveDashboardController $executiveDashboardController
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $executiveDashboardController->brief($request);
+                })->name('ai-executive-brief');
+
+                Route::get('/ai-executive-brief/data', function (
+                    Request $request,
+                    ExecutiveDashboardController $executiveDashboardController
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $executiveDashboardController->briefData($request);
+                })->name('ai-executive-brief.data');
+
+                Route::get('/kpi-scorecard', function (
+                    Request $request,
+                    \App\Http\Controllers\ExecutiveCenter\KpiScorecardController $controller
+                ) {
+                    abort_unless(
+                        $request->user()
+                        && in_array((string) $request->user()->role, ['super_admin', 'admin'], true),
+                        403,
+                        'Executive Center hanya dapat diakses oleh Super Admin dan Admin.'
+                    );
+
+                    return $controller($request);
+                })->name('kpi-scorecard');
+
+                Route::get('/business-attention', function (Request $request, \App\Http\Controllers\ExecutiveCenter\BusinessAttentionController $controller) {
+                    abort_unless($request->user() && in_array((string) $request->user()->role, ['super_admin', 'admin'], true), 403, 'Executive Center hanya dapat diakses oleh Super Admin dan Admin.');
+                    return $controller->index($request);
+                })->name('business-attention');
+
+                Route::get('/business-attention/data', function (Request $request, \App\Http\Controllers\ExecutiveCenter\BusinessAttentionController $controller) {
+                    abort_unless($request->user() && in_array((string) $request->user()->role, ['super_admin', 'admin'], true), 403, 'Executive Center hanya dapat diakses oleh Super Admin dan Admin.');
+                    return $controller->json($request);
+                })->name('business-attention.data');
+
+                Route::prefix('strategic-reports')->name('strategic-reports.')->group(function () {
+                    Route::get('/', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'index'])->name('index');
+                    Route::post('/', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'store'])->name('store');
+                    Route::get('/{strategicReport}', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'show'])->name('show');
+                    Route::post('/{strategicReport}/regenerate', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'regenerate'])->name('regenerate');
+                    Route::post('/{strategicReport}/finalize', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'finalize'])->name('finalize');
+                    Route::get('/{strategicReport}/pdf', [\App\Http\Controllers\ExecutiveCenter\StrategicReportController::class, 'pdf'])->name('pdf');
+                });
+            });
+
+        Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
+            ->middleware('permission:academic.dashboard.view')
+            ->name('academic.dashboard');
+
+        Route::get('/sales/dashboard', [SalesDashboardController::class, 'index'])
+            ->middleware('permission:sales.dashboard.view')
+            ->name('sales.dashboard');
+
+        Route::get('/sales/dashboard/chart-data', [SalesDashboardController::class, 'chartData'])
+            ->middleware('permission:sales.dashboard.view')
+            ->name('sales.dashboard.chart-data');
+
+        Route::get('/marketing/dashboard', [MarketingDashboardController::class, 'index'])
+            ->middleware('permission:marketing.dashboard.view')
+            ->name('marketing.dashboard');
+
+        Route::get('/finance/dashboard', [FinanceDashboardController::class, 'index'])
+            ->middleware('permission:finance.dashboard.view')
+            ->name('finance.dashboard');
+
+        /*
+        |--------------------------------------------------------------------------
+        | HR Dashboard
+        |--------------------------------------------------------------------------
+        |
+        | Main pages:
+        | - GET /hr/dashboard
+        | - GET /hr/dashboard/monthly-report
+        | - GET /hr/dashboard/employees/{employee}/attendance
+        |
+        | Async data:
+        | - GET /hr/dashboard/chart-data
+        | - GET /hr/dashboard/monthly-report/data
+        | - GET /hr/dashboard/employees/{employee}/attendance/data
+        |
+        | Route names:
+        | - hr.dashboard
+        | - hr.dashboard.chart-data
+        | - hr.dashboard.monthly-report
+        | - hr.dashboard.monthly-report-data
+        | - hr.dashboard.employee-detail
+        | - hr.dashboard.employee-detail-data
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('hr/dashboard')
+            ->middleware('permission:hr.dashboard.view')
+            ->controller(HrDashboardController::class)
+            ->group(function () {
+                /*
+                |--------------------------------------------------------------------------
+                | Overview
+                |--------------------------------------------------------------------------
+                */
+                Route::get('/', 'index')
+                    ->name('hr.dashboard');
+
+                Route::get('/chart-data', 'chartData')
+                    ->name('hr.dashboard.chart-data');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Monthly Attendance Report
+                |--------------------------------------------------------------------------
+                | Static report routes ditempatkan sebelum employee parameter.
+                |--------------------------------------------------------------------------
+                */
+                Route::get('/monthly-report', 'monthlyReport')
+                    ->name('hr.dashboard.monthly-report');
+
+                Route::get(
+                    '/monthly-report/data',
+                    'monthlyReportData'
+                )
+                    ->name('hr.dashboard.monthly-report-data');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Employee Attendance Detail
+                |--------------------------------------------------------------------------
+                */
+                Route::get(
+                    '/employees/{employee}/attendance',
+                    'employeeDetail'
+                )
+                    ->whereNumber('employee')
+                    ->name('hr.dashboard.employee-detail');
+
+                Route::get(
+                    '/employees/{employee}/attendance/data',
+                    'employeeDetailData'
+                )
+                    ->whereNumber('employee')
+                    ->name('hr.dashboard.employee-detail-data');
+            });
+    });
 
 
 /*
@@ -677,12 +1058,286 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Academic Dashboard
+    | HR - Attendance Import
+    |--------------------------------------------------------------------------
+    |
+    | Flow:
+    | - Upload Excel attendance dari Evertime
+    | - Parse dan simpan staging rows
+    | - Review missing attendance / leave / permission
+    | - Update satu row atau bulk adjustment
+    | - Confirm ke employee_attendances
+    |
+    | Main route names:
+    | - hr.attendance-imports.index
+    | - hr.attendance-imports.create
+    | - hr.attendance-imports.store
+    | - hr.attendance-imports.review
+    | - hr.attendance-imports.review-data
+    | - hr.attendance-imports.rows.update
+    | - hr.attendance-imports.bulk-update
+    | - hr.attendance-imports.confirm
+    | - hr.attendance-imports.cancel
+    | - hr.attendance-imports.destroy
+    |
+    | Backward compatibility:
+    | - hr.attendances.index tetap tersedia untuk menu lama.
     |--------------------------------------------------------------------------
     */
-    Route::get('/academic/dashboard', [AcademicDashboardController::class, 'index'])
-        ->middleware('permission:academic.dashboard.view')
-        ->name('academic.dashboard');
+    Route::prefix('hr')
+        ->name('hr.')
+        ->middleware('permission:hr.view')
+        ->group(function () {
+            /*
+            |--------------------------------------------------------------------------
+            | Legacy Attendance Menu Alias
+            |--------------------------------------------------------------------------
+            | Route lama tetap hidup agar konfigurasi sidebar/menu yang masih
+            | memakai hr.attendances.index tidak error selama masa transisi.
+            |--------------------------------------------------------------------------
+            */
+            Route::get('/attendances', [AttendanceImportController::class, 'index'])
+                ->middleware('permission:hr.attendances.view')
+                ->name('attendances.index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Attendance Imports
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('attendance-imports')
+                ->name('attendance-imports.')
+                ->middleware('permission:hr.attendances.view')
+                ->controller(AttendanceImportController::class)
+                ->group(function () {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Import History & Upload
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::get('/create', 'create')
+                        ->name('create');
+
+                    Route::post('/', 'store')
+                        ->name('store');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Review
+                    |--------------------------------------------------------------------------
+                    | Static/action routes ditempatkan dengan pola spesifik agar tidak
+                    | bentrok dengan parameter attendance import.
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get('/{attendanceImport}/review', 'review')
+                        ->whereNumber('attendanceImport')
+                        ->name('review');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Async Review Data
+                    |--------------------------------------------------------------------------
+                    | Mengembalikan HTML Blade partial + summary JSON untuk:
+                    | - Initial async attendance list
+                    | - Search dan filter tanpa full-page reload
+                    | - Refresh satu atau beberapa employee group
+                    | - Sinkronisasi summary dan status Confirm Import
+                    |
+                    | URL:
+                    | - GET /hr/attendance-imports/{attendanceImport}/review-data
+                    |
+                    | Route name:
+                    | - hr.attendance-imports.review-data
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::get(
+                        '/{attendanceImport}/review-data',
+                        'reviewData'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->name('review-data');
+
+                    Route::patch(
+                        '/{attendanceImport}/rows/{attendanceImportRow}',
+                        'updateRow'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->whereNumber('attendanceImportRow')
+                        ->name('rows.update');
+
+                    Route::patch(
+                        '/{attendanceImport}/bulk-update',
+                        'bulkUpdate'
+                    )
+                        ->whereNumber('attendanceImport')
+                        ->name('bulk-update');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Import Workflow Actions
+                    |--------------------------------------------------------------------------
+                    */
+                    Route::post('/{attendanceImport}/confirm', 'confirm')
+                        ->whereNumber('attendanceImport')
+                        ->name('confirm');
+
+                    Route::patch('/{attendanceImport}/cancel', 'cancel')
+                        ->whereNumber('attendanceImport')
+                        ->name('cancel');
+
+                    Route::delete('/{attendanceImport}', 'destroy')
+                        ->whereNumber('attendanceImport')
+                        ->name('destroy');
+                });
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Employee Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/employees
+            | - POST   /hr/employees
+            | - PUT    /hr/employees/{employee}
+            | - PATCH  /hr/employees/{employee}
+            | - DELETE /hr/employees/{employee}
+            |
+            | Route names:
+            | - hr.employees.index
+            | - hr.employees.store
+            | - hr.employees.update
+            | - hr.employees.patch
+            | - hr.employees.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('employees')
+                ->name('employees.')
+                ->middleware('permission:hr.employees.view')
+                ->controller(EmployeeController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.employees.create')
+                        ->name('store');
+
+                    Route::put('/{employee}', 'update')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.update')
+                        ->name('update');
+
+                    Route::patch('/{employee}', 'update')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.update')
+                        ->name('patch');
+
+                    Route::delete('/{employee}', 'destroy')
+                        ->whereNumber('employee')
+                        ->middleware('permission:hr.employees.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Working Hours Template Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/working-hour-templates
+            | - POST   /hr/working-hour-templates
+            | - PUT    /hr/working-hour-templates/{workingHourTemplate}
+            | - PATCH  /hr/working-hour-templates/{workingHourTemplate}
+            | - DELETE /hr/working-hour-templates/{workingHourTemplate}
+            |
+            | Route names:
+            | - hr.working-hour-templates.index
+            | - hr.working-hour-templates.store
+            | - hr.working-hour-templates.update
+            | - hr.working-hour-templates.patch
+            | - hr.working-hour-templates.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('working-hour-templates')
+                ->name('working-hour-templates.')
+                ->middleware('permission:hr.working_hour_templates.view')
+                ->controller(WorkingHourTemplateController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.working_hour_templates.create')
+                        ->name('store');
+
+                    Route::put('/{workingHourTemplate}', 'update')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.update')
+                        ->name('update');
+
+                    Route::patch('/{workingHourTemplate}', 'update')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.update')
+                        ->name('patch');
+
+                    Route::delete('/{workingHourTemplate}', 'destroy')
+                        ->whereNumber('workingHourTemplate')
+                        ->middleware('permission:hr.working_hour_templates.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Company Holiday Master
+            |--------------------------------------------------------------------------
+            |
+            | URL:
+            | - GET    /hr/company-holidays
+            | - POST   /hr/company-holidays
+            | - PUT    /hr/company-holidays/{companyHoliday}
+            | - PATCH  /hr/company-holidays/{companyHoliday}
+            | - DELETE /hr/company-holidays/{companyHoliday}
+            |
+            | Route names:
+            | - hr.company-holidays.index
+            | - hr.company-holidays.store
+            | - hr.company-holidays.update
+            | - hr.company-holidays.patch
+            | - hr.company-holidays.destroy
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('company-holidays')
+                ->name('company-holidays.')
+                ->middleware('permission:hr.company_holidays.view')
+                ->controller(CompanyHolidayController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:hr.company_holidays.create')
+                        ->name('store');
+
+                    Route::put('/{companyHoliday}', 'update')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.update')
+                        ->name('update');
+
+                    Route::patch('/{companyHoliday}', 'update')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.update')
+                        ->name('patch');
+
+                    Route::delete('/{companyHoliday}', 'destroy')
+                        ->whereNumber('companyHoliday')
+                        ->middleware('permission:hr.company_holidays.delete')
+                        ->name('destroy');
+                });
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -1084,37 +1739,140 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('settings')
-    ->name('settings.')
-    ->middleware('permission:users.view')
-    ->group(function () {
-        Route::get('/', fn () => view('settings.index'))
-            ->name('index');
+        ->name('settings.')
+        ->group(function () {
+            Route::get('/', fn () => view('settings.index'))
+                ->middleware('permission:users.view')
+                ->name('index');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Settings - User Management
-        |--------------------------------------------------------------------------
-        */
-        Route::prefix('users')
-            ->name('users.')
-            ->controller(UserManagementController::class)
-            ->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/create', 'create')->middleware('permission:users.create')->name('create');
-                Route::post('/', 'store')->middleware('permission:users.create')->name('store');
+            /*
+            |--------------------------------------------------------------------------
+            | Settings - User Management
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('users')
+                ->name('users.')
+                ->middleware('permission:users.view')
+                ->controller(UserManagementController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
 
-                Route::get('/{user}', 'show')->name('show');
-                Route::get('/{user}/edit', 'edit')->middleware('permission:users.update')->name('edit');
-                Route::put('/{user}', 'update')->middleware('permission:users.update')->name('update');
-                Route::patch('/{user}', 'update')->middleware('permission:users.update')->name('patch');
+                    Route::get('/create', 'create')
+                        ->middleware('permission:users.create')
+                        ->name('create');
 
-                Route::patch('/{user}/password', 'updatePassword')
-                    ->middleware('permission:users.update')
-                    ->name('password.update');
+                    Route::post('/', 'store')
+                        ->middleware('permission:users.create')
+                        ->name('store');
 
-                Route::delete('/{user}', 'destroy')->middleware('permission:users.delete')->name('destroy');
-            });
-    });
+                    Route::get('/{user}', 'show')
+                        ->whereNumber('user')
+                        ->name('show');
+
+                    Route::get('/{user}/edit', 'edit')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('edit');
+
+                    Route::put('/{user}', 'update')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('update');
+
+                    Route::patch('/{user}', 'update')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('patch');
+
+                    Route::patch('/{user}/password', 'updatePassword')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.update')
+                        ->name('password.update');
+
+                    Route::delete('/{user}', 'destroy')
+                        ->whereNumber('user')
+                        ->middleware('permission:users.delete')
+                        ->name('destroy');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Settings - Monthly Targets
+            |--------------------------------------------------------------------------
+            |
+            | Main page:
+            | - GET /settings/targets
+            |
+            | Target maintenance:
+            | - POST   /settings/targets
+            | - PUT    /settings/targets/{target}
+            | - PATCH  /settings/targets/{target}
+            | - DELETE /settings/targets/{target}
+            |
+            | Supporting actions:
+            | - POST  /settings/targets/copy-previous-month
+            | - PATCH /settings/targets/{target}/status
+            | - GET   /settings/targets/{target}/history
+            |
+            | Route names:
+            | - settings.targets.index
+            | - settings.targets.store
+            | - settings.targets.update
+            | - settings.targets.patch
+            | - settings.targets.destroy
+            | - settings.targets.copy-previous-month
+            | - settings.targets.status.update
+            | - settings.targets.history
+            |
+            | Notes:
+            | - Route statis ditempatkan sebelum route dengan parameter {target}.
+            | - Actual KPI tidak diinput melalui route ini karena akan dihitung
+            |   dari sumber data FlexOps.
+            | - Perubahan status digunakan untuk alur Draft, Active, dan Locked.
+            |--------------------------------------------------------------------------
+            */
+            Route::prefix('targets')
+                ->name('targets.')
+                ->middleware('permission:targets.view')
+                ->controller(TargetController::class)
+                ->group(function () {
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    Route::post('/copy-previous-month', 'copyPreviousMonth')
+                        ->middleware('permission:targets.create')
+                        ->name('copy-previous-month');
+
+                    Route::post('/', 'store')
+                        ->middleware('permission:targets.create')
+                        ->name('store');
+
+                    Route::get('/{target}/history', 'history')
+                        ->whereNumber('target')
+                        ->name('history');
+
+                    Route::patch('/{target}/status', 'updateStatus')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('status.update');
+
+                    Route::put('/{target}', 'update')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('update');
+
+                    Route::patch('/{target}', 'update')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.update')
+                        ->name('patch');
+
+                    Route::delete('/{target}', 'destroy')
+                        ->whereNumber('target')
+                        ->middleware('permission:targets.delete')
+                        ->name('destroy');
+                });
+        });
 
     /*
     |--------------------------------------------------------------------------
@@ -1594,6 +2352,10 @@ Route::middleware('auth')->group(function () {
                 Route::get('/{certificate}/download-pdf', [CertificateController::class, 'downloadPdf'])
                     ->whereNumber('certificate')
                     ->name('download-pdf');
+
+                Route::get('/{certificate}/view-pdf', [CertificateController::class, 'streamPdf'])
+                    ->whereNumber('certificate')
+                    ->name('view-pdf');
 
                 Route::get('/{certificate}', [CertificateController::class, 'show'])
                     ->whereNumber('certificate')
@@ -2179,7 +2941,7 @@ Route::middleware('auth')->group(function () {
 | - articles.destroy
 |
 | Notes:
-| - Menu Marketing → Tools pakai route articles.index.
+| - Menu Marketing â†’ Tools pakai route articles.index.
 | - Store/update/delete sudah support async JSON dari controller.
 | - AI generate route belum ditambahkan dulu karena service Gemini belum dibuat.
 |--------------------------------------------------------------------------
@@ -2298,8 +3060,6 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('marketing')->name('marketing.')->middleware('permission:marketing.view')->group(function () {
-        Route::get('/dashboard', [MarketingDashboardController::class, 'index'])->middleware('permission:marketing.dashboard.view')->name('dashboard');
-
         Route::prefix('plans')->name('plans.')->group(function () {
             Route::get('/', [MarketingPlanController::class, 'index'])->name('index');
             Route::post('/', [MarketingPlanController::class, 'store'])->name('store');

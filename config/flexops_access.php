@@ -60,6 +60,13 @@ return [
             'academic.view',
             'academic.dashboard.view',
 
+            'academic_calendar.view',
+
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'feedback_responses.view',
 
             'programs.view',
@@ -305,6 +312,12 @@ return [
 
             'academic.view',
 
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'enrollments.view',
             'enrollments.create',
             'enrollments.update',
@@ -455,6 +468,13 @@ return [
             'internal_memos.reject',
             'internal_memos.export',
 
+            'academic.view',
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'hr.view',
             'hr.dashboard.view',
 
@@ -513,6 +533,14 @@ return [
             'internal_memos.approve',
             'internal_memos.reject',
             'internal_memos.export',
+
+            'academic.view',
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'instructor_tracking.view',
             'instructor_tracking.create',
             'mentoring_sessions.view',
@@ -573,6 +601,8 @@ return [
             'dropdown_class' => 'dropdown-menu-academic dropdown-menu-mega',
             'active' => [
                 'academic.dashboard*',
+                'academic.calendar.*',
+                'academic.schedules.*',
                 'programs.*',
                 'batches.*',
                 'enrollments.*',
@@ -651,6 +681,22 @@ return [
                             'icon' => 'bi bi-diagram-3-fill',
                             'permission' => 'curriculum.view',
                             'desc' => 'Stage, module, topic, dan sub topic.',
+                        ],
+                        [
+                            'label' => 'Academic Calendar',
+                            'route' => 'academic.calendar.index',
+                            'active' => ['academic.calendar.*'],
+                            'icon' => 'bi bi-calendar3',
+                            'permission' => 'academic_calendar.view',
+                            'desc' => 'Lihat seluruh agenda akademik dan jadwal batch dalam kalender.',
+                        ],
+                        [
+                            'label' => 'Academic Schedules',
+                            'route' => 'academic.schedules.index',
+                            'active' => ['academic.schedules.*'],
+                            'icon' => 'bi bi-calendar-plus-fill',
+                            'permission' => 'academic_schedules.view',
+                            'desc' => 'Tambah dan kelola penanda jadwal kegiatan akademik.',
                         ],
                         [
                             'label' => 'Learning Videos',

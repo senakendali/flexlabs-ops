@@ -498,7 +498,7 @@
                                         @endif
                                     </div>
                                     <div class="signature-name">{{ $issuerName }}</div>
-                                    <div class="signature-role">Academic Representative</div>
+                                    <div class="signature-role">Academic Manager</div>
                                 </td>
                                 <td class="verification-cell">
                                     <div class="verification-wrap">
