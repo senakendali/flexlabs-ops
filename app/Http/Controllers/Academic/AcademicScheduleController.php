@@ -261,10 +261,6 @@ class AcademicScheduleController extends Controller
     {
         return User::query()
             ->select(['id', 'name'])
-            ->where(function (Builder $query) {
-                $query->where('role', 'instructor')
-                    ->orWhere('user_type', 'instructor');
-            })
             ->orderBy('name')
             ->get();
     }
