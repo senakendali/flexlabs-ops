@@ -24,9 +24,23 @@ class AcademicCalendarController extends Controller
 
         $runningBatches = Batch::query()
             ->with('program:id,name')
-            ->select(['id', 'program_id', 'name', 'start_date', 'end_date'])
-            ->whereDate('start_date', '<=', $today)
-            ->whereDate('end_date', '>=', $today)
+            ->select([
+                'id',
+                'program_id',
+                'name',
+                'status',
+                'start_date',
+                'end_date',
+            ])
+            ->whereIn('status', [
+                'ongoing',
+                'on_going',
+                'on going',
+            ])
+            ->where(function ($query) use ($today) {
+                $query->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $today);
+            })
             ->orderBy('start_date')
             ->orderBy('name')
             ->get();
