@@ -66,7 +66,7 @@ class AcademicCalendarController extends Controller
             ->with([
                 'program:id,name',
                 'batch:id,program_id,name',
-                'instructor:user_id,name',
+                'instructor:id,name',
             ])
             ->whereBetween('schedule_date', [$startDate, $endDate])
             ->when($validated['program_id'] ?? null, fn ($query, $programId) =>

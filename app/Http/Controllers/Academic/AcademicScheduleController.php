@@ -32,7 +32,7 @@ class AcademicScheduleController extends Controller
             ->with([
                 'program:id,name',
                 'batch:id,program_id,name',
-                'instructor:user_id,name',
+                'instructor:id,name',
                 'creator:id,name',
             ])
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
@@ -87,7 +87,7 @@ class AcademicScheduleController extends Controller
                 ]);
             });
 
-            $schedule->load(['program:id,name', 'batch:id,program_id,name', 'instructor:user_id,name']);
+            $schedule->load(['program:id,name', 'batch:id,program_id,name', 'instructor:id,name']);
 
             return response()->json([
                 'success' => true,
@@ -110,7 +110,7 @@ class AcademicScheduleController extends Controller
         $academicSchedule->load([
             'program:id,name',
             'batch:id,program_id,name',
-            'instructor:user_id,name',
+            'instructor:id,name',
             'creator:id,name',
         ]);
 
@@ -143,7 +143,7 @@ class AcademicScheduleController extends Controller
             $academicSchedule->refresh()->load([
                 'program:id,name',
                 'batch:id,program_id,name',
-                'instructor:user_id,name',
+                'instructor:id,name',
             ]);
 
             return response()->json([
@@ -229,7 +229,7 @@ class AcademicScheduleController extends Controller
                 'date_format:H:i',
                 'after:start_time',
             ],
-            'instructor_id' => ['nullable', 'integer', 'exists:instructors,user_id'],
+            'instructor_id' => ['nullable', 'integer', 'exists:instructors,id'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
@@ -260,8 +260,7 @@ class AcademicScheduleController extends Controller
     private function instructorOptions()
     {
         return Instructor::query()
-            ->select(['user_id', 'name'])
-            ->whereNotNull('user_id')
+            ->select(['id', 'name'])
             ->orderBy('name')
             ->get();
     }
