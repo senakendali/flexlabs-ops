@@ -53,7 +53,7 @@ class AcademicSchedule extends Model
 
     public function instructor(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'instructor_id');
+        return $this->belongsTo(Instructor::class, 'instructor_id', 'user_id');
     }
 
     public function creator(): BelongsTo

@@ -204,7 +204,7 @@
                     </div>
                     <div class="content-card"><div class="content-card-header"><div><h5 class="content-card-title mb-1">Additional Detail</h5><p class="content-card-subtitle mb-0">Instructor/PIC and notes are optional.</p></div></div>
                         <div class="content-card-body"><div class="row g-3">
-                            <div class="col-md-6"><label class="form-label">Instructor / PIC</label><select id="instructor_id" class="form-select"><option value="">Select Instructor / PIC</option>@foreach($instructors as $instructor)<option value="{{ $instructor->id }}">{{ $instructor->name }}</option>@endforeach</select><div id="error_instructor_id" class="invalid-feedback"></div></div>
+                            <div class="col-md-6"><label class="form-label">Instructor / PIC</label><select id="instructor_id" class="form-select"><option value="">Select Instructor / PIC</option>@foreach($instructors as $instructor)<option value="{{ $instructor->user_id }}">{{ $instructor->name }}</option>@endforeach</select><div id="error_instructor_id" class="invalid-feedback"></div></div>
                             <div class="col-12"><label class="form-label">Notes</label><textarea id="notes" rows="4" class="form-control" placeholder="Additional information for this schedule"></textarea><div id="error_notes" class="invalid-feedback"></div></div>
                         </div></div>
                     </div>
