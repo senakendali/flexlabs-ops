@@ -18,10 +18,10 @@ class StudentUpcomingSessionController extends Controller
     public function index(Request $request): JsonResponse
     {
         $student = $this->resolveStudent($request->user());
-        $batchIds = $this->resolveEnrollmentBatchIds($student);
+        [$programIds, $batchIds] = $this->resolveEnrollmentTargets($student);
 
         $mentoringSessions = $this->getMentoringSessions($student);
-        $liveSessions = $this->getLiveSessions($batchIds);
+        $liveSessions = $this->getLiveSessions($programIds, $batchIds);
 
         $sessions = $mentoringSessions
             ->merge($liveSessions)
@@ -65,18 +65,9 @@ class StudentUpcomingSessionController extends Controller
             ->values();
     }
 
-    private function getLiveSessions(Collection $batchIds): Collection
+    private function getLiveSessions(Collection $programIds, Collection $batchIds): Collection
     {
-        // Jangan jalankan query tanpa batch student. Tanpa guard ini,
-        // jadwal dari seluruh batch dapat ikut terkirim.
-        if ($batchIds->isEmpty()) {
-            return collect();
-        }
-
-        if (
-            !Schema::hasTable('instructor_schedules')
-            || !Schema::hasColumn('instructor_schedules', 'batch_id')
-        ) {
+        if (!Schema::hasTable('instructor_schedules')) {
             return collect();
         }
 
@@ -84,8 +75,17 @@ class StudentUpcomingSessionController extends Controller
             ->leftJoin('instructors', 'instructors.id', '=', 'instructor_schedules.instructor_id')
             ->leftJoin('batches', 'batches.id', '=', 'instructor_schedules.batch_id')
             ->leftJoin('programs', 'programs.id', '=', 'instructor_schedules.program_id')
-            ->whereIn('instructor_schedules.batch_id', $batchIds->all())
             ->whereDate('instructor_schedules.schedule_date', '>=', now()->toDateString());
+
+        $query->where(function ($targetQuery) use ($programIds, $batchIds) {
+            if ($batchIds->isNotEmpty() && Schema::hasColumn('instructor_schedules', 'batch_id')) {
+                $targetQuery->orWhereIn('instructor_schedules.batch_id', $batchIds);
+            }
+
+            if ($programIds->isNotEmpty() && Schema::hasColumn('instructor_schedules', 'program_id')) {
+                $targetQuery->orWhereIn('instructor_schedules.program_id', $programIds);
+            }
+        });
 
         if (Schema::hasColumn('instructor_schedules', 'status')) {
             $query->whereNotIn('instructor_schedules.status', [
@@ -221,7 +221,8 @@ class StudentUpcomingSessionController extends Controller
         }
 
         $user->loadMissing([
-            'student.activeEnrollments.batch',
+            'student.activeEnrollments.program',
+            'student.activeEnrollments.batch.program',
         ]);
 
         if (!$user->student) {
@@ -240,14 +241,24 @@ class StudentUpcomingSessionController extends Controller
             || ($user->role ?? null) === 'student';
     }
 
-    private function resolveEnrollmentBatchIds(Student $student): Collection
+    private function resolveEnrollmentTargets(Student $student): array
     {
-        return $student->activeEnrollments
+        $activeEnrollments = $student->activeEnrollments
             ->filter(fn ($enrollment) => ($enrollment->is_accessible ?? true))
-            ->pluck('batch_id')
+            ->values();
+
+        $programIds = $activeEnrollments
+            ->map(fn ($enrollment) => $enrollment->program?->id ?? $enrollment->batch?->program?->id)
             ->filter()
-            ->map(fn ($batchId) => (int) $batchId)
             ->unique()
             ->values();
+
+        $batchIds = $activeEnrollments
+            ->pluck('batch_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        return [$programIds, $batchIds];
     }
 }
