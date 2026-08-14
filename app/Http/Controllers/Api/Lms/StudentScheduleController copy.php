@@ -51,12 +51,6 @@ class StudentScheduleController extends Controller
 
     private function getLiveSessions(array $batchIds, string $timezone): Collection
     {
-        // Jangan jalankan query tanpa batch student karena dapat membuat
-        // seluruh jadwal dari semua batch ikut terkirim.
-        if (empty($batchIds)) {
-            return collect();
-        }
-
         $model = $this->firstExistingModel([
             \App\Models\Academic\InstructorSchedule::class,
             \App\Models\InstructorSchedule::class,
@@ -70,12 +64,6 @@ class StudentScheduleController extends Controller
         $table = $instance->getTable();
 
         if (!Schema::hasTable($table)) {
-            return collect();
-        }
-
-        // Live session wajib memiliki batch_id agar jadwal dapat dibatasi
-        // hanya untuk batch yang diikuti student.
-        if (!Schema::hasColumn($table, 'batch_id')) {
             return collect();
         }
 
@@ -114,7 +102,9 @@ class StudentScheduleController extends Controller
             $query->with($relations);
         }
 
-        $query->whereIn($table . '.batch_id', $batchIds);
+        if (!empty($batchIds) && Schema::hasColumn($table, 'batch_id')) {
+            $query->whereIn('batch_id', $batchIds);
+        }
 
         if ($dateColumn) {
             $query
@@ -136,12 +126,6 @@ class StudentScheduleController extends Controller
 
     private function getMentoringSessions(?int $studentId, array $batchIds, string $timezone): Collection
     {
-        // Jangan jalankan query tanpa student_id karena dapat membuat
-        // seluruh mentoring session milik student lain ikut terkirim.
-        if (!$studentId) {
-            return collect();
-        }
-
         $model = $this->firstExistingModel([
             \App\Models\StudentMentoringSession::class,
             \App\Models\Academic\StudentMentoringSession::class,
@@ -171,11 +155,9 @@ class StudentScheduleController extends Controller
             $query->with($relations);
         }
 
-        if (!Schema::hasColumn($table, 'student_id')) {
-            return collect();
+        if ($studentId && Schema::hasColumn($table, 'student_id')) {
+            $query->where('student_id', $studentId);
         }
-
-        $query->where($table . '.student_id', $studentId);
 
         if (Schema::hasColumn($table, 'status')) {
             $query->whereNotIn('status', [
