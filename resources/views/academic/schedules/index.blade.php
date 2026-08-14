@@ -204,7 +204,7 @@
                     </div>
                     <div class="content-card"><div class="content-card-header"><div><h5 class="content-card-title mb-1">Additional Detail</h5><p class="content-card-subtitle mb-0">Instructor/PIC and notes are optional.</p></div></div>
                         <div class="content-card-body"><div class="row g-3">
-                            <div class="col-md-6"><label class="form-label">Instructor / PIC</label><select id="instructor_id" class="form-select"><option value="">Select Instructor / PIC</option>@foreach($instructors as $instructor)<option value="{{ $instructor->user_id }}">{{ $instructor->name }}</option>@endforeach</select><div id="error_instructor_id" class="invalid-feedback"></div></div>
+                            <div class="col-md-6"><label class="form-label">Instructor / PIC</label><select id="instructor_id" class="form-select"><option value="">Select Instructor / PIC</option>@foreach($instructors as $instructor)<option value="{{ $instructor->id }}">{{ $instructor->name }}</option>@endforeach</select><div id="error_instructor_id" class="invalid-feedback"></div></div>
                             <div class="col-12"><label class="form-label">Notes</label><textarea id="notes" rows="4" class="form-control" placeholder="Additional information for this schedule"></textarea><div id="error_notes" class="invalid-feedback"></div></div>
                         </div></div>
                     </div>
@@ -264,9 +264,36 @@ function resetForm(){scheduleForm.reset();fields.id.value='';document.getElement
 function clearErrors(){Object.entries(fields).forEach(([k,f])=>{f.classList?.remove('is-invalid');const e=document.getElementById(`error_${k}`);if(e)e.textContent=''})}
 function setErrors(errors={}){clearErrors();Object.entries(errors).forEach(([k,m])=>{fields[k]?.classList.add('is-invalid');const e=document.getElementById(`error_${k}`);if(e)e.textContent=Array.isArray(m)?m[0]:m})}
 function toggleAllDay(){const all=fields.is_all_day.checked;document.querySelectorAll('.time-field').forEach(el=>el.classList.toggle('d-none',all));if(all){fields.start_time.value='';fields.end_time.value=''}}
+function normalizeDateInput(value){return value ? String(value).slice(0,10) : ''}
+function normalizeTimeInput(value){return value ? String(value).slice(0,5) : ''}
 function setSubmitLoading(v){submitBtn.disabled=v;submitBtn.querySelector('.default-text').classList.toggle('d-none',v);submitBtn.querySelector('.loading-text').classList.toggle('d-none',!v)}
 function openCreateModal(){resetForm();document.getElementById('scheduleModalTitle').textContent='Add Schedule';fields.schedule_date.value=new Date().toISOString().slice(0,10);scheduleModal.show()}
-async function editSchedule(id){resetForm();document.getElementById('scheduleModalTitle').textContent='Edit Schedule';try{const d=await fetchSchedule(id);Object.keys(fields).forEach(k=>{if(k==='id')fields.id.value=d.id;else if(k==='is_all_day')fields[k].checked=!!d[k];else if(fields[k])fields[k].value=d[k]??''});filterOptions(fields.batch_id,fields.program_id.value);fields.batch_id.value=d.batch_id??'';toggleAllDay();scheduleModal.show()}catch(e){showToast(e.message,'danger')}}
+async function editSchedule(id){
+    resetForm();
+    document.getElementById('scheduleModalTitle').textContent='Edit Schedule';
+
+    try {
+        const d=await fetchSchedule(id);
+
+        fields.id.value=d.id;
+        fields.title.value=d.title??'';
+        fields.program_id.value=d.program_id??'';
+        filterOptions(fields.batch_id,fields.program_id.value);
+        fields.batch_id.value=d.batch_id??'';
+        fields.schedule_type.value=d.schedule_type??'';
+        fields.schedule_date.value=normalizeDateInput(d.schedule_date);
+        fields.is_all_day.checked=Boolean(d.is_all_day);
+        fields.start_time.value=normalizeTimeInput(d.start_time);
+        fields.end_time.value=normalizeTimeInput(d.end_time);
+        fields.instructor_id.value=d.instructor_id??'';
+        fields.notes.value=d.notes??'';
+
+        toggleAllDay();
+        scheduleModal.show();
+    } catch(e) {
+        showToast(e.message,'danger');
+    }
+}
 fields.program_id.addEventListener('change',()=>filterOptions(fields.batch_id,fields.program_id.value));fields.is_all_day.addEventListener('change',toggleAllDay);
 scheduleForm.addEventListener('submit',async e=>{e.preventDefault();clearErrors();const alert=document.getElementById('formAlert');alert.classList.add('d-none');const id=fields.id.value,payload={};Object.keys(fields).forEach(k=>{if(k!=='id')payload[k]=k==='is_all_day'?fields[k].checked:(fields[k].value||null)});setSubmitLoading(true);try{const response=await fetch(id?`${scheduleBaseUrl}/${id}`:scheduleBaseUrl,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json',Accept:'application/json','X-CSRF-TOKEN':csrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});const result=await response.json();if(response.status===422){setErrors(result.errors||{});throw new Error('Please review the highlighted fields.')}if(!response.ok||!result.success)throw new Error(result.message||'Failed to save schedule.');scheduleModal.hide();showToast(result.message);setTimeout(()=>location.reload(),900)}catch(err){alert.textContent=err.message;alert.classList.remove('d-none')}finally{setSubmitLoading(false)}});
 
