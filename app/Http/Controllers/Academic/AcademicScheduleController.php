@@ -115,7 +115,19 @@ class AcademicScheduleController extends Controller
         ]);
 
         if ($request->expectsJson()) {
-            return response()->json(['success' => true, 'data' => $academicSchedule]);
+            $data = $academicSchedule->toArray();
+
+            // Use the raw database values for date/time form fields. This
+            // prevents Laravel's JSON timezone conversion from shifting the
+            // schedule date one day backward in browsers using UTC+ offsets.
+            $data['schedule_date'] = $academicSchedule->getRawOriginal('schedule_date');
+            $data['start_time'] = $academicSchedule->getRawOriginal('start_time');
+            $data['end_time'] = $academicSchedule->getRawOriginal('end_time');
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
         }
 
         return view('academic.schedules.show', compact('academicSchedule'));
