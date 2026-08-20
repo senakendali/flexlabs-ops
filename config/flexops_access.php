@@ -396,6 +396,11 @@ return [
             'sales_orders.create',
             'sales_orders.update',
 
+            'group_registrations.view',
+            'group_registrations.create',
+            'group_registrations.update',
+            'group_registrations.delete',
+
             'meeting_minutes.view',
             'equipment.view',
             'equipment_borrowings.view',
@@ -418,6 +423,11 @@ return [
 
             'academic.view',
 
+            // Finance tetap dapat membuka dropdown Sales untuk mengakses
+            // Group Registration. Item Sales lainnya tetap mengikuti
+            // permission masing-masing.
+            'sales.view',
+
             'workshops.view',
 
             'workshop_schedules.view',
@@ -436,6 +446,11 @@ return [
             'sales_orders.view',
             'sales_orders.create',
             'sales_orders.update',
+
+            'group_registrations.view',
+            'group_registrations.create',
+            'group_registrations.update',
+            'group_registrations.delete',
 
             'payment_schedules.view',
             'payment_schedules.create',
@@ -971,6 +986,7 @@ return [
                 //'feedback.responses.*',
                 'sales-orders.*',
                 'orders.*',
+                'group-registrations.*',
             ],
             'sections' => [
                 [
@@ -1012,6 +1028,13 @@ return [
                             'active' => ['orders.*', 'sales-orders.*'],
                             'icon' => 'bi bi-receipt-cutoff',
                             'permission' => 'orders.view',
+                        ],
+                        [
+                            'label' => 'Group Registration',
+                            'route' => 'group-registrations.index',
+                            'active' => ['group-registrations.*'],
+                            'icon' => 'bi bi-people-fill',
+                            'permission' => 'group_registrations.view',
                         ],
                     ],
                 ],

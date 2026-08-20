@@ -6,6 +6,16 @@
     <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
 
     <style>
+        .invoice-title {
+            font-family: "Arial Black", "Arial Bold", Arial, Helvetica, sans-serif !important;
+            font-weight: 900 !important;
+            font-style: normal !important;
+            letter-spacing: -0.065em !important;
+            line-height: 0.9 !important;
+            color: #000000 !important;
+            text-transform: uppercase;
+        }
+
         [x-cloak] {
             display: none !important;
         }
@@ -13,6 +23,87 @@
         #invoiceDocument.invoice-exporting {
             box-shadow: none !important;
             transform: none !important;
+        }
+
+        #invoiceDocument.invoice-exporting .invoice-table {
+            --bs-table-border-color: transparent !important;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+            border: 0 !important;
+        }
+
+        #invoiceDocument.invoice-exporting .invoice-table > :not(caption) > * > *,
+        #invoiceDocument.invoice-exporting .invoice-table thead,
+        #invoiceDocument.invoice-exporting .invoice-table tbody,
+        #invoiceDocument.invoice-exporting .invoice-table tr,
+        #invoiceDocument.invoice-exporting .invoice-table th,
+        #invoiceDocument.invoice-exporting .invoice-table td {
+            border: 0 !important;
+            border-width: 0 !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            outline: 0 !important;
+        }
+
+        /*
+         * html2canvas dapat membuat garis tipis di antara setiap TH ketika
+         * background ungu dirender per-cell lalu diperkecil ke ukuran A4.
+         * Render warna header sebagai satu bidang pada TR, bukan per-cell.
+         */
+        #invoiceDocument.invoice-exporting .invoice-table thead,
+        #invoiceDocument.invoice-exporting .invoice-table thead tr {
+            background: #5b3e8e !important;
+            background-color: #5b3e8e !important;
+        }
+
+        #invoiceDocument.invoice-exporting .invoice-table thead th {
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            background-clip: border-box !important;
+        }
+
+        #invoiceDocument.invoice-exporting .invoice-table th::before,
+        #invoiceDocument.invoice-exporting .invoice-table th::after,
+        #invoiceDocument.invoice-exporting .invoice-table td::before,
+        #invoiceDocument.invoice-exporting .invoice-table td::after {
+            display: none !important;
+            content: none !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .group-tax-summary {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border: 1px solid #e6dcf5;
+            border-radius: 14px;
+            background: #faf7ff;
+        }
+
+        .group-tax-summary .invoice-summary-table {
+            width: 100%;
+        }
+
+        .group-tax-summary .invoice-summary-table td {
+            padding: 7px 0;
+            border-bottom: 1px solid #ece5f6;
+        }
+
+        .group-tax-summary .invoice-summary-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .group-tax-summary .group-wht-row td {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
+        .group-tax-summary .group-total-due-row td {
+            padding-top: 11px;
+            color: #1f2937;
+            font-size: 15px;
+            font-weight: 800;
         }
 
         @page {
@@ -33,6 +124,8 @@
         try {
             $freshOrder = \App\Models\Order::with([
                 'student:id,full_name,email,phone,city',
+                'groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,buyer_name,buyer_email,buyer_phone',
+                'groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
                 'batch:id,program_id,name,start_date,end_date',
                 'batch.program:id,name',
                 'workshop',
@@ -47,7 +140,34 @@
         }
     }
 
-    $student = $student ?? $order?->student;
+    $groupRegistration = $order?->groupRegistration;
+
+    if ($groupRegistration) {
+        // Pada Group Registration, buyer/payer tidak wajib menjadi student.
+        // Karena orders.student_id memang null, identitas customer harus
+        // diambil dari snapshot buyer pada group_registrations.
+        $student = (object) [
+            'id' => $groupRegistration->buyer_student_id,
+            'full_name' => $groupRegistration->buyer_name
+                ?: $groupRegistration->company?->name
+                ?: 'Group Registration Buyer',
+            'email' => $groupRegistration->buyer_email
+                ?: $groupRegistration->company?->pic_email
+                ?: $groupRegistration->company?->email,
+            'phone' => $groupRegistration->buyer_phone
+                ?: $groupRegistration->company?->pic_phone
+                ?: $groupRegistration->company?->phone,
+            'city' => null,
+            'address' => $groupRegistration->company?->address,
+            'buyer_type' => $groupRegistration->buyer_type,
+            'registration_number' => $groupRegistration->registration_number,
+            'company_name' => $groupRegistration->company?->name,
+            'tax_id' => $groupRegistration->company?->tax_id,
+        ];
+    } else {
+        $student = $student ?? $order?->student;
+    }
+
     $batch = $batch ?? $order?->batch;
     $program = $program ?? $batch?->program;
     $schedule = $schedule ?? $payment->paymentSchedule;
@@ -147,7 +267,22 @@
     $rawFinalPrice = (float) ($order?->final_price ?? 0);
     $currentInvoiceAmount = (float) ($currentInvoiceAmount ?? $currentDocumentAmount ?? $payment->amount ?? $schedule?->amount ?? 0);
 
-    $controllerItems = collect($items ?? $financialSummaryRows ?? $invoiceBreakdownRows ?? [])->values();
+    // Gunakan financial rows yang sama dengan admin invoice sebagai sumber utama.
+    // Jangan memakai null-coalescing langsung ke $items karena empty array tetap
+    // dianggap tersedia dan dapat menutupi financialSummaryRows yang lebih lengkap.
+    $controllerItems = collect($financialSummaryRows ?? [])->values();
+
+    if ($controllerItems->isEmpty()) {
+        $controllerItems = collect($financialRows ?? [])->values();
+    }
+
+    if ($controllerItems->isEmpty()) {
+        $controllerItems = collect($invoiceBreakdownRows ?? [])->values();
+    }
+
+    if ($controllerItems->isEmpty()) {
+        $controllerItems = collect($items ?? [])->values();
+    }
 
     if ($isWorkshopDocument) {
         $currentInvoiceAmount = $currentInvoiceAmount > 0
@@ -295,6 +430,7 @@
         ?: ($payment->gateway_provider ? ucfirst($payment->gateway_provider) : 'Payment Link');
 
     $studentAddressParts = collect([
+        $student->address ?? null,
         $student->city ?? null,
     ])->filter()->implode(', ');
 
@@ -459,6 +595,49 @@
                     </section>
 
                     <section class="invoice-table-section">
+                        @php
+                            $groupOrderItems = collect($groupOrderItems ?? [])->values();
+                        @endphp
+
+                        @if ($groupOrderItems->isNotEmpty())
+                            <div class="invoice-table-wrap">
+                                <table class="invoice-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 52px; text-align: center;">No</th>
+                                            <th>Description</th>
+                                            <th style="width: 70px; text-align: center;">QTY</th>
+                                            <th class="invoice-table-price">Unit Price</th>
+                                            <th class="invoice-table-price">Discount</th>
+                                            <th class="invoice-table-amount">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($groupOrderItems as $groupItem)
+                                            <tr>
+                                                <td style="text-align: center;">{{ $groupItem['no'] }}</td>
+                                                <td>
+                                                    <div class="invoice-item-title">{{ $groupItem['description'] }}</div>
+
+                                                    @if (!empty($groupItem['participant_name']))
+                                                        <div class="invoice-item-subtitle">
+                                                            {{ $groupItem['participant_name'] }}
+                                                            @if (!empty($groupItem['participant_email']))
+                                                                &middot; {{ $groupItem['participant_email'] }}
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                                <td style="text-align: center;">{{ $groupItem['qty'] }}</td>
+                                                <td class="invoice-table-price">{{ $formatMoney($groupItem['unit_price']) }}</td>
+                                                <td class="invoice-table-price">{{ $formatMoney($groupItem['discount']) }}</td>
+                                                <td class="invoice-table-amount">{{ $formatMoney($groupItem['amount']) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
                         <div class="invoice-table-wrap">
                             <table class="invoice-table">
                                 <thead>
@@ -524,7 +703,38 @@
                                 </tbody>
                             </table>
                         </div>
+                        @endif
 
+                        @if ($groupOrderItems->isNotEmpty() && (bool) ($usesWht ?? false))
+                            <div class="invoice-summary-wrap group-tax-summary">
+                                <table class="invoice-summary-table">
+                                    <tr>
+                                        <td>Subtotal</td>
+                                        <td>{{ $formatMoney($amountBeforeVat ?? 0) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gross Up WHT</td>
+                                        <td>{{ $formatMoney($totalInvoiceAmount ?? 0) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>VAT Calculation Base</td>
+                                        <td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>VAT (12%)</td>
+                                        <td>{{ $formatMoney($vatAmount ?? 0) }}</td>
+                                    </tr>
+                                    <tr class="group-wht-row">
+                                        <td>WHT ({{ number_format((float) ($whtRate ?? 2), 0) }}%)</td>
+                                        <td>{{ $formatMoney($whtAmount ?? 0) }}</td>
+                                    </tr>
+                                    <tr class="group-total-due-row">
+                                        <td>Total Due</td>
+                                        <td>{{ $formatMoney($grandTotal ?? $currentInvoiceAmount ?? 0) }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        @else
                         <div class="invoice-summary-wrap">
                             <table class="invoice-summary-table">
                                 <tr>
@@ -547,6 +757,7 @@
                                 @endif
                             </table>
                         </div>
+                        @endif
                     </section>
 
                     <section class="invoice-payment-section">

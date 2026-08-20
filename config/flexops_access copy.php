@@ -49,8 +49,6 @@ return [
         ],
 
         'academic' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -61,6 +59,15 @@ return [
 
             'academic.view',
             'academic.dashboard.view',
+
+            'academic_calendar.view',
+
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
+            'feedback_responses.view',
 
             'programs.view',
             'programs.create',
@@ -210,8 +217,6 @@ return [
         ],
 
         'marketing' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -297,8 +302,6 @@ return [
         ],
 
         'sales' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -308,6 +311,12 @@ return [
             'internal_memos.export',
 
             'academic.view',
+
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
 
             'enrollments.view',
             'enrollments.create',
@@ -355,6 +364,7 @@ return [
             'public_learning_materials.delete',
 
             'sales.view',
+            'sales.dashboard.view',
 
             'sales_daily_reports.view',
             'sales_daily_reports.create',
@@ -398,8 +408,6 @@ return [
         ],
 
         'finance' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -423,6 +431,7 @@ return [
             'workshop_participants.delete',
 
             'finance.view',
+            'finance.dashboard.view',
 
             'sales_orders.view',
             'sales_orders.create',
@@ -451,8 +460,6 @@ return [
         ],
 
         'hr' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -461,7 +468,34 @@ return [
             'internal_memos.reject',
             'internal_memos.export',
 
+            'academic.view',
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'hr.view',
+            'hr.dashboard.view',
+
+            'hr.attendances.view',
+            'hr.attendances.create',
+            'hr.attendances.update',
+
+            'hr.employees.view',
+            'hr.employees.create',
+            'hr.employees.update',
+            'hr.employees.delete',
+
+            'hr.working_hour_templates.view',
+            'hr.working_hour_templates.create',
+            'hr.working_hour_templates.update',
+            'hr.working_hour_templates.delete',
+
+            'hr.company_holidays.view',
+            'hr.company_holidays.create',
+            'hr.company_holidays.update',
+            'hr.company_holidays.delete',
 
             'instructors.view',
             'instructor_availability.view',
@@ -492,8 +526,6 @@ return [
         ],
 
         'instructor' => [
-            'dashboard.view',
-
             'internal_memos.view',
             'internal_memos.create',
             'internal_memos.update',
@@ -501,6 +533,14 @@ return [
             'internal_memos.approve',
             'internal_memos.reject',
             'internal_memos.export',
+
+            'academic.view',
+            'academic_calendar.view',
+            'academic_schedules.view',
+            'academic_schedules.create',
+            'academic_schedules.update',
+            'academic_schedules.delete',
+
             'instructor_tracking.view',
             'instructor_tracking.create',
             'mentoring_sessions.view',
@@ -546,7 +586,11 @@ return [
             'route' => 'dashboard',
             'icon' => 'bi bi-grid-1x2-fill',
             'permission' => 'dashboard.view',
-            'active' => ['dashboard'],
+            'active' => [
+                'dashboard',
+                'management.dashboard',
+                'super-admin.dashboard',
+            ],
         ],
 
         [
@@ -557,11 +601,14 @@ return [
             'dropdown_class' => 'dropdown-menu-academic dropdown-menu-mega',
             'active' => [
                 'academic.dashboard*',
+                'academic.calendar.*',
+                'academic.schedules.*',
                 'programs.*',
                 'batches.*',
                 'enrollments.*',
                 'students.*',
                 'academic.student-progress.*',
+                'feedback.responses.*',
                 'curriculum.*',
                 'public-learning-materials.*',
                 'academic.learning-videos.*',
@@ -636,6 +683,22 @@ return [
                             'desc' => 'Stage, module, topic, dan sub topic.',
                         ],
                         [
+                            'label' => 'Academic Calendar',
+                            'route' => 'academic.calendar.index',
+                            'active' => ['academic.calendar.*'],
+                            'icon' => 'bi bi-calendar3',
+                            'permission' => 'academic_calendar.view',
+                            'desc' => 'Lihat seluruh agenda akademik dan jadwal batch dalam kalender.',
+                        ],
+                        [
+                            'label' => 'Academic Schedules',
+                            'route' => 'academic.schedules.index',
+                            'active' => ['academic.schedules.*'],
+                            'icon' => 'bi bi-calendar-plus-fill',
+                            'permission' => 'academic_schedules.view',
+                            'desc' => 'Tambah dan kelola penanda jadwal kegiatan akademik.',
+                        ],
+                        [
                             'label' => 'Learning Videos',
                             'route' => 'academic.learning-videos.index',
                             'active' => ['academic.learning-videos.*'],
@@ -658,6 +721,14 @@ return [
                             'icon' => 'bi bi-graph-up-arrow',
                             'permission' => 'student_progress.view',
                             'desc' => 'Monitoring progress belajar, materi selesai, last activity, dan student yang butuh follow up.',
+                        ],
+                        [
+                            'label' => 'Feedback Survey',
+                            'route' => 'feedback.responses.index',
+                            'active' => ['feedback.responses.*'],
+                            'icon' => 'bi bi-chat-square-heart',
+                            'permission' => 'feedback_responses.view',
+                            'desc' => 'Lihat hasil survey, NPS, testimonial, dan minat lanjut program student.',
                         ],
                         [
                             'label' => 'Announcements',
@@ -897,7 +968,7 @@ return [
                 'sales.*',
                 'sales-daily-reports.*',
                 'sales-performance.*',
-                'feedback.responses.*',
+                //'feedback.responses.*',
                 'sales-orders.*',
                 'orders.*',
             ],
@@ -906,13 +977,21 @@ return [
                     'title' => null,
                     'items' => [
                         [
+                            'label' => 'Dashboard',
+                            'route' => 'sales.dashboard',
+                            'active' => ['sales.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'sales.dashboard.view',
+                            'missing_label' => 'Sales Dashboard belum tersedia',
+                        ],
+                        [
                             'label' => 'Daily Report',
                             'route' => 'sales-daily-reports.index',
                             'active' => ['sales-daily-reports.*'],
                             'icon' => 'bi bi-journal-text',
                             'permission' => 'sales_daily_reports.view',
                         ],
-                        [
+                        /*[
                             'label' => 'Performance',
                             'route' => 'sales-performance.index',
                             'active' => ['sales-performance.*'],
@@ -925,7 +1004,7 @@ return [
                             'active' => ['feedback.responses.*'],
                             'icon' => 'bi bi-chat-square-heart',
                             'permission' => 'feedback_responses.view',
-                        ],
+                        ],*/
                         [
                             'label' => 'Sales Orders',
                             'route' => 'orders.index',
@@ -958,20 +1037,21 @@ return [
                         [
                             'label' => 'Dashboard',
                             'route' => 'marketing.dashboard',
-                            'active' => ['marketing.dashboard'],
+                            'active' => ['marketing.dashboard*'],
                             'icon' => 'bi bi-speedometer2',
                             'permission' => 'marketing.dashboard.view',
+                            'missing_label' => 'Marketing Dashboard belum tersedia',
                         ],
-                        [
+                        /*[
                             'label' => 'Reports',
                             'route' => 'marketing.reports.index',
                             'active' => ['marketing.reports.*'],
                             'icon' => 'bi bi-bar-chart-line',
                             'permission' => 'marketing_reports.view',
-                        ],
+                        ],*/
                     ],
                 ],
-                [
+                /*[
                     'title' => 'Setup',
                     'items' => [
                         [
@@ -989,7 +1069,7 @@ return [
                             'permission' => 'ads.view',
                         ],
                     ],
-                ],
+                ],*/
                 [
                     'title' => 'Tools',
                     'items' => [
@@ -1030,6 +1110,14 @@ return [
                     'title' => null,
                     'items' => [
                         [
+                            'label' => 'Dashboard',
+                            'route' => 'finance.dashboard',
+                            'active' => ['finance.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'finance.dashboard.view',
+                            'missing_label' => 'Finance Dashboard belum tersedia',
+                        ],
+                        [
                             'label' => 'Sales Orders',
                             'route' => 'sales-orders.index',
                             'active' => ['sales-orders.*'],
@@ -1049,6 +1137,76 @@ return [
                             'active' => ['payments.*'],
                             'icon' => 'bi bi-credit-card',
                             'permission' => 'payments.view',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'type' => 'dropdown',
+            'label' => 'HR',
+            'icon' => 'bi bi-person-badge-fill',
+            'permission' => 'hr.view',
+            'dropdown_class' => 'dropdown-menu-hr',
+            'active' => [
+                'hr.*',
+            ],
+            'sections' => [
+                [
+                    'title' => 'People Operations',
+                    'items' => [
+                        [
+                            'label' => 'Dashboard',
+                            'route' => 'hr.dashboard',
+                            'active' => ['hr.dashboard*'],
+                            'icon' => 'bi bi-speedometer2',
+                            'permission' => 'hr.dashboard.view',
+                            'missing_label' => 'HR Dashboard belum tersedia',
+                        ],
+                        [
+                            'label' => 'Attendance',
+                            'route' => 'hr.attendances.index',
+                            'active' => [
+                                'hr.attendances.*',
+                                'hr.attendance-imports.*',
+                            ],
+                            'icon' => 'bi bi-calendar2-check-fill',
+                            'permission' => 'hr.attendances.view',
+                            'desc' => 'Upload, review, konfirmasi, dan kelola attendance staff.',
+                            'missing_label' => 'HR Attendance belum tersedia',
+                        ],
+                    ],
+                ],
+                [
+                    'title' => 'Master Data',
+                    'items' => [
+                        [
+                            'label' => 'Employees',
+                            'route' => 'hr.employees.index',
+                            'active' => ['hr.employees.*'],
+                            'icon' => 'bi bi-people-fill',
+                            'permission' => 'hr.employees.view',
+                            'desc' => 'Kelola identitas employee, status aktif, tim kerja, dan default working-hours template.',
+                            'missing_label' => 'Employee Master belum tersedia',
+                        ],
+                        [
+                            'label' => 'Working Hours Templates',
+                            'route' => 'hr.working-hour-templates.index',
+                            'active' => ['hr.working-hour-templates.*'],
+                            'icon' => 'bi bi-clock-history',
+                            'permission' => 'hr.working_hour_templates.view',
+                            'desc' => 'Kelola jam masuk, jam pulang, hari kerja, break, dan toleransi keterlambatan.',
+                            'missing_label' => 'Working Hours Template belum tersedia',
+                        ],
+                        [
+                            'label' => 'Company Holidays',
+                            'route' => 'hr.company-holidays.index',
+                            'active' => ['hr.company-holidays.*'],
+                            'icon' => 'bi bi-calendar2-event-fill',
+                            'permission' => 'hr.company_holidays.view',
+                            'desc' => 'Kelola hari libur nasional, cuti bersama, dan libur internal perusahaan.',
+                            'missing_label' => 'Company Holiday Master belum tersedia',
                         ],
                     ],
                 ],
@@ -1149,6 +1307,7 @@ return [
             'active' => [
                 'settings.*',
                 'settings.users.*',
+                'settings.targets.*',
             ],
             'sections' => [
                 [
@@ -1161,6 +1320,20 @@ return [
                             'icon' => 'bi bi-people-fill',
                             'permission' => 'users.view',
                             'missing_label' => 'User Management belum tersedia',
+                        ],
+                    ],
+                ],
+                [
+                    'title' => 'Business Planning',
+                    'items' => [
+                        [
+                            'label' => 'Monthly Targets',
+                            'route' => 'settings.targets.index',
+                            'active' => ['settings.targets.*'],
+                            'icon' => 'bi bi-bullseye',
+                            'permission' => 'users.view',
+                            'desc' => 'Maintain monthly KPI targets sebagai dasar perbandingan target dan aktual.',
+                            'missing_label' => 'Target Management belum tersedia',
                         ],
                     ],
                 ],

@@ -25,12 +25,14 @@ class PaymentScheduleController extends Controller
 
         $paymentSchedulesQuery = PaymentSchedule::query()
             ->with([
-                'order:id,student_id,batch_id,workshop_id,order_type,final_price,status',
+                'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,final_price,status',
                 'order.student:id,full_name,email,phone',
+                'order.groupRegistration:id,registration_number,buyer_type,company_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+                'order.groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
                 'order.workshop',
-                'order.paymentSchedules:id,order_id,amount,status',
+                'order.paymentSchedules:id,order_id,amount,gross_amount,wht_rate,wht_amount,net_amount,status',
             ])
             ->latest();
 
@@ -57,6 +59,18 @@ class PaymentScheduleController extends Controller
                             ->orWhere('email', 'like', "%{$keyword}%")
                             ->orWhere('phone', 'like', "%{$keyword}%");
                     })
+                    ->orWhereHas('order.groupRegistration', function ($registrationQuery) use ($keyword) {
+                        $registrationQuery
+                            ->where('registration_number', 'like', "%{$keyword}%")
+                            ->orWhere('buyer_name', 'like', "%{$keyword}%")
+                            ->orWhere('buyer_email', 'like', "%{$keyword}%")
+                            ->orWhere('buyer_phone', 'like', "%{$keyword}%")
+                            ->orWhereHas('company', function ($companyQuery) use ($keyword) {
+                                $companyQuery
+                                    ->where('name', 'like', "%{$keyword}%")
+                                    ->orWhere('tax_id', 'like', "%{$keyword}%");
+                            });
+                    })
                     ->orWhereHas('order.batch', function ($batchQuery) use ($keyword) {
                         $batchQuery->where('name', 'like', "%{$keyword}%");
                     })
@@ -81,6 +95,7 @@ class PaymentScheduleController extends Controller
                 'paymentSchedules:id,order_id,amount,status',
             ])
             ->withSum('paymentSchedules', 'amount')
+            ->whereNull('group_registration_id')
             ->whereIn('status', ['pending', 'partial'])
             ->orderByDesc('id')
             ->get([
@@ -102,12 +117,14 @@ class PaymentScheduleController extends Controller
     public function show(PaymentSchedule $paymentSchedule): JsonResponse
     {
         $paymentSchedule->load([
-            'order:id,student_id,batch_id,workshop_id,order_type,final_price,status',
+            'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,final_price,status',
             'order.student:id,full_name,email,phone',
+            'order.groupRegistration:id,registration_number,buyer_type,company_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'order.groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
             'order.workshop',
-            'order.paymentSchedules:id,order_id,amount,status',
+            'order.paymentSchedules:id,order_id,amount,gross_amount,wht_rate,wht_amount,net_amount,status',
         ]);
 
         return response()->json([
@@ -117,6 +134,10 @@ class PaymentScheduleController extends Controller
                 'order_id' => $paymentSchedule->order_id,
                 'title' => $paymentSchedule->title,
                 'amount' => (float) $paymentSchedule->amount,
+                'gross_amount' => (float) ($paymentSchedule->gross_amount ?? $paymentSchedule->amount),
+                'wht_rate' => (float) $paymentSchedule->wht_rate,
+                'wht_amount' => (float) $paymentSchedule->wht_amount,
+                'net_amount' => (float) ($paymentSchedule->net_amount ?? $paymentSchedule->amount),
                 'due_date' => optional($paymentSchedule->due_date)->format('Y-m-d'),
                 'status' => $paymentSchedule->status,
                 'notes' => $paymentSchedule->notes,
@@ -129,12 +150,25 @@ class PaymentScheduleController extends Controller
     {
         $validated = $this->validateScheduleRequest($request);
 
+        $targetOrder = Order::query()->findOrFail($validated['order_id']);
+
+        if ($targetOrder->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration schedules are generated and managed from the Group Registration page.',
+            ], 422);
+        }
+
         try {
             $paymentSchedule = DB::transaction(function () use ($validated) {
                 $paymentSchedule = PaymentSchedule::create([
                     'order_id' => $validated['order_id'],
                     'title' => $validated['title'],
                     'amount' => $validated['amount'],
+                    'gross_amount' => $validated['amount'],
+                    'wht_rate' => 0,
+                    'wht_amount' => 0,
+                    'net_amount' => $validated['amount'],
                     'due_date' => $validated['due_date'] ?? null,
                     'status' => $validated['status'],
                     'notes' => $validated['notes'] ?? null,
@@ -170,7 +204,25 @@ class PaymentScheduleController extends Controller
 
     public function update(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
     {
+        $paymentSchedule->loadMissing('order:id,group_registration_id');
+
+        if ($paymentSchedule->order?->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration schedules must be updated from the Group Registration page.',
+            ], 422);
+        }
+
         $validated = $this->validateScheduleRequest($request);
+
+        $targetOrder = Order::query()->findOrFail($validated['order_id']);
+
+        if ($targetOrder->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A manual schedule cannot be moved to a Group Registration order.',
+            ], 422);
+        }
 
         try {
             $paymentSchedule = DB::transaction(function () use ($validated, $paymentSchedule) {
@@ -180,6 +232,10 @@ class PaymentScheduleController extends Controller
                     'order_id' => $validated['order_id'],
                     'title' => $validated['title'],
                     'amount' => $validated['amount'],
+                    'gross_amount' => $validated['amount'],
+                    'wht_rate' => 0,
+                    'wht_amount' => 0,
+                    'net_amount' => $validated['amount'],
                     'due_date' => $validated['due_date'] ?? null,
                     'status' => $validated['status'],
                     'notes' => $validated['notes'] ?? null,
@@ -219,6 +275,15 @@ class PaymentScheduleController extends Controller
 
     public function destroy(PaymentSchedule $paymentSchedule): JsonResponse
     {
+        $paymentSchedule->loadMissing('order:id,group_registration_id');
+
+        if ($paymentSchedule->order?->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration schedules must be cancelled from the Group Registration page.',
+            ], 422);
+        }
+
         try {
             DB::transaction(function () use ($paymentSchedule) {
                 $orderId = $paymentSchedule->order_id;
@@ -367,12 +432,35 @@ class PaymentScheduleController extends Controller
         }
 
         $orderType = $order->order_type ?: 'program';
+        $groupRegistration = $order->groupRegistration;
 
         return [
             'id' => $order->id,
             'order_type' => $orderType,
             'final_price' => (float) $order->final_price,
             'status' => $order->status,
+            'group_registration_id' => $order->group_registration_id,
+            'is_group_registration' => $groupRegistration !== null,
+            'customer' => [
+                'name' => $groupRegistration?->buyer_name ?? $order->student?->full_name,
+                'email' => $groupRegistration?->buyer_email ?? $order->student?->email,
+                'phone' => $groupRegistration?->buyer_phone ?? $order->student?->phone,
+                'source' => $groupRegistration ? 'group_registration' : 'student',
+            ],
+            'group_registration' => $groupRegistration ? [
+                'id' => $groupRegistration->id,
+                'registration_number' => $groupRegistration->registration_number,
+                'buyer_type' => $groupRegistration->buyer_type,
+                'buyer_name' => $groupRegistration->buyer_name,
+                'buyer_email' => $groupRegistration->buyer_email,
+                'buyer_phone' => $groupRegistration->buyer_phone,
+                'quantity' => (int) $groupRegistration->quantity,
+                'invoice_total' => (float) $groupRegistration->invoice_total,
+                'net_payable' => (float) $groupRegistration->net_payable,
+                'wht_rate' => (float) $groupRegistration->wht_rate,
+                'wht_amount' => (float) $groupRegistration->wht_amount,
+                'wht_status' => $groupRegistration->wht_status,
+            ] : null,
             'student' => $order->student ? [
                 'id' => $order->student->id,
                 'full_name' => $order->student->full_name,

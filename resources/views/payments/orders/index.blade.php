@@ -215,8 +215,19 @@
                                 @php
                                     $orderType = $order->order_type ?: 'program';
 
-                                    $customerName = $order->student->full_name ?? '-';
-                                    $customerContact = $order->student?->email ?: ($order->student?->phone ?: '-');
+                                    $groupRegistration = $order->groupRegistration;
+                                    $isGroupOrder = $groupRegistration !== null;
+
+                                    $customerName = $groupRegistration?->buyer_name
+                                        ?? $order->student?->full_name
+                                        ?? '-';
+                                    $customerContact = $groupRegistration?->buyer_email
+                                        ?: ($groupRegistration?->buyer_phone
+                                            ?: ($order->student?->email
+                                                ?: ($order->student?->phone ?: '-')));
+                                    $customerType = $isGroupOrder
+                                        ? ($groupRegistration->buyer_type === 'company' ? 'Company Buyer' : 'Individual Buyer')
+                                        : 'Student';
 
                                     $programName = $order->batch?->program?->name ?? '-';
                                     $batchName = $order->batch?->name ?? '-';
@@ -268,14 +279,36 @@
                                         <span class="badge rounded-pill {{ $typeBadgeClass($orderType) }}">
                                             {{ ucfirst($orderType) }}
                                         </span>
+                                        @if($isGroupOrder)
+                                            <div class="mt-1">
+                                                <span class="badge rounded-pill group-order-badge">
+                                                    <i class="bi bi-people-fill me-1"></i>Group
+                                                </span>
+                                            </div>
+                                        @endif
                                     </td>
 
                                     <td>
                                         <div class="fw-semibold text-dark">
-                                            {{ $customerName }}
+                                            @if($isGroupOrder)
+                                                <a href="{{ route('group-registrations.show', $groupRegistration) }}" class="customer-link">
+                                                    {{ $customerName }}
+                                                </a>
+                                            @else
+                                                {{ $customerName }}
+                                            @endif
                                         </div>
                                         <div class="small text-muted">
                                             {{ $customerContact }}
+                                        </div>
+                                        <div class="small mt-1">
+                                            @if($isGroupOrder)
+                                                <span class="text-purple fw-semibold">
+                                                    {{ $groupRegistration->registration_number }} · {{ $customerType }} · {{ $groupRegistration->quantity }} seats
+                                                </span>
+                                            @else
+                                                <span class="text-muted">{{ $customerType }}</span>
+                                            @endif
                                         </div>
                                     </td>
 
@@ -308,6 +341,14 @@
                                         <div class="fw-bold text-dark">
                                             Rp {{ number_format((float) $order->final_price, 0, ',', '.') }}
                                         </div>
+                                        @if($isGroupOrder && $groupRegistration->buyer_type === 'company')
+                                            <div class="small text-muted">
+                                                Invoice Rp {{ number_format((float) $groupRegistration->invoice_total, 0, ',', '.') }}
+                                            </div>
+                                            <div class="small text-warning-emphasis">
+                                                PPh 23 Rp {{ number_format((float) $groupRegistration->wht_amount, 0, ',', '.') }}
+                                            </div>
+                                        @endif
                                     </td>
 
                                     <td class="text-nowrap">
@@ -345,29 +386,37 @@
                                             </button>
 
                                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item"
-                                                        onclick="openEditModal(@js($payload))"
-                                                    >
-                                                        <i class="bi bi-pencil-square me-2"></i>Edit Order
-                                                    </button>
-                                                </li>
+                                                @if($isGroupOrder)
+                                                    <li>
+                                                        <a class="dropdown-item" href="{{ route('group-registrations.show', $groupRegistration) }}">
+                                                            <i class="bi bi-people-fill me-2"></i>View Group Registration
+                                                        </a>
+                                                    </li>
+                                                @else
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item"
+                                                            onclick="openEditModal(@js($payload))"
+                                                        >
+                                                            <i class="bi bi-pencil-square me-2"></i>Edit Order
+                                                        </button>
+                                                    </li>
 
-                                                <li>
-                                                    <hr class="dropdown-divider">
-                                                </li>
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
 
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item text-danger"
-                                                        onclick="openDeleteModal({{ $order->id }}, @js($deleteTitle))"
-                                                    >
-                                                        <i class="bi bi-trash me-2"></i>Delete
-                                                    </button>
-                                                </li>
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-danger"
+                                                            onclick="openDeleteModal({{ $order->id }}, @js($deleteTitle))"
+                                                        >
+                                                            <i class="bi bi-trash me-2"></i>Delete
+                                                        </button>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </div>
                                     </td>
@@ -716,11 +765,32 @@
         width: 100%;
         max-width: 100%;
         overflow-x: auto !important;
-        overflow-y: visible;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
-        padding-bottom: 96px;
-        margin-bottom: -96px;
+        padding-bottom: .75rem;
+        margin-bottom: 0;
+        scrollbar-width: thin;
+        scrollbar-color: #9b85bd #eeeaf5;
+    }
+
+    .orders-table-responsive::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .orders-table-responsive::-webkit-scrollbar-track {
+        border-radius: 999px;
+        background: #eeeaf5;
+    }
+
+    .orders-table-responsive::-webkit-scrollbar-thumb {
+        border: 2px solid #eeeaf5;
+        border-radius: 999px;
+        background: #9b85bd;
+    }
+
+    .orders-table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #5B3E8E;
     }
 
     .orders-admin-table {
@@ -755,6 +825,26 @@
     .admin-table tbody td {
         vertical-align: middle;
         border-bottom: 1px solid #eef2f7;
+    }
+
+    .group-order-badge {
+        border: 1px solid #d9cbea;
+        background: #f1ebf8;
+        color: #5B3E8E;
+    }
+
+    .text-purple {
+        color: #5B3E8E !important;
+    }
+
+    .customer-link {
+        color: #25272b;
+        text-decoration: none;
+    }
+
+    .customer-link:hover {
+        color: #5B3E8E;
+        text-decoration: underline;
     }
 
     .delete-confirm-heading {

@@ -59,6 +59,7 @@ class PaymentController extends Controller
                     $query->select([
                         'id',
                         'student_id',
+                        'group_registration_id',
                         'batch_id',
                         'workshop_id',
                         'order_type',
@@ -70,10 +71,12 @@ class PaymentController extends Controller
                     ]);
                 },
                 'order.student:id,full_name,email,phone',
+                'order.groupRegistration:id,registration_number,buyer_type,company_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+                'order.groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
                 'order.batch:id,program_id,name',
                 'order.batch.program:id,name',
                 'order.workshop',
-                'paymentSchedule:id,order_id,title,amount,due_date,status',
+                'paymentSchedule:id,order_id,title,amount,gross_amount,wht_rate,wht_amount,net_amount,due_date,status',
             ])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($orderType, function ($query) use ($orderType) {
@@ -105,6 +108,18 @@ class PaymentController extends Controller
                                 ->orWhere('email', 'like', $like)
                                 ->orWhere('phone', 'like', $like);
                         })
+                        ->orWhereHas('order.groupRegistration', function ($registrationQuery) use ($like) {
+                            $registrationQuery
+                                ->where('registration_number', 'like', $like)
+                                ->orWhere('buyer_name', 'like', $like)
+                                ->orWhere('buyer_email', 'like', $like)
+                                ->orWhere('buyer_phone', 'like', $like)
+                                ->orWhereHas('company', function ($companyQuery) use ($like) {
+                                    $companyQuery
+                                        ->where('name', 'like', $like)
+                                        ->orWhere('tax_id', 'like', $like);
+                                });
+                        })
                         ->orWhereHas('order.batch', function ($batchQuery) use ($like) {
                             $batchQuery->where('name', 'like', $like)
                                 ->orWhereHas('program', function ($programQuery) use ($like) {
@@ -135,6 +150,7 @@ class PaymentController extends Controller
                 'batch.program:id,name',
                 'workshop',
             ])
+            ->whereNull('group_registration_id')
             ->orderByDesc('id')
             ->get([
                 'id',
@@ -169,8 +185,9 @@ class PaymentController extends Controller
                 'order.batch.program:id,name',
                 'order.workshop',
             ])
+            ->whereHas('order', fn ($query) => $query->whereNull('group_registration_id'))
             ->orderByDesc('id')
-            ->get(['id', 'order_id', 'title', 'amount', 'due_date', 'status']);
+            ->get(['id', 'order_id', 'title', 'amount', 'gross_amount', 'wht_rate', 'wht_amount', 'net_amount', 'due_date', 'status']);
 
         return view('payments.index', compact('payments', 'orders', 'paymentSchedules'));
     }
@@ -178,16 +195,19 @@ class PaymentController extends Controller
     public function show(Payment $payment): JsonResponse
     {
         $payment->load([
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
             'order.student:id,full_name,email,phone',
+            'order.groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'order.groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
             'order.batch:id,program_id,name',
             'order.batch.program:id,name',
             'order.workshop',
-            'paymentSchedule:id,order_id,title,amount,due_date,status',
+            'paymentSchedule:id,order_id,title,amount,gross_amount,wht_rate,wht_amount,net_amount,due_date,status',
             'paymentSchedule.order' => function ($query) {
                 $query->select([
                     'id',
                     'student_id',
+                    'group_registration_id',
                     'batch_id',
                     'workshop_id',
                     'order_type',
@@ -199,6 +219,8 @@ class PaymentController extends Controller
                 ]);
             },
             'paymentSchedule.order.student:id,full_name,email,phone',
+            'paymentSchedule.order.groupRegistration:id,registration_number,buyer_type,company_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'paymentSchedule.order.groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
             'paymentSchedule.order.batch:id,program_id,name',
             'paymentSchedule.order.batch.program:id,name',
             'paymentSchedule.order.workshop',
@@ -278,6 +300,16 @@ class PaymentController extends Controller
             'workshop',
         ])->findOrFail($validated['order_id']);
 
+        if ($order->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration payments are generated automatically from their payment schedules.',
+                'errors' => [
+                    'order_id' => ['Create Group Registration payments from the Group Registration flow.'],
+                ],
+            ], 422);
+        }
+
         $paymentSchedule = null;
 
         if (!empty($validated['payment_schedule_id'])) {
@@ -344,6 +376,15 @@ class PaymentController extends Controller
 
     public function update(Request $request, Payment $payment): JsonResponse
     {
+        $payment->loadMissing('order:id,group_registration_id');
+
+        if ($payment->order?->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration payments are synchronized through Xendit and the Group Registration flow.',
+            ], 422);
+        }
+
         if ($request->has('invoice_number')) {
             $request->merge([
                 'invoice_number' => $this->normalizeManualInvoiceNumber($request->input('invoice_number')),
@@ -454,6 +495,15 @@ class PaymentController extends Controller
 
     public function destroy(Payment $payment): JsonResponse
     {
+        $payment->loadMissing('order:id,group_registration_id');
+
+        if ($payment->order?->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration payments cannot be deleted from the Payments page.',
+            ], 422);
+        }
+
         $orderId = $payment->order_id;
         $scheduleId = $payment->payment_schedule_id;
 
@@ -587,7 +637,7 @@ class PaymentController extends Controller
     {
         $payment = $this->findPaymentByPublicToken($token);
 
-        return view('public.payments.show', $this->buildPublicPaymentViewData($payment));
+        return view('payments.public-show', $this->buildPublicPaymentViewData($payment));
     }
 
     public function showPublicPayment(string $token): View
@@ -621,6 +671,7 @@ class PaymentController extends Controller
         }
 
         $student = $order->student;
+        $groupRegistration = $order->groupRegistration;
         $batch = $order->batch;
         $program = $batch?->program;
         $workshopTitle = $order->workshop
@@ -641,9 +692,10 @@ class PaymentController extends Controller
                 $batch?->name,
             ])
                 ->filter(fn ($value) => filled($value))
-                ->implode(' Â· ');
+                ->implode(' - ');
 
-        $studentName = $student?->full_name ?: 'Unknown Student';
+        $studentName = $groupRegistration?->buyer_name
+            ?: ($student?->full_name ?: 'Unknown Customer');
         $orderType = Str::headline((string) ($order->order_type ?: 'order'));
         $sourceTitle = $sourceTitle ?: 'FlexLabs Order #' . $order->id;
 
@@ -652,6 +704,8 @@ class PaymentController extends Controller
             'value' => $order->id,
             'label' => trim($studentName . ' - ' . $sourceTitle . ' (' . $orderType . ')'),
             'student_id' => $order->student_id,
+            'group_registration_id' => $order->group_registration_id,
+            'is_group_registration' => $groupRegistration !== null,
             'batch_id' => $order->batch_id,
             'workshop_id' => $order->workshop_id,
             'order_type' => $order->order_type,
@@ -665,6 +719,26 @@ class PaymentController extends Controller
                 'full_name' => $student->full_name,
                 'email' => $student->email,
                 'phone' => $student->phone,
+            ] : null,
+            'customer' => [
+                'name' => $studentName,
+                'email' => $groupRegistration?->buyer_email ?? $student?->email,
+                'phone' => $groupRegistration?->buyer_phone ?? $student?->phone,
+                'source' => $groupRegistration ? 'group_registration' : 'student',
+            ],
+            'group_registration' => $groupRegistration ? [
+                'id' => $groupRegistration->id,
+                'registration_number' => $groupRegistration->registration_number,
+                'buyer_type' => $groupRegistration->buyer_type,
+                'buyer_name' => $groupRegistration->buyer_name,
+                'buyer_email' => $groupRegistration->buyer_email,
+                'buyer_phone' => $groupRegistration->buyer_phone,
+                'quantity' => (int) $groupRegistration->quantity,
+                'invoice_total' => (float) $groupRegistration->invoice_total,
+                'net_payable' => (float) $groupRegistration->net_payable,
+                'wht_rate' => (float) $groupRegistration->wht_rate,
+                'wht_amount' => (float) $groupRegistration->wht_amount,
+                'wht_status' => $groupRegistration->wht_status,
             ] : null,
             'batch' => $batch ? [
                 'id' => $batch->id,
@@ -698,6 +772,10 @@ class PaymentController extends Controller
             'order_id' => $paymentSchedule->order_id,
             'title' => $paymentSchedule->title,
             'amount' => (float) $paymentSchedule->amount,
+            'gross_amount' => (float) ($paymentSchedule->gross_amount ?? $paymentSchedule->amount),
+            'wht_rate' => (float) $paymentSchedule->wht_rate,
+            'wht_amount' => (float) $paymentSchedule->wht_amount,
+            'net_amount' => (float) ($paymentSchedule->net_amount ?? $paymentSchedule->amount),
             'due_date' => optional($paymentSchedule->due_date)->format('Y-m-d'),
             'status' => $paymentSchedule->status,
             'order' => $orderOption,
@@ -715,7 +793,22 @@ class PaymentController extends Controller
 
     private function buildPublicPaymentViewData(Payment $payment): array
     {
+        // Pastikan public invoice memakai graph relasi yang sama dengan admin
+        // invoice sebelum customer dan financial summary dibentuk.
+        $payment->loadMissing($this->paymentDocumentRelations());
+
         $data = $this->buildInvoiceViewData($payment);
+        $order = $payment->order;
+        $customer = $this->resolvePaymentCustomer($order);
+        $financialRows = array_values($data['financialSummaryRows'] ?? []);
+        $financialItems = array_values($data['items'] ?? []);
+
+        // Guard agar public Blade tidak masuk ke fallback hanya karena alias
+        // items kosong, sementara financial rows dari controller tersedia.
+        if (empty($financialItems) && !empty($financialRows)) {
+            $financialItems = $this->financialRowsToDocumentItems($financialRows);
+        }
+
         $publicToken = (string) $payment->public_token;
         $isPaid = $payment->status === 'paid';
         $isExpired = $this->isPaymentExpired($payment);
@@ -724,6 +817,15 @@ class PaymentController extends Controller
             : null;
 
         return array_merge($data, [
+            'payment' => $payment,
+            'order' => $order,
+            'student' => $customer,
+            'customer' => $customer,
+            'groupRegistration' => $order?->groupRegistration,
+            'batch' => $order?->batch,
+            'program' => $order?->batch?->program,
+            'schedule' => $payment->paymentSchedule,
+
             'isPaid' => $isPaid,
             'isExpired' => $isExpired,
             'canPay' => !$isPaid && !$isExpired && filled($payment->payment_url),
@@ -732,12 +834,25 @@ class PaymentController extends Controller
                 ? route('public.payments.invoice.download', $publicToken)
                 : null,
 
-            // Alias supaya public Blade bisa pakai struktur detail yang sama
-            // dengan admin invoice tanpa fallback manual di view.
-            'financialRows' => $data['financialSummaryRows'] ?? $data['items'] ?? [],
-            'invoiceBreakdownRows' => $data['financialSummaryRows'] ?? $data['items'] ?? [],
+            // Public Blade menerima item display dan raw financial rows secara
+            // eksplisit. Perhitungan tidak dilakukan ulang di Blade.
+            'items' => $financialItems,
+            'financialSummaryRows' => $financialRows,
+            'financialRows' => $financialRows,
+            'invoiceBreakdownRows' => $financialRows,
+            'pricingRows' => array_values($data['pricingRows'] ?? []),
+            'paymentSummaryRows' => array_values($data['paymentSummaryRows'] ?? []),
+
             'currentDocumentAmount' => $data['currentInvoiceAmount'] ?? $data['grandTotal'] ?? 0,
             'currentDocumentAmountLabel' => 'Current Invoice Amount',
+            'usesWht' => (bool) ($data['usesWht'] ?? false),
+            'whtRate' => (float) ($data['whtRate'] ?? 0),
+            'whtAmount' => (float) ($data['whtAmount'] ?? 0),
+            'totalInvoiceAmount' => (float) ($data['totalInvoiceAmount'] ?? 0),
+            'amountBeforeVat' => (float) ($data['amountBeforeVat'] ?? 0),
+            'vatCalculationBase' => (float) ($data['vatCalculationBase'] ?? 0),
+            'vatAmount' => (float) ($data['vatAmount'] ?? 0),
+            'grandTotal' => (float) ($data['grandTotal'] ?? $payment->amount ?? 0),
             'showRemainingBalance' => (bool) ($data['showRemainingBalance'] ?? true),
             'isWorkshopDocument' => (bool) ($data['isWorkshopDocument'] ?? false),
             'isSimpleWorkshopDocument' => (bool) ($data['isSimpleWorkshopDocument'] ?? false),
@@ -752,12 +867,16 @@ class PaymentController extends Controller
     private function paymentDocumentRelations(): array
     {
         return [
-            'order:id,student_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
             'order.student:id,full_name,email,phone,city',
+            'order.groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,price_per_seat,original_price,discount,service_amount,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'order.groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
+            'order.groupRegistration.participants:id,group_registration_id,student_id,status',
+            'order.groupRegistration.participants.student:id,full_name,email',
             'order.batch:id,program_id,name,start_date,end_date',
             'order.batch.program:id,name',
             'order.workshop',
-            'paymentSchedule:id,order_id,title,amount,due_date,status',
+            'paymentSchedule:id,order_id,title,amount,gross_amount,wht_rate,wht_amount,net_amount,due_date,status',
         ];
     }
 
@@ -782,7 +901,7 @@ class PaymentController extends Controller
     {
         $payment->load($this->paymentDocumentRelations());
 
-        $student = $payment->order?->student;
+        $student = $this->resolvePaymentCustomer($payment->order);
         $batch = $payment->order?->batch;
         $program = $batch?->program;
         $schedule = $payment->paymentSchedule;
@@ -794,6 +913,8 @@ class PaymentController extends Controller
             'payment' => $payment,
             'order' => $order,
             'student' => $student,
+            'customer' => $student,
+            'groupRegistration' => $order?->groupRegistration,
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
@@ -815,6 +936,7 @@ class PaymentController extends Controller
             'invoiceBreakdownRows' => $summary['rows'],
             'pricingRows' => $summary['pricing_rows'],
             'paymentSummaryRows' => $summary['payment_rows'],
+            'groupOrderItems' => $this->buildGroupOrderLineItems($payment, $order, $summary),
 
             'normalProgramFee' => $summary['normal_program_fee'],
             'programDiscount' => $summary['program_discount'],
@@ -829,8 +951,18 @@ class PaymentController extends Controller
             | this invoice. VAT is borne by FlexLabs and calculated only from the
             | current invoice amount, without increasing the student's Total Due.
             */
-            'currentInvoiceAmount' => $summary['current_amount'],
-            'totalDue' => $summary['total_due'] ?? $summary['current_amount'],
+            'currentInvoiceAmount' => $summary['document_total']
+                ?? $summary['total_due']
+                ?? $summary['current_amount'],
+            'totalDue' => $summary['document_total']
+                ?? $summary['total_due']
+                ?? $summary['current_amount'],
+            'netPaymentAmount' => $summary['net_payment_amount']
+                ?? $summary['current_amount'],
+            'amountPayableToFlexLabs' => $summary['net_payment_amount']
+                ?? $summary['current_amount'],
+            'totalInvoiceAmount' => $summary['total_invoice_amount']
+                ?? $summary['current_amount'],
 
             'remainingBalance' => $summary['remaining_balance'],
             'remainingBalanceLabel' => $summary['remaining_balance_label'],
@@ -841,6 +973,13 @@ class PaymentController extends Controller
             'amountBeforeVat' => $summary['amount_before_vat'] ?? 0,
             'vatCalculationBase' => $summary['vat_calculation_base'] ?? 0,
             'vatAmount' => $summary['vat_amount'] ?? 0,
+            'usesWht' => (bool) ($summary['uses_wht'] ?? false),
+            'whtRate' => $summary['wht_rate'] ?? 0,
+            'whtTaxBase' => $summary['wht_tax_base'] ?? 0,
+            'whtAmount' => $summary['wht_amount'] ?? 0,
+            'grossInvoiceAmount' => $summary['total_invoice_amount']
+                ?? $summary['gross_invoice_amount']
+                ?? $summary['current_amount'],
 
             // Backward-compatible alias for older Blades that still bind the
             // displayed Outstanding Balance to this legacy variable name.
@@ -848,9 +987,11 @@ class PaymentController extends Controller
                 ?? $summary['tax_outstanding_balance']
                 ?? 0,
 
-            'subtotal' => $summary['current_amount'],
+            'subtotal' => $summary['net_payment_amount'] ?? $summary['current_amount'],
             'tax' => $summary['vat_amount'] ?? 0,
-            'grandTotal' => $summary['total_due'] ?? $summary['current_amount'],
+            'grandTotal' => $summary['document_total']
+                ?? $summary['total_due']
+                ?? $summary['current_amount'],
 
             'invoiceDate' => $payment->payment_date ?: $payment->created_at,
             'documentNote' => $this->buildDocumentNote($sourceContext, 'invoice'),
@@ -863,7 +1004,7 @@ class PaymentController extends Controller
     {
         $payment->load($this->paymentDocumentRelations());
 
-        $student = $payment->order?->student;
+        $student = $this->resolvePaymentCustomer($payment->order);
         $batch = $payment->order?->batch;
         $program = $batch?->program;
         $schedule = $payment->paymentSchedule;
@@ -875,6 +1016,8 @@ class PaymentController extends Controller
             'payment' => $payment,
             'order' => $order,
             'student' => $student,
+            'customer' => $student,
+            'groupRegistration' => $order?->groupRegistration,
             'batch' => $batch,
             'program' => $program,
             'schedule' => $schedule,
@@ -924,6 +1067,19 @@ class PaymentController extends Controller
             'amountBeforeVat' => $summary['amount_before_vat'] ?? 0,
             'vatCalculationBase' => $summary['vat_calculation_base'] ?? 0,
             'vatAmount' => $summary['vat_amount'] ?? 0,
+            'usesWht' => (bool) ($summary['uses_wht'] ?? false),
+            'whtRate' => $summary['wht_rate'] ?? 0,
+            'whtTaxBase' => $summary['wht_tax_base'] ?? 0,
+            'whtAmount' => $summary['wht_amount'] ?? 0,
+            'grossInvoiceAmount' => $summary['total_invoice_amount']
+                ?? $summary['gross_invoice_amount']
+                ?? $summary['current_amount'],
+            'netPaymentAmount' => $summary['net_payment_amount']
+                ?? $summary['current_amount'],
+            'amountPayableToFlexLabs' => $summary['net_payment_amount']
+                ?? $summary['current_amount'],
+            'totalInvoiceAmount' => $summary['total_invoice_amount']
+                ?? $summary['current_amount'],
 
             // Backward-compatible alias for older Blades that still bind the
             // displayed Outstanding Balance to this legacy variable name.
@@ -933,7 +1089,9 @@ class PaymentController extends Controller
 
             'subtotal' => $summary['current_amount'],
             'tax' => $summary['vat_amount'] ?? 0,
-            'grandTotal' => $summary['total_due'] ?? $summary['current_amount'],
+            'grandTotal' => $summary['document_total']
+                ?? $summary['total_due']
+                ?? $summary['current_amount'],
 
             'paymentDate' => $payment->payment_date ?: $payment->updated_at,
             'paidAt' => $payment->payment_date ?: $payment->updated_at,
@@ -1028,10 +1186,12 @@ class PaymentController extends Controller
         | - VAT Calculation Base   = Amount Before VAT * 11 / 12
         | - VAT (12%)              = VAT Calculation Base * 12%
         */
-        $totalDue = $currentAmount;
+        // payment.amount selalu merupakan nominal kas yang masuk ke FlexLabs
+        // dan menjadi nominal yang dikirim ke Xendit.
+        $netPaymentAmount = $currentAmount;
 
-        $amountBeforeVat = $totalDue > 0
-            ? $this->moneyValue($totalDue / 1.11)
+        $amountBeforeVat = $netPaymentAmount > 0
+            ? $this->moneyValue($netPaymentAmount / 1.11)
             : 0;
 
         $vatCalculationBase = $amountBeforeVat > 0
@@ -1050,10 +1210,45 @@ class PaymentController extends Controller
             : 'Total Due';
 
         $currentDescription = $schedule?->title
-            ? trim($schedule->title . ($schedule->due_date ? ' Â· Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
+            ? trim($schedule->title . ($schedule->due_date ? ' - Due ' . Carbon::parse($schedule->due_date)->format('d F Y') : ''))
             : $this->buildGenericInstallmentDescription($sourceContext);
 
         $programDescription = $sourceContext['source_description'] ?: $this->resolveProgramDescription($payment);
+
+        $groupRegistration = $order?->groupRegistration;
+        $usesWht = $groupRegistration?->buyer_type === 'company';
+        $whtRate = $usesWht
+            ? (float) ($groupRegistration?->wht_rate ?: $schedule?->wht_rate ?: 2)
+            : 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Company tax breakdown is derived from the actual Grand Total
+        |--------------------------------------------------------------------------
+        | Jangan memakai gross_amount / wht_amount tersimpan untuk rendering
+        | invoice. Record lama mungkin masih berisi formula sebelum koreksi.
+        |
+        | Grand Total        = payment.amount
+        | Amount             = Grand Total / 1.11
+        | Total Invoice      = Amount / 0.98
+        | WHT 2%             = Total Invoice - Amount
+        */
+        $totalInvoiceAmount = $usesWht && $amountBeforeVat > 0
+            ? $this->moneyValue(
+                $amountBeforeVat / (1 - ($whtRate / 100))
+            )
+            : $netPaymentAmount;
+        $whtAmount = $usesWht
+            ? $this->moneyValue($totalInvoiceAmount - $amountBeforeVat)
+            : 0;
+        // Total Invoice pada format accounting adalah Amount sebelum VAT yang
+        // sudah di-gross-up PPh 23: Amount / 0.98 = Amount + WHT.
+        $whtTaxBase = $usesWht ? $totalInvoiceAmount : 0;
+
+        // Grand Total adalah nominal final yang dibayar ke FlexLabs/Xendit.
+        // Formula company: Total Invoice + VAT - WHT = Grand Total.
+        $documentTotal = $netPaymentAmount;
+        $totalDue = $documentTotal;
 
         $outstandingDescription = $documentType === 'receipt'
             ? 'Remaining fee after previous payments and this payment'
@@ -1101,32 +1296,75 @@ class PaymentController extends Controller
                 type: 'remaining_balance',
                 isEmphasis: true
             ),
-            $this->makeFinancialRow(
-                label: 'Amount Before VAT',
-                details: $totalDueLabel . ' Ã· 1.11 because VAT is borne by FlexLabs',
+        ];
+
+        if ($usesWht) {
+            $rows[] = $this->makeFinancialRow(
+                label: 'Total Invoice',
+                details: 'Amount + PPh 23 gross-up',
+                amount: $totalInvoiceAmount,
+                type: 'total_invoice',
+                isEmphasis: true
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'Amount',
+                details: 'Grand Total / 1.11',
                 amount: $amountBeforeVat,
                 type: 'amount_before_vat'
-            ),
-            $this->makeFinancialRow(
-                label: 'VAT Calculation Base',
-                details: 'Amount Before VAT Ã— 11 / 12',
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'Other VAT Tax Base',
+                details: 'Amount x 11 / 12',
                 amount: $vatCalculationBase,
                 type: 'vat_calculation_base'
-            ),
-            $this->makeFinancialRow(
-                label: 'VAT (12%)',
-                details: 'VAT Calculation Base Ã— 12%',
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'VAT 12%',
+                details: 'Other VAT Tax Base x 12%',
                 amount: $vatAmount,
                 type: 'vat_amount'
-            ),
-            $this->makeFinancialRow(
-                label: $totalDueLabel,
-                details: $currentDescription,
-                amount: $totalDue,
-                type: $documentType === 'receipt' ? 'total_paid' : 'total_due',
-                isEmphasis: true
-            ),
-        ];
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'WHT 2%',
+                details: 'Total Invoice - Amount; withheld and deposited by the company buyer',
+                amount: $whtAmount,
+                type: 'wht_amount',
+                isNegative: true
+            );
+        } else {
+            $rows[] = $this->makeFinancialRow(
+                label: 'Amount Before VAT',
+                details: $totalDueLabel . ' / 1.11',
+                amount: $amountBeforeVat,
+                type: 'amount_before_vat'
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'VAT Calculation Base',
+                details: 'Amount Before VAT x 11 / 12',
+                amount: $vatCalculationBase,
+                type: 'vat_calculation_base'
+            );
+
+            $rows[] = $this->makeFinancialRow(
+                label: 'VAT (12%)',
+                details: 'VAT Calculation Base x 12%',
+                amount: $vatAmount,
+                type: 'vat_amount'
+            );
+        }
+
+        $rows[] = $this->makeFinancialRow(
+            label: $usesWht ? 'Grand Total' : $totalDueLabel,
+            details: $currentDescription,
+            amount: $netPaymentAmount,
+            type: $usesWht ? 'grand_total' : ($documentType === 'receipt' ? 'total_paid' : 'total_due'),
+            isEmphasis: true
+        );
 
         return [
             'normal_program_fee' => $normalProgramFee,
@@ -1144,6 +1382,8 @@ class PaymentController extends Controller
 
             // Nilai yang dibayar student pada dokumen ini.
             'current_amount' => $currentAmount,
+            'net_payment_amount' => $netPaymentAmount,
+            'document_total' => $documentTotal,
             'total_due' => $totalDue,
 
             // Sisa order yang sebenarnya setelah dokumen ini.
@@ -1155,6 +1395,14 @@ class PaymentController extends Controller
             'amount_before_vat' => $amountBeforeVat,
             'vat_calculation_base' => $vatCalculationBase,
             'vat_amount' => $vatAmount,
+
+            // PPh 23 gross-up for company Group Registration.
+            'uses_wht' => $usesWht,
+            'wht_rate' => $whtRate,
+            'wht_tax_base' => $whtTaxBase,
+            'wht_amount' => $whtAmount,
+            'total_invoice_amount' => $totalInvoiceAmount,
+            'gross_invoice_amount' => $totalInvoiceAmount,
 
             // Alias lama untuk Blade yang masih menggunakan nama variable ini
             // sebagai nilai Outstanding Balance.
@@ -1341,6 +1589,10 @@ class PaymentController extends Controller
 
         $freshOrder = Order::with([
             'student:id,full_name,email,phone,city',
+            'groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,price_per_seat,original_price,discount,service_amount,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
+            'groupRegistration.participants:id,group_registration_id,student_id,status',
+            'groupRegistration.participants.student:id,full_name,email',
             'batch:id,program_id,name,start_date,end_date',
             'batch.program:id,name',
             'workshop',
@@ -1353,6 +1605,92 @@ class PaymentController extends Controller
         }
 
         return $order;
+    }
+
+    private function buildGroupOrderLineItems(
+        Payment $payment,
+        ?Order $order,
+        array $summary
+    ): array {
+        $registration = $order?->groupRegistration;
+
+        if (!$registration) {
+            return [];
+        }
+
+        $quantity = max((int) $registration->quantity, 1);
+        $currentGrandTotal = $this->moneyValue($payment->amount);
+        $registrationGrandTotal = $this->moneyValue($registration->net_payable)
+            ?: $this->moneyValue($registration->service_amount)
+            ?: $this->moneyValue($order?->final_price)
+            ?: $currentGrandTotal;
+
+        // Untuk installment, unit price dan discount mengikuti proporsi termin
+        // yang sedang dibuat agar jumlah kolom Amount sesuai current invoice.
+        $termRatio = $registrationGrandTotal > 0
+            ? min(max($currentGrandTotal / $registrationGrandTotal, 0), 1)
+            : 1;
+
+        $originalBeforeVat = $this->moneyValue(
+            ($this->moneyValue($registration->original_price) / 1.11) * $termRatio
+        );
+        $discountBeforeVat = $this->moneyValue(
+            ($this->moneyValue($registration->discount) / 1.11) * $termRatio
+        );
+        $amountBeforeVat = $this->moneyValue(
+            $summary['amount_before_vat'] ?? ($currentGrandTotal / 1.11)
+        );
+
+        $baseUnitPrice = $this->moneyValue($originalBeforeVat / $quantity);
+        $baseDiscount = $this->moneyValue($discountBeforeVat / $quantity);
+        $baseAmount = $this->moneyValue($amountBeforeVat / $quantity);
+
+        $participants = $registration->relationLoaded('participants')
+            ? $registration->participants->values()
+            : collect();
+
+        $programName = $order?->batch?->program?->name;
+        $batchName = $order?->batch?->name;
+        $description = collect([$batchName, $programName])
+            ->filter(fn ($value) => filled($value))
+            ->implode(' - ') ?: 'Group Registration';
+
+        $allocatedUnitPrice = 0.0;
+        $allocatedDiscount = 0.0;
+        $allocatedAmount = 0.0;
+        $rows = [];
+
+        for ($index = 0; $index < $quantity; $index++) {
+            $isLast = $index === $quantity - 1;
+            $participant = $participants->get($index)?->student;
+
+            $unitPrice = $isLast
+                ? $this->moneyValue($originalBeforeVat - $allocatedUnitPrice)
+                : $baseUnitPrice;
+            $discount = $isLast
+                ? $this->moneyValue($discountBeforeVat - $allocatedDiscount)
+                : $baseDiscount;
+            $amount = $isLast
+                ? $this->moneyValue($amountBeforeVat - $allocatedAmount)
+                : $baseAmount;
+
+            $allocatedUnitPrice = $this->moneyValue($allocatedUnitPrice + $unitPrice);
+            $allocatedDiscount = $this->moneyValue($allocatedDiscount + $discount);
+            $allocatedAmount = $this->moneyValue($allocatedAmount + $amount);
+
+            $rows[] = [
+                'no' => $index + 1,
+                'description' => $description,
+                'participant_name' => $participant?->full_name,
+                'participant_email' => $participant?->email,
+                'qty' => 1,
+                'unit_price' => $unitPrice,
+                'discount' => $discount,
+                'amount' => $amount,
+            ];
+        }
+
+        return $rows;
     }
 
     private function makeFinancialRow(
@@ -1425,7 +1763,7 @@ class PaymentController extends Controller
 
         return collect([$programName, $batchName])
             ->filter(fn ($value) => filled($value))
-            ->implode(' Â· ') ?: 'FlexLabs Program';
+            ->implode(' - ') ?: 'FlexLabs Program';
     }
 
     private function resolveFullPaymentScheduleForPayment(Payment $payment): ?PaymentSchedule
@@ -1554,7 +1892,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' Â· ');
+            ->implode(' - ');
 
         return [
             'source_type' => $sourceType,
@@ -1599,7 +1937,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' Â· ');
+            ->implode(' - ');
 
         return [
             'source_type' => $sourceType,
@@ -1763,7 +2101,7 @@ class PaymentController extends Controller
             $sourceItemName,
         ])
             ->filter(fn ($value) => filled($value))
-            ->implode(' Â· ');
+            ->implode(' - ');
 
         return [
             'source_type' => $sourceType,
@@ -1788,7 +2126,7 @@ class PaymentController extends Controller
 
         return collect([$programName, $batchName])
             ->filter(fn ($value) => filled($value))
-            ->implode(' Â· ') ?: null;
+            ->implode(' - ') ?: null;
     }
 
     private function resolveSourceModelName(?string $sourceType, mixed $sourceItemId): ?string
@@ -1998,6 +2336,32 @@ class PaymentController extends Controller
         ];
     }
 
+    private function resolvePaymentCustomer(?Order $order): ?object
+    {
+        if (!$order) {
+            return null;
+        }
+
+        $registration = $order->groupRegistration;
+
+        if (!$registration) {
+            return $order->student;
+        }
+
+        return (object) [
+            'id' => $registration->buyer_student_id,
+            'full_name' => $registration->buyer_name,
+            'email' => $registration->buyer_email,
+            'phone' => $registration->buyer_phone,
+            'city' => null,
+            'buyer_type' => $registration->buyer_type,
+            'registration_number' => $registration->registration_number,
+            'company_name' => $registration->company?->name,
+            'tax_id' => $registration->company?->tax_id,
+            'address' => $registration->company?->address,
+        ];
+    }
+
     private function paymentDocumentCss(): string
     {
         $cssPath = public_path('css/payments/invoice.css');
@@ -2015,7 +2379,7 @@ class PaymentController extends Controller
         ?PaymentSchedule $paymentSchedule = null
     ): void {
         try {
-            $student = $order->student;
+            $customer = $this->resolvePaymentCustomer($order);
             $batch = $order->batch;
             $program = $batch?->program;
             $sourceContext = $this->resolvePaymentSourceContext($payment, $order, $paymentSchedule);
@@ -2026,9 +2390,9 @@ class PaymentController extends Controller
                     ?: ($sourceContext['source_type_label'] ? $sourceContext['source_type_label'] . ' Payment' : 'FlexLabs Payment'));
 
             $xenditResult = $this->xenditService->createPaymentLink($payment, [
-                'full_name' => $student?->full_name,
-                'email' => $student?->email,
-                'phone' => $student?->phone,
+                'full_name' => $customer?->full_name,
+                'email' => $customer?->email,
+                'phone' => $customer?->phone,
                 'program_name' => $program?->name,
                 'batch_name' => $batch?->name,
                 'source_type' => $sourceContext['source_type'],

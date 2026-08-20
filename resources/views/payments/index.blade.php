@@ -438,16 +438,18 @@
 
         <div class="content-card-body">
             @if($payments->count())
-                <div class="table-responsive dropdown-safe-table">
-                    <table class="table table-hover align-middle admin-table mb-0">
+                <div class="payments-table-responsive dropdown-safe-table">
+                    <table class="table table-hover align-middle admin-table payments-admin-table mb-0">
                         <thead>
                             <tr>
                                 <th class="text-nowrap" style="width: 80px;">No</th>
                                 <th class="text-nowrap">Invoice</th>
-                                <th class="text-nowrap">Student</th>
+                                <th class="text-nowrap col-customer">Customer</th>
                                 <th class="text-nowrap">Source</th>
                                 <th class="text-nowrap">Schedule</th>
-                                <th class="text-end text-nowrap">Amount</th>
+                                <th class="text-end text-nowrap">Gross</th>
+                                <th class="text-end text-nowrap">PPh 23</th>
+                                <th class="text-end text-nowrap">Net</th>
                                 <th class="text-nowrap">Method</th>
                                 <th class="text-nowrap">Date</th>
                                 <th class="text-nowrap">Status</th>
@@ -457,6 +459,23 @@
 
                         <tbody>
                             @foreach ($payments as $payment)
+                                @php
+                                    $groupRegistration = $payment->order?->groupRegistration;
+                                    $isGroupPayment = $groupRegistration !== null;
+                                    $customerName = $groupRegistration?->buyer_name
+                                        ?? $payment->order?->student?->full_name
+                                        ?? '-';
+                                    $customerContact = $groupRegistration?->buyer_email
+                                        ?: ($groupRegistration?->buyer_phone
+                                            ?: ($payment->order?->student?->email
+                                                ?: ($payment->order?->student?->phone ?: '-')));
+                                    $customerType = $isGroupPayment
+                                        ? ($groupRegistration->buyer_type === 'company' ? 'Company Buyer' : 'Individual Buyer')
+                                        : 'Student';
+                                    $grossAmount = (float) ($payment->paymentSchedule?->gross_amount ?? $payment->amount);
+                                    $whtAmount = (float) ($payment->paymentSchedule?->wht_amount ?? 0);
+                                    $netAmount = (float) ($payment->paymentSchedule?->net_amount ?? $payment->amount);
+                                @endphp
                                 <tr>
                                     <td class="text-muted">
                                         {{ ($payments->currentPage() - 1) * $payments->perPage() + $loop->iteration }}
@@ -473,10 +492,25 @@
 
                                     <td>
                                         <div class="fw-semibold text-dark">
-                                            {{ $payment->order->student->full_name ?? '-' }}
+                                            @if($isGroupPayment)
+                                                <a href="{{ route('group-registrations.show', $groupRegistration) }}" class="customer-link">
+                                                    {{ $customerName }}
+                                                </a>
+                                            @else
+                                                {{ $customerName }}
+                                            @endif
                                         </div>
                                         <div class="small text-muted">
-                                            {{ $payment->order->student->email ?? ($payment->order->student->phone ?? '-') }}
+                                            {{ $customerContact }}
+                                        </div>
+                                        <div class="small mt-1">
+                                            @if($isGroupPayment)
+                                                <span class="text-purple fw-semibold">
+                                                    {{ $groupRegistration->registration_number }} · {{ $customerType }} · {{ $groupRegistration->quantity }} seats
+                                                </span>
+                                            @else
+                                                <span class="text-muted">{{ $customerType }}</span>
+                                            @endif
                                         </div>
                                     </td>
 
@@ -509,9 +543,20 @@
                                     </td>
 
                                     <td class="text-end text-nowrap">
-                                        <div class="fw-bold text-dark">
-                                            Rp {{ number_format((float) $payment->amount, 0, ',', '.') }}
-                                        </div>
+                                        Rp {{ number_format($grossAmount, 0, ',', '.') }}
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        @if($whtAmount > 0)
+                                            <div class="fw-semibold text-warning-emphasis">Rp {{ number_format($whtAmount, 0, ',', '.') }}</div>
+                                            <div class="small text-muted">{{ number_format((float) $payment->paymentSchedule?->wht_rate, 2) }}%</div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="fw-bold text-dark">Rp {{ number_format($netAmount, 0, ',', '.') }}</div>
                                     </td>
 
                                     <td class="text-nowrap">
@@ -569,29 +614,35 @@
                                                     </li>
                                                 @endif
 
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item"
-                                                        onclick="editPayment({{ $payment->id }})"
-                                                    >
-                                                        <i class="bi bi-pencil-square me-2"></i>Edit Payment
-                                                    </button>
-                                                </li>
+                                                @if($isGroupPayment)
+                                                    <li>
+                                                        <a class="dropdown-item" href="{{ route('group-registrations.show', $groupRegistration) }}">
+                                                            <i class="bi bi-people-fill me-2"></i>View Group Registration
+                                                        </a>
+                                                    </li>
+                                                @else
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item"
+                                                            onclick="editPayment({{ $payment->id }})"
+                                                        >
+                                                            <i class="bi bi-pencil-square me-2"></i>Edit Payment
+                                                        </button>
+                                                    </li>
 
-                                                <li>
-                                                    <hr class="dropdown-divider">
-                                                </li>
+                                                    <li><hr class="dropdown-divider"></li>
 
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item text-danger"
-                                                        onclick="openDeleteModal({{ $payment->id }}, @js($payment->invoice_number ?: 'Payment #' . $payment->id))"
-                                                    >
-                                                        <i class="bi bi-trash me-2"></i>Delete
-                                                    </button>
-                                                </li>
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-danger"
+                                                            onclick="openDeleteModal({{ $payment->id }}, @js($payment->invoice_number ?: 'Payment #' . $payment->id))"
+                                                        >
+                                                            <i class="bi bi-trash me-2"></i>Delete
+                                                        </button>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </div>
                                     </td>
@@ -702,7 +753,7 @@
                                             @endphp
                                             <option
                                                 value="{{ $order->id }}"
-                                                data-student="{{ $order->student->full_name ?? '' }}"
+                                                data-student="{{ $order->student?->full_name ?? '' }}"
                                                 data-source-type="{{ $orderSource['source_type'] }}"
                                                 data-source-label="{{ $orderSource['source_label'] }}"
                                                 data-source-item="{{ $orderSource['source_item_name'] }}"
@@ -711,7 +762,7 @@
                                                 data-batch="{{ $orderSource['batch_name'] }}"
                                                 data-total="{{ (int) round((float) $order->final_price) }}"
                                             >
-                                                {{ $order->student->full_name ?? '-' }} -
+                                                {{ $order->student?->full_name ?? '-' }} -
                                                 {{ $orderSource['source_label'] }}:
                                                 {{ $orderSource['source_item_name'] ?: '-' }}
                                                 @if (!empty($orderSource['source_detail']))
@@ -742,7 +793,7 @@
                                                 data-amount="{{ (int) round((float) $schedule->amount) }}"
                                                 data-due-date="{{ $schedule->due_date?->format('Y-m-d') ?? '' }}"
                                             >
-                                                {{ $schedule->order->student->full_name ?? '-' }} -
+                                                {{ $schedule->order?->student?->full_name ?? '-' }} -
                                                 {{ $scheduleSource['source_label'] }}:
                                                 {{ $scheduleSource['source_item_name'] ?: '-' }} -
                                                 {{ $schedule->title }} -
@@ -764,7 +815,7 @@
                             <div>
                                 <h5 class="content-card-title mb-1">Source Preview</h5>
                                 <p class="content-card-subtitle mb-0">
-                                    Review selected student, source type, source item, order total, and schedule amount.
+                                    Review selected customer, source type, source item, order total, and schedule amount.
                                 </p>
                             </div>
                         </div>
@@ -772,7 +823,7 @@
                         <div class="content-card-body">
                             <div class="row g-3">
                                 <div class="col-md-4">
-                                    <label for="student_name" class="form-label">Student</label>
+                                    <label for="student_name" class="form-label">Customer</label>
                                     <input type="text" id="student_name" class="form-control" readonly>
                                 </div>
 
@@ -995,6 +1046,66 @@
     </div>
 </div>
 @endsection
+
+@push('styles')
+<style>
+    .payments-table-responsive {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: .75rem;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        scrollbar-color: #9b85bd #eeeaf5;
+    }
+
+    .payments-table-responsive::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .payments-table-responsive::-webkit-scrollbar-track {
+        border-radius: 999px;
+        background: #eeeaf5;
+    }
+
+    .payments-table-responsive::-webkit-scrollbar-thumb {
+        border: 2px solid #eeeaf5;
+        border-radius: 999px;
+        background: #9b85bd;
+    }
+
+    .payments-table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #5B3E8E;
+    }
+
+    .payments-admin-table {
+        width: 100%;
+        min-width: 1540px;
+        table-layout: auto;
+    }
+
+    .payments-admin-table .col-customer {
+        min-width: 250px;
+    }
+
+    .text-purple {
+        color: #5B3E8E !important;
+    }
+
+    .customer-link {
+        color: #25272b;
+        text-decoration: none;
+    }
+
+    .customer-link:hover {
+        color: #5B3E8E;
+        text-decoration: underline;
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script>

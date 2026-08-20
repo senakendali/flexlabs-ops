@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class StudentEnrollment extends Model
 {
@@ -51,11 +50,6 @@ class StudentEnrollment extends Model
         return $this->belongsTo(Batch::class);
     }
 
-    public function groupRegistrationParticipant(): HasOne
-    {
-        return $this->hasOne(GroupRegistrationParticipant::class);
-    }
-
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -93,8 +87,7 @@ class StudentEnrollment extends Model
             'manual' => 'Manual',
             'payment' => 'Payment',
             'import' => 'Import',
-            'group_registration' => 'Group Registration',
-            default => ucfirst(str_replace('_', ' ', (string) $this->enrollment_source)),
+            default => ucfirst((string) $this->enrollment_source),
         };
     }
 

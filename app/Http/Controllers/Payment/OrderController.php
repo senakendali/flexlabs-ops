@@ -29,6 +29,8 @@ class OrderController extends Controller
         $query = Order::query()
             ->with([
                 'student:id,full_name,email,phone',
+                'groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+                'groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
                 'batch:id,program_id,name,price,status',
                 'batch.program:id,name',
                 'workshop',
@@ -54,6 +56,19 @@ class OrderController extends Controller
                         ->where('full_name', 'like', "%{$keyword}%")
                         ->orWhere('email', 'like', "%{$keyword}%")
                         ->orWhere('phone', 'like', "%{$keyword}%");
+                });
+
+                $q->orWhereHas('groupRegistration', function ($registrationQuery) use ($keyword) {
+                    $registrationQuery
+                        ->where('registration_number', 'like', "%{$keyword}%")
+                        ->orWhere('buyer_name', 'like', "%{$keyword}%")
+                        ->orWhere('buyer_email', 'like', "%{$keyword}%")
+                        ->orWhere('buyer_phone', 'like', "%{$keyword}%")
+                        ->orWhereHas('company', function ($companyQuery) use ($keyword) {
+                            $companyQuery
+                                ->where('name', 'like', "%{$keyword}%")
+                                ->orWhere('tax_id', 'like', "%{$keyword}%");
+                        });
                 });
 
                 $q->orWhereHas('batch', function ($batchQuery) use ($keyword) {
@@ -98,6 +113,8 @@ class OrderController extends Controller
     {
         $order->load([
             'student:id,full_name,email,phone',
+            'groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'groupRegistration.company:id,name,tax_id,pic_name,pic_email,pic_phone',
             'batch:id,program_id,name,price,status',
             'batch.program:id,name',
             'workshop',
@@ -105,11 +122,21 @@ class OrderController extends Controller
             'payments',
         ]);
 
+        $groupRegistration = $order->groupRegistration;
+        $customerName = $groupRegistration?->buyer_name
+            ?? $order->student?->full_name;
+        $customerEmail = $groupRegistration?->buyer_email
+            ?? $order->student?->email;
+        $customerPhone = $groupRegistration?->buyer_phone
+            ?? $order->student?->phone;
+
         return response()->json([
             'success' => true,
             'data' => [
                 'id' => $order->id,
                 'student_id' => $order->student_id,
+                'group_registration_id' => $order->group_registration_id,
+                'is_group_registration' => $groupRegistration !== null,
                 'order_type' => $order->order_type ?: 'program',
                 'batch_id' => $order->batch_id,
                 'workshop_id' => $order->workshop_id,
@@ -123,6 +150,32 @@ class OrderController extends Controller
                     'full_name' => $order->student->full_name,
                     'email' => $order->student->email,
                     'phone' => $order->student->phone,
+                ] : null,
+                'customer' => [
+                    'name' => $customerName,
+                    'email' => $customerEmail,
+                    'phone' => $customerPhone,
+                    'source' => $groupRegistration ? 'group_registration' : 'student',
+                ],
+                'group_registration' => $groupRegistration ? [
+                    'id' => $groupRegistration->id,
+                    'registration_number' => $groupRegistration->registration_number,
+                    'buyer_type' => $groupRegistration->buyer_type,
+                    'buyer_name' => $groupRegistration->buyer_name,
+                    'buyer_email' => $groupRegistration->buyer_email,
+                    'buyer_phone' => $groupRegistration->buyer_phone,
+                    'quantity' => (int) $groupRegistration->quantity,
+                    'invoice_total' => (float) $groupRegistration->invoice_total,
+                    'net_payable' => (float) $groupRegistration->net_payable,
+                    'wht_rate' => (float) $groupRegistration->wht_rate,
+                    'wht_amount' => (float) $groupRegistration->wht_amount,
+                    'wht_status' => $groupRegistration->wht_status,
+                    'status' => $groupRegistration->status,
+                    'company' => $groupRegistration->company ? [
+                        'id' => $groupRegistration->company->id,
+                        'name' => $groupRegistration->company->name,
+                        'tax_id' => $groupRegistration->company->tax_id,
+                    ] : null,
                 ] : null,
                 'batch' => $order->batch ? [
                     'id' => $order->batch->id,
@@ -177,6 +230,7 @@ class OrderController extends Controller
 
                 return $order->fresh([
                     'student:id,full_name,email,phone',
+                    'groupRegistration.company',
                     'batch:id,program_id,name,price,status',
                     'batch.program:id,name',
                     'workshop',
@@ -205,6 +259,13 @@ class OrderController extends Controller
 
     public function update(Request $request, Order $order): JsonResponse
     {
+        if ($order->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration orders must be updated from the Group Registration page.',
+            ], 422);
+        }
+
         $validated = $this->validateOrderRequest($request);
 
         try {
@@ -237,6 +298,7 @@ class OrderController extends Controller
 
                 return $order->fresh([
                     'student:id,full_name,email,phone',
+                    'groupRegistration.company',
                     'batch:id,program_id,name,price,status',
                     'batch.program:id,name',
                     'workshop',
@@ -265,6 +327,13 @@ class OrderController extends Controller
 
     public function destroy(Order $order): JsonResponse
     {
+        if ($order->group_registration_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Group Registration orders must be cancelled from the Group Registration page.',
+            ], 422);
+        }
+
         try {
             DB::transaction(function () use ($order) {
                 $hasPaidPayment = Payment::query()

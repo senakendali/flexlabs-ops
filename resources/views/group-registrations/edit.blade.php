@@ -1,0 +1,35 @@
+@extends('layouts.app-dashboard')
+
+@section('title', 'Edit Group Registration')
+
+@section('content')
+<div class="container-fluid px-4 py-4 group-registration-edit-page">
+    <div class="page-header-card mb-4">
+        <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div><div class="page-eyebrow">Sales & Payment</div><h1 class="page-title mb-2">Edit {{ $groupRegistration->registration_number }}</h1><p class="page-subtitle mb-0">Update buyer contact and internal notes without changing issued financial documents.</p></div>
+            <div class="d-flex gap-2 flex-wrap"><a href="{{ route('group-registrations.index') }}" class="btn btn-light border btn-modern"><i class="bi bi-arrow-left me-1"></i>Back</a><a href="{{ route('group-registrations.show',$groupRegistration) }}" class="btn btn-light btn-modern"><i class="bi bi-eye me-1"></i>Show</a><button id="submitEditTop" class="btn btn-light btn-modern"><i class="bi bi-check-circle me-1"></i>Update Metadata</button></div>
+        </div>
+    </div>
+    <div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1090"></div>
+    <form id="groupRegistrationEditForm" action="{{ route('group-registrations.update',$groupRegistration) }}" method="POST" novalidate>
+        @csrf @method('PUT')
+        <div class="row g-4 align-items-start">
+            <div class="col-xl-8">
+                <div class="content-card mb-4"><div class="content-card-header"><div><h5 class="content-card-title mb-1">Buyer Contact</h5><p class="content-card-subtitle mb-0">Snapshot information used by Group Registration documents.</p></div></div><div class="content-card-body"><div class="row g-3"><div class="col-12"><label class="form-label">Buyer Name <span class="text-danger">*</span></label><input name="buyer_name" class="form-control" value="{{ old('buyer_name',$groupRegistration->buyer_name) }}"><div class="invalid-feedback error-text" data-error-for="buyer_name"></div></div><div class="col-md-6"><label class="form-label">Buyer Email</label><input type="email" name="buyer_email" class="form-control" value="{{ old('buyer_email',$groupRegistration->buyer_email) }}"><div class="invalid-feedback error-text" data-error-for="buyer_email"></div></div><div class="col-md-6"><label class="form-label">Buyer Phone</label><input name="buyer_phone" class="form-control" value="{{ old('buyer_phone',$groupRegistration->buyer_phone) }}"><div class="invalid-feedback error-text" data-error-for="buyer_phone"></div></div><div class="col-12"><label class="form-label">Internal Notes</label><textarea name="notes" class="form-control" rows="6">{{ old('notes',$groupRegistration->notes) }}</textarea><div class="invalid-feedback error-text" data-error-for="notes"></div></div></div></div></div>
+                <div class="alert alert-warning border-0 rounded-4"><i class="bi bi-shield-exclamation me-2"></i>Buyer type, company, batch, seats, discount, WHT, schedules, and payment amounts are locked because payment links may already exist.</div>
+            </div>
+            <div class="col-xl-4"><div class="sticky-top" style="top:92px"><div class="content-card mb-4"><div class="content-card-header"><div><h5 class="content-card-title mb-1">Locked Summary</h5></div></div><div class="content-card-body"><div class="summary-item"><span>Buyer Type</span><strong>{{ ucfirst($groupRegistration->buyer_type) }}</strong></div><div class="summary-item"><span>Program</span><strong>{{ $groupRegistration->batch?->program?->name }}</strong></div><div class="summary-item"><span>Batch</span><strong>{{ $groupRegistration->batch?->name }}</strong></div><div class="summary-item"><span>Seats</span><strong>{{ $groupRegistration->quantity }}</strong></div><div class="summary-item"><span>Invoice Total</span><strong>Rp {{ number_format((float)$groupRegistration->invoice_total,0,',','.') }}</strong></div><div class="summary-item"><span>Net Payment</span><strong>Rp {{ number_format((float)$groupRegistration->net_payable,0,',','.') }}</strong></div></div></div><div class="content-card"><div class="content-card-body"><button type="button" id="submitEditBottom" class="btn btn-primary btn-modern w-100"><span class="default-text"><i class="bi bi-check-circle me-2"></i>Update Metadata</span><span class="loading-text d-none"><span class="spinner-border spinner-border-sm me-2"></span>Saving...</span></button></div></div></div></div>
+        </div>
+    </form>
+</div>
+@endsection
+
+@push('styles')
+<style>.summary-item{display:flex;justify-content:space-between;gap:1rem;padding:.8rem 0;border-bottom:1px solid #edf0f2}.summary-item:last-child{border-bottom:0}.summary-item span{color:#6b7280}.summary-item strong{text-align:right}</style>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded',()=>{const form=document.getElementById('groupRegistrationEditForm'),buttons=[document.getElementById('submitEditTop'),document.getElementById('submitEditBottom')],toastContainer=document.getElementById('toastContainer');const toast=(message,type='success')=>{const id=`toast-${Date.now()}`;toastContainer.insertAdjacentHTML('beforeend',`<div id="${id}" class="toast text-white bg-${type} border-0"><div class="d-flex"><div class="toast-body">${message}</div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`);const el=document.getElementById(id);new bootstrap.Toast(el,{delay:2500}).show();};const submit=async()=>{form.querySelectorAll('.is-invalid').forEach(el=>el.classList.remove('is-invalid'));form.querySelectorAll('.error-text').forEach(el=>el.textContent='');buttons.forEach(btn=>btn.disabled=true);document.querySelector('#submitEditBottom .default-text').classList.add('d-none');document.querySelector('#submitEditBottom .loading-text').classList.remove('d-none');try{const response=await fetch(form.action,{method:'POST',headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':'{{ csrf_token() }}'},body:new FormData(form)});const result=await response.json();if(!response.ok){if(result.errors)Object.entries(result.errors).forEach(([key,msgs])=>{const field=form.querySelector(`[name="${key}"]`),holder=form.querySelector(`[data-error-for="${key}"]`);if(field)field.classList.add('is-invalid');if(holder)holder.textContent=Array.isArray(msgs)?msgs[0]:msgs;});throw new Error(result.message||'Failed to update registration.');}toast(result.message||'Metadata updated.');setTimeout(()=>location.href='{{ route('group-registrations.show',$groupRegistration) }}',700);}catch(error){toast(error.message,'danger');buttons.forEach(btn=>btn.disabled=false);document.querySelector('#submitEditBottom .default-text').classList.remove('d-none');document.querySelector('#submitEditBottom .loading-text').classList.add('d-none');}};buttons.forEach(btn=>btn.addEventListener('click',submit));});
+</script>
+@endpush

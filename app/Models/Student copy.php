@@ -8,20 +8,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Notifications\Notifiable;
 
+
 class Student extends Model
 {
     use Notifiable;
-
     protected $fillable = [
         'user_id',
         'full_name',
         'avatar_url',
         'email',
         'phone',
+
+        // Identity & emergency contact
         'nik',
         'emergency_contact_name',
         'emergency_contact_phone',
         'emergency_contact_relation',
+
         'city',
         'current_status',
         'bio',
@@ -39,6 +42,16 @@ class Student extends Model
         'fullName',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors
+    |--------------------------------------------------------------------------
+    |
+    | Jangan panggil $this->avatar_url di dalam getAvatarUrlAttribute(),
+    | karena itu akan memanggil accessor yang sama lagi.
+    |
+    */
+
     public function getAvatarUrlAttribute(): ?string
     {
         return $this->attributes['avatar_url'] ?? null;
@@ -48,6 +61,12 @@ class Student extends Model
     {
         return $this->attributes['full_name'] ?? '';
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Preferences
+    |--------------------------------------------------------------------------
+    */
 
     public function preferences(): HasMany
     {
@@ -70,10 +89,20 @@ class Student extends Model
     public function setPreference(string $key, bool $enabled): StudentPreference
     {
         return $this->preferences()->updateOrCreate(
-            ['preference_key' => $key],
-            ['enabled' => $enabled]
+            [
+                'preference_key' => $key,
+            ],
+            [
+                'enabled' => $enabled,
+            ]
         );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
 
     public function user(): BelongsTo
     {
@@ -83,16 +112,6 @@ class Student extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
-    }
-
-    public function groupRegistrationsPurchased(): HasMany
-    {
-        return $this->hasMany(GroupRegistration::class, 'buyer_student_id');
-    }
-
-    public function groupRegistrationParticipations(): HasMany
-    {
-        return $this->hasMany(GroupRegistrationParticipant::class);
     }
 
     public function assignmentSubmissions(): HasMany
@@ -185,6 +204,7 @@ class Student extends Model
     {
         return $this->hasMany(WorkshopParticipant::class);
     }
+    
 
     public function workshops()
     {
@@ -200,3 +220,4 @@ class Student extends Model
             ->withTimestamps();
     }
 }
+

@@ -200,7 +200,9 @@
                                 <th class="text-nowrap col-customer">Customer</th>
                                 <th class="text-nowrap col-source">Source / Item</th>
                                 <th class="text-nowrap">Title</th>
-                                <th class="text-end text-nowrap">Amount</th>
+                                <th class="text-end text-nowrap">Gross</th>
+                                <th class="text-end text-nowrap">PPh 23</th>
+                                <th class="text-end text-nowrap">Net</th>
                                 <th class="text-nowrap">Due Date</th>
                                 <th class="text-nowrap">Status</th>
                                 <th class="text-end text-nowrap" style="width: 150px;">Action</th>
@@ -212,9 +214,19 @@
                                 @php
                                     $order = $schedule->order;
                                     $orderType = $order?->order_type ?: 'program';
+                                    $groupRegistration = $order?->groupRegistration;
+                                    $isGroupSchedule = $groupRegistration !== null;
 
-                                    $customerName = $order?->student?->full_name ?? '-';
-                                    $customerContact = $order?->student?->email ?: ($order?->student?->phone ?: '-');
+                                    $customerName = $groupRegistration?->buyer_name
+                                        ?? $order?->student?->full_name
+                                        ?? '-';
+                                    $customerContact = $groupRegistration?->buyer_email
+                                        ?: ($groupRegistration?->buyer_phone
+                                            ?: ($order?->student?->email
+                                                ?: ($order?->student?->phone ?: '-')));
+                                    $customerType = $isGroupSchedule
+                                        ? ($groupRegistration->buyer_type === 'company' ? 'Company Buyer' : 'Individual Buyer')
+                                        : 'Student';
 
                                     $programName = $order?->batch?->program?->name ?? '-';
                                     $batchName = $order?->batch?->name ?? '-';
@@ -234,6 +246,9 @@
                                     $orderTotal = (float) ($order?->final_price ?? 0);
                                     $scheduledTotal = (float) ($order?->paymentSchedules?->sum('amount') ?? 0);
                                     $currentAmount = (float) ($schedule->amount ?? 0);
+                                    $grossAmount = (float) ($schedule->gross_amount ?? $schedule->amount ?? 0);
+                                    $whtAmount = (float) ($schedule->wht_amount ?? 0);
+                                    $netAmount = (float) ($schedule->net_amount ?? $schedule->amount ?? 0);
 
                                     $editPayload = [
                                         'id' => $schedule->id,
@@ -264,14 +279,36 @@
                                         <span class="badge rounded-pill {{ $typeBadgeClass($orderType) }}">
                                             {{ ucfirst($orderType) }}
                                         </span>
+                                        @if($isGroupSchedule)
+                                            <div class="mt-1">
+                                                <span class="badge rounded-pill group-order-badge">
+                                                    <i class="bi bi-people-fill me-1"></i>Group
+                                                </span>
+                                            </div>
+                                        @endif
                                     </td>
 
                                     <td>
                                         <div class="fw-semibold text-dark">
-                                            {{ $customerName }}
+                                            @if($isGroupSchedule)
+                                                <a href="{{ route('group-registrations.show', $groupRegistration) }}" class="customer-link">
+                                                    {{ $customerName }}
+                                                </a>
+                                            @else
+                                                {{ $customerName }}
+                                            @endif
                                         </div>
                                         <div class="small text-muted">
                                             {{ $customerContact }}
+                                        </div>
+                                        <div class="small mt-1">
+                                            @if($isGroupSchedule)
+                                                <span class="text-purple fw-semibold">
+                                                    {{ $groupRegistration->registration_number }} · {{ $customerType }} · {{ $groupRegistration->quantity }} seats
+                                                </span>
+                                            @else
+                                                <span class="text-muted">{{ $customerType }}</span>
+                                            @endif
                                         </div>
                                     </td>
 
@@ -296,9 +333,22 @@
                                     </td>
 
                                     <td class="text-end text-nowrap">
-                                        <div class="fw-bold text-dark">
-                                            Rp {{ number_format((float) $schedule->amount, 0, ',', '.') }}
-                                        </div>
+                                        Rp {{ number_format($grossAmount, 0, ',', '.') }}
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        @if($whtAmount > 0)
+                                            <div class="fw-semibold text-warning-emphasis">
+                                                Rp {{ number_format($whtAmount, 0, ',', '.') }}
+                                            </div>
+                                            <div class="small text-muted">{{ number_format((float) $schedule->wht_rate, 2) }}%</div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+
+                                    <td class="text-end text-nowrap">
+                                        <div class="fw-bold text-dark">Rp {{ number_format($netAmount, 0, ',', '.') }}</div>
                                     </td>
 
                                     <td class="text-nowrap">
@@ -324,29 +374,35 @@
                                             </button>
 
                                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item"
-                                                        onclick="openEditModal(@js($editPayload))"
-                                                    >
-                                                        <i class="bi bi-pencil-square me-2"></i>Edit Schedule
-                                                    </button>
-                                                </li>
+                                                @if($isGroupSchedule)
+                                                    <li>
+                                                        <a class="dropdown-item" href="{{ route('group-registrations.show', $groupRegistration) }}">
+                                                            <i class="bi bi-people-fill me-2"></i>View Group Registration
+                                                        </a>
+                                                    </li>
+                                                @else
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item"
+                                                            onclick="openEditModal(@js($editPayload))"
+                                                        >
+                                                            <i class="bi bi-pencil-square me-2"></i>Edit Schedule
+                                                        </button>
+                                                    </li>
 
-                                                <li>
-                                                    <hr class="dropdown-divider">
-                                                </li>
+                                                    <li><hr class="dropdown-divider"></li>
 
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        class="dropdown-item text-danger"
-                                                        onclick="openDeleteModal({{ $schedule->id }}, @js($deleteTitle))"
-                                                    >
-                                                        <i class="bi bi-trash me-2"></i>Delete
-                                                    </button>
-                                                </li>
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            class="dropdown-item text-danger"
+                                                            onclick="openDeleteModal({{ $schedule->id }}, @js($deleteTitle))"
+                                                        >
+                                                            <i class="bi bi-trash me-2"></i>Delete
+                                                        </button>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </div>
                                     </td>
@@ -430,7 +486,7 @@
                                             @php
                                                 $orderType = $order->order_type ?: 'program';
 
-                                                $customerName = $order->student->full_name ?? '-';
+                                                $customerName = $order->student?->full_name ?? '-';
 
                                                 $programName = $order->batch?->program?->name ?? '-';
                                                 $batchName = $order->batch?->name ?? '-';
@@ -703,16 +759,37 @@
         width: 100%;
         max-width: 100%;
         overflow-x: auto !important;
-        overflow-y: visible;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-x: contain;
-        padding-bottom: 96px;
-        margin-bottom: -96px;
+        padding-bottom: .75rem;
+        margin-bottom: 0;
+        scrollbar-width: thin;
+        scrollbar-color: #9b85bd #eeeaf5;
+    }
+
+    .schedules-table-responsive::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .schedules-table-responsive::-webkit-scrollbar-track {
+        border-radius: 999px;
+        background: #eeeaf5;
+    }
+
+    .schedules-table-responsive::-webkit-scrollbar-thumb {
+        border: 2px solid #eeeaf5;
+        border-radius: 999px;
+        background: #9b85bd;
+    }
+
+    .schedules-table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #5B3E8E;
     }
 
     .schedules-admin-table {
         width: 100%;
-        min-width: 1180px;
+        min-width: 1440px;
         table-layout: auto;
     }
 
@@ -742,6 +819,26 @@
     .admin-table tbody td {
         vertical-align: middle;
         border-bottom: 1px solid #eef2f7;
+    }
+
+    .group-order-badge {
+        border: 1px solid #d9cbea;
+        background: #f1ebf8;
+        color: #5B3E8E;
+    }
+
+    .text-purple {
+        color: #5B3E8E !important;
+    }
+
+    .customer-link {
+        color: #25272b;
+        text-decoration: none;
+    }
+
+    .customer-link:hover {
+        color: #5B3E8E;
+        text-decoration: underline;
     }
 
     .delete-confirm-heading {

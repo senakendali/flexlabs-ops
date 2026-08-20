@@ -10,7 +10,6 @@ class Order extends Model
 {
     protected $fillable = [
         'student_id',
-        'group_registration_id',
         'order_type',
         'batch_id',
         'workshop_id',
@@ -22,10 +21,6 @@ class Order extends Model
     ];
 
     protected $casts = [
-        'student_id' => 'integer',
-        'group_registration_id' => 'integer',
-        'batch_id' => 'integer',
-        'workshop_id' => 'integer',
         'original_price' => 'decimal:2',
         'discount' => 'decimal:2',
         'final_price' => 'decimal:2',
@@ -34,11 +29,6 @@ class Order extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
-    }
-
-    public function groupRegistration(): BelongsTo
-    {
-        return $this->belongsTo(GroupRegistration::class);
     }
 
     public function batch(): BelongsTo
@@ -64,10 +54,5 @@ class Order extends Model
     public function workshopParticipant()
     {
         return $this->hasOne(WorkshopParticipant::class);
-    }
-
-    public function isGroupRegistrationOrder(): bool
-    {
-        return $this->group_registration_id !== null;
     }
 }

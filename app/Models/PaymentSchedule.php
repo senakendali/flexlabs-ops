@@ -12,6 +12,10 @@ class PaymentSchedule extends Model
         'order_id',
         'title',
         'amount',
+        'gross_amount',
+        'wht_rate',
+        'wht_amount',
+        'net_amount',
         'due_date',
         'status',
         'notes',
@@ -19,14 +23,12 @@ class PaymentSchedule extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'gross_amount' => 'decimal:2',
+        'wht_rate' => 'decimal:2',
+        'wht_amount' => 'decimal:2',
+        'net_amount' => 'decimal:2',
         'due_date' => 'date',
     ];
-
-    /*
-    |--------------------------------------------------------------------------
-    | RELATIONS
-    |--------------------------------------------------------------------------
-    */
 
     public function order(): BelongsTo
     {
@@ -36,5 +38,15 @@ class PaymentSchedule extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function resolvedGrossAmount(): float
+    {
+        return (float) ($this->gross_amount ?? $this->amount);
+    }
+
+    public function resolvedNetAmount(): float
+    {
+        return (float) ($this->net_amount ?? $this->amount);
     }
 }

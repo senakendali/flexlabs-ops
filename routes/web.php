@@ -15,6 +15,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLandingController;
 use App\Http\Controllers\ExecutiveCenter\ExecutiveDashboardController;
 use App\Http\Controllers\Sales\SalesDashboardController;
+use App\Http\Controllers\Sales\GroupRegistrationController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Hr\HrDashboardController;
 use App\Http\Controllers\Hr\AttendanceImportController;
@@ -1435,6 +1436,42 @@ Route::middleware('auth')->group(function () {
                 ->name('enroll');
         });
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Group Registration
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('group-registrations')
+        ->name('group-registrations.')
+        ->middleware('permission:group_registrations.view')
+        ->group(function () {
+            Route::get('/', [GroupRegistrationController::class, 'index'])
+                ->name('index');
+
+            Route::get('/create', [GroupRegistrationController::class, 'create'])
+                ->middleware('permission:group_registrations.create')
+                ->name('create');
+
+            Route::post('/', [GroupRegistrationController::class, 'store'])
+                ->middleware('permission:group_registrations.create')
+                ->name('store');
+
+            Route::get('/{groupRegistration}', [GroupRegistrationController::class, 'show'])
+                ->name('show');
+
+            Route::get('/{groupRegistration}/edit', [GroupRegistrationController::class, 'edit'])
+                ->middleware('permission:group_registrations.update')
+                ->name('edit');
+
+            Route::put('/{groupRegistration}', [GroupRegistrationController::class, 'update'])
+                ->middleware('permission:group_registrations.update')
+                ->name('update');
+
+            Route::delete('/{groupRegistration}', [GroupRegistrationController::class, 'destroy'])
+                ->middleware('permission:group_registrations.delete')
+                ->name('destroy');
+        });
 
 
     /*

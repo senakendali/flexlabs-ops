@@ -3,76 +3,32 @@
 namespace App\Http\Controllers\Payment;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class PublicPaymentController extends Controller
 {
-    public function show(string $token): View
-    {
-        $payment = Payment::with([
-            'order:id,student_id,batch_id,final_price,status',
-            'order.student:id,full_name,email,phone,city',
-            'order.batch:id,program_id,name,start_date,end_date',
-            'order.batch.program:id,name',
-            'paymentSchedule:id,order_id,title,amount,due_date,status',
-        ])
-            ->where('public_token', $token)
-            ->first();
-
-        if (!$payment) {
-            throw new NotFoundHttpException('Payment link not found.');
-        }
-
-        // Expired setelah tanggal expired_at terlewati.
-        // Jika expired_at = 12 Agustus, link tetap aktif sampai akhir 12 Agustus.
-        $isExpired = $payment->expired_at
-            && today()->gt($payment->expired_at->copy()->startOfDay());
-
-        $isPaid = $payment->status === 'paid';
-
-        return view('payments.public-show', [
-            'payment' => $payment,
-            'order' => $payment->order,
-            'student' => $payment->order?->student,
-            'batch' => $payment->order?->batch,
-            'program' => $payment->order?->batch?->program,
-            'schedule' => $payment->paymentSchedule,
-            'isExpired' => $isExpired,
-            'isPaid' => $isPaid,
-        ]);
+    public function __construct(
+        protected PaymentController $paymentController
+    ) {
     }
 
+    /**
+     * Public payment page.
+     *
+     * Gunakan flow milik PaymentController agar admin invoice dan public
+     * invoice memakai relasi, customer, serta financial summary yang sama.
+     * PublicPaymentController tidak menghitung ulang invoice di sini.
+     */
+    public function show(string $token): View
+    {
+        return $this->paymentController->publicShow($token);
+    }
+
+    /**
+     * Backward-compatible alias jika route lama masih memakai method show_.
+     */
     public function show_(string $token): View
     {
-        $payment = Payment::with([
-                'order:id,student_id,batch_id,final_price,status',
-                'order.student:id,full_name,email,phone,city',
-                'order.batch:id,program_id,name,start_date,end_date',
-                'order.batch.program:id,name',
-                'paymentSchedule:id,order_id,title,amount,due_date,status',
-            ])
-            ->where('public_token', $token)
-            ->first();
-
-        if (!$payment) {
-            throw new NotFoundHttpException('Payment link not found.');
-        }
-
-        $isExpired = $payment->expired_at && now()->gt($payment->expired_at);
-        $isPaid = $payment->status === 'paid';
-
-        return view('payments.public-show', [
-            'payment' => $payment,
-            'order' => $payment->order,
-            'student' => $payment->order?->student,
-            'batch' => $payment->order?->batch,
-            'program' => $payment->order?->batch?->program,
-            'schedule' => $payment->paymentSchedule,
-            'isExpired' => $isExpired,
-            'isPaid' => $isPaid,
-        ]);
+        return $this->show($token);
     }
 }
