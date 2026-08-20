@@ -1040,6 +1040,7 @@ class PaymentController extends Controller
             'receiptBreakdownRows' => $summary['rows'],
             'pricingRows' => $summary['pricing_rows'],
             'paymentSummaryRows' => $summary['payment_rows'],
+            'groupOrderItems' => $this->buildGroupOrderLineItems($payment, $order, $summary),
 
             'receiptNumber' => $this->resolveReceiptNumber($payment),
             'normalProgramFee' => $summary['normal_program_fee'],

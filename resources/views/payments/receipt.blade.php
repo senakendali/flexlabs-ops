@@ -4,6 +4,112 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
+    <style>
+        .invoice-table tbody tr:nth-child(odd) > td {
+            --bs-table-bg: #ffffff;
+            background-color: #ffffff !important;
+        }
+
+        .invoice-table tbody tr:nth-child(even) > td {
+            --bs-table-bg: #f6f7f9;
+            background-color: #f6f7f9 !important;
+        }
+
+        .invoice-title {
+            font-family: "Arial Black", "Arial Bold", Arial, Helvetica, sans-serif !important;
+            font-weight: 900 !important;
+            font-style: normal !important;
+            letter-spacing: -0.065em !important;
+            line-height: 0.9 !important;
+            color: #000000 !important;
+            text-transform: uppercase;
+        }
+
+        #receiptDocument.invoice-exporting {
+            width: 794px !important;
+            min-width: 794px !important;
+            max-width: 794px !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        #receiptDocument.invoice-exporting .invoice-table {
+            --bs-table-border-color: transparent !important;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+            border: 0 !important;
+        }
+
+        #receiptDocument.invoice-exporting .invoice-table > :not(caption) > * > *,
+        #receiptDocument.invoice-exporting .invoice-table thead,
+        #receiptDocument.invoice-exporting .invoice-table tbody,
+        #receiptDocument.invoice-exporting .invoice-table tr,
+        #receiptDocument.invoice-exporting .invoice-table th,
+        #receiptDocument.invoice-exporting .invoice-table td {
+            border: 0 !important;
+            border-width: 0 !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            outline: 0 !important;
+        }
+
+        #receiptDocument.invoice-exporting .invoice-table thead,
+        #receiptDocument.invoice-exporting .invoice-table thead tr {
+            background: #5b3e8e !important;
+            background-color: #5b3e8e !important;
+        }
+
+        #receiptDocument.invoice-exporting .invoice-table thead th {
+            background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            background-clip: border-box !important;
+        }
+
+        #receiptDocument.invoice-exporting .invoice-table th::before,
+        #receiptDocument.invoice-exporting .invoice-table th::after,
+        #receiptDocument.invoice-exporting .invoice-table td::before,
+        #receiptDocument.invoice-exporting .invoice-table td::after {
+            display: none !important;
+            content: none !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .group-tax-summary {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border: 1px solid #e6dcf5;
+            border-radius: 14px;
+            background: #faf7ff;
+        }
+
+        .group-tax-summary .invoice-summary-table {
+            width: 100%;
+        }
+
+        .group-tax-summary .invoice-summary-table td {
+            padding: 7px 0;
+            border-bottom: 1px solid #ece5f6;
+        }
+
+        .group-tax-summary .invoice-summary-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .group-tax-summary .group-wht-row td {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
+        .group-tax-summary .group-total-paid-row td {
+            padding-top: 11px;
+            color: #1f2937;
+            font-size: 15px;
+            font-weight: 800;
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -19,6 +125,8 @@
     $formatMoney = function ($amount) {
         return 'Rp ' . number_format((float) $amount, 0, ',', '.');
     };
+
+    $groupOrderItems = collect($groupOrderItems ?? [])->values();
 
     $resolvedReceiptNumber = $receiptNumber ?? null;
 
@@ -137,6 +245,45 @@
                 </section>
 
                 <section class="invoice-table-section">
+                    @if ($groupOrderItems->isNotEmpty())
+                        <div class="table-responsive invoice-table-wrap">
+                            <table class="table invoice-table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center" style="width: 52px;">No</th>
+                                        <th>Description</th>
+                                        <th class="text-center" style="width: 70px;">QTY</th>
+                                        <th class="text-end text-nowrap">Unit Price</th>
+                                        <th class="text-end text-nowrap">Discount</th>
+                                        <th class="text-end text-nowrap">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($groupOrderItems as $groupItem)
+                                        <tr>
+                                            <td class="text-center">{{ $groupItem['no'] }}</td>
+                                            <td>
+                                                <div class="invoice-item-title">{{ $groupItem['description'] }}</div>
+
+                                                @if (!empty($groupItem['participant_name']))
+                                                    <div class="invoice-item-subtitle">
+                                                        {{ $groupItem['participant_name'] }}
+                                                        @if (!empty($groupItem['participant_email']))
+                                                            &middot; {{ $groupItem['participant_email'] }}
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td class="text-center">{{ $groupItem['qty'] }}</td>
+                                            <td class="text-end text-nowrap">{{ $formatMoney($groupItem['unit_price']) }}</td>
+                                            <td class="text-end text-nowrap">{{ $formatMoney($groupItem['discount']) }}</td>
+                                            <td class="text-end text-nowrap">{{ $formatMoney($groupItem['amount']) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
                     <div class="table-responsive invoice-table-wrap">
                         <table class="table invoice-table align-middle mb-0">
                             <thead>
@@ -167,7 +314,38 @@
                             </tbody>
                         </table>
                     </div>
+                    @endif
 
+                    @if ($groupOrderItems->isNotEmpty() && (bool) ($usesWht ?? false))
+                        <div class="invoice-summary-wrap group-tax-summary">
+                            <table class="invoice-summary-table">
+                                <tr>
+                                    <td>Subtotal</td>
+                                    <td>{{ $formatMoney($amountBeforeVat ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Gross Up WHT</td>
+                                    <td>{{ $formatMoney($totalInvoiceAmount ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>VAT Calculation Base</td>
+                                    <td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>VAT (12%)</td>
+                                    <td>{{ $formatMoney($vatAmount ?? 0) }}</td>
+                                </tr>
+                                <tr class="group-wht-row">
+                                    <td>WHT ({{ number_format((float) ($whtRate ?? 2), 0) }}%)</td>
+                                    <td>{{ $formatMoney($whtAmount ?? 0) }}</td>
+                                </tr>
+                                <tr class="group-total-paid-row">
+                                    <td>Total Paid</td>
+                                    <td>{{ $formatMoney($grandTotal ?? $totalPaid ?? 0) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    @else
                     <div class="invoice-summary-wrap">
                         <table class="invoice-summary-table">
                             <tr>
@@ -188,6 +366,7 @@
                             </tr>
                         </table>
                     </div>
+                    @endif
                 </section>
 
                 <section class="invoice-payment-section">
@@ -320,29 +499,64 @@
 
                 const canvas = await window.html2canvas(target, {
                     backgroundColor: '#ffffff',
-                    scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+                    scale: 2,
                     useCORS: true,
                     allowTaint: false,
                     logging: false,
                     scrollX: 0,
-                    scrollY: -window.scrollY,
-                    windowWidth: document.documentElement.scrollWidth,
-                    windowHeight: document.documentElement.scrollHeight
+                    scrollY: 0,
+                    windowWidth: 1440,
+                    windowHeight: Math.max(target.scrollHeight, 1123),
+                    onclone: function (clonedDocument) {
+                        const clonedReceipt = clonedDocument.querySelector('#receiptDocument');
+
+                        if (!clonedReceipt) {
+                            return;
+                        }
+
+                        clonedReceipt.classList.add('invoice-exporting');
+                        clonedReceipt.style.width = '794px';
+                        clonedReceipt.style.minWidth = '794px';
+                        clonedReceipt.style.maxWidth = '794px';
+                        clonedReceipt.style.margin = '0';
+                        clonedReceipt.style.boxShadow = 'none';
+                        clonedReceipt.style.transform = 'none';
+                    }
                 });
 
                 const imageData = canvas.toDataURL('image/png', 1.0);
                 const pdf = new JsPDF('p', 'mm', 'a4');
 
-                // Invoice/receipt memang didesain sebagai 1 halaman A4.
-                // Jangan pakai slicing multi-page, karena selisih tinggi canvas 1-2px
-                // bisa bikin jsPDF menambah halaman kedua kosong.
+                // Jangan paksa canvas menjadi 210 x 297 mm karena tinggi receipt
+                // bisa berbeda dari rasio A4 dan hasilnya akan terlihat stretch.
+                // Scale secara proporsional agar rasio asli receipt tetap terjaga.
+                const canvasRatio = canvas.width / canvas.height;
+                const pageRatio = A4_WIDTH_MM / A4_HEIGHT_MM;
+
+                let renderedWidth;
+                let renderedHeight;
+                let renderedX = 0;
+                let renderedY = 0;
+
+                if (canvasRatio >= pageRatio) {
+                    renderedWidth = A4_WIDTH_MM;
+                    renderedHeight = renderedWidth / canvasRatio;
+                    // Pertahankan posisi receipt dari bagian atas halaman.
+                    // Sisa ruang putih diletakkan di bawah, bukan dibagi atas-bawah.
+                    renderedY = 0;
+                } else {
+                    renderedHeight = A4_HEIGHT_MM;
+                    renderedWidth = renderedHeight * canvasRatio;
+                    renderedX = Math.max((A4_WIDTH_MM - renderedWidth) / 2, 0);
+                }
+
                 pdf.addImage(
                     imageData,
                     'PNG',
-                    0,
-                    0,
-                    A4_WIDTH_MM,
-                    A4_HEIGHT_MM,
+                    renderedX,
+                    renderedY,
+                    renderedWidth,
+                    renderedHeight,
                     undefined,
                     'FAST'
                 );

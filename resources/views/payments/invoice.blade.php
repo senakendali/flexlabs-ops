@@ -5,6 +5,25 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/payments/invoice.css') }}">
     <style>
+        .invoice-table tbody tr:nth-child(odd) > td {
+            --bs-table-bg: #ffffff;
+            background-color: #ffffff !important;
+        }
+
+        .invoice-table tbody tr:nth-child(even) > td {
+            --bs-table-bg: #f6f7f9;
+            background-color: #f6f7f9 !important;
+        }
+
+        #invoiceDocument.invoice-exporting {
+            width: 794px !important;
+            min-width: 794px !important;
+            max-width: 794px !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
         .invoice-title {
             font-family: "Arial Black", "Arial Bold", Arial, Helvetica, sans-serif !important;
             font-weight: 900 !important;
@@ -676,14 +695,29 @@
 
                 const canvas = await window.html2canvas(target, {
                     backgroundColor: '#ffffff',
-                    scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+                    scale: 2,
                     useCORS: true,
                     allowTaint: false,
                     logging: false,
                     scrollX: 0,
-                    scrollY: -window.scrollY,
-                    windowWidth: document.documentElement.scrollWidth,
-                    windowHeight: document.documentElement.scrollHeight
+                    scrollY: 0,
+                    windowWidth: 1440,
+                    windowHeight: Math.max(target.scrollHeight, 1123),
+                    onclone: function (clonedDocument) {
+                        const clonedInvoice = clonedDocument.querySelector('#invoiceDocument');
+
+                        if (!clonedInvoice) {
+                            return;
+                        }
+
+                        clonedInvoice.classList.add('invoice-exporting');
+                        clonedInvoice.style.width = '794px';
+                        clonedInvoice.style.minWidth = '794px';
+                        clonedInvoice.style.maxWidth = '794px';
+                        clonedInvoice.style.margin = '0';
+                        clonedInvoice.style.boxShadow = 'none';
+                        clonedInvoice.style.transform = 'none';
+                    }
                 });
 
                 const imageData = canvas.toDataURL('image/png', 1.0);
