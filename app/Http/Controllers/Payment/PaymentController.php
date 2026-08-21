@@ -2434,6 +2434,81 @@ class PaymentController extends Controller
     {
         $batchCode = $this->resolveInvoiceBatchCode($order);
         $programCode = $this->resolveInvoiceProgramCode($order);
+
+        // Tanggal ditampilkan dalam nomor invoice.
+        $dateCode = now()->format('Ymd');
+
+        // Bulan digunakan sebagai patokan sequence.
+        $monthCode = now()->format('Ym');
+
+        $monthlyPrefix = 'FLX-'
+            . $batchCode
+            . '-'
+            . $programCode
+            . '-'
+            . $monthCode;
+
+        $documentPrefix = 'FLX-'
+            . $batchCode
+            . '-'
+            . $programCode
+            . '-'
+            . $dateCode
+            . '-';
+
+        /*
+        * Membaca dua format:
+        *
+        * Format tanggal:
+        * FLX-B1-AI-20260818-004
+        *
+        * Format bulanan transisi:
+        * FLX-B1-AI-202608-005
+        */
+        $pattern = '/^'
+            . preg_quote($monthlyPrefix, '/')
+            . '(?:\d{2})?-(\d+)$/';
+
+        $maxSequence = Payment::query()
+            ->where(function ($query) use ($monthlyPrefix) {
+                $query
+                    ->where(
+                        'invoice_number',
+                        'like',
+                        $monthlyPrefix . '__-%'
+                    )
+                    ->orWhere(
+                        'invoice_number',
+                        'like',
+                        $monthlyPrefix . '-%'
+                    );
+            })
+            ->lockForUpdate()
+            ->pluck('invoice_number')
+            ->map(function ($invoiceNumber) use ($pattern) {
+                return preg_match(
+                    $pattern,
+                    (string) $invoiceNumber,
+                    $matches
+                )
+                    ? (int) $matches[1]
+                    : 0;
+            })
+            ->max() ?: 0;
+
+        return $documentPrefix
+            . str_pad(
+                (string) ($maxSequence + 1),
+                3,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
+
+    private function generateInvoiceNumber__(Order $order): string
+    {
+        $batchCode = $this->resolveInvoiceBatchCode($order);
+        $programCode = $this->resolveInvoiceProgramCode($order);
         $monthCode = now()->format('Ym');
 
         /*

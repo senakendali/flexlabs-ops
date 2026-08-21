@@ -17,6 +17,89 @@ class InvoiceNumberService
 
         $batchCode = $this->resolveBatchCode($order);
         $programCode = $this->resolveProgramCode($order);
+
+        // Ditampilkan dalam nomor invoice sampai tanggal.
+        $dateCode = now()->format('Ymd');
+
+        // Sequence tetap dihitung berdasarkan bulan.
+        $monthCode = now()->format('Ym');
+
+        // Digunakan untuk mencari seluruh invoice dalam bulan berjalan.
+        $monthlyPrefix = 'FLX-'
+            . $batchCode
+            . '-'
+            . $programCode
+            . '-'
+            . $monthCode;
+
+        // Digunakan sebagai nomor invoice yang akan disimpan.
+        $documentPrefix = 'FLX-'
+            . $batchCode
+            . '-'
+            . $programCode
+            . '-'
+            . $dateCode
+            . '-';
+
+        /*
+        * Menerima:
+        * FLX-B1-AI-20260818-004 (format tanggal)
+        * FLX-B1-AI-202608-005   (format bulanan/transisi)
+        */
+        $pattern = '/^'
+            . preg_quote($monthlyPrefix, '/')
+            . '(?:\d{2})?-(\d+)$/';
+
+        $maxSequence = Payment::query()
+            ->where(function ($query) use ($monthlyPrefix) {
+                $query
+                    // Format tanggal: FLX-B1-AI-20260818-004
+                    ->where(
+                        'invoice_number',
+                        'like',
+                        $monthlyPrefix . '__-%'
+                    )
+
+                    // Format bulanan: FLX-B1-AI-202608-005
+                    ->orWhere(
+                        'invoice_number',
+                        'like',
+                        $monthlyPrefix . '-%'
+                    );
+            })
+            ->lockForUpdate()
+            ->pluck('invoice_number')
+            ->map(function ($invoiceNumber) use ($pattern) {
+                return preg_match(
+                    $pattern,
+                    (string) $invoiceNumber,
+                    $matches
+                )
+                    ? (int) $matches[1]
+                    : 0;
+            })
+            ->max() ?: 0;
+
+        $nextSequence = $maxSequence + 1;
+
+        return $documentPrefix
+            . str_pad(
+                (string) $nextSequence,
+                3,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
+    
+    public function generate___(Order $order): string
+    {
+        $order->loadMissing([
+            'batch:id,program_id,name',
+            'batch.program:id,name',
+        ]);
+
+        $batchCode = $this->resolveBatchCode($order);
+        $programCode = $this->resolveProgramCode($order);
         $monthCode = now()->format('Ym');
         $sequencePrefix = 'FLX-' . $batchCode . '-' . $programCode . '-' . $monthCode;
         $documentPrefix = $sequencePrefix . '-';
