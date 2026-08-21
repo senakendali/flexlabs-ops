@@ -335,6 +335,10 @@
                                     <td>VAT (12%)</td>
                                     <td>{{ $formatMoney($vatAmount ?? 0) }}</td>
                                 </tr>
+                                <tr>
+                                    <td>Total Invoice</td>
+                                    <td>{{ $formatMoney((float) ($totalInvoiceAmount ?? 0) + (float) ($vatAmount ?? 0)) }}</td>
+                                </tr>
                                 <tr class="group-wht-row">
                                     <td>WHT ({{ number_format((float) ($whtRate ?? 2), 0) }}%)</td>
                                     <td>{{ $formatMoney($whtAmount ?? 0) }}</td>
