@@ -307,11 +307,6 @@ class StudentController extends Controller
                         default => 'Installment ' . ($index + 1),
                     };
 
-                    $manualPaymentNotes = trim((string) ($validated['payment_notes'] ?? ''));
-                    $paymentNotes = $manualPaymentNotes !== ''
-                        ? $paymentLabel . ' - ' . $manualPaymentNotes
-                        : $paymentLabel;
-
                     $schedule = PaymentSchedule::create([
                         'order_id' => $order->id,
                         'title' => $paymentLabel,
@@ -320,6 +315,26 @@ class StudentController extends Controller
                         'status' => 'pending',
                         'notes' => $validated['payment_notes'] ?? null,
                     ]);
+
+                    /*
+                    |------------------------------------------------------------------
+                    | Only issue the first payment term
+                    |------------------------------------------------------------------
+                    |
+                    | Every term remains recorded as a PaymentSchedule. However, only
+                    | the first term (DP or Full Payment) is issued as a Payment and
+                    | receives an invoice number and Xendit payment link immediately.
+                    | Future installments will be issued from their schedule later.
+                    |
+                    */
+                    if ($index !== 0) {
+                        continue;
+                    }
+
+                    $manualPaymentNotes = trim((string) ($validated['payment_notes'] ?? ''));
+                    $paymentNotes = $manualPaymentNotes !== ''
+                        ? $paymentLabel . ' - ' . $manualPaymentNotes
+                        : $paymentLabel;
 
                     $payment = Payment::create([
                         'order_id' => $order->id,
@@ -382,8 +397,8 @@ class StudentController extends Controller
         return response()->json([
             'success' => true,
             'message' => $linkFailureCount > 0
-                ? 'Student and payment data created. Some payment links could not be generated and can be retried from Payments.'
-                : 'Student, sales order, payment schedules, and payment links created successfully.',
+                ? 'Student, sales order, and payment schedules created. The first payment link could not be generated and can be retried from Payments.'
+                : 'Student, sales order, payment schedules, and first payment invoice created successfully.',
             'data' => [
                 'student' => $student,
                 'order' => $order->fresh(),
