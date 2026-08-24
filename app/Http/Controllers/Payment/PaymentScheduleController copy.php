@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PaymentScheduleController extends Controller
@@ -228,23 +227,6 @@ class PaymentScheduleController extends Controller
         try {
             $paymentSchedule = DB::transaction(function () use ($validated, $paymentSchedule) {
                 $oldOrderId = $paymentSchedule->order_id;
-                $amountChanged = (float) $paymentSchedule->amount !== (float) $validated['amount'];
-
-                if ($amountChanged) {
-                    $hasPaidPayment = Payment::query()
-                        ->where('payment_schedule_id', $paymentSchedule->id)
-                        ->where('status', 'paid')
-                        ->lockForUpdate()
-                        ->exists();
-
-                    if ($hasPaidPayment || $paymentSchedule->status === 'paid') {
-                        throw ValidationException::withMessages([
-                            'amount' => [
-                                'Amount cannot be changed because this payment schedule already has a paid payment.',
-                            ],
-                        ]);
-                    }
-                }
 
                 $paymentSchedule->update([
                     'order_id' => $validated['order_id'],
@@ -258,31 +240,6 @@ class PaymentScheduleController extends Controller
                     'status' => $validated['status'],
                     'notes' => $validated['notes'] ?? null,
                 ]);
-
-                /*
-                |------------------------------------------------------------------
-                | Invalidate stale gateway links when the installment changes
-                |------------------------------------------------------------------
-                | Xendit payment links keep the amount used when they were created.
-                | Updating only payment_schedules.amount would therefore leave the
-                | customer redirected to the previous amount. Clearing the gateway
-                | data makes PaymentController generate a fresh link.
-                */
-                if ($amountChanged) {
-                    Payment::query()
-                        ->where('payment_schedule_id', $paymentSchedule->id)
-                        ->where('status', '!=', 'paid')
-                        ->update([
-                            'order_id' => $paymentSchedule->order_id,
-                            'amount' => $validated['amount'],
-                            'payment_url' => null,
-                            'gateway_transaction_id' => null,
-                            'gateway_provider' => null,
-                            'gateway_payload' => null,
-                            'status' => 'pending',
-                            'expired_at' => now()->addDay(),
-                        ]);
-                }
 
                 $this->syncOrderStatus($oldOrderId);
 

@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PaymentController extends Controller
@@ -437,19 +436,10 @@ class PaymentController extends Controller
 
         $previousStatus = $payment->status;
         $hadPaymentUrl = !empty($payment->payment_url);
-        $amountChanged = (float) $payment->amount !== (float) $validated['amount'];
-
-        if ($amountChanged && $payment->status === 'paid') {
-            throw ValidationException::withMessages([
-                'amount' => [
-                    'Amount cannot be changed because this payment has already been paid.',
-                ],
-            ]);
-        }
 
         $invoiceNumberWasSent = $request->has('invoice_number');
 
-        DB::transaction(function () use ($payment, $validated, $order, $invoiceNumberWasSent, $amountChanged) {
+        DB::transaction(function () use ($payment, $validated, $order, $invoiceNumberWasSent) {
             $payload = [
                 'order_id' => $validated['order_id'],
                 'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
@@ -473,20 +463,12 @@ class PaymentController extends Controller
                     ?: ($payment->invoice_number ?: $this->generateInvoiceNumber($order));
             }
 
-            if ($amountChanged) {
-                $payload['payment_url'] = null;
-                $payload['gateway_transaction_id'] = null;
-                $payload['gateway_provider'] = null;
-                $payload['gateway_payload'] = null;
-            }
-
             $payment->update($payload);
         });
 
         $shouldGenerateLink = $payment->status === 'pending' && (
             !$hadPaymentUrl ||
-            $previousStatus !== 'pending' ||
-            $amountChanged
+            $previousStatus !== 'pending'
         );
 
         if ($shouldGenerateLink) {
@@ -654,8 +636,6 @@ class PaymentController extends Controller
     public function publicShow(string $token): View
     {
         $payment = $this->findPaymentByPublicToken($token);
-
-        $payment = $this->ensurePendingPaymentLink($payment);
 
         return view('payments.public-show', $this->buildPublicPaymentViewData($payment));
     }
@@ -2441,37 +2421,6 @@ class PaymentController extends Controller
                 ],
             ]);
         }
-    }
-
-    private function ensurePendingPaymentLink(Payment $payment): Payment
-    {
-        if ($payment->status !== 'pending' || filled($payment->payment_url)) {
-            return $payment;
-        }
-
-        if ($this->isPaymentExpired($payment)) {
-            return $payment;
-        }
-
-        $payment->loadMissing([
-            'order.student',
-            'order.groupRegistration.company',
-            'order.batch.program',
-            'order.workshop',
-            'paymentSchedule',
-        ]);
-
-        if (!$payment->order) {
-            return $payment;
-        }
-
-        $this->attachXenditPaymentLink(
-            $payment,
-            $payment->order,
-            $payment->paymentSchedule
-        );
-
-        return $payment->fresh($this->paymentDocumentRelations());
     }
 
     private function normalizeManualInvoiceNumber(mixed $invoiceNumber): ?string

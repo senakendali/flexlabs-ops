@@ -446,46 +446,22 @@ class OrderController extends Controller
 
     private function syncPendingPaymentScheduleAmount(Order $order, float $finalPrice): void
     {
-        $activeSchedules = PaymentSchedule::query()
+        $paymentSchedule = PaymentSchedule::query()
             ->where('order_id', $order->id)
-            ->where('status', '!=', 'cancelled')
             ->oldest()
-            ->get();
+            ->first();
 
-        if ($activeSchedules->count() !== 1) {
+        if (! $paymentSchedule) {
             return;
         }
-
-        $paymentSchedule = $activeSchedules->first();
 
         if ($paymentSchedule->status === 'paid') {
             return;
         }
 
-        $amountChanged = (float) $paymentSchedule->amount !== (float) $finalPrice;
-
-        if (! $amountChanged) {
-            return;
-        }
-
         $paymentSchedule->update([
             'amount' => $finalPrice,
-            'gross_amount' => $finalPrice,
-            'net_amount' => $finalPrice,
         ]);
-
-        Payment::query()
-            ->where('payment_schedule_id', $paymentSchedule->id)
-            ->where('status', '!=', 'paid')
-            ->update([
-                'amount' => $finalPrice,
-                'payment_url' => null,
-                'gateway_transaction_id' => null,
-                'gateway_provider' => null,
-                'gateway_payload' => null,
-                'status' => 'pending',
-                'expired_at' => now()->addDay(),
-            ]);
     }
 
     private function applyWorkshopKeywordSearch($query, string $keyword): void
