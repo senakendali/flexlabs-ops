@@ -123,9 +123,9 @@ class XenditService
     /**
      * Expire invoice Xendit yang sedang tersimpan pada payment.
      *
-     * Method ini tidak mengubah status atau data pada database.
-     * Controller yang memanggil method ini tetap bertanggung jawab
-     * terhadap sinkronisasi payment.
+     * Method ini tidak mengubah status atau data pada database. Jika endpoint
+     * expire tidak menemukan invoice PENDING, status invoice diverifikasi
+     * terlebih dahulu sebelum update schedule diizinkan untuk dilanjutkan.
      */
     public function expirePaymentLink(Payment $payment): ?array
     {
@@ -158,6 +158,18 @@ class XenditService
             return is_array($data) ? $data : [];
         } catch (RequestException $exception) {
             $responseBody = $exception->response?->json();
+            $errorCode = is_array($responseBody)
+                ? ($responseBody['error_code'] ?? null)
+                : null;
+
+            if ($errorCode === 'INVOICE_NOT_FOUND_ERROR') {
+                return $this->resolveNonPendingInvoice(
+                    $invoiceId,
+                    $secretKey,
+                    $apiBase,
+                    is_array($responseBody) ? $responseBody : []
+                );
+            }
 
             throw new RuntimeException(
                 'Failed to expire Xendit payment link: '
@@ -172,11 +184,8 @@ class XenditService
      * Membuat payment link pengganti dengan external ID baru.
      *
      * Invoice number FlexLabs tidak berubah. External ID unik ini hanya
-     * digunakan oleh Xendit agar replacement invoice tidak dianggap
-     * sebagai duplicate invoice.
-     *
-     * Method ini tidak otomatis expire link lama. Controller harus
-     * memanggil expirePaymentLink() terlebih dahulu.
+     * digunakan oleh Xendit agar replacement invoice tidak dianggap duplicate.
+     * Controller harus memanggil expirePaymentLink() terlebih dahulu.
      */
     public function createReplacementPaymentLink(
         Payment $payment,
@@ -187,6 +196,74 @@ class XenditService
         );
 
         return $this->createPaymentLink($payment, $customer);
+    }
+
+    /**
+     * Memastikan invoice yang gagal di-expire memang sudah tidak aktif.
+     */
+    private function resolveNonPendingInvoice(
+        string $invoiceId,
+        string $secretKey,
+        string $apiBase,
+        array $expireError
+    ): array {
+        try {
+            $response = Http::withBasicAuth($secretKey, '')
+                ->acceptJson()
+                ->timeout(30)
+                ->get(
+                    $apiBase
+                    . '/v2/invoices/'
+                    . rawurlencode($invoiceId)
+                )
+                ->throw();
+
+            $invoice = $response->json();
+
+            if (!is_array($invoice)) {
+                throw new RuntimeException(
+                    'Xendit returned invalid invoice data.'
+                );
+            }
+
+            $status = strtoupper(
+                (string) ($invoice['status'] ?? '')
+            );
+
+            if ($status === 'EXPIRED') {
+                return [
+                    'status' => 'EXPIRED',
+                    'already_inactive' => true,
+                    'invoice' => $invoice,
+                ];
+            }
+
+            if (in_array($status, ['PAID', 'SETTLED'], true)) {
+                throw new RuntimeException(
+                    'The existing Xendit invoice has already been paid. '
+                    . 'Payment schedule cannot be changed.'
+                );
+            }
+
+            throw new RuntimeException(
+                'The existing Xendit invoice could not be expired. '
+                . 'Current invoice status: '
+                . ($status ?: 'UNKNOWN')
+                . '. Please verify the Xendit account/API key.'
+            );
+        } catch (RequestException $exception) {
+            $responseBody = $exception->response?->json();
+
+            throw new RuntimeException(
+                'Could not verify the existing Xendit invoice. '
+                . 'It may belong to another Xendit account or environment: '
+                . json_encode(
+                    $responseBody
+                    ?: $expireError
+                    ?: $exception->getMessage()
+                )
+            );
+        }
     }
 
     private function generateReplacementExternalId(
