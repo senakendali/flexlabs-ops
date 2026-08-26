@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
+use App\Services\PaymentGateway\XenditService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,11 @@ use Illuminate\View\View;
 
 class PaymentScheduleController extends Controller
 {
+    public function __construct(
+        protected XenditService $xenditService
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $perPage = (int) $request->get('per_page', 10);
@@ -225,26 +232,76 @@ class PaymentScheduleController extends Controller
             ], 422);
         }
 
+        $oldDueDate = $paymentSchedule->due_date
+            ? Carbon::parse($paymentSchedule->due_date)->toDateString()
+            : null;
+        $newDueDate = !empty($validated['due_date'])
+            ? Carbon::parse($validated['due_date'])->toDateString()
+            : null;
+        $amountChanged = (float) $paymentSchedule->amount
+            !== (float) $validated['amount'];
+        $dueDateChanged = $oldDueDate !== $newDueDate;
+        $gatewayDataChanged = $amountChanged || $dueDateChanged;
+        $newExpiredAt = $newDueDate
+            ? Carbon::parse($newDueDate)->endOfDay()
+            : null;
+
+        $linkedPayments = collect();
+
+        if ($gatewayDataChanged) {
+            $linkedPayments = Payment::query()
+                ->where('payment_schedule_id', $paymentSchedule->id)
+                ->where('status', '!=', 'paid')
+                ->get();
+
+            $hasPaidPayment = Payment::query()
+                ->where('payment_schedule_id', $paymentSchedule->id)
+                ->where('status', 'paid')
+                ->exists();
+
+            if ($hasPaidPayment || $paymentSchedule->status === 'paid') {
+                throw ValidationException::withMessages([
+                    $amountChanged ? 'amount' : 'due_date' => [
+                        'Amount or due date cannot be changed because this payment schedule already has a paid payment.',
+                    ],
+                ]);
+            }
+        }
+
         try {
-            $paymentSchedule = DB::transaction(function () use ($validated, $paymentSchedule) {
-                $oldOrderId = $paymentSchedule->order_id;
-                $amountChanged = (float) $paymentSchedule->amount !== (float) $validated['amount'];
-
-                if ($amountChanged) {
-                    $hasPaidPayment = Payment::query()
-                        ->where('payment_schedule_id', $paymentSchedule->id)
-                        ->where('status', 'paid')
-                        ->lockForUpdate()
-                        ->exists();
-
-                    if ($hasPaidPayment || $paymentSchedule->status === 'paid') {
-                        throw ValidationException::withMessages([
-                            'amount' => [
-                                'Amount cannot be changed because this payment schedule already has a paid payment.',
-                            ],
-                        ]);
+            /*
+            |------------------------------------------------------------------
+            | Expire active Xendit invoices before changing local gateway data
+            |------------------------------------------------------------------
+            */
+            if ($gatewayDataChanged) {
+                foreach ($linkedPayments as $linkedPayment) {
+                    if (
+                        $linkedPayment->status === 'pending'
+                        && !empty($linkedPayment->gateway_transaction_id)
+                    ) {
+                        $this->xenditService->expirePaymentLink(
+                            $linkedPayment
+                        );
                     }
                 }
+            }
+
+            $paymentSnapshots = $linkedPayments
+                ->map(fn (Payment $linkedPayment) => [
+                    'id' => $linkedPayment->id,
+                    'had_gateway_invoice' => filled($linkedPayment->payment_url)
+                        || filled($linkedPayment->gateway_transaction_id),
+                ])
+                ->values();
+
+            $paymentSchedule = DB::transaction(function () use (
+                $validated,
+                $paymentSchedule,
+                $gatewayDataChanged,
+                $newExpiredAt
+            ) {
+                $oldOrderId = $paymentSchedule->order_id;
 
                 $paymentSchedule->update([
                     'order_id' => $validated['order_id'],
@@ -259,16 +316,7 @@ class PaymentScheduleController extends Controller
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
-                /*
-                |------------------------------------------------------------------
-                | Invalidate stale gateway links when the installment changes
-                |------------------------------------------------------------------
-                | Xendit payment links keep the amount used when they were created.
-                | Updating only payment_schedules.amount would therefore leave the
-                | customer redirected to the previous amount. Clearing the gateway
-                | data makes PaymentController generate a fresh link.
-                */
-                if ($amountChanged) {
+                if ($gatewayDataChanged) {
                     Payment::query()
                         ->where('payment_schedule_id', $paymentSchedule->id)
                         ->where('status', '!=', 'paid')
@@ -280,7 +328,7 @@ class PaymentScheduleController extends Controller
                             'gateway_provider' => null,
                             'gateway_payload' => null,
                             'status' => 'pending',
-                            'expired_at' => now()->addDay(),
+                            'expired_at' => $newExpiredAt,
                         ]);
                 }
 
@@ -300,11 +348,20 @@ class PaymentScheduleController extends Controller
                 ]);
             });
 
+            if ($gatewayDataChanged && $paymentSnapshots->isNotEmpty()) {
+                $this->regenerateXenditPaymentLinks(
+                    $paymentSchedule,
+                    $paymentSnapshots->all()
+                );
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Payment schedule updated successfully.',
                 'data' => $paymentSchedule,
             ]);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -313,6 +370,80 @@ class PaymentScheduleController extends Controller
                 'message' => 'Failed to update payment schedule.',
                 'error' => app()->isLocal() ? $exception->getMessage() : null,
             ], 500);
+        }
+    }
+
+    private function regenerateXenditPaymentLinks(
+        PaymentSchedule $paymentSchedule,
+        array $paymentSnapshots
+    ): void {
+        $order = Order::query()
+            ->with([
+                'student:id,full_name,email,phone',
+                'batch:id,program_id,name',
+                'batch.program:id,name',
+                'workshop',
+            ])
+            ->find($paymentSchedule->order_id);
+
+        if (! $order) {
+            return;
+        }
+
+        foreach ($paymentSnapshots as $snapshot) {
+            $payment = Payment::query()->find($snapshot['id']);
+
+            if (! $payment || $payment->status !== 'pending') {
+                continue;
+            }
+
+            $customerData = [
+                'full_name' => $order->student?->full_name,
+                'email' => $order->student?->email,
+                'phone' => $order->student?->phone,
+                'program_name' => $order->batch?->program?->name,
+                'batch_name' => $order->batch?->name,
+                'item_name' => $paymentSchedule->title
+                    ?: ($order->workshop
+                        ? $this->getWorkshopTitle($order->workshop)
+                        : 'FlexLabs Payment'),
+            ];
+
+            try {
+                $xenditResult = !empty($snapshot['had_gateway_invoice'])
+                    ? $this->xenditService
+                        ->createReplacementPaymentLink(
+                            $payment,
+                            $customerData
+                        )
+                    : $this->xenditService->createPaymentLink(
+                        $payment,
+                        $customerData
+                    );
+
+                $payment->update([
+                    'payment_url' => $xenditResult['payment_url']
+                        ?? $payment->payment_url,
+                    'gateway_transaction_id' => $xenditResult['gateway_transaction_id']
+                        ?? $payment->gateway_transaction_id,
+                    'gateway_provider' => $xenditResult['gateway_provider']
+                        ?? 'xendit',
+                    'gateway_payload' => $xenditResult['gateway_payload']
+                        ?? null,
+                    'expired_at' => !empty($xenditResult['expired_at'])
+                        ? Carbon::parse($xenditResult['expired_at'])
+                        : $payment->expired_at,
+                ]);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                $payment->update([
+                    'gateway_provider' => 'xendit',
+                    'gateway_payload' => [
+                        'error' => $exception->getMessage(),
+                    ],
+                ]);
+            }
         }
     }
 

@@ -437,19 +437,55 @@ class PaymentController extends Controller
 
         $previousStatus = $payment->status;
         $hadPaymentUrl = !empty($payment->payment_url);
+        $hadGatewayInvoice = $hadPaymentUrl
+            || !empty($payment->gateway_transaction_id);
         $amountChanged = (float) $payment->amount !== (float) $validated['amount'];
+        $expiredAtWasSent = $request->exists('expired_at');
+        $newExpiredAt = $expiredAtWasSent
+            ? (!empty($validated['expired_at'])
+                ? Carbon::parse($validated['expired_at'])
+                : null)
+            : $payment->expired_at;
+        $expiredAtChanged = $expiredAtWasSent
+            && $this->dateTimeValueChanged(
+                $payment->expired_at,
+                $newExpiredAt
+            );
+        $gatewayDataChanged = $amountChanged || $expiredAtChanged;
 
-        if ($amountChanged && $payment->status === 'paid') {
+        if ($gatewayDataChanged && $payment->status === 'paid') {
             throw ValidationException::withMessages([
-                'amount' => [
-                    'Amount cannot be changed because this payment has already been paid.',
+                $amountChanged ? 'amount' : 'expired_at' => [
+                    'Payment amount or expiry date cannot be changed because this payment has already been paid.',
                 ],
             ]);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Expire the active Xendit invoice before replacing gateway data
+        |--------------------------------------------------------------------------
+        | Only pending invoices need to be expired. Failed, expired, or cancelled
+        | invoices are no longer active and can be replaced directly.
+        */
+        if (
+            $gatewayDataChanged
+            && $previousStatus === 'pending'
+            && !empty($payment->gateway_transaction_id)
+        ) {
+            $this->xenditService->expirePaymentLink($payment);
+        }
+
         $invoiceNumberWasSent = $request->has('invoice_number');
 
-        DB::transaction(function () use ($payment, $validated, $order, $invoiceNumberWasSent, $amountChanged) {
+        DB::transaction(function () use (
+            $payment,
+            $validated,
+            $order,
+            $invoiceNumberWasSent,
+            $gatewayDataChanged,
+            $newExpiredAt
+        ) {
             $payload = [
                 'order_id' => $validated['order_id'],
                 'payment_schedule_id' => $validated['payment_schedule_id'] ?? null,
@@ -462,9 +498,7 @@ class PaymentController extends Controller
                 'gateway_transaction_id' => $validated['gateway_transaction_id'] ?? $payment->gateway_transaction_id,
                 'gateway_provider' => $validated['gateway_provider'] ?? $payment->gateway_provider,
                 'status' => $validated['status'],
-                'expired_at' => !empty($validated['expired_at'])
-                    ? Carbon::parse($validated['expired_at'])
-                    : $payment->expired_at,
+                'expired_at' => $newExpiredAt,
                 'notes' => $validated['notes'] ?? null,
             ];
 
@@ -473,7 +507,7 @@ class PaymentController extends Controller
                     ?: ($payment->invoice_number ?: $this->generateInvoiceNumber($order));
             }
 
-            if ($amountChanged) {
+            if ($gatewayDataChanged) {
                 $payload['payment_url'] = null;
                 $payload['gateway_transaction_id'] = null;
                 $payload['gateway_provider'] = null;
@@ -486,11 +520,16 @@ class PaymentController extends Controller
         $shouldGenerateLink = $payment->status === 'pending' && (
             !$hadPaymentUrl ||
             $previousStatus !== 'pending' ||
-            $amountChanged
+            $gatewayDataChanged
         );
 
         if ($shouldGenerateLink) {
-            $this->attachXenditPaymentLink($payment->fresh(), $order, $paymentSchedule);
+            $this->attachXenditPaymentLink(
+                $payment->fresh(),
+                $order,
+                $paymentSchedule,
+                $hadGatewayInvoice
+            );
         }
 
         $this->syncRelatedStatuses($payment->fresh());
@@ -2397,7 +2436,8 @@ class PaymentController extends Controller
     private function attachXenditPaymentLink(
         Payment $payment,
         Order $order,
-        ?PaymentSchedule $paymentSchedule = null
+        ?PaymentSchedule $paymentSchedule = null,
+        bool $replacement = false
     ): void {
         try {
             $customer = $this->resolvePaymentCustomer($order);
@@ -2410,7 +2450,7 @@ class PaymentController extends Controller
                     ?: ($sourceContext['source_item_name'] ?? null)
                     ?: ($sourceContext['source_type_label'] ? $sourceContext['source_type_label'] . ' Payment' : 'FlexLabs Payment'));
 
-            $xenditResult = $this->xenditService->createPaymentLink($payment, [
+            $customerData = [
                 'full_name' => $customer?->full_name,
                 'email' => $customer?->email,
                 'phone' => $customer?->phone,
@@ -2420,7 +2460,17 @@ class PaymentController extends Controller
                 'source_type_label' => $sourceContext['source_type_label'],
                 'source_item_name' => $sourceContext['source_item_name'],
                 'item_name' => $itemName,
-            ]);
+            ];
+
+            $xenditResult = $replacement
+                ? $this->xenditService->createReplacementPaymentLink(
+                    $payment,
+                    $customerData
+                )
+                : $this->xenditService->createPaymentLink(
+                    $payment,
+                    $customerData
+                );
 
             $payment->update([
                 'payment_url' => $xenditResult['payment_url'] ?? $payment->payment_url,
@@ -2465,13 +2515,46 @@ class PaymentController extends Controller
             return $payment;
         }
 
+        $gatewayPayload = $payment->gateway_payload;
+
+        if (is_string($gatewayPayload)) {
+            $decodedGatewayPayload = json_decode(
+                $gatewayPayload,
+                true
+            );
+
+            $gatewayPayload = is_array($decodedGatewayPayload)
+                ? $decodedGatewayPayload
+                : [];
+        }
+
+        $shouldUseReplacementLink = is_array($gatewayPayload)
+            && !empty($gatewayPayload['error']);
+
         $this->attachXenditPaymentLink(
             $payment,
             $payment->order,
-            $payment->paymentSchedule
+            $payment->paymentSchedule,
+            $shouldUseReplacementLink
         );
 
         return $payment->fresh($this->paymentDocumentRelations());
+    }
+
+    private function dateTimeValueChanged(
+        mixed $currentValue,
+        mixed $newValue
+    ): bool {
+        if (empty($currentValue) && empty($newValue)) {
+            return false;
+        }
+
+        if (empty($currentValue) || empty($newValue)) {
+            return true;
+        }
+
+        return Carbon::parse($currentValue)->timestamp
+            !== Carbon::parse($newValue)->timestamp;
     }
 
     private function normalizeManualInvoiceNumber(mixed $invoiceNumber): ?string

@@ -5,18 +5,17 @@ namespace App\Services\PaymentGateway;
 use App\Models\Payment;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class XenditService
 {
-    public function createPaymentLink(Payment $payment, array $customer = []): array
-    {
-        $secretKey = (string) config('services.xendit.secret_key');
-        $apiBase = rtrim((string) config('services.xendit.api_base'), '/');
-
-        if ($secretKey === '') {
-            throw new RuntimeException('Xendit secret key is not configured.');
-        }
+    public function createPaymentLink(
+        Payment $payment,
+        array $customer = []
+    ): array {
+        $secretKey = $this->resolveSecretKey();
+        $apiBase = $this->resolveApiBase();
 
         $descriptionParts = array_filter([
             'Payment for ' . ($payment->invoice_number ?? 'Invoice'),
@@ -24,22 +23,50 @@ class XenditService
             $customer['batch_name'] ?? null,
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Xendit external ID
+        |--------------------------------------------------------------------------
+        | Normal payment tetap memakai invoice number seperti logic sebelumnya.
+        | Replacement link dapat mengirim external_id yang unik melalui customer.
+        */
+        $externalId = $customer['external_id']
+            ?? $payment->invoice_number;
+
+        if (empty($externalId)) {
+            throw new RuntimeException(
+                'Payment invoice number is required to create a Xendit payment link.'
+            );
+        }
+
         $payload = [
-            'external_id' => $payment->invoice_number,
+            'external_id' => $externalId,
             'amount' => (float) $payment->amount,
             'description' => implode(' - ', $descriptionParts),
-            'invoice_duration' => $this->resolveInvoiceDurationInSeconds($payment),
+            'invoice_duration' => $this->resolveInvoiceDurationInSeconds(
+                $payment
+            ),
             'customer' => [
                 'given_names' => $customer['full_name'] ?? 'Customer',
-                'email' => $customer['email'] ?? 'no-email@flexlabs.local',
-                'mobile_number' => $this->normalizePhoneNumber($customer['phone'] ?? null),
+                'email' => $customer['email']
+                    ?? 'no-email@flexlabs.local',
+                'mobile_number' => $this->normalizePhoneNumber(
+                    $customer['phone'] ?? null
+                ),
             ],
-            'success_redirect_url' => route('public.payments.show', $payment->public_token) . '?payment_status=success',
-            'failure_redirect_url' => route('public.payments.show', $payment->public_token) . '?payment_status=failed',
+            'success_redirect_url' => route(
+                'public.payments.show',
+                $payment->public_token
+            ) . '?payment_status=success',
+            'failure_redirect_url' => route(
+                'public.payments.show',
+                $payment->public_token
+            ) . '?payment_status=failed',
             'currency' => 'IDR',
             'items' => [
                 [
-                    'name' => $customer['item_name'] ?? ('Payment ' . $payment->invoice_number),
+                    'name' => $customer['item_name']
+                        ?? ('Payment ' . $payment->invoice_number),
                     'quantity' => 1,
                     'price' => (float) $payment->amount,
                     'category' => 'Education',
@@ -62,8 +89,13 @@ class XenditService
 
             $data = $response->json();
 
-            if (!is_array($data) || empty($data['invoice_url'])) {
-                throw new RuntimeException('Xendit did not return a valid invoice URL.');
+            if (
+                !is_array($data)
+                || empty($data['invoice_url'])
+            ) {
+                throw new RuntimeException(
+                    'Xendit did not return a valid invoice URL.'
+                );
             }
 
             return [
@@ -72,21 +104,119 @@ class XenditService
                 'gateway_provider' => 'xendit',
                 'gateway_payload' => $data,
                 'expired_at' => $data['expiry_date'] ?? null,
+                'external_id' => $data['external_id']
+                    ?? $externalId,
                 'raw' => $data,
             ];
-        } catch (RequestException $e) {
-            $responseBody = $e->response?->json();
+        } catch (RequestException $exception) {
+            $responseBody = $exception->response?->json();
 
             throw new RuntimeException(
-                'Failed to create Xendit payment link: ' . json_encode($responseBody ?: $e->getMessage())
+                'Failed to create Xendit payment link: '
+                . json_encode(
+                    $responseBody ?: $exception->getMessage()
+                )
             );
         }
     }
 
-    private function resolveInvoiceDurationInSeconds(Payment $payment): int
+    /**
+     * Expire invoice Xendit yang sedang tersimpan pada payment.
+     *
+     * Method ini tidak mengubah status atau data pada database.
+     * Controller yang memanggil method ini tetap bertanggung jawab
+     * terhadap sinkronisasi payment.
+     */
+    public function expirePaymentLink(Payment $payment): ?array
     {
+        $invoiceId = trim(
+            (string) $payment->gateway_transaction_id
+        );
+
+        if ($invoiceId === '') {
+            return null;
+        }
+
+        $secretKey = $this->resolveSecretKey();
+        $apiBase = $this->resolveApiBase();
+
+        try {
+            $response = Http::withBasicAuth($secretKey, '')
+                ->acceptJson()
+                ->asJson()
+                ->timeout(30)
+                ->post(
+                    $apiBase
+                    . '/invoices/'
+                    . rawurlencode($invoiceId)
+                    . '/expire!'
+                )
+                ->throw();
+
+            $data = $response->json();
+
+            return is_array($data) ? $data : [];
+        } catch (RequestException $exception) {
+            $responseBody = $exception->response?->json();
+
+            throw new RuntimeException(
+                'Failed to expire Xendit payment link: '
+                . json_encode(
+                    $responseBody ?: $exception->getMessage()
+                )
+            );
+        }
+    }
+
+    /**
+     * Membuat payment link pengganti dengan external ID baru.
+     *
+     * Invoice number FlexLabs tidak berubah. External ID unik ini hanya
+     * digunakan oleh Xendit agar replacement invoice tidak dianggap
+     * sebagai duplicate invoice.
+     *
+     * Method ini tidak otomatis expire link lama. Controller harus
+     * memanggil expirePaymentLink() terlebih dahulu.
+     */
+    public function createReplacementPaymentLink(
+        Payment $payment,
+        array $customer = []
+    ): array {
+        $customer['external_id'] = $this->generateReplacementExternalId(
+            $payment
+        );
+
+        return $this->createPaymentLink($payment, $customer);
+    }
+
+    private function generateReplacementExternalId(
+        Payment $payment
+    ): string {
+        $invoiceNumber = trim(
+            (string) $payment->invoice_number
+        );
+
+        if ($invoiceNumber === '') {
+            $invoiceNumber = 'PAYMENT';
+        }
+
+        return implode('-', [
+            $invoiceNumber,
+            'R',
+            $payment->id,
+            now()->format('YmdHis'),
+            Str::lower(Str::random(8)),
+        ]);
+    }
+
+    private function resolveInvoiceDurationInSeconds(
+        Payment $payment
+    ): int {
         if ($payment->expired_at) {
-            $seconds = now()->diffInSeconds($payment->expired_at, false);
+            $seconds = now()->diffInSeconds(
+                $payment->expired_at,
+                false
+            );
 
             if ($seconds > 0) {
                 return $seconds;
@@ -96,13 +226,18 @@ class XenditService
         return 86400;
     }
 
-    private function normalizePhoneNumber(?string $phone): ?string
-    {
+    private function normalizePhoneNumber(
+        ?string $phone
+    ): ?string {
         if (!$phone) {
             return null;
         }
 
-        $normalized = preg_replace('/[^\d+]/', '', trim($phone));
+        $normalized = preg_replace(
+            '/[^\d+]/',
+            '',
+            trim($phone)
+        );
 
         if (!$normalized) {
             return null;
@@ -121,5 +256,36 @@ class XenditService
         }
 
         return $normalized;
+    }
+
+    private function resolveSecretKey(): string
+    {
+        $secretKey = (string) config(
+            'services.xendit.secret_key'
+        );
+
+        if ($secretKey === '') {
+            throw new RuntimeException(
+                'Xendit secret key is not configured.'
+            );
+        }
+
+        return $secretKey;
+    }
+
+    private function resolveApiBase(): string
+    {
+        $apiBase = rtrim(
+            (string) config('services.xendit.api_base'),
+            '/'
+        );
+
+        if ($apiBase === '') {
+            throw new RuntimeException(
+                'Xendit API base URL is not configured.'
+            );
+        }
+
+        return $apiBase;
     }
 }

@@ -17,8 +17,6 @@ class XenditWebhookController extends Controller
     {
         try {
             $payload = $request->all();
-            $headers = $request->headers->all();
-
             $callbackToken = (string) $request->header('x-callback-token');
             $expectedToken = (string) config('services.xendit.webhook_token');
 
@@ -31,18 +29,17 @@ class XenditWebhookController extends Controller
             $debug = [
                 'expected' => [
                     'callback_token' => '[must match XENDIT_WEBHOOK_TOKEN]',
-                    'external_id' => '[must match payments.invoice_number]',
+                    'external_id' => '[invoice number or replacement external ID]',
                     'status' => '[PAID | SETTLED | EXPIRED | FAILED | VOIDED | PENDING | UNPAID]',
                 ],
                 'received' => [
-                    'callback_token' => $callbackToken,
+                    'callback_token_present' => $callbackToken !== '',
                     'external_id' => $externalId,
                     'status' => $incomingStatus,
                     'paid_at' => $paidAtRaw,
                     'expiry_date' => $expiryDateRaw,
                     'transaction_id' => $transactionId,
                 ],
-                'headers' => $headers,
                 'payload' => $payload,
             ];
 
@@ -62,8 +59,6 @@ class XenditWebhookController extends Controller
                     'message' => 'Invalid callback token.',
                     'debug' => array_merge($debug, [
                         'comparison' => [
-                            'expected_token' => $expectedToken,
-                            'received_token' => $callbackToken,
                             'matched' => false,
                         ],
                     ]),
@@ -79,17 +74,46 @@ class XenditWebhookController extends Controller
                 ], 422);
             }
 
-            $payment = Payment::where('invoice_number', $externalId)->first();
+            [$payment, $lookupField] = $this->resolvePayment(
+                $transactionId,
+                $externalId
+            );
 
             if (!$payment) {
+                $stalePayment = $this->resolveStalePayment(
+                    $transactionId,
+                    $externalId
+                );
+
+                if ($stalePayment) {
+                    return response()->json([
+                        'success' => true,
+                        'stage' => 'ignored_stale_callback',
+                        'message' => 'Callback belongs to an inactive Xendit invoice and was ignored.',
+                        'debug' => array_merge($debug, [
+                            'lookup' => [
+                                'matched' => false,
+                                'ignored_as_stale' => true,
+                                'payment_id' => $stalePayment->id,
+                                'current_gateway_transaction_id' => $stalePayment->gateway_transaction_id,
+                                'incoming_gateway_transaction_id' => $transactionId,
+                            ],
+                        ]),
+                    ]);
+                }
+
                 return response()->json([
                     'success' => false,
                     'stage' => 'payment_lookup',
                     'message' => 'Payment not found using external_id.',
                     'debug' => array_merge($debug, [
                         'lookup' => [
-                            'query_field' => 'invoice_number',
-                            'query_value' => $externalId,
+                            'query_fields' => [
+                                'gateway_transaction_id',
+                                'invoice_number',
+                            ],
+                            'transaction_id' => $transactionId,
+                            'external_id' => $externalId,
                             'matched' => false,
                             'latest_payments' => Payment::latest('id')
                                 ->take(10)
@@ -208,6 +232,7 @@ class XenditWebhookController extends Controller
                     'lookup' => [
                         'matched' => true,
                         'payment_id' => $freshPayment->id,
+                        'query_field' => $lookupField,
                     ],
                     'before' => $before,
                     'update_data' => $this->normalizeForDebug($updateData),
@@ -249,6 +274,74 @@ class XenditWebhookController extends Controller
                     ->all(),
             ], 500);
         }
+    }
+
+    /**
+     * Resolve callback ke payment aktif.
+     *
+     * Transaction ID menjadi lookup utama agar replacement external ID tidak
+     * harus sama dengan invoice_number. Lookup invoice_number dipertahankan
+     * sebagai fallback khusus data lama yang belum memiliki transaction ID.
+     */
+    private function resolvePayment(
+        mixed $transactionId,
+        string $externalId
+    ): array {
+        $transactionId = trim((string) $transactionId);
+
+        if ($transactionId !== '') {
+            $payment = Payment::query()
+                ->where('gateway_transaction_id', $transactionId)
+                ->first();
+
+            if ($payment) {
+                return [$payment, 'gateway_transaction_id'];
+            }
+        }
+
+        if ($externalId !== '') {
+            $payment = Payment::query()
+                ->where('invoice_number', $externalId)
+                ->where(function ($query) use ($transactionId) {
+                    $query->whereNull('gateway_transaction_id');
+
+                    if ($transactionId !== '') {
+                        $query->orWhere(
+                            'gateway_transaction_id',
+                            $transactionId
+                        );
+                    }
+                })
+                ->first();
+
+            if ($payment) {
+                return [$payment, 'invoice_number'];
+            }
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Mendeteksi callback invoice lama setelah payment memiliki invoice Xendit
+     * pengganti. Callback lama tidak boleh mengubah payment aktif menjadi
+     * expired atau failed.
+     */
+    private function resolveStalePayment(
+        mixed $transactionId,
+        string $externalId
+    ): ?Payment {
+        $transactionId = trim((string) $transactionId);
+
+        if ($transactionId === '' || $externalId === '') {
+            return null;
+        }
+
+        return Payment::query()
+            ->where('invoice_number', $externalId)
+            ->whereNotNull('gateway_transaction_id')
+            ->where('gateway_transaction_id', '!=', $transactionId)
+            ->first();
     }
 
     private function refreshScheduleStatus(PaymentSchedule $paymentSchedule): array
