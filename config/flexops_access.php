@@ -550,6 +550,7 @@ return [
             'internal_memos.export',
 
             'academic.view',
+            'academic.dashboard.view',
             'academic_calendar.view',
             'academic_schedules.view',
             'academic_schedules.create',
