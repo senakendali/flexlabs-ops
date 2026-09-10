@@ -19,7 +19,11 @@ class StudentScheduleController extends Controller
         $batchIds = $this->resolveStudentBatchIds($student);
 
         $liveSessions = $this->getLiveSessions($batchIds, $timezone);
-        $mentoringSessions = $this->getMentoringSessions($student?->id, $batchIds, $timezone);
+        $mentoringSessions = $this->getMentoringSessions(
+            $student?->id,
+            $batchIds,
+            $timezone
+        );
 
         $sessions = $liveSessions
             ->merge($mentoringSessions)
@@ -29,9 +33,11 @@ class StudentScheduleController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Student schedules loaded successfully.',
+
             'student' => [
                 'id' => $student?->id,
                 'name' => $this->resolveStudentName($student, $request),
+
                 'avatarUrl' => $this->pickValue($student, [
                     'avatar_url',
                     'photo_url',
@@ -39,20 +45,44 @@ class StudentScheduleController extends Controller
                     'image_url',
                 ]),
             ],
+
             'summaries' => [
                 'total' => $sessions->count(),
-                'today' => $sessions->where('date', 'Today')->count(),
-                'live_session' => $sessions->where('type', 'live_session')->count(),
-                'mentoring_session' => $sessions->where('type', 'mentoring_session')->count(),
+
+                'today' => $sessions
+                    ->where('date', 'Today')
+                    ->count(),
+
+                'live_session' => $sessions
+                    ->where('type', 'live_session')
+                    ->count(),
+
+                'mentoring_session' => $sessions
+                    ->where('type', 'mentoring_session')
+                    ->count(),
             ],
+
             'sessions' => $sessions,
         ]);
     }
 
-    private function getLiveSessions(array $batchIds, string $timezone): Collection
-    {
-        // Jangan jalankan query tanpa batch student karena dapat membuat
-        // seluruh jadwal dari semua batch ikut terkirim.
+    /**
+     * Get upcoming live sessions based only on batches
+     * currently associated with the student.
+     */
+    private function getLiveSessions(
+        array $batchIds,
+        string $timezone
+    ): Collection {
+        /*
+        |--------------------------------------------------------------------------
+        | Safety Guard
+        |--------------------------------------------------------------------------
+        |
+        | Jangan menjalankan query apabila batch student tidak ditemukan.
+        | Tanpa guard ini jadwal seluruh batch berpotensi ikut terkirim.
+        |
+        */
         if (empty($batchIds)) {
             return collect();
         }
@@ -73,18 +103,31 @@ class StudentScheduleController extends Controller
             return collect();
         }
 
-        // Live session wajib memiliki batch_id agar jadwal dapat dibatasi
-        // hanya untuk batch yang diikuti student.
+        /*
+        |--------------------------------------------------------------------------
+        | Batch Column Required
+        |--------------------------------------------------------------------------
+        */
         if (!Schema::hasColumn($table, 'batch_id')) {
             return collect();
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Date Column
+        |--------------------------------------------------------------------------
+        */
         $dateColumn = $this->firstExistingColumn($table, [
             'schedule_date',
             'session_date',
             'date',
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Start Time Column
+        |--------------------------------------------------------------------------
+        */
         $startColumn = $this->firstExistingColumn($table, [
             'start_time',
             'starts_at',
@@ -97,6 +140,11 @@ class StudentScheduleController extends Controller
 
         $query = $model::query();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Load Available Relations
+        |--------------------------------------------------------------------------
+        */
         $relations = $this->availableRelations($instance, [
             'batch',
             'batch.program',
@@ -114,12 +162,41 @@ class StudentScheduleController extends Controller
             $query->with($relations);
         }
 
-        $query->whereIn($table . '.batch_id', $batchIds);
+        /*
+        |--------------------------------------------------------------------------
+        | IMPORTANT: Filter by Student Batch
+        |--------------------------------------------------------------------------
+        |
+        | Jadwal hanya boleh berasal dari batch yang diikuti student.
+        |
+        */
+        $query->whereIn(
+            $table . '.batch_id',
+            $batchIds
+        );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Upcoming Session Window
+        |--------------------------------------------------------------------------
+        |
+        | Hanya tampilkan jadwal hari ini hingga 60 hari ke depan.
+        |
+        */
         if ($dateColumn) {
             $query
-                ->whereDate($dateColumn, '>=', now($timezone)->toDateString())
-                ->whereDate($dateColumn, '<=', now($timezone)->addDays(60)->toDateString())
+                ->whereDate(
+                    $dateColumn,
+                    '>=',
+                    now($timezone)->toDateString()
+                )
+                ->whereDate(
+                    $dateColumn,
+                    '<=',
+                    now($timezone)
+                        ->addDays(60)
+                        ->toDateString()
+                )
                 ->orderBy($dateColumn);
         }
 
@@ -129,15 +206,30 @@ class StudentScheduleController extends Controller
 
         return $query
             ->get()
-            ->map(fn ($schedule) => $this->mapLiveSession($schedule, $timezone))
+            ->map(
+                fn ($schedule) =>
+                $this->mapLiveSession(
+                    $schedule,
+                    $timezone
+                )
+            )
             ->filter()
             ->values();
     }
 
-    private function getMentoringSessions(?int $studentId, array $batchIds, string $timezone): Collection
-    {
-        // Jangan jalankan query tanpa student_id karena dapat membuat
-        // seluruh mentoring session milik student lain ikut terkirim.
+    /**
+     * Get mentoring sessions belonging to current student.
+     */
+    private function getMentoringSessions(
+        ?int $studentId,
+        array $batchIds,
+        string $timezone
+    ): Collection {
+        /*
+        |--------------------------------------------------------------------------
+        | Safety Guard
+        |--------------------------------------------------------------------------
+        */
         if (!$studentId) {
             return collect();
         }
@@ -159,6 +251,10 @@ class StudentScheduleController extends Controller
             return collect();
         }
 
+        if (!Schema::hasColumn($table, 'student_id')) {
+            return collect();
+        }
+
         $query = $model::query();
 
         $relations = $this->availableRelations($instance, [
@@ -171,12 +267,21 @@ class StudentScheduleController extends Controller
             $query->with($relations);
         }
 
-        if (!Schema::hasColumn($table, 'student_id')) {
-            return collect();
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | Student Scope
+        |--------------------------------------------------------------------------
+        */
+        $query->where(
+            $table . '.student_id',
+            $studentId
+        );
 
-        $query->where($table . '.student_id', $studentId);
-
+        /*
+        |--------------------------------------------------------------------------
+        | Exclude Finished Mentoring Sessions
+        |--------------------------------------------------------------------------
+        */
         if (Schema::hasColumn($table, 'status')) {
             $query->whereNotIn('status', [
                 'completed',
@@ -189,7 +294,13 @@ class StudentScheduleController extends Controller
         return $query
             ->latest('created_at')
             ->get()
-            ->map(fn ($session) => $this->mapMentoringSession($session, $timezone))
+            ->map(
+                fn ($session) =>
+                $this->mapMentoringSession(
+                    $session,
+                    $timezone
+                )
+            )
             ->filter(function ($item) use ($timezone) {
                 if (!$item || empty($item['start_at'])) {
                     return false;
@@ -197,13 +308,20 @@ class StudentScheduleController extends Controller
 
                 return Carbon::parse($item['start_at'])
                     ->timezone($timezone)
-                    ->greaterThanOrEqualTo(now($timezone)->startOfDay());
+                    ->greaterThanOrEqualTo(
+                        now($timezone)->startOfDay()
+                    );
             })
             ->values();
     }
 
-    private function mapLiveSession($schedule, string $timezone): ?array
-    {
+    /**
+     * Map instructor schedule into unified LMS schedule format.
+     */
+    private function mapLiveSession(
+        $schedule,
+        string $timezone
+    ): ?array {
         $date = $this->pickValue($schedule, [
             'schedule_date',
             'session_date',
@@ -222,13 +340,27 @@ class StudentScheduleController extends Controller
             'ended_at',
         ]);
 
-        $startAt = $this->buildDateTime($date, $startTime, $timezone);
-        $endAt = $this->buildDateTime($date, $endTime, $timezone);
+        $startAt = $this->buildDateTime(
+            $date,
+            $startTime,
+            $timezone
+        );
+
+        $endAt = $this->buildDateTime(
+            $date,
+            $endTime,
+            $timezone
+        );
 
         if (!$startAt) {
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Session Title
+        |--------------------------------------------------------------------------
+        */
         $title = $this->pickValue($schedule, [
             'title',
             'session_title',
@@ -244,6 +376,11 @@ class StudentScheduleController extends Controller
             ?: data_get($schedule, 'batch.name')
             ?: 'Live Session';
 
+        /*
+        |--------------------------------------------------------------------------
+        | Description
+        |--------------------------------------------------------------------------
+        */
         $description = $this->pickValue($schedule, [
             'description',
             'notes',
@@ -251,6 +388,11 @@ class StudentScheduleController extends Controller
             'agenda',
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Instructor
+        |--------------------------------------------------------------------------
+        */
         $lecturer = data_get($schedule, 'instructor.name')
             ?: data_get($schedule, 'teacher.name')
             ?: data_get($schedule, 'mentor.name')
@@ -261,11 +403,28 @@ class StudentScheduleController extends Controller
             ])
             ?: 'FlexLabs Academic Team';
 
+        /*
+        |--------------------------------------------------------------------------
+        | Meeting URL
+        |--------------------------------------------------------------------------
+        */
         $meetingUrl = $this->resolveMeetingUrl($schedule);
-        $status = $this->resolveStatus($schedule, $startAt, $endAt, $timezone);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Status
+        |--------------------------------------------------------------------------
+        */
+        $status = $this->resolveStatus(
+            $schedule,
+            $startAt,
+            $endAt,
+            $timezone
+        );
 
         return [
             'id' => 'live-' . $schedule->id,
+
             'source' => 'instructor_schedule',
             'source_id' => $schedule->id,
 
@@ -273,26 +432,54 @@ class StudentScheduleController extends Controller
             'typeLabel' => 'Live Session',
 
             'title' => $title,
-            'description' => $description ?: 'Scheduled live class with your instructor.',
 
-            'date' => $this->formatDateLabel($startAt, $timezone),
-            'raw_date' => $startAt->copy()->timezone($timezone)->toDateString(),
-            'time' => $this->formatTimeRange($startAt, $endAt, $timezone),
+            'description' => $description
+                ?: 'Scheduled live class with your instructor.',
+
+            'date' => $this->formatDateLabel(
+                $startAt,
+                $timezone
+            ),
+
+            'raw_date' => $startAt
+                ->copy()
+                ->timezone($timezone)
+                ->toDateString(),
+
+            'time' => $this->formatTimeRange(
+                $startAt,
+                $endAt,
+                $timezone
+            ),
 
             'start_at' => $startAt->toIso8601String(),
-            'end_at' => $endAt?->toIso8601String(),
+
+            'end_at' => $endAt
+                ?->toIso8601String(),
 
             'lecturer' => $lecturer,
+
             'meeting_url' => $meetingUrl,
 
             'status' => $status,
-            'statusLabel' => $this->statusLabel($status),
+
+            'statusLabel' => $this->statusLabel(
+                $status
+            ),
         ];
     }
 
-    private function mapMentoringSession($session, string $timezone): ?array
-    {
-        $slot = data_get($session, 'availabilitySlot');
+    /**
+     * Map mentoring session into unified LMS schedule format.
+     */
+    private function mapMentoringSession(
+        $session,
+        string $timezone
+    ): ?array {
+        $slot = data_get(
+            $session,
+            'availabilitySlot'
+        );
 
         if (!$slot) {
             return null;
@@ -318,30 +505,67 @@ class StudentScheduleController extends Controller
             'ended_at',
         ]);
 
-        $startAt = $this->buildDateTime($date, $startTime, $timezone);
-        $endAt = $this->buildDateTime($date, $endTime, $timezone);
+        $startAt = $this->buildDateTime(
+            $date,
+            $startTime,
+            $timezone
+        );
+
+        $endAt = $this->buildDateTime(
+            $date,
+            $endTime,
+            $timezone
+        );
 
         if (!$startAt) {
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Topic
+        |--------------------------------------------------------------------------
+        */
         $topicLabel = $session->topic_type_label
-            ?? $this->formatMentoringTopicType($session->topic_type);
+            ?? $this->formatMentoringTopicType(
+                $session->topic_type
+            );
 
-        $lecturer = data_get($session, 'instructor.name')
+        /*
+        |--------------------------------------------------------------------------
+        | Instructor
+        |--------------------------------------------------------------------------
+        */
+        $lecturer = data_get(
+            $session,
+            'instructor.name'
+        )
             ?: $this->pickValue($session, [
                 'instructor_name',
                 'mentor_name',
             ])
             ?: 'FlexLabs Mentor';
 
+        /*
+        |--------------------------------------------------------------------------
+        | Meeting URL
+        |--------------------------------------------------------------------------
+        */
         $meetingUrl = $this->resolveMeetingUrl($session)
             ?: $this->resolveMeetingUrl($slot);
 
-        $status = strtolower((string) ($session->status ?? 'pending'));
+        /*
+        |--------------------------------------------------------------------------
+        | Status
+        |--------------------------------------------------------------------------
+        */
+        $status = strtolower(
+            (string) ($session->status ?? 'pending')
+        );
 
         return [
             'id' => 'mentoring-' . $session->id,
+
             'source' => 'student_mentoring_session',
             'source_id' => $session->id,
 
@@ -349,51 +573,100 @@ class StudentScheduleController extends Controller
             'typeLabel' => 'Mentoring Session',
 
             'title' => '1-on-1 Mentoring - ' . $topicLabel,
-            'description' => $session->notes ?: 'Private mentoring session with your instructor.',
 
-            'date' => $this->formatDateLabel($startAt, $timezone),
-            'raw_date' => $startAt->copy()->timezone($timezone)->toDateString(),
-            'time' => $this->formatTimeRange($startAt, $endAt, $timezone),
+            'description' => $session->notes
+                ?: 'Private mentoring session with your instructor.',
+
+            'date' => $this->formatDateLabel(
+                $startAt,
+                $timezone
+            ),
+
+            'raw_date' => $startAt
+                ->copy()
+                ->timezone($timezone)
+                ->toDateString(),
+
+            'time' => $this->formatTimeRange(
+                $startAt,
+                $endAt,
+                $timezone
+            ),
 
             'start_at' => $startAt->toIso8601String(),
-            'end_at' => $endAt?->toIso8601String(),
+
+            'end_at' => $endAt
+                ?->toIso8601String(),
 
             'lecturer' => $lecturer,
+
             'meeting_url' => $meetingUrl,
 
             'status' => $status,
-            'statusLabel' => $session->status_label ?? $this->mentoringStatusLabel($status),
+
+            'statusLabel' => $session->status_label
+                ?? $this->mentoringStatusLabel(
+                    $status
+                ),
         ];
     }
 
-    private function formatMentoringTopicType(?string $topicType): string
-    {
+    private function formatMentoringTopicType(
+        ?string $topicType
+    ): string {
         return match ($topicType) {
             'code_review' => 'Code Review',
+
             'debugging' => 'Debugging',
-            'project_consultation' => 'Project Consultation',
-            'career_portfolio' => 'Career / Portfolio',
-            'lesson_discussion' => 'Lesson Discussion',
+
+            'project_consultation' =>
+                'Project Consultation',
+
+            'career_portfolio' =>
+                'Career / Portfolio',
+
+            'lesson_discussion' =>
+                'Lesson Discussion',
+
             'other' => 'Other',
-            default => str($topicType)->replace('_', ' ')->title()->toString(),
+
+            default => str($topicType)
+                ->replace('_', ' ')
+                ->title()
+                ->toString(),
         };
     }
 
-    private function mentoringStatusLabel(string $status): string
-    {
+    private function mentoringStatusLabel(
+        string $status
+    ): string {
         return match ($status) {
             'pending' => 'Pending Approval',
+
             'approved' => 'Approved',
+
             'rescheduled' => 'Rescheduled',
+
             'completed' => 'Completed',
-            'cancelled', 'canceled' => 'Cancelled',
+
+            'cancelled',
+            'canceled' => 'Cancelled',
+
             'rejected' => 'Rejected',
-            default => str($status)->replace('_', ' ')->title()->toString(),
+
+            default => str($status)
+                ->replace('_', ' ')
+                ->title()
+                ->toString(),
         };
     }
 
-    private function resolveMeetingUrl($model): ?string
-    {
+    /**
+     * Resolve meeting URL from multiple possible database fields.
+     */
+    private function resolveMeetingUrl(
+        $model
+    ): ?string {
         $directValue = $this->pickValue($model, [
             'meeting_link',
             'meetingLink',
@@ -436,8 +709,9 @@ class StudentScheduleController extends Controller
         return null;
     }
 
-    private function looksLikeUrl($value): bool
-    {
+    private function looksLikeUrl(
+        $value
+    ): bool {
         if (!is_string($value)) {
             return false;
         }
@@ -448,21 +722,45 @@ class StudentScheduleController extends Controller
             return false;
         }
 
-        return str_starts_with($value, 'http://')
-            || str_starts_with($value, 'https://')
-            || str_contains($value, 'meet.google.com')
-            || str_contains($value, 'zoom.us')
-            || str_contains($value, 'teams.microsoft.com');
+        return str_starts_with(
+            $value,
+            'http://'
+        )
+            || str_starts_with(
+                $value,
+                'https://'
+            )
+            || str_contains(
+                $value,
+                'meet.google.com'
+            )
+            || str_contains(
+                $value,
+                'zoom.us'
+            )
+            || str_contains(
+                $value,
+                'teams.microsoft.com'
+            );
     }
 
-    private function resolveStudent(Request $request)
-    {
+    /**
+     * Resolve student from authenticated LMS user.
+     */
+    private function resolveStudent(
+        Request $request
+    ) {
         $user = $request->user();
 
         if (!$user) {
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | User -> Student Relation
+        |--------------------------------------------------------------------------
+        */
         if (method_exists($user, 'student')) {
             $student = $user->student;
 
@@ -471,6 +769,11 @@ class StudentScheduleController extends Controller
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Student Model
+        |--------------------------------------------------------------------------
+        */
         $studentModel = $this->firstExistingModel([
             \App\Models\Academic\Student::class,
             \App\Models\Student::class,
@@ -487,9 +790,17 @@ class StudentScheduleController extends Controller
             return null;
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Lookup by user_id
+        |--------------------------------------------------------------------------
+        */
         if (Schema::hasColumn($table, 'user_id')) {
             $student = $studentModel::query()
-                ->where('user_id', $user->id)
+                ->where(
+                    'user_id',
+                    $user->id
+                )
                 ->first();
 
             if ($student) {
@@ -497,25 +808,46 @@ class StudentScheduleController extends Controller
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Lookup by user.student_id
+        |--------------------------------------------------------------------------
+        */
         if (!empty($user->student_id)) {
-            $student = $studentModel::query()->find($user->student_id);
+            $student = $studentModel::query()
+                ->find(
+                    $user->student_id
+                );
 
             if ($student) {
                 return $student;
             }
         }
 
-        if (Schema::hasColumn($table, 'email') && !empty($user->email)) {
+        /*
+        |--------------------------------------------------------------------------
+        | Lookup by Email
+        |--------------------------------------------------------------------------
+        */
+        if (
+            Schema::hasColumn($table, 'email')
+            && !empty($user->email)
+        ) {
             return $studentModel::query()
-                ->where('email', $user->email)
+                ->where(
+                    'email',
+                    $user->email
+                )
                 ->first();
         }
 
         return null;
     }
 
-    private function resolveStudentName($student, Request $request): string
-    {
+    private function resolveStudentName(
+        $student,
+        Request $request
+    ): string {
         $user = $request->user();
 
         return $this->pickValue($student, [
@@ -533,138 +865,337 @@ class StudentScheduleController extends Controller
             ?: 'Student';
     }
 
-    private function resolveStudentBatchIds($student): array
-    {
+    /**
+     * Resolve all batch IDs currently associated with the student.
+     *
+     * Priority:
+     *
+     * 1. activeEnrollments relation
+     * 2. direct batch_id/current_batch_id
+     * 3. batches relation
+     */
+    private function resolveStudentBatchIds(
+        $student
+    ): array {
         if (!$student) {
             return [];
         }
 
         $batchIds = collect();
 
-        $directBatchId = $this->pickValue($student, [
-            'batch_id',
-            'current_batch_id',
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Active Enrollments
+        |--------------------------------------------------------------------------
+        |
+        | Ini menjadi sumber utama batch student.
+        |
+        | Student tidak harus memiliki batch_id secara langsung pada table
+        | students. Enrollment student dapat menyimpan batch_id pada table
+        | enrollment masing-masing.
+        |
+        */
+        if (method_exists($student, 'activeEnrollments')) {
+            try {
+                $student->loadMissing(
+                    'activeEnrollments.batch'
+                );
 
-        if ($directBatchId) {
-            $batchIds->push((int) $directBatchId);
+                $activeEnrollments =
+                    $student->activeEnrollments
+                    ?? collect();
+
+                $enrollmentBatchIds =
+                    $activeEnrollments
+                        ->filter(function ($enrollment) {
+                            /*
+                             * Kalau property is_accessible tersedia,
+                             * hanya enrollment accessible yang digunakan.
+                             *
+                             * Kalau property tidak tersedia, enrollment
+                             * tetap dianggap valid.
+                             */
+                            return (
+                                $enrollment->is_accessible
+                                ?? true
+                            );
+                        })
+                        ->pluck('batch_id')
+                        ->filter()
+                        ->map(
+                            fn ($batchId) =>
+                            (int) $batchId
+                        );
+
+                $batchIds = $batchIds
+                    ->merge(
+                        $enrollmentBatchIds
+                    );
+            } catch (\Throwable) {
+                /*
+                 * Relation fallback akan tetap dijalankan.
+                 */
+            }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Direct Student Batch
+        |--------------------------------------------------------------------------
+        |
+        | Tetap dipertahankan untuk compatibility apabila table students
+        | memiliki batch_id atau current_batch_id.
+        |
+        */
+        $directBatchId =
+            $this->pickValue($student, [
+                'batch_id',
+                'current_batch_id',
+            ]);
+
+        if ($directBatchId) {
+            $batchIds->push(
+                (int) $directBatchId
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Batches Relation
+        |--------------------------------------------------------------------------
+        |
+        | Fallback apabila model Student mempunyai relation many-to-many
+        | atau relation batches lainnya.
+        |
+        */
         if (method_exists($student, 'batches')) {
             try {
                 $student->loadMissing('batches');
 
-                $relationBatchIds = $student->batches
-                    ? $student->batches->pluck('id')
+                $relationBatchIds =
+                    $student->batches
+                    ? $student->batches
+                        ->pluck('id')
+                        ->filter()
+                        ->map(
+                            fn ($batchId) =>
+                            (int) $batchId
+                        )
                     : collect();
 
-                $batchIds = $batchIds->merge($relationBatchIds);
+                $batchIds = $batchIds
+                    ->merge(
+                        $relationBatchIds
+                    );
             } catch (\Throwable) {
-                //
+                /*
+                 * Jangan membuat endpoint gagal hanya karena
+                 * fallback relation tidak tersedia.
+                 */
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize Batch IDs
+        |--------------------------------------------------------------------------
+        */
         return $batchIds
             ->filter()
+            ->map(
+                fn ($batchId) =>
+                (int) $batchId
+            )
             ->unique()
             ->values()
             ->all();
     }
 
-    private function resolveStatus($model, Carbon $startAt, ?Carbon $endAt, string $timezone): string
-    {
-        $rawStatus = strtolower((string) ($model->status ?? ''));
+    private function resolveStatus(
+        $model,
+        Carbon $startAt,
+        ?Carbon $endAt,
+        string $timezone
+    ): string {
+        $rawStatus = strtolower(
+            (string) ($model->status ?? '')
+        );
 
-        if (in_array($rawStatus, ['cancelled', 'canceled'], true)) {
+        if (
+            in_array(
+                $rawStatus,
+                [
+                    'cancelled',
+                    'canceled',
+                ],
+                true
+            )
+        ) {
             return 'cancelled';
         }
 
-        if (in_array($rawStatus, ['completed', 'done', 'finished'], true)) {
+        if (
+            in_array(
+                $rawStatus,
+                [
+                    'completed',
+                    'done',
+                    'finished',
+                ],
+                true
+            )
+        ) {
             return 'completed';
         }
 
         return 'scheduled';
     }
 
-    private function statusLabel(string $status): string
-    {
+    private function statusLabel(
+        string $status
+    ): string {
         return match ($status) {
-            'available' => 'Ready to join',
-            'completed' => 'Completed',
-            'cancelled' => 'Cancelled',
-            default => 'Scheduled',
+            'available' =>
+                'Ready to join',
+
+            'completed' =>
+                'Completed',
+
+            'cancelled' =>
+                'Cancelled',
+
+            default =>
+                'Scheduled',
         };
     }
 
-    private function buildDateTime($date, $time, string $timezone): ?Carbon
-    {
+    /**
+     * Build date + time into Carbon instance.
+     */
+    private function buildDateTime(
+        $date,
+        $time,
+        string $timezone
+    ): ?Carbon {
         if (!$date && !$time) {
             return null;
         }
 
         try {
-            if ($date instanceof \DateTimeInterface) {
-                $date = Carbon::parse($date)->toDateString();
+            if (
+                $date instanceof
+                \DateTimeInterface
+            ) {
+                $date = Carbon::parse($date)
+                    ->toDateString();
             }
 
-            if ($time instanceof \DateTimeInterface) {
-                $time = Carbon::parse($time)->format('H:i:s');
+            if (
+                $time instanceof
+                \DateTimeInterface
+            ) {
+                $time = Carbon::parse($time)
+                    ->format('H:i:s');
             }
 
             if ($date && !$time) {
-                return Carbon::parse($date, $timezone)->startOfDay();
+                return Carbon::parse(
+                    $date,
+                    $timezone
+                )->startOfDay();
             }
 
             if (!$date && $time) {
-                return Carbon::parse($time, $timezone);
+                return Carbon::parse(
+                    $time,
+                    $timezone
+                );
             }
 
-            return Carbon::parse(trim($date . ' ' . $time), $timezone);
+            return Carbon::parse(
+                trim(
+                    $date . ' ' . $time
+                ),
+                $timezone
+            );
         } catch (\Throwable) {
             return null;
         }
     }
 
-    private function formatDateLabel(Carbon $date, string $timezone): string
-    {
-        $target = $date->copy()->timezone($timezone);
-        $today = now($timezone)->startOfDay();
-        $tomorrow = now($timezone)->addDay()->startOfDay();
+    private function formatDateLabel(
+        Carbon $date,
+        string $timezone
+    ): string {
+        $target = $date
+            ->copy()
+            ->timezone($timezone);
+
+        $today = now($timezone)
+            ->startOfDay();
+
+        $tomorrow = now($timezone)
+            ->addDay()
+            ->startOfDay();
 
         if ($target->isSameDay($today)) {
             return 'Today';
         }
 
-        if ($target->isSameDay($tomorrow)) {
+        if (
+            $target->isSameDay($tomorrow)
+        ) {
             return 'Tomorrow';
         }
 
-        return $target->translatedFormat('l, d F Y');
+        return $target->translatedFormat(
+            'l, d F Y'
+        );
     }
 
-    private function formatTimeRange(Carbon $startAt, ?Carbon $endAt, string $timezone): string
-    {
-        $start = $startAt->copy()->timezone($timezone)->format('H:i');
+    private function formatTimeRange(
+        Carbon $startAt,
+        ?Carbon $endAt,
+        string $timezone
+    ): string {
+        $start = $startAt
+            ->copy()
+            ->timezone($timezone)
+            ->format('H:i');
 
         if (!$endAt) {
             return $start . ' WIB';
         }
 
-        $end = $endAt->copy()->timezone($timezone)->format('H:i');
+        $end = $endAt
+            ->copy()
+            ->timezone($timezone)
+            ->format('H:i');
 
-        return $start . ' - ' . $end . ' WIB';
+        return $start
+            . ' - '
+            . $end
+            . ' WIB';
     }
 
-    private function pickValue($model, array $columns): mixed
-    {
+    private function pickValue(
+        $model,
+        array $columns
+    ): mixed {
         if (!$model) {
             return null;
         }
 
         foreach ($columns as $column) {
-            $value = data_get($model, $column);
+            $value = data_get(
+                $model,
+                $column
+            );
 
-            if ($value !== null && $value !== '') {
+            if (
+                $value !== null
+                && $value !== ''
+            ) {
                 return $value;
             }
         }
@@ -672,8 +1203,9 @@ class StudentScheduleController extends Controller
         return null;
     }
 
-    private function firstExistingModel(array $models): ?string
-    {
+    private function firstExistingModel(
+        array $models
+    ): ?string {
         foreach ($models as $model) {
             if (class_exists($model)) {
                 return $model;
@@ -683,10 +1215,17 @@ class StudentScheduleController extends Controller
         return null;
     }
 
-    private function firstExistingColumn(string $table, array $columns): ?string
-    {
+    private function firstExistingColumn(
+        string $table,
+        array $columns
+    ): ?string {
         foreach ($columns as $column) {
-            if (Schema::hasColumn($table, $column)) {
+            if (
+                Schema::hasColumn(
+                    $table,
+                    $column
+                )
+            ) {
                 return $column;
             }
         }
@@ -694,14 +1233,27 @@ class StudentScheduleController extends Controller
         return null;
     }
 
-    private function availableRelations(object $model, array $relations): array
-    {
+    /**
+     * Only eager load relationships that actually exist on model.
+     */
+    private function availableRelations(
+        object $model,
+        array $relations
+    ): array {
         return collect($relations)
-            ->filter(function ($relation) use ($model) {
-                $firstRelation = explode('.', $relation)[0];
+            ->filter(
+                function ($relation) use ($model) {
+                    $firstRelation = explode(
+                        '.',
+                        $relation
+                    )[0];
 
-                return method_exists($model, $firstRelation);
-            })
+                    return method_exists(
+                        $model,
+                        $firstRelation
+                    );
+                }
+            )
             ->values()
             ->all();
     }
