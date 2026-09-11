@@ -538,26 +538,20 @@
         const customerName = {{ Js::from($student->full_name ?? 'Customer') }};
         const sourceTypeLabel = {{ Js::from($displaySourceTypeLabel ?? 'Program') }};
         const sourceItemName = {{ Js::from($displaySourceName ?? '-') }};
-        const batchName = {{ Js::from($batch->name ?? '-') }};
         const invoiceNumber = {{ Js::from($payment->invoice_number ?? '-') }};
         const amount = {{ Js::from($formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0)) }};
         const remainingBalance = {{ Js::from($formatMoney($remainingBalance ?? 0)) }};
         const showRemainingBalance = {{ Js::from((bool) $showRemainingBalance) }};
-        const isWorkshopDocument = {{ Js::from((bool) $isWorkshopDocument) }};
         const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
 
         const lines = [];
+
         lines.push(`Halo ${customerName},`);
         lines.push('');
         lines.push('Berikut link pembayaran untuk invoice Anda.');
         lines.push('');
         lines.push(`Invoice: ${invoiceNumber}`);
         lines.push(`${sourceTypeLabel}: ${sourceItemName}`);
-
-        if (!isWorkshopDocument && batchName && batchName !== '-') {
-            lines.push(`Batch: ${batchName}`);
-        }
-
         lines.push(`Nominal invoice: ${amount}`);
 
         if (showRemainingBalance) {
