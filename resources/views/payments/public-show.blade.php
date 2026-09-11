@@ -652,129 +652,74 @@
                                 </table>
                             </div>
                         @else
-                        <div class="invoice-table-wrap">
-                            <table class="invoice-table">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th class="invoice-table-price">Price</th>
-                                        <th class="invoice-table-amount">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse ($items as $item)
-                                        @php
-                                            $itemTitle = $item['description'] ?? $item['label'] ?? '-';
-                                            $itemDetail = $item['meta'] ?? $item['details'] ?? null;
-                                            $itemRate = (float) ($item['rate'] ?? $item['amount'] ?? 0);
-                                            $itemAmount = (float) ($item['amount'] ?? 0);
-                                        @endphp
-
+                            <div class="invoice-table-wrap">
+                                <table class="invoice-table">
+                                    <thead>
                                         <tr>
-                                            <td>
-                                                <div class="invoice-item-title">{{ $itemTitle }}</div>
-
-                                                @if (!empty($itemDetail))
-                                                    <div class="invoice-item-subtitle">{{ $itemDetail }}</div>
-                                                @else
-                                                    @if ($isWorkshopDocument && !empty($workshopName))
-                                                        <div class="invoice-item-subtitle">{{ $workshopName }}</div>
-                                                    @else
-                                                        @if (!empty($program?->name))
-                                                            <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
-                                                        @endif
-
-                                                        @if (!empty($batch?->name))
-                                                            <div class="invoice-item-subtitle">{{ $batch->name }}</div>
-                                                        @endif
-                                                    @endif
-                                                @endif
-                                            </td>
-                                            <td class="invoice-table-price">{{ $formatSignedMoney($itemRate) }}</td>
-                                            <td class="invoice-table-amount">{{ $formatSignedMoney($itemAmount) }}</td>
+                                            <th style="width: 52px; text-align: center;">No</th>
+                                            <th>Description</th>
+                                            <th style="width: 70px; text-align: center;">QTY</th>
+                                            <th class="invoice-table-price">Unit Price</th>
+                                            <th class="invoice-table-price">Discount</th>
+                                            <th class="invoice-table-amount">Amount</th>
                                         </tr>
-                                    @empty
+                                    </thead>
+                                    <tbody>
                                         <tr>
+                                            <td style="text-align: center;">1</td>
                                             <td>
-                                                <div class="invoice-item-title">{{ $isWorkshopDocument ? 'Workshop Fee' : 'Program Payment' }}</div>
-
-                                                @if ($isWorkshopDocument && !empty($workshopName))
-                                                    <div class="invoice-item-subtitle">{{ $workshopName }}</div>
-                                                @else
-                                                    @if (!empty($program?->name))
-                                                        <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
-                                                    @endif
-
-                                                    @if (!empty($batch?->name))
-                                                        <div class="invoice-item-subtitle">{{ $batch->name }}</div>
-                                                    @endif
-                                                @endif
+                                                <div class="invoice-item-title">
+                                                    {{ $isWorkshopDocument ? ($workshopName ?: 'FlexLabs Workshop') : ($sourceDescription ?: collect([$program?->name, $batch?->name])->filter()->implode(' - ')) }}
+                                                </div>
                                             </td>
-                                            <td class="invoice-table-price">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
-                                            <td class="invoice-table-amount">{{ $formatSignedMoney($currentInvoiceAmount) }}</td>
+                                            <td style="text-align: center;">1</td>
+                                            <td class="invoice-table-price">
+                                                {{ $formatMoney($isWorkshopDocument ? $currentInvoiceAmount : ($normalProgramFee ?? 0)) }}
+                                            </td>
+                                            <td class="invoice-table-price">
+                                                {{ $formatMoney($isWorkshopDocument ? 0 : ($programDiscount ?? 0)) }}
+                                            </td>
+                                            <td class="invoice-table-amount">
+                                                {{ $formatMoney($isWorkshopDocument ? $currentInvoiceAmount : ($finalTuitionFee ?? 0)) }}
+                                            </td>
                                         </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
+                                    </tbody>
+                                </table>
+                            </div>
                         @endif
 
                         @if ($groupOrderItems->isNotEmpty() && (bool) ($usesWht ?? false))
                             <div class="invoice-summary-wrap group-tax-summary">
                                 <table class="invoice-summary-table">
-                                    <tr>
-                                        <td>Subtotal</td>
-                                        <td>{{ $formatMoney($amountBeforeVat ?? 0) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Gross Up WHT</td>
-                                        <td>{{ $formatMoney($totalInvoiceAmount ?? 0) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>VAT Calculation Base</td>
-                                        <td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>VAT (12%)</td>
-                                        <td>{{ $formatMoney($vatAmount ?? 0) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Total Invoice</td>
-                                        <td>{{ $formatMoney((float) ($totalInvoiceAmount ?? 0) + (float) ($vatAmount ?? 0)) }}</td>
-                                    </tr>
-                                    <tr class="group-wht-row">
-                                        <td>WHT ({{ number_format((float) ($whtRate ?? 2), 0) }}%)</td>
-                                        <td>{{ $formatMoney($whtAmount ?? 0) }}</td>
-                                    </tr>
-                                    <tr class="group-total-due-row">
-                                        <td>Total Due</td>
-                                        <td>{{ $formatMoney($grandTotal ?? $currentInvoiceAmount ?? 0) }}</td>
+                                    <tr><td>Subtotal</td><td>{{ $formatMoney($amountBeforeVat ?? 0) }}</td></tr>
+                                    <tr><td>Gross Up WHT</td><td>{{ $formatMoney($totalInvoiceAmount ?? 0) }}</td></tr>
+                                    <tr><td>VAT Calculation Base</td><td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td></tr>
+                                    <tr><td>VAT (12%)</td><td>{{ $formatMoney($vatAmount ?? 0) }}</td></tr>
+                                    <tr><td>Total Invoice</td><td>{{ $formatMoney((float) ($totalInvoiceAmount ?? 0) + (float) ($vatAmount ?? 0)) }}</td></tr>
+                                    <tr class="group-wht-row"><td>WHT ({{ number_format((float) ($whtRate ?? 2), 0) }}%)</td><td>{{ $formatMoney($whtAmount ?? 0) }}</td></tr>
+                                    <tr class="group-total-due-row"><td>Total Due</td><td>{{ $formatMoney($grandTotal ?? $currentInvoiceAmount ?? 0) }}</td></tr>
+                                </table>
+                            </div>
+                        @elseif ($isWorkshopDocument)
+                            <div class="invoice-summary-wrap">
+                                <table class="invoice-summary-table">
+                                    <tr class="invoice-summary-total">
+                                        <td>Workshop Fee</td>
+                                        <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
                                     </tr>
                                 </table>
                             </div>
                         @else
-                        <div class="invoice-summary-wrap">
-                            <table class="invoice-summary-table">
-                                <tr>
-                                    <td>{{ $currentDocumentAmountLabel ?? ($isWorkshopDocument ? 'Workshop Fee' : 'Current Invoice Amount') }}</td>
-                                    <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
-                                </tr>
-
-                                @if ((float) ($tax ?? 0) > 0)
-                                    <tr>
-                                        <td>Tax</td>
-                                        <td>{{ $formatMoney($tax ?? 0) }}</td>
-                                    </tr>
-                                @endif
-
-                                @if ($showRemainingBalance)
-                                    <tr class="invoice-summary-total">
-                                        <td>{{ $remainingBalanceLabel }}</td>
-                                        <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
-                                    </tr>
-                                @endif
-                            </table>
-                        </div>
+                            <div class="invoice-summary-wrap">
+                                <table class="invoice-summary-table">
+                                    <tr><td>Subtotal</td><td>{{ $formatMoney($finalTuitionFee ?? 0) }}</td></tr>
+                                    <tr><td>Previous Payment</td><td>{{ $formatMoney($previousPaymentReceived ?? 0) }}</td></tr>
+                                    <tr><td>Outstanding Balance</td><td>{{ $formatMoney($remainingBalance ?? 0) }}</td></tr>
+                                    <tr><td>VAT Calculation Base</td><td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td></tr>
+                                    <tr><td>VAT (12%)</td><td>{{ $formatMoney($vatAmount ?? 0) }}</td></tr>
+                                    <tr class="invoice-summary-total"><td>Total Due</td><td>{{ $formatMoney($grandTotal ?? $currentInvoiceAmount ?? 0) }}</td></tr>
+                                </table>
+                            </div>
                         @endif
                     </section>
 

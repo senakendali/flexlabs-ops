@@ -357,67 +357,38 @@
                             </table>
                         </div>
                     @else
-                    <div class="table-responsive invoice-table-wrap">
-                        <table class="table invoice-table align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th class="text-end invoice-table-price">Price</th>
-                                    <th class="text-end invoice-table-amount">Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($items as $item)
-                                    @php
-                                        $itemTitle = $item['description'] ?? $item['label'] ?? '-';
-                                        $itemDetail = $item['meta'] ?? $item['details'] ?? null;
-                                        $itemRate = (float) ($item['rate'] ?? $item['amount'] ?? 0);
-                                        $itemAmount = (float) ($item['amount'] ?? 0);
-                                        $isEmphasis = (bool) ($item['is_emphasis'] ?? false);
-                                    @endphp
-                                    <tr @class([
-                                        'fw-semibold' => $isEmphasis,
-                                    ])>
-                                        <td>
-                                            <div class="invoice-item-title">{{ $itemTitle }}</div>
-
-                                            @if (!empty($itemDetail))
-                                                <div class="invoice-item-subtitle">{{ $itemDetail }}</div>
-                                            @else
-                                                @if (!empty($program?->name))
-                                                    <div class="invoice-item-subtitle">{{ $program->name }} Program</div>
-                                                @endif
-
-                                                @if (!empty($batch?->name))
-                                                    <div class="invoice-item-subtitle">{{ $batch->name }}</div>
-                                                @endif
-                                            @endif
-                                        </td>
-                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemRate) }}</td>
-                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($itemAmount) }}</td>
-                                    </tr>
-                                @empty
+                        <div class="table-responsive invoice-table-wrap">
+                            <table class="table invoice-table align-middle mb-0">
+                                <thead>
                                     <tr>
-                                        <td>
-                                            <div class="invoice-item-title">
-                                                {{ $isWorkshopDocument ? 'Workshop Fee' : $displaySourceTypeLabel . ' Payment' }}
-                                            </div>
-
-                                            @if (!empty($displaySourceName))
-                                                <div class="invoice-item-subtitle">{{ $displaySourceName }}</div>
-                                            @endif
-
-                                            @if (!$isWorkshopDocument && !empty($batch?->name))
-                                                <div class="invoice-item-subtitle">{{ $batch->name }}</div>
-                                            @endif
-                                        </td>
-                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($grandTotal ?? 0) }}</td>
-                                        <td class="text-end text-nowrap">{{ $formatSignedMoney($grandTotal ?? 0) }}</td>
+                                        <th class="text-center" style="width: 52px;">No</th>
+                                        <th>Description</th>
+                                        <th class="text-center" style="width: 70px;">QTY</th>
+                                        <th class="text-end text-nowrap">Unit Price</th>
+                                        <th class="text-end text-nowrap">Discount</th>
+                                        <th class="text-end text-nowrap">Amount</th>
                                     </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="text-center">1</td>
+                                        <td>
+                                            <div class="invoice-item-title">{{ $displaySourceName }}</div>
+                                        </td>
+                                        <td class="text-center">1</td>
+                                        <td class="text-end text-nowrap">
+                                            {{ $formatMoney($isWorkshopDocument ? ($currentInvoiceAmount ?? $grandTotal ?? 0) : ($normalProgramFee ?? 0)) }}
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            {{ $formatMoney($isWorkshopDocument ? 0 : ($programDiscount ?? 0)) }}
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            {{ $formatMoney($isWorkshopDocument ? ($currentInvoiceAmount ?? $grandTotal ?? 0) : ($finalTuitionFee ?? 0)) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
 
                     @if ($groupOrderItems->isNotEmpty() && (bool) ($usesWht ?? false))
@@ -453,36 +424,45 @@
                                 </tr>
                             </table>
                         </div>
-                    @else
-                    <div class="invoice-summary-wrap">
-                        <table class="invoice-summary-table">
-                            <tr @class([
-                                'invoice-summary-total' => !$showRemainingBalance,
-                            ])>
-                                <td>{{ $currentDocumentAmountLabel }}</td>
-                                <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
-                            </tr>
-
-                            @if ((float) ($tax ?? 0) > 0)
-                                <tr>
-                                    <td>Tax</td>
-                                    <td>{{ $formatMoney($tax ?? 0) }}</td>
-                                </tr>
-                            @endif
-
-                            @if ($showRemainingBalance)
+                    @elseif ($isWorkshopDocument)
+                        <div class="invoice-summary-wrap">
+                            <table class="invoice-summary-table">
                                 <tr class="invoice-summary-total">
-                                    <td>{{ $remainingBalanceLabel }}</td>
+                                    <td>Workshop Fee</td>
+                                    <td>{{ $formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    @else
+                        <div class="invoice-summary-wrap">
+                            <table class="invoice-summary-table">
+                                <tr>
+                                    <td>Subtotal</td>
+                                    <td>{{ $formatMoney($finalTuitionFee ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Previous Payment</td>
+                                    <td>{{ $formatMoney($previousPaymentReceived ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Outstanding Balance</td>
                                     <td>{{ $formatMoney($remainingBalance ?? 0) }}</td>
                                 </tr>
-                            @endif
-                        </table>
-                    </div>
+                                <tr>
+                                    <td>VAT Calculation Base</td>
+                                    <td>{{ $formatMoney($vatCalculationBase ?? 0) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>VAT (12%)</td>
+                                    <td>{{ $formatMoney($vatAmount ?? 0) }}</td>
+                                </tr>
+                                <tr class="invoice-summary-total">
+                                    <td>Total Due</td>
+                                    <td>{{ $formatMoney($grandTotal ?? $currentInvoiceAmount ?? 0) }}</td>
+                                </tr>
+                            </table>
+                        </div>
                     @endif
-
-                    <!--div class="invoice-note-box mt-3">
-                        {{ $documentNote }}
-                    </div-->
                 </section>
 
                 <section class="invoice-payment-section">
