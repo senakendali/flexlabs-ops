@@ -50,11 +50,11 @@
             </div>
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
-                <a href="{{ route('internal-memos.pending-approvals') }}" class="btn btn-outline-light btn-modern">
+                <a href="{{ route('internal-memos.pending-approvals') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-check2-square me-2"></i>Pending Approval
                 </a>
 
-                <a href="{{ route('internal-memos.my-memos') }}" class="btn btn-outline-light btn-modern">
+                <a href="{{ route('internal-memos.my-memos') }}" class="btn btn-light btn-modern">
                     <i class="bi bi-person-lines-fill me-2"></i>My Memos
                 </a>
 

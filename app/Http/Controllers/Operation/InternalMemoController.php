@@ -1217,7 +1217,10 @@ class InternalMemoController extends Controller
         }
 
         $nextSequence = $latestSequence + 1;
-        $dateSuffix = date('m-d', strtotime($memoDate));
+
+        // Format suffix: MM-YY
+        // Example: 2026-08-19 => 08-26
+        $dateSuffix = date('m-y', strtotime($memoDate));
 
         return str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT)
             . '/SEI-EDU/IM-'
