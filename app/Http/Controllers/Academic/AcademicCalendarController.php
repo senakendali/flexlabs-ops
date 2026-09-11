@@ -18,7 +18,10 @@ class AcademicCalendarController extends Controller
         $today = today();
 
         $programs = Program::query()
-            ->select(['id', 'name'])
+            ->select([
+                'id',
+                'name',
+            ])
             ->orderBy('name')
             ->get();
 
@@ -32,20 +35,41 @@ class AcademicCalendarController extends Controller
                 'start_date',
                 'end_date',
             ])
-            ->whereIn('status', [
-                'ongoing',
-                'on_going',
-                'on going',
-            ])
+
+            // Batch harus sudah mulai.
+            ->where(function ($query) use ($today) {
+                $query->whereNull('start_date')
+                    ->orWhereDate('start_date', '<=', $today);
+            })
+
+            // Batch belum melewati tanggal selesai.
             ->where(function ($query) use ($today) {
                 $query->whereNull('end_date')
                     ->orWhereDate('end_date', '>=', $today);
             })
+
+            // Exclude status yang memang sudah tidak berjalan.
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhereRaw(
+                        "LOWER(TRIM(status)) NOT IN (?, ?, ?, ?)",
+                        [
+                            'completed',
+                            'finished',
+                            'cancelled',
+                            'closed',
+                        ]
+                    );
+            })
+
             ->orderBy('start_date')
             ->orderBy('name')
             ->get();
 
-        return view('academic.calendar.index', compact('programs', 'runningBatches'));
+        return view('academic.calendar.index', compact(
+            'programs',
+            'runningBatches'
+        ));
     }
 
     public function events(Request $request): JsonResponse
