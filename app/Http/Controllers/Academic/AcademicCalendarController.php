@@ -54,6 +54,7 @@ class AcademicCalendarController extends Controller
                     ->orWhereRaw(
                         "LOWER(TRIM(status)) NOT IN (?, ?, ?, ?)",
                         [
+                            'open',
                             'completed',
                             'finished',
                             'cancelled',
