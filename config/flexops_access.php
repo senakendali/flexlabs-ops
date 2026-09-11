@@ -94,6 +94,8 @@ return [
             'students.update',
             'students.delete',
 
+            'student_progress.view',
+
             'academic.announcements.view',
             'academic.announcements.create',
             'academic.announcements.update',
