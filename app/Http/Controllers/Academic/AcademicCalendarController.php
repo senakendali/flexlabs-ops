@@ -52,7 +52,7 @@ class AcademicCalendarController extends Controller
             ->where(function ($query) {
                 $query->whereNull('status')
                     ->orWhereRaw(
-                        "LOWER(TRIM(status)) NOT IN (?, ?, ?, ?)",
+                        "LOWER(TRIM(status)) NOT IN (?, ?, ?, ?, ?)",
                         [
                             'open',
                             'completed',
