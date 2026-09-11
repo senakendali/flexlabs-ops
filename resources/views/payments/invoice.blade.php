@@ -541,6 +541,7 @@
         const invoiceNumber = {{ Js::from($payment->invoice_number ?? '-') }};
         const amount = {{ Js::from($formatMoney($currentInvoiceAmount ?? $grandTotal ?? 0)) }};
         const remainingBalance = {{ Js::from($formatMoney($remainingBalance ?? 0)) }};
+        const remainingBalanceValue = {{ Js::from((float) ($remainingBalance ?? 0)) }};
         const showRemainingBalance = {{ Js::from((bool) $showRemainingBalance) }};
         const paymentLink = {{ Js::from($publicPaymentLink ?? null) }};
 
@@ -554,7 +555,7 @@
         lines.push(`${sourceTypeLabel}: ${sourceItemName}`);
         lines.push(`Nominal invoice: ${amount}`);
 
-        if (showRemainingBalance) {
+        if (showRemainingBalance && remainingBalanceValue > 0) {
             lines.push(`Sisa pembayaran setelah invoice ini: ${remainingBalance}`);
         }
 
