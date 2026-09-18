@@ -725,7 +725,7 @@
                                             style="height: 9px; border-radius: 999px;"
                                         >
                                             <div
-                                                class="progress-bar bg-primary"
+                                                class="progress-bar"
                                                 role="progressbar"
                                                 style="width: {{ $progressValue }}%; border-radius: 999px;"
                                                 aria-valuenow="{{ $progressValue }}"
