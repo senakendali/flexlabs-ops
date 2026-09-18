@@ -1473,16 +1473,49 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
-        $assignments = BatchAssignment::query()
+        $now = now();
+
+        $query = BatchAssignment::query()
             ->with($this->resolveBatchAssignmentRelations())
             ->whereIn('batch_id', $batchIds)
-            ->when(Schema::hasColumn('batch_assignments', 'is_active'), fn ($query) => $query->where('is_active', true))
-            ->get();
+            ->where('status', 'published')
+            ->where(function ($query) use ($now) {
+                $query
+                    ->whereNull('available_at')
+                    ->orWhere('available_at', '<=', $now);
+            })
+            ->when(
+                Schema::hasColumn('batch_assignments', 'is_active'),
+                fn ($query) => $query->where('is_active', true)
+            );
+
+        /*
+        * Assignment master juga harus published.
+        *
+        * batch_assignments.status menentukan apakah assignment sudah
+        * dipublish untuk batch tersebut.
+        *
+        * assignments.status menentukan apakah konten assignment
+        * secara global memang sudah published.
+        */
+        $query->whereHas('assignment', function ($query) {
+            $query
+                ->where('status', 'published')
+                ->where('is_active', true);
+        });
+
+        $assignments = $query->get();
 
         return collect(
             $assignments
-                ->reject(fn (BatchAssignment $assignment) => $this->hasSubmittedAssignment($student, $assignment))
-                ->map(fn (BatchAssignment $assignment) => $this->formatAssignmentTask($assignment))
+                ->reject(
+                    fn (BatchAssignment $assignment) =>
+                        $this->hasSubmittedAssignment($student, $assignment)
+                )
+                ->map(
+                    fn (BatchAssignment $assignment) =>
+                        $this->formatAssignmentTask($assignment)
+                )
                 ->all()
         )->values();
     }
@@ -1590,21 +1623,20 @@ class StudentDashboardController extends Controller
             return collect();
         }
 
+        $now = now();
+
         $query = BatchLearningQuiz::query()
             ->whereIn('batch_id', $batchIds)
+            ->where('status', 'published')
+            ->where(function ($query) use ($now) {
+                $query
+                    ->whereNull('available_at')
+                    ->orWhere('available_at', '<=', $now);
+            })
             ->when(
                 Schema::hasColumn('batch_learning_quizzes', 'is_active'),
                 fn ($query) => $query->where('is_active', true)
             );
-
-        if (Schema::hasColumn('batch_learning_quizzes', 'status')) {
-            $query->whereNotIn('status', [
-                'inactive',
-                'archived',
-                'cancelled',
-                'canceled',
-            ]);
-        }
 
         if (method_exists(BatchLearningQuiz::class, 'batch')) {
             $query->with('batch.program');
@@ -1618,8 +1650,14 @@ class StudentDashboardController extends Controller
 
         return collect(
             $quizzes
-                ->reject(fn ($quiz) => $this->hasCompletedQuiz($student, $quiz))
-                ->map(fn ($quiz) => $this->formatQuizTask($quiz))
+                ->reject(
+                    fn ($quiz) =>
+                        $this->hasCompletedQuiz($student, $quiz)
+                )
+                ->map(
+                    fn ($quiz) =>
+                        $this->formatQuizTask($quiz)
+                )
                 ->all()
         )->values();
     }
