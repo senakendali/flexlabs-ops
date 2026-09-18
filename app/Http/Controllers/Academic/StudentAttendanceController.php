@@ -7,6 +7,7 @@ use App\Models\Batch;
 use App\Models\InstructorSchedule;
 use App\Models\Student;
 use App\Models\StudentAttendance;
+use App\Models\StudentLessonProgress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -112,7 +113,11 @@ class StudentAttendanceController extends Controller
 
         $validated = $request->validate([
             'attendances' => ['required', 'array'],
-            'attendances.*.student_id' => ['required', 'integer', 'exists:students,id'],
+            'attendances.*.student_id' => [
+                'required',
+                'integer',
+                'exists:students,id',
+            ],
             'attendances.*.status' => [
                 'required',
                 Rule::in(array_keys(StudentAttendance::STATUSES)),
@@ -121,12 +126,28 @@ class StudentAttendanceController extends Controller
                 'nullable',
                 Rule::in(array_keys(StudentAttendance::ATTENDANCE_MODES)),
             ],
-            'attendances.*.notes' => ['nullable', 'string'],
+            'attendances.*.notes' => [
+                'nullable',
+                'string',
+            ],
         ]);
 
         $allowedStudentIds = $this->getStudentIdsForBatch($batchId);
 
-        DB::transaction(function () use ($validated, $instructorSchedule, $batchId, $allowedStudentIds) {
+        /*
+        * Load semua lesson/subtopic yang terkait dengan live session sekali.
+        *
+        * Relation akan tetap tersedia selama proses attendance sehingga
+        * tidak perlu query pivot berulang untuk setiap student.
+        */
+        $instructorSchedule->loadMissing('subTopics:id');
+
+        DB::transaction(function () use (
+            $validated,
+            $instructorSchedule,
+            $batchId,
+            $allowedStudentIds
+        ) {
             foreach ($validated['attendances'] as $row) {
                 $studentId = (int) $row['student_id'];
 
@@ -136,7 +157,11 @@ class StudentAttendanceController extends Controller
 
                 $status = $row['status'];
 
-                $isPresentLike = in_array($status, StudentAttendance::COUNTED_AS_PRESENT, true);
+                $isPresentLike = in_array(
+                    $status,
+                    StudentAttendance::COUNTED_AS_PRESENT,
+                    true
+                );
 
                 $attendanceMode = $isPresentLike
                     ? ($row['attendance_mode'] ?? StudentAttendance::MODE_OFFLINE)
@@ -163,13 +188,34 @@ class StudentAttendanceController extends Controller
                 ]);
 
                 $attendance->save();
+
+                /*
+                * Present / Late:
+                * otomatis tandai seluruh lesson pada live session sebagai
+                * completed.
+                *
+                * Absent / Excused:
+                * tidak melakukan perubahan apa pun terhadap lesson progress.
+                *
+                * Completion juga tidak pernah di-rollback supaya progress VOD
+                * atau manual completion yang sudah valid tidak ikut terhapus.
+                */
+                if ($isPresentLike) {
+                    $this->completeLiveSessionLessons(
+                        $instructorSchedule,
+                        $studentId
+                    );
+                }
             }
         });
 
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Attendance berhasil disimpan.',
-                'redirect_url' => route('academic.attendances.record', $instructorSchedule),
+                'redirect_url' => route(
+                    'academic.attendances.record',
+                    $instructorSchedule
+                ),
             ]);
         }
 

@@ -115,7 +115,7 @@
 
                     <div class="col-xl-4">
                         <div class="d-flex gap-2 justify-content-xl-end flex-wrap">
-                            <a href="{{ route('academic.attendances.index') }}" class="btn btn-outline-secondary btn-modern">
+                            <a href="{{ route('academic.attendances.index') }}" class="btn btn-secondary btn-modern">
                                 <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                             </a>
 
