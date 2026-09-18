@@ -1296,7 +1296,123 @@ class StudentDashboardController extends Controller
             ->values();
     }
 
-    private function getFallbackSubTopics(Collection $programIds, Collection $batchIds): Collection
+    private function getFallbackSubTopics(
+        Collection $programIds,
+        Collection $batchIds,
+        Collection $stageIds
+    ): Collection {
+        $programIds = $programIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $batchIds = $batchIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $stageIds = $stageIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        /*
+        * Kalau stage sudah diketahui dan curriculum path tersedia,
+        * gunakan filter program + stage.
+        *
+        * Jangan fallback ke seluruh program karena bisa membuat
+        * materi Intro dan Core tercampur kembali.
+        */
+        if (
+            $programIds->isNotEmpty()
+            && $stageIds->isNotEmpty()
+            && $this->canUseProgramStageCurriculumPath()
+        ) {
+            $subTopics = $this->getFastTimelineSubTopics(
+                programIds: $programIds,
+                stageIds: $stageIds
+            );
+
+            if ($subTopics->isNotEmpty()) {
+                return $subTopics;
+            }
+        }
+
+        if (!Schema::hasTable('sub_topics')) {
+            return collect();
+        }
+
+        /*
+        * Legacy fallback hanya boleh digunakan jika sub_topics
+        * memang mempunyai batch_id.
+        *
+        * Ini tetap aman karena dibatasi ke batch enrollment student.
+        */
+        if (
+            !Schema::hasColumn('sub_topics', 'batch_id')
+            || $batchIds->isEmpty()
+        ) {
+            return collect();
+        }
+
+        $query = SubTopic::query();
+
+        $relations = $this->resolveSubTopicRelations();
+
+        if (!empty($relations)) {
+            $query->with($relations);
+        }
+
+        $query->whereIn(
+            'sub_topics.batch_id',
+            $batchIds
+        );
+
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('sub_topics.is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery
+                    ->whereNull('sub_topics.status')
+                    ->orWhereNotIn(
+                        'sub_topics.status',
+                        [
+                            'inactive',
+                            'archived',
+                            'deleted',
+                        ]
+                    );
+            });
+        }
+
+        foreach ([
+            'sort_order',
+            'order',
+            'position',
+            'id',
+        ] as $column) {
+            if (Schema::hasColumn('sub_topics', $column)) {
+                $query->orderBy(
+                    'sub_topics.' . $column
+                );
+            }
+        }
+
+        return $query
+            ->get()
+            ->sortBy(
+                fn ($subTopic) =>
+                    $this->formatSubTopicSortKey($subTopic)
+            )
+            ->values();
+    }
+
+    private function getFallbackSubTopics_(Collection $programIds, Collection $batchIds): Collection
     {
         $subTopics = $this->getSubTopicsForPrograms($programIds);
 
@@ -2413,7 +2529,318 @@ class StudentDashboardController extends Controller
         return null;
     }
 
+    private function resolveStageIdsFromEnrollments(
+        Collection $enrollments
+    ): Collection {
+        if (
+            $enrollments->isEmpty()
+            || !Schema::hasTable('program_stages')
+            || !Schema::hasTable('batches')
+        ) {
+            return collect();
+        }
+
+        $targets = collect();
+
+        foreach ($enrollments as $enrollment) {
+            $programId = (int) ($enrollment->program_id ?? 0);
+
+            if (!$programId) {
+                continue;
+            }
+
+            $batchName = trim(
+                (string) (
+                    $enrollment->batch?->name
+                    ?? ''
+                )
+            );
+
+            if ($batchName === '') {
+                continue;
+            }
+
+            $normalizedBatchName = strtoupper($batchName);
+
+            $stageKey = null;
+
+            if (preg_match('/^INTRO(?:_|-)/', $normalizedBatchName)) {
+                $stageKey = 'intro';
+            } elseif (preg_match('/^CORE(?:_|-)/', $normalizedBatchName)) {
+                $stageKey = 'core';
+            }
+
+            /*
+            * Batch yang tidak mengikuti naming convention tidak ditebak.
+            */
+            if (!$stageKey) {
+                continue;
+            }
+
+            $targets->push([
+                'program_id' => $programId,
+                'stage_key' => $stageKey,
+            ]);
+        }
+
+        $targets = $targets
+            ->unique(
+                fn (array $target) =>
+                    $target['program_id'] . '|' . $target['stage_key']
+            )
+            ->values();
+
+        if ($targets->isEmpty()) {
+            return collect();
+        }
+
+        $stageIds = collect();
+
+        foreach ($targets as $target) {
+            $programId = (int) $target['program_id'];
+            $stageKey = strtolower((string) $target['stage_key']);
+
+            $query = DB::table('program_stages')
+                ->where('program_id', $programId);
+
+            if (Schema::hasColumn('program_stages', 'is_active')) {
+                $query->where('is_active', true);
+            }
+
+            /*
+            * Utamakan slug karena lebih stabil.
+            * Name digunakan sebagai fallback.
+            */
+            $query->where(function ($stageQuery) use ($stageKey) {
+                $stageQuery
+                    ->whereRaw(
+                        'LOWER(COALESCE(slug, \'\')) = ?',
+                        [$stageKey]
+                    )
+                    ->orWhereRaw(
+                        'LOWER(COALESCE(name, \'\')) = ?',
+                        [$stageKey]
+                    );
+            });
+
+            $id = $query->value('id');
+
+            if ($id) {
+                $stageIds->push((int) $id);
+            }
+        }
+
+        return $stageIds
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
     public function learningTimeline(Request $request): JsonResponse
+    {
+        // FAST_TIMELINE_QUERY_V3
+        // Timeline dibatasi berdasarkan program + stage yang berasal dari batch enrollment.
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $user->loadMissing([
+            'student.enrollments.program',
+            'student.enrollments.batch.program',
+        ]);
+
+        if (!$this->isStudentUser($user) || !$user->student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized student account.',
+            ], 403);
+        }
+
+        $student = $user->student;
+        $activeEnrollments = $this->getEligibleEnrollments($student);
+
+        if ($activeEnrollments->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => $this->emptyLearningTimelinePayload(),
+            ]);
+        }
+
+        $batchIds = $this->resolveBatchIds($activeEnrollments);
+        $programIds = $this->resolveProgramIds($activeEnrollments);
+
+        /*
+        * Resolve stage dari naming convention batch.
+        *
+        * Contoh:
+        * INTRO_SE_03_0826 -> Intro
+        * CORE_SE_01_0926  -> Core
+        */
+        $stageIds = $this->resolveStageIdsFromEnrollments($activeEnrollments);
+
+        /*
+        * Jangan fallback ke seluruh program jika stage tidak berhasil
+        * di-resolve. Lebih aman timeline kosong daripada Intro student
+        * mendapatkan materi Core.
+        */
+        if ($stageIds->isEmpty()) {
+            $responseData = $this->emptyLearningTimelinePayload();
+
+            if ($request->boolean('debug')) {
+                $responseData['debug'] = [
+                    'query_mode' => 'FAST_TIMELINE_QUERY_V3',
+                    'student_id' => $student->id,
+                    'batch_ids' => $batchIds->values()->all(),
+                    'program_ids' => $programIds->values()->all(),
+                    'stage_ids' => [],
+                    'reason' => 'No stage could be resolved from eligible enrollment batches.',
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $responseData,
+            ]);
+        }
+
+        $subTopics = $this->getFastTimelineSubTopics(
+            programIds: $programIds,
+            stageIds: $stageIds
+        );
+
+        if ($subTopics->isEmpty()) {
+            $subTopics = $this->getFallbackSubTopics(
+                programIds: $programIds,
+                batchIds: $batchIds,
+                stageIds: $stageIds
+            );
+        }
+
+        if ($subTopics->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => $this->emptyLearningTimelinePayload(),
+            ]);
+        }
+
+        $progressRows = $this->getFastTimelineProgressRows(
+            $student,
+            $subTopics->pluck('id')
+        );
+
+        $progressBySubTopic = $this->mapLatestProgressBySubTopic($progressRows);
+
+        $currentSubTopicId = $this->resolveCurrentTimelineSubTopicId(
+            subTopics: $subTopics,
+            progressBySubTopic: $progressBySubTopic
+        );
+
+        $timeline = $subTopics
+            ->values()
+            ->map(function ($subTopic, int $index) use (
+                $progressBySubTopic,
+                $currentSubTopicId
+            ) {
+                $progress = $progressBySubTopic->get((int) $subTopic->id);
+
+                return $this->formatFastLearningTimelineItem(
+                    subTopic: $subTopic,
+                    progress: $progress,
+                    index: $index,
+                    currentSubTopicId: $currentSubTopicId
+                );
+            })
+            ->values();
+
+        $totalCount = $timeline->count();
+        $completedCount = $timeline->where('status', 'done')->count();
+        $inProgressCount = $timeline->where('status', 'in_progress')->count();
+        $notStartedCount = $timeline->where('status', 'not_started')->count();
+
+        $progressPercentage = $totalCount > 0
+            ? $this->clampPercent(($completedCount / $totalCount) * 100)
+            : 0;
+
+        $responseData = [
+            'timeline' => $timeline->toArray(),
+
+            'summary' => [
+                'total' => $totalCount,
+                'completed' => $completedCount,
+                'in_progress' => $inProgressCount,
+                'not_started' => $notStartedCount,
+                'progress_percentage' => $progressPercentage,
+                'progressPercentage' => $progressPercentage,
+            ],
+        ];
+
+        if ($request->boolean('debug')) {
+            $responseData['debug'] = [
+                'query_mode' => 'FAST_TIMELINE_QUERY_V3',
+                'student_id' => $student->id,
+
+                'batch_ids' => $batchIds
+                    ->values()
+                    ->all(),
+
+                'program_ids' => $programIds
+                    ->values()
+                    ->all(),
+
+                'stage_ids' => $stageIds
+                    ->values()
+                    ->all(),
+
+                'eligible_batches' => $activeEnrollments
+                    ->map(function ($enrollment) {
+                        return [
+                            'enrollment_id' => $enrollment->id ?? null,
+                            'program_id' => $enrollment->program_id ?? null,
+                            'batch_id' => $enrollment->batch_id ?? null,
+                            'batch_name' => $enrollment->batch?->name,
+                        ];
+                    })
+                    ->values()
+                    ->all(),
+
+                'sub_topics_count' => $subTopics->count(),
+
+                'sub_topic_ids' => $subTopics
+                    ->pluck('id')
+                    ->values()
+                    ->all(),
+
+                'progress_rows_count' => $progressRows->count(),
+
+                'progress_sub_topic_ids' => $progressRows
+                    ->map(
+                        fn ($progress) => (int) $this->getColumnValue(
+                            $progress,
+                            ['sub_topic_id']
+                        )
+                    )
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all(),
+
+                'timeline_count' => $timeline->count(),
+                'current_sub_topic_id' => $currentSubTopicId,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $responseData,
+        ]);
+    }
+
+    public function learningTimeline_(Request $request): JsonResponse
     {
         // FAST_TIMELINE_QUERY_V2
         // Endpoint timeline dibuat khusus pakai flat query supaya tidak hydrate nested Eloquent
@@ -2548,7 +2975,144 @@ class StudentDashboardController extends Controller
         ];
     }
 
-    private function getFastTimelineSubTopics(Collection $programIds): Collection
+    private function getFastTimelineSubTopics(
+        Collection $programIds,
+        Collection $stageIds
+    ): Collection {
+        if (!$this->canUseProgramStageCurriculumPath()) {
+            return collect();
+        }
+
+        $programIds = $programIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $stageIds = $stageIds
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($programIds->isEmpty() || $stageIds->isEmpty()) {
+            return collect();
+        }
+
+        $query = DB::table('sub_topics')
+            ->join(
+                'topics',
+                'topics.id',
+                '=',
+                'sub_topics.topic_id'
+            )
+            ->join(
+                'modules',
+                'modules.id',
+                '=',
+                'topics.module_id'
+            )
+            ->join(
+                'program_stages',
+                'program_stages.id',
+                '=',
+                'modules.program_stage_id'
+            )
+            ->join(
+                'programs',
+                'programs.id',
+                '=',
+                'program_stages.program_id'
+            )
+            ->whereIn(
+                'programs.id',
+                $programIds->all()
+            )
+            ->whereIn(
+                'program_stages.id',
+                $stageIds->all()
+            );
+
+        if (Schema::hasColumn('programs', 'is_active')) {
+            $query->where('programs.is_active', true);
+        }
+
+        if (Schema::hasColumn('program_stages', 'is_active')) {
+            $query->where('program_stages.is_active', true);
+        }
+
+        if (Schema::hasColumn('modules', 'is_active')) {
+            $query->where('modules.is_active', true);
+        }
+
+        if (Schema::hasColumn('topics', 'is_active')) {
+            $query->where('topics.is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'is_active')) {
+            $query->where('sub_topics.is_active', true);
+        }
+
+        if (Schema::hasColumn('sub_topics', 'status')) {
+            $query->where(function ($statusQuery) {
+                $statusQuery
+                    ->whereNull('sub_topics.status')
+                    ->orWhereNotIn(
+                        'sub_topics.status',
+                        [
+                            'inactive',
+                            'archived',
+                            'deleted',
+                        ]
+                    );
+            });
+        }
+
+        return $query
+            ->select([
+                'sub_topics.id',
+                'sub_topics.topic_id',
+                'sub_topics.name',
+                'sub_topics.description',
+                'sub_topics.sort_order',
+                'sub_topics.lesson_type',
+                'sub_topics.video_url',
+                'sub_topics.video_duration_minutes',
+                'sub_topics.thumbnail_url',
+                'sub_topics.video_duration_seconds',
+
+                'topics.name as topic_name',
+                'topics.sort_order as topic_sort_order',
+
+                'modules.name as module_name',
+                'modules.sort_order as module_sort_order',
+
+                'program_stages.id as program_stage_id',
+                'program_stages.name as stage_name',
+                'program_stages.slug as stage_slug',
+                'program_stages.sort_order as stage_sort_order',
+
+                'programs.id as program_id',
+                'programs.name as program_name',
+                'programs.slug as program_slug',
+            ])
+            ->orderBy('program_stages.sort_order')
+            ->orderBy('program_stages.name')
+            ->orderBy('modules.sort_order')
+            ->orderBy('modules.name')
+            ->orderBy('topics.sort_order')
+            ->orderBy('topics.name')
+            ->orderBy('sub_topics.sort_order')
+            ->orderBy('sub_topics.name')
+            ->orderBy('sub_topics.id')
+            ->get()
+            ->unique(
+                fn ($subTopic) => (int) $subTopic->id
+            )
+            ->values();
+    }
+
+    private function getFastTimelineSubTopics_(Collection $programIds): Collection
     {
         if (!$this->canUseProgramStageCurriculumPath()) {
             return collect();
