@@ -354,4 +354,74 @@ class StudentAttendanceController extends Controller
 
         return 'Student #' . $student->id;
     }
+
+    private function completeLiveSessionLessons(
+        InstructorSchedule $instructorSchedule,
+        int $studentId
+    ): void {
+        /*
+        * Ambil semua subtopic yang memang terkait dengan live session.
+        *
+        * loadMissing() penting supaya ketika method ini dipanggil berulang
+        * untuk beberapa student, relation tidak query ulang terus-menerus.
+        */
+        $instructorSchedule->loadMissing('subTopics:id');
+
+        $subTopicIds = $instructorSchedule->subTopics
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        /*
+        * Fallback untuk schedule lama yang mungkin masih hanya memakai
+        * instructor_schedules.sub_topic_id dan belum mempunyai data pivot.
+        */
+        if ($subTopicIds->isEmpty() && $instructorSchedule->sub_topic_id) {
+            $subTopicIds = collect([
+                (int) $instructorSchedule->sub_topic_id,
+            ]);
+        }
+
+        if ($subTopicIds->isEmpty()) {
+            return;
+        }
+
+        foreach ($subTopicIds as $subTopicId) {
+            $progress = StudentLessonProgress::query()->firstOrNew([
+                'student_id' => $studentId,
+                'sub_topic_id' => $subTopicId,
+            ]);
+
+            /*
+            * Kalau progress belum pernah ada, buat row minimum.
+            *
+            * Field VOD sengaja tidak dibuat seolah-olah student sudah
+            * menonton video. Attendance hanya menjadi trigger completion.
+            */
+            if (!$progress->exists) {
+                $progress->last_position_seconds = 0;
+                $progress->duration_seconds = 0;
+                $progress->progress_percentage = 0;
+            }
+
+            /*
+            * Hanya completion state yang disentuh.
+            *
+            * Jangan ubah:
+            * - last_position_seconds
+            * - duration_seconds
+            * - progress_percentage existing
+            * - last_watched_at
+            */
+            $progress->is_completed = true;
+
+            if (!$progress->completed_at) {
+                $progress->completed_at = now();
+            }
+
+            $progress->save();
+        }
+    }
 }
