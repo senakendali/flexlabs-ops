@@ -18,7 +18,7 @@
             <div class="page-header-actions d-flex gap-2 flex-wrap">
                 <button
                     type="button"
-                    class="btn btn-primary btn-modern"
+                    class="btn btn-light btn-modern"
                     data-bs-toggle="modal"
                     data-bs-target="#batchAssignmentModal"
                     data-mode="create"
@@ -151,7 +151,7 @@
 
                     <div class="col-xl-2">
                         <div class="d-flex gap-2 justify-content-xl-end flex-wrap">
-                            <a href="{{ route('batch-assignments.index') }}" class="btn btn-outline-secondary btn-modern">
+                            <a href="{{ route('batch-assignments.index') }}" class="btn btn-secondary btn-modern">
                                 <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
                             </a>
                             <button type="submit" class="btn btn-primary btn-modern">

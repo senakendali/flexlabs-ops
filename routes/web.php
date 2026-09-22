@@ -2068,12 +2068,90 @@ Route::middleware('auth')->group(function () {
     | Academic - Assignments
     |--------------------------------------------------------------------------
     */
-    Route::prefix('assignments')->name('assignments.')->middleware('permission:assignments.view')->group(function () {
-        Route::get('/', [AssignmentController::class, 'index'])->name('index');
-        Route::post('/', [AssignmentController::class, 'store'])->middleware('permission:assignments.create')->name('store');
-        Route::put('/{assignment}', [AssignmentController::class, 'update'])->middleware('permission:assignments.update')->name('update');
-        Route::delete('/{assignment}', [AssignmentController::class, 'destroy'])->middleware('permission:assignments.delete')->name('destroy');
-    });
+    Route::prefix('assignments')
+        ->name('assignments.')
+        ->middleware('permission:assignments.view')
+        ->group(function () {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Assignment List
+            |--------------------------------------------------------------------------
+            */
+            Route::get(
+                '/',
+                [AssignmentController::class, 'index']
+            )->name('index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Async Dependent Dropdown Options
+            |--------------------------------------------------------------------------
+            |
+            | Program
+            | → Stage (optional)
+            | → Topic
+            | → Sub Topic
+            |
+            | Digunakan oleh:
+            | - Filter Assignment
+            | - Add Assignment
+            | - Edit Assignment
+            |
+            */
+            Route::get(
+                '/options/stages',
+                [AssignmentController::class, 'optionsStages']
+            )->name('options.stages');
+
+            Route::get(
+                '/options/topics',
+                [AssignmentController::class, 'optionsTopics']
+            )->name('options.topics');
+
+            Route::get(
+                '/options/sub-topics',
+                [AssignmentController::class, 'optionsSubTopics']
+            )->name('options.sub-topics');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create
+            |--------------------------------------------------------------------------
+            */
+            Route::post(
+                '/',
+                [AssignmentController::class, 'store']
+            )
+                ->middleware('permission:assignments.create')
+                ->name('store');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update
+            |--------------------------------------------------------------------------
+            */
+            Route::put(
+                '/{assignment}',
+                [AssignmentController::class, 'update']
+            )
+                ->whereNumber('assignment')
+                ->middleware('permission:assignments.update')
+                ->name('update');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Delete
+            |--------------------------------------------------------------------------
+            */
+            Route::delete(
+                '/{assignment}',
+                [AssignmentController::class, 'destroy']
+            )
+                ->whereNumber('assignment')
+                ->middleware('permission:assignments.delete')
+                ->name('destroy');
+        });
 
     /*
     |--------------------------------------------------------------------------
