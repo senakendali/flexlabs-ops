@@ -345,7 +345,7 @@
 
                         <a
                             href="{{ route('assignments.index') }}"
-                            class="btn btn-outline-secondary btn-modern"
+                            class="btn btn-secondary btn-modern"
                         >
                             <i class="bi bi-arrow-counterclockwise me-2"></i>
                             Reset
