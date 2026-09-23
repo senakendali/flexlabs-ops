@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Enrollment;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\Program;
+use App\Models\StudentEnrollment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -21,7 +22,14 @@ class BatchController extends Controller
             $perPage = 10;
         }
 
-        $batches = Batch::with('program')
+        $batches = Batch::query()
+            ->with('program')
+            ->addSelect([
+                'enrolled_count' => StudentEnrollment::query()
+                    ->selectRaw('COUNT(DISTINCT student_id)')
+                    ->whereColumn('student_enrollments.batch_id', 'batches.id')
+                    ->where('status', '!=', 'cancelled'),
+            ])
             ->latest()
             ->paginate($perPage)
             ->withQueryString();
@@ -30,7 +38,10 @@ class BatchController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('enrollment.batches.index', compact('batches', 'programs'));
+        return view('enrollment.batches.index', compact(
+            'batches',
+            'programs'
+        ));
     }
 
     public function show(Batch $batch): JsonResponse

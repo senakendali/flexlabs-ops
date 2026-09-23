@@ -123,7 +123,28 @@
                                     </td>
 
                                     <td class="text-end text-nowrap">
-                                        {{ $batch->quota ? number_format((int) $batch->quota) : '-' }}
+                                        @php
+                                            $enrolledCount = (int) ($batch->enrolled_count ?? 0);
+                                            $quota = (int) ($batch->quota ?? 0);
+                                        @endphp
+
+                                        @if ($quota > 0)
+                                            <div class="fw-bold text-dark">
+                                                {{ number_format($enrolledCount) }}/{{ number_format($quota) }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ number_format($enrolledCount) }} dari {{ number_format($quota) }} kursi terisi
+                                            </div>
+                                        @else
+                                            <div class="fw-bold text-dark">
+                                                {{ number_format($enrolledCount) }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                Kuota belum ditentukan
+                                            </div>
+                                        @endif
                                     </td>
 
                                     <td class="text-end text-nowrap">
