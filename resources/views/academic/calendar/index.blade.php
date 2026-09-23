@@ -56,7 +56,7 @@
 
     .academic-calendar-card .fc .fc-col-header-cell {
         background: #5B3E8E;
-        border-color: rgba(255,255,255,.2);
+        border-color: rgba(255, 255, 255, .2);
     }
 
     .academic-calendar-card .fc .fc-col-header-cell-cushion {
@@ -115,7 +115,7 @@
         border-radius: 8px;
         padding: 7px 8px;
         cursor: pointer;
-        box-shadow: 0 3px 8px rgba(46,29,67,.16);
+        box-shadow: 0 3px 8px rgba(46, 29, 67, .16);
         font-size: .76rem;
         font-weight: 700;
         overflow: hidden;
@@ -333,27 +333,73 @@
 
     /*
     |--------------------------------------------------------------------------
-    | Batch Color Mapping
+    | Batch Color Palette
     |--------------------------------------------------------------------------
     |
-    | Jangan gunakan batch_id % palette karena dua batch ID yang berbeda
-    | bisa menghasilkan index warna yang sama.
+    | Palette dibuat manual supaya warna batch yang berdekatan benar-benar
+    | terlihat berbeda oleh mata.
     |
-    | Warna sekarang dibuat berdasarkan urutan running batch.
-    | Golden-angle hue digunakan supaya setiap batch mendapatkan hue unik
-    | dan jarak antar warna tetap cukup mudah dibedakan.
+    | Jangan menggunakan:
+    |
+    | $batch->id % count($batchPalette)
+    |
+    | karena dapat menghasilkan collision.
+    |
+    | Jangan juga generate HSL otomatis karena beberapa hue berbeda dapat
+    | terlihat terlalu mirip secara visual.
+    |
+    */
+
+    $batchPalette = [
+        '#5B3E8E', // Purple
+        '#2563EB', // Blue
+        '#059669', // Emerald
+        '#EA580C', // Orange
+        '#DC2626', // Red
+        '#0891B2', // Cyan
+        '#CA8A04', // Gold
+        '#DB2777', // Pink
+        '#4F46E5', // Indigo
+        '#65A30D', // Lime
+        '#9333EA', // Violet
+        '#0F766E', // Teal
+        '#C2410C', // Burnt Orange
+        '#0369A1', // Sky Blue
+        '#BE123C', // Rose
+        '#3F6212', // Olive
+        '#7C2D12', // Brown
+        '#4338CA', // Deep Indigo
+        '#047857', // Deep Emerald
+        '#A21CAF', // Fuchsia
+        '#B45309', // Amber
+        '#0E7490', // Deep Cyan
+        '#6D28D9', // Deep Violet
+        '#15803D', // Green
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Color Map
+    |--------------------------------------------------------------------------
+    |
+    | Mapping berdasarkan urutan running batch.
+    |
+    | Contoh:
+    |
+    | batch pertama  => warna pertama
+    | batch kedua    => warna kedua
+    | batch ketiga   => warna ketiga
+    |
+    | Dengan 24 warna di atas, 24 running batch pertama pasti tidak
+    | mendapatkan warna yang sama.
     |
     */
 
     $batchColorMap = [];
 
     foreach ($runningBatches->values() as $index => $batch) {
-        $hue = fmod(268 + ($index * 137.508), 360);
-
-        $batchColorMap[$batch->id] = sprintf(
-            'hsl(%.2f, 58%%, 42%%)',
-            $hue
-        );
+        $batchColorMap[$batch->id] =
+            $batchPalette[$index % count($batchPalette)];
     }
 @endphp
 
@@ -361,9 +407,11 @@
 <div class="container-fluid px-4 py-4">
 
     <div class="page-header-card mb-4">
+
         <div class="page-header-content d-flex justify-content-between align-items-start gap-3 flex-wrap">
 
             <div>
+
                 <div class="page-eyebrow">
                     Academic
                 </div>
@@ -375,7 +423,9 @@
                 <p class="page-subtitle mb-0">
                     Monitor all running batches and academic activities in one monthly calendar.
                 </p>
+
             </div>
+
 
             <div class="page-header-actions d-flex gap-2 flex-wrap">
 
@@ -398,6 +448,7 @@
             </div>
 
         </div>
+
     </div>
 
 
@@ -408,6 +459,7 @@
             <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
 
                 <div>
+
                     <h5 class="content-card-title mb-1">
                         Monthly Overview
                     </h5>
@@ -415,6 +467,7 @@
                     <p class="content-card-subtitle mb-0">
                         Select a batch tab or use filters to focus the calendar.
                     </p>
+
                 </div>
 
 
@@ -423,34 +476,42 @@
                     <select
                         id="programFilter"
                         class="form-select form-select-sm"
-                        style="width:180px"
+                        style="width: 180px;"
                     >
+
                         <option value="">
                             All Programs
                         </option>
 
                         @foreach($programs as $program)
+
                             <option value="{{ $program->id }}">
                                 {{ $program->name }}
                             </option>
+
                         @endforeach
+
                     </select>
 
 
                     <select
                         id="typeFilter"
                         class="form-select form-select-sm"
-                        style="width:190px"
+                        style="width: 190px;"
                     >
+
                         <option value="">
                             All Activities
                         </option>
 
                         @foreach($types as $value => $label)
+
                             <option value="{{ $value }}">
                                 {{ $label }}
                             </option>
+
                         @endforeach
+
                     </select>
 
                 </div>
@@ -481,9 +542,11 @@
                         data-batch-id="{{ $batch->id }}"
                         data-program-id="{{ $batch->program_id }}"
                     >
+
                         {{ $batch->program?->name }}
                         ·
                         {{ $batch->name }}
+
                     </button>
 
                 @endforeach
@@ -521,7 +584,9 @@
 
                         <span
                             class="legend-dot"
-                            style="background: {{ $batchColorMap[$batch->id] ?? '#5B3E8E' }}"
+                            style="
+                                background: {{ $batchColorMap[$batch->id] ?? '#5B3E8E' }};
+                            "
                         ></span>
 
                         {{ $batch->program?->name }}
@@ -553,6 +618,7 @@
     tabindex="-1"
     aria-hidden="true"
 >
+
     <div class="modal-dialog modal-lg modal-dialog-centered">
 
         <div class="modal-content border-0 shadow">
@@ -560,6 +626,7 @@
             <div class="modal-header">
 
                 <div>
+
                     <h5
                         id="eventTitle"
                         class="modal-title fw-bold mb-1"
@@ -571,7 +638,9 @@
                         id="eventSubtitle"
                         class="small text-muted"
                     ></div>
+
                 </div>
+
 
                 <button
                     type="button"
@@ -608,6 +677,7 @@
         </div>
 
     </div>
+
 </div>
 
 @endsection
@@ -620,27 +690,69 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
+    /*
+    |--------------------------------------------------------------------------
+    | Elements
+    |--------------------------------------------------------------------------
+    */
+
     const eventModal = new bootstrap.Modal(
         document.getElementById('eventModal')
     );
 
-    const programFilter = document.getElementById('programFilter');
-    const typeFilter = document.getElementById('typeFilter');
+    const programFilter =
+        document.getElementById('programFilter');
+
+    const typeFilter =
+        document.getElementById('typeFilter');
+
+    const batchTabs =
+        document.getElementById('batchTabs');
+
+    const calendarLoading =
+        document.getElementById('calendarLoading');
+
+    const calendarError =
+        document.getElementById('calendarError');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Color Map
+    |--------------------------------------------------------------------------
+    |
+    | Map dari Blade:
+    |
+    | {
+    |     "12": "#5B3E8E",
+    |     "15": "#2563EB",
+    |     ...
+    | }
+    |
+    */
 
     const batchColorMap = @json($batchColorMap);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Current Filter State
+    |--------------------------------------------------------------------------
+    */
 
     let selectedBatchId = '';
 
 
     /*
     |--------------------------------------------------------------------------
-    | Academic Calendar
+    | FullCalendar
     |--------------------------------------------------------------------------
     */
 
     const calendar = new FullCalendar.Calendar(
         document.getElementById('academicCalendar'),
         {
+
             initialView: 'dayGridMonth',
 
             height: 'auto',
@@ -669,23 +781,33 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | Loading State
+            |--------------------------------------------------------------------------
+            */
+
             loading: function (isLoading) {
 
-                document
-                    .getElementById('calendarLoading')
-                    .classList
-                    .toggle('d-none', !isLoading);
+                calendarLoading.classList.toggle(
+                    'd-none',
+                    !isLoading
+                );
 
             },
 
 
             /*
             |--------------------------------------------------------------------------
-            | Load Events
+            | Events Source
             |--------------------------------------------------------------------------
             */
 
-            events: async function (info, success, failure) {
+            events: async function (
+                info,
+                successCallback,
+                failureCallback
+            ) {
 
                 const params = new URLSearchParams({
                     start: info.startStr,
@@ -693,35 +815,63 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
 
+                /*
+                |--------------------------------------------------------------------------
+                | Program Filter
+                |--------------------------------------------------------------------------
+                */
+
                 if (programFilter.value) {
+
                     params.set(
                         'program_id',
                         programFilter.value
                     );
+
                 }
 
 
+                /*
+                |--------------------------------------------------------------------------
+                | Batch Filter
+                |--------------------------------------------------------------------------
+                */
+
                 if (selectedBatchId) {
+
                     params.set(
                         'batch_id',
                         selectedBatchId
                     );
+
                 }
 
 
+                /*
+                |--------------------------------------------------------------------------
+                | Schedule Type Filter
+                |--------------------------------------------------------------------------
+                */
+
                 if (typeFilter.value) {
+
                     params.set(
                         'schedule_type',
                         typeFilter.value
                     );
+
                 }
 
 
-                const errorElement = document.getElementById(
-                    'calendarError'
-                );
+                /*
+                |--------------------------------------------------------------------------
+                | Reset Error
+                |--------------------------------------------------------------------------
+                */
 
-                errorElement.classList.add('d-none');
+                calendarError.classList.add('d-none');
+
+                calendarError.textContent = '';
 
 
                 try {
@@ -740,25 +890,36 @@ document.addEventListener('DOMContentLoaded', function () {
                     const result = await response.json();
 
 
-                    if (!response.ok || !result.success) {
+                    if (
+                        !response.ok ||
+                        !result.success
+                    ) {
+
                         throw new Error(
                             result.message ||
                             'Unable to load schedules.'
                         );
+
                     }
 
 
-                    success(result.data || []);
+                    successCallback(
+                        result.data || []
+                    );
 
                 } catch (error) {
 
-                    errorElement.textContent =
+                    calendarError.textContent =
                         error.message ||
                         'Unable to load schedules.';
 
-                    errorElement.classList.remove('d-none');
 
-                    failure(error);
+                    calendarError.classList.remove(
+                        'd-none'
+                    );
+
+
+                    failureCallback(error);
 
                 }
 
@@ -767,13 +928,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             /*
             |--------------------------------------------------------------------------
-            | Batch Color
+            | Force Event Color Based on Batch
             |--------------------------------------------------------------------------
             |
-            | Warna event dipaksa mengikuti batchColorMap.
+            | Ini penting supaya warna event SELALU mengikuti warna legend.
             |
-            | Kalau API sudah mengirim backgroundColor sendiri, nilai tersebut
-            | akan ditimpa supaya legend dan calendar selalu konsisten.
+            | Warna dari endpoint/controller kalau ada akan ditimpa.
             |
             */
 
@@ -787,22 +947,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (
                     batchId !== null &&
-                    batchId !== undefined &&
-                    batchColorMap[String(batchId)]
+                    batchId !== undefined
                 ) {
 
+                    const batchKey =
+                        String(batchId);
+
+
                     const batchColor =
-                        batchColorMap[String(batchId)];
+                        batchColorMap[batchKey];
 
 
-                    eventData.backgroundColor =
-                        batchColor;
+                    if (batchColor) {
 
-                    eventData.borderColor =
-                        batchColor;
+                        eventData.backgroundColor =
+                            batchColor;
 
-                    eventData.textColor =
-                        '#ffffff';
+                        eventData.borderColor =
+                            batchColor;
+
+                        eventData.textColor =
+                            '#ffffff';
+
+                    }
 
                 }
 
@@ -814,16 +981,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
             /*
             |--------------------------------------------------------------------------
-            | Event Interaction
+            | Event Click
             |--------------------------------------------------------------------------
             */
 
             eventClick: function (info) {
 
-                openEvent(info.event);
+                openEvent(
+                    info.event
+                );
 
             },
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Event Tooltip
+            |--------------------------------------------------------------------------
+            */
 
             eventDidMount: function (info) {
 
@@ -841,68 +1016,91 @@ document.addEventListener('DOMContentLoaded', function () {
     );
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Render Calendar
+    |--------------------------------------------------------------------------
+    */
+
     calendar.render();
 
 
     /*
     |--------------------------------------------------------------------------
-    | Program & Activity Filter
+    | Program Filter
     |--------------------------------------------------------------------------
     */
 
-    [programFilter, typeFilter].forEach(function (element) {
-
-        element.addEventListener('change', function () {
+    programFilter.addEventListener(
+        'change',
+        function () {
 
             /*
-             * Kalau program diganti manual,
-             * reset batch selection.
+             * Program diganti manual.
+             *
+             * Reset selected batch supaya tidak ada batch lama
+             * yang masih aktif.
              */
-            if (element === programFilter) {
 
-                selectedBatchId = '';
+            selectedBatchId = '';
 
 
-                document
-                    .querySelectorAll('.batch-tab')
-                    .forEach(function (button, index) {
+            document
+                .querySelectorAll('.batch-tab')
+                .forEach(function (button, index) {
 
-                        button.classList.toggle(
-                            'active',
-                            index === 0
-                        );
+                    button.classList.toggle(
+                        'active',
+                        index === 0
+                    );
 
-                    });
-
-            }
+                });
 
 
             calendar.refetchEvents();
 
-        });
-
-    });
+        }
+    );
 
 
     /*
     |--------------------------------------------------------------------------
-    | Batch Tabs
+    | Activity Type Filter
     |--------------------------------------------------------------------------
     */
 
-    document
-        .getElementById('batchTabs')
-        .addEventListener('click', function (event) {
+    typeFilter.addEventListener(
+        'change',
+        function () {
 
-            const button = event.target.closest(
-                '.batch-tab'
-            );
+            calendar.refetchEvents();
+
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Tab Selection
+    |--------------------------------------------------------------------------
+    */
+
+    batchTabs.addEventListener(
+        'click',
+        function (event) {
+
+            const button =
+                event.target.closest('.batch-tab');
 
 
             if (!button) {
                 return;
             }
 
+
+            /*
+             * Reset active state.
+             */
 
             document
                 .querySelectorAll('.batch-tab')
@@ -913,20 +1111,37 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
 
+            /*
+             * Activate selected batch.
+             */
+
             button.classList.add('active');
 
+
+            /*
+             * Update batch filter.
+             */
 
             selectedBatchId =
                 button.dataset.batchId || '';
 
 
+            /*
+             * Sync program filter dengan batch.
+             */
+
             programFilter.value =
                 button.dataset.programId || '';
 
 
+            /*
+             * Reload calendar.
+             */
+
             calendar.refetchEvents();
 
-        });
+        }
+    );
 
 
     /*
@@ -941,11 +1156,24 @@ document.addEventListener('DOMContentLoaded', function () {
             event.extendedProps || {};
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Title
+        |--------------------------------------------------------------------------
+        */
+
         document
             .getElementById('eventTitle')
             .textContent =
-                event.title || 'Schedule Detail';
+                event.title ||
+                'Schedule Detail';
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Subtitle
+        |--------------------------------------------------------------------------
+        */
 
         document
             .getElementById('eventSubtitle')
@@ -953,39 +1181,71 @@ document.addEventListener('DOMContentLoaded', function () {
                 `${props.program_name || '-'} · ${props.batch_name || '-'}`;
 
 
-        const when = event.allDay
-            ? 'All Day'
-            : `${formatTime(event.start)}${event.end ? ' - ' + formatTime(event.end) : ''}`;
+        /*
+        |--------------------------------------------------------------------------
+        | Time
+        |--------------------------------------------------------------------------
+        */
 
+        const when =
+            event.allDay
+                ? 'All Day'
+                : `${formatTime(event.start)}${event.end ? ' - ' + formatTime(event.end) : ''}`;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Detail Rows
+        |--------------------------------------------------------------------------
+        */
 
         const rows = [
+
             [
                 'Activity',
-                headline(props.schedule_type),
+                headline(
+                    props.schedule_type
+                ),
             ],
+
             [
                 'Date',
-                formatDate(event.start),
+                formatDate(
+                    event.start
+                ),
             ],
+
             [
                 'Time',
                 when,
             ],
+
             [
                 'Instructor / PIC',
                 props.instructor_name || '-',
             ],
+
             [
                 'Notes',
                 props.notes || '-',
             ],
+
         ];
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Render Detail
+        |--------------------------------------------------------------------------
+        */
 
         document
             .getElementById('eventDetailGrid')
             .innerHTML = rows
-                .map(function ([label, value], index) {
+                .map(function (
+                    [label, value],
+                    index
+                ) {
 
                     const columnClass =
                         index === 4
@@ -995,6 +1255,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     return `
                         <div class="${columnClass}">
+
                             <div class="small text-muted mb-1">
                                 ${escapeHtml(label)}
                             </div>
@@ -1002,12 +1263,19 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="fw-semibold text-dark">
                                 ${escapeHtml(value)}
                             </div>
+
                         </div>
                     `;
 
                 })
                 .join('');
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Show Modal
+        |--------------------------------------------------------------------------
+        */
 
         eventModal.show();
 
@@ -1060,11 +1328,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function headline(value = '') {
 
-        return String(value || '-')
-            .replaceAll('_', ' ')
+        return String(
+            value || '-'
+        )
+            .replaceAll(
+                '_',
+                ' '
+            )
             .replace(
                 /\b\w/g,
-                character => character.toUpperCase()
+                function (character) {
+                    return character.toUpperCase();
+                }
             );
 
     }
@@ -1075,8 +1350,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const div =
             document.createElement('div');
 
+
         div.textContent =
             value ?? '';
+
 
         return div.innerHTML;
 
