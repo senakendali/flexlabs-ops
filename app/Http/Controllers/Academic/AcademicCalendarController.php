@@ -15,10 +15,10 @@ use Illuminate\View\View;
 class AcademicCalendarController extends Controller
 {
     /**
-     * Curated palette.
+     * Palette warna batch.
      *
-     * Urutan warna dibuat supaya batch yang berdekatan
-     * mempunyai warna yang cukup berbeda secara visual.
+     * Dibuat cukup kontras secara visual supaya batch yang berbeda
+     * mudah dibedakan pada calendar.
      */
     private const BATCH_PALETTE = [
         '#5B3E8E', // Purple
@@ -47,9 +47,18 @@ class AcademicCalendarController extends Controller
         '#15803D', // Green
     ];
 
+    /**
+     * Academic Calendar page.
+     */
     public function index(): View
     {
         $today = today();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Programs
+        |--------------------------------------------------------------------------
+        */
 
         $programs = Program::query()
             ->select([
@@ -59,26 +68,38 @@ class AcademicCalendarController extends Controller
             ->orderBy('name')
             ->get();
 
-        $runningBatches = $this->getRunningBatches($today);
-
         /*
         |--------------------------------------------------------------------------
-        | Batch Color Map
+        | Running Batches
         |--------------------------------------------------------------------------
         |
-        | Mapping berdasarkan URUTAN running batch, bukan batch ID.
+        | Ini hanya digunakan untuk:
         |
-        | Contoh:
+        | - batch tabs
+        | - running batch legend
         |
-        | running batch pertama  -> palette[0]
-        | running batch kedua    -> palette[1]
-        | running batch ketiga   -> palette[2]
+        | TIDAK digunakan untuk menentukan apakah suatu batch boleh
+        | memiliki warna atau tidak.
         |
         */
 
-        $batchColorMap = $this->buildBatchColorMap(
-            $runningBatches
+        $runningBatches = $this->getRunningBatches(
+            $today
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Global Batch Color Map
+        |--------------------------------------------------------------------------
+        |
+        | Warna dibuat berdasarkan SELURUH batch.
+        |
+        | Jadi batch upcoming yang sudah memiliki schedule tetap mendapatkan
+        | warna walaupun statusnya belum ongoing.
+        |
+        */
+
+        $batchColorMap = $this->getBatchColorMap();
 
         return view(
             'academic.calendar.index',
@@ -90,8 +111,17 @@ class AcademicCalendarController extends Controller
         );
     }
 
+    /**
+     * FullCalendar events endpoint.
+     */
     public function events(Request $request): JsonResponse
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Validation
+        |--------------------------------------------------------------------------
+        */
+
         $validated = $request->validate([
             'start' => [
                 'required',
@@ -123,18 +153,26 @@ class AcademicCalendarController extends Controller
             ],
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Calendar Range
+        |--------------------------------------------------------------------------
+        */
+
         $startDate = Carbon::parse(
             $validated['start']
         )->toDateString();
 
         /*
-        |--------------------------------------------------------------------------
-        | FullCalendar End Date
-        |--------------------------------------------------------------------------
-        |
-        | FullCalendar mengirim end date secara exclusive.
-        |
-        */
+         * FullCalendar mengirim end date secara exclusive.
+         *
+         * Contoh:
+         *
+         * start = 2026-09-01
+         * end   = 2026-10-01
+         *
+         * Maka tanggal terakhir yang benar adalah 2026-09-30.
+         */
 
         $endDate = Carbon::parse(
             $validated['end']
@@ -144,24 +182,23 @@ class AcademicCalendarController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Running Batch Color Map
+        | Global Batch Color Map
         |--------------------------------------------------------------------------
         |
-        | Events memakai mapping warna yang sama dengan halaman index.
+        | Penting:
+        |
+        | Jangan mengambil warna hanya dari running batch.
+        |
+        | Upcoming batch yang memiliki academic schedule juga harus
+        | mempunyai warna unik.
         |
         */
 
-        $runningBatches = $this->getRunningBatches(
-            today()
-        );
-
-        $batchColorMap = $this->buildBatchColorMap(
-            $runningBatches
-        );
+        $batchColorMap = $this->getBatchColorMap();
 
         /*
         |--------------------------------------------------------------------------
-        | Schedules
+        | Academic Schedules
         |--------------------------------------------------------------------------
         */
 
@@ -211,7 +248,7 @@ class AcademicCalendarController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Calendar Events
+        | Transform To FullCalendar Events
         |--------------------------------------------------------------------------
         */
 
@@ -232,8 +269,9 @@ class AcademicCalendarController extends Controller
     }
 
     /**
-     * Get running batches using exactly the same rule
-     * for both page rendering and event colors.
+     * Get batches currently considered running.
+     *
+     * Digunakan hanya untuk tab/filter running batch.
      */
     private function getRunningBatches(
         Carbon $today
@@ -273,20 +311,45 @@ class AcademicCalendarController extends Controller
     }
 
     /**
-     * Build consistent batch -> color mapping.
+     * Build global batch color mapping.
+     *
+     * Warna ditentukan dari SEMUA batch, bukan hanya running batch.
+     *
+     * Contoh:
+     *
+     * [
+     *     10 => '#5B3E8E',
+     *     11 => '#2563EB',
+     *     12 => '#059669',
+     * ]
+     *
+     * Dengan begitu batch upcoming tetap mendapatkan warna.
      */
-    private function buildBatchColorMap(
-        Collection $runningBatches
-    ): array {
+    private function getBatchColorMap(): array
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Ambil Semua Batch ID
+        |--------------------------------------------------------------------------
+        |
+        | Gunakan urutan ID supaya mapping stabil.
+        |
+        | Batch yang sudah ada tidak akan berubah posisi hanya karena
+        | statusnya berubah dari upcoming menjadi ongoing.
+        |
+        */
+
+        $batchIds = Batch::query()
+            ->orderBy('id')
+            ->pluck('id')
+            ->values();
+
         $palette = self::BATCH_PALETTE;
 
         $colorMap = [];
 
-        foreach (
-            $runningBatches->values()
-            as $index => $batch
-        ) {
-            $colorMap[$batch->id] =
+        foreach ($batchIds as $index => $batchId) {
+            $colorMap[$batchId] =
                 $palette[
                     $index % count($palette)
                 ];
@@ -296,19 +359,36 @@ class AcademicCalendarController extends Controller
     }
 
     /**
-     * Convert schedule into FullCalendar event.
+     * Convert AcademicSchedule into FullCalendar event.
      */
     private function toCalendarEvent(
         AcademicSchedule $schedule,
         array $batchColorMap
     ): array {
+        /*
+        |--------------------------------------------------------------------------
+        | All Day
+        |--------------------------------------------------------------------------
+        */
+
         $isAllDay =
             (bool) $schedule->is_all_day;
 
-        $date =
-            $schedule
-                ->schedule_date
-                ->format('Y-m-d');
+        /*
+        |--------------------------------------------------------------------------
+        | Schedule Date
+        |--------------------------------------------------------------------------
+        */
+
+        $date = $schedule
+            ->schedule_date
+            ->format('Y-m-d');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Start Time
+        |--------------------------------------------------------------------------
+        */
 
         $startTime =
             $schedule->start_time
@@ -316,6 +396,12 @@ class AcademicCalendarController extends Controller
                     $schedule->start_time
                 )->format('H:i:s')
                 : null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | End Time
+        |--------------------------------------------------------------------------
+        */
 
         $endTime =
             $schedule->end_time
@@ -326,19 +412,29 @@ class AcademicCalendarController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Event Color
+        | Batch Color
         |--------------------------------------------------------------------------
         |
-        | Kalau batch masih termasuk running batch,
-        | ambil warna dari batchColorMap.
+        | Karena batchColorMap berasal dari seluruh batch,
+        | upcoming batch juga akan memiliki warna.
         |
-        | Fallback digunakan untuk schedule lama / batch non-running.
+        | Grey hanya menjadi fallback untuk schedule tanpa batch.
         |
         */
 
         $color =
-            $batchColorMap[$schedule->batch_id]
-            ?? '#6B7280';
+            $schedule->batch_id
+                ? (
+                    $batchColorMap[$schedule->batch_id]
+                    ?? '#6B7280'
+                )
+                : '#6B7280';
+
+        /*
+        |--------------------------------------------------------------------------
+        | FullCalendar Event
+        |--------------------------------------------------------------------------
+        */
 
         return [
             'id' =>
@@ -360,6 +456,12 @@ class AcademicCalendarController extends Controller
             'allDay' =>
                 $isAllDay,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Color
+            |--------------------------------------------------------------------------
+            */
+
             'backgroundColor' =>
                 $color,
 
@@ -368,6 +470,12 @@ class AcademicCalendarController extends Controller
 
             'textColor' =>
                 '#FFFFFF',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Extended Properties
+            |--------------------------------------------------------------------------
+            */
 
             'extendedProps' => [
 
