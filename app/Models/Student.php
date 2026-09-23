@@ -13,6 +13,7 @@ class Student extends Model
     use Notifiable;
 
     protected $fillable = [
+        'student_id',
         'user_id',
         'full_name',
         'avatar_url',
