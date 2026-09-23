@@ -583,6 +583,10 @@
 
                             <div class="invoice-party-name">{{ $student->full_name ?? '-' }}</div>
 
+                            @if (!empty($student?->student_id))
+                                <div>Student ID: {{ $student->student_id }}</div>
+                            @endif
+
                             @if (!empty($studentAddressParts))
                                 <div>{{ $studentAddressParts }}</div>
                             @endif

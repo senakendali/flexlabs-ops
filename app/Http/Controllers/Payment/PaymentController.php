@@ -927,6 +927,22 @@ class PaymentController extends Controller
     {
         return [
             'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
+            'order.student:id,student_id,full_name,email,phone,city',
+            'order.groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,price_per_seat,original_price,discount,service_amount,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
+            'order.groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
+            'order.groupRegistration.participants:id,group_registration_id,student_id,status',
+            'order.groupRegistration.participants.student:id,student_id,full_name,email',
+            'order.batch:id,program_id,name,start_date,end_date',
+            'order.batch.program:id,name',
+            'order.workshop',
+            'paymentSchedule:id,order_id,title,amount,gross_amount,wht_rate,wht_amount,net_amount,due_date,status',
+        ];
+    }
+
+    private function paymentDocumentRelations_(): array
+    {
+        return [
+            'order:id,student_id,group_registration_id,batch_id,workshop_id,order_type,original_price,discount,final_price,status,notes',
             'order.student:id,full_name,email,phone,city',
             'order.groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,price_per_seat,original_price,discount,service_amount,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
             'order.groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
@@ -1648,7 +1664,7 @@ class PaymentController extends Controller
         }
 
         $freshOrder = Order::with([
-            'student:id,full_name,email,phone,city',
+            'student:id,student_id,full_name,email,phone,city',
             'groupRegistration:id,registration_number,buyer_type,buyer_student_id,company_id,batch_id,buyer_name,buyer_email,buyer_phone,quantity,price_per_seat,original_price,discount,service_amount,wht_rate,wht_amount,invoice_total,net_payable,wht_status,status',
             'groupRegistration.company:id,name,tax_id,email,phone,address,pic_name,pic_email,pic_phone',
             'groupRegistration.participants:id,group_registration_id,student_id,status',
