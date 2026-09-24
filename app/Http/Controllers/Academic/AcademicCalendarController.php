@@ -273,7 +273,46 @@ class AcademicCalendarController extends Controller
      *
      * Digunakan hanya untuk tab/filter running batch.
      */
+
     private function getRunningBatches(
+        Carbon $today
+    ): Collection {
+        return Batch::query()
+            ->with('program:id,name')
+            ->select([
+                'id',
+                'program_id',
+                'name',
+                'status',
+                'start_date',
+                'end_date',
+            ])
+
+            // Tampilkan batch yang masih berjalan
+            // atau akan berjalan setelah hari ini.
+            ->where(function ($query) use ($today) {
+                $query
+                    ->whereNull('end_date')
+                    ->orWhereDate(
+                        'end_date',
+                        '>=',
+                        $today
+                    );
+            })
+
+            // Jangan tampilkan batch yang sudah selesai / dibatalkan.
+            ->whereNotIn('status', [
+                'completed',
+                'cancelled',
+                'canceled',
+            ])
+
+            ->orderBy('start_date')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function getRunningBatches_(
         Carbon $today
     ): Collection {
         return Batch::query()
