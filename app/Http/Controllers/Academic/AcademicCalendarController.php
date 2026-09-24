@@ -290,19 +290,27 @@ class AcademicCalendarController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Current + Upcoming Batches
+            | Must Have Current / Upcoming Schedule
             |--------------------------------------------------------------------------
             |
-            | Hanya batch yang masih berjalan atau akan berjalan.
-            | Batch yang end_date-nya sudah lewat tidak ditampilkan.
+            | Batch ditampilkan jika memiliki minimal satu Academic Schedule
+            | pada hari ini atau setelah hari ini.
+            |
+            | Jadi source of truth tab adalah academic_schedules,
+            | bukan status / end_date batch.
             |
             */
 
-            ->where(function ($query) use ($today) {
+            ->whereExists(function ($query) use ($today) {
                 $query
-                    ->whereNull('end_date')
-                    ->orWhereDate(
-                        'end_date',
+                    ->selectRaw('1')
+                    ->from('academic_schedules')
+                    ->whereColumn(
+                        'academic_schedules.batch_id',
+                        'batches.id'
+                    )
+                    ->whereDate(
+                        'academic_schedules.schedule_date',
                         '>=',
                         $today
                     );
@@ -310,35 +318,14 @@ class AcademicCalendarController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Exclude Finished / Cancelled
+            | Exclude Cancelled Batch
             |--------------------------------------------------------------------------
             */
 
             ->whereNotIn('status', [
-                'completed',
                 'cancelled',
                 'canceled',
             ])
-
-            /*
-            |--------------------------------------------------------------------------
-            | Must Have Academic Schedule
-            |--------------------------------------------------------------------------
-            |
-            | Batch hanya ditampilkan di tab jika minimal sudah memiliki
-            | satu AcademicSchedule.
-            |
-            */
-
-            ->whereExists(function ($query) {
-                $query
-                    ->selectRaw('1')
-                    ->from('academic_schedules')
-                    ->whereColumn(
-                        'academic_schedules.batch_id',
-                        'batches.id'
-                    );
-            })
 
             /*
             |--------------------------------------------------------------------------
