@@ -288,8 +288,16 @@ class AcademicCalendarController extends Controller
                 'end_date',
             ])
 
-            // Tampilkan batch yang masih berjalan
-            // atau akan berjalan setelah hari ini.
+            /*
+            |--------------------------------------------------------------------------
+            | Current + Upcoming Batches
+            |--------------------------------------------------------------------------
+            |
+            | Hanya batch yang masih berjalan atau akan berjalan.
+            | Batch yang end_date-nya sudah lewat tidak ditampilkan.
+            |
+            */
+
             ->where(function ($query) use ($today) {
                 $query
                     ->whereNull('end_date')
@@ -300,12 +308,43 @@ class AcademicCalendarController extends Controller
                     );
             })
 
-            // Jangan tampilkan batch yang sudah selesai / dibatalkan.
+            /*
+            |--------------------------------------------------------------------------
+            | Exclude Finished / Cancelled
+            |--------------------------------------------------------------------------
+            */
+
             ->whereNotIn('status', [
                 'completed',
                 'cancelled',
                 'canceled',
             ])
+
+            /*
+            |--------------------------------------------------------------------------
+            | Must Have Academic Schedule
+            |--------------------------------------------------------------------------
+            |
+            | Batch hanya ditampilkan di tab jika minimal sudah memiliki
+            | satu AcademicSchedule.
+            |
+            */
+
+            ->whereExists(function ($query) {
+                $query
+                    ->selectRaw('1')
+                    ->from('academic_schedules')
+                    ->whereColumn(
+                        'academic_schedules.batch_id',
+                        'batches.id'
+                    );
+            })
+
+            /*
+            |--------------------------------------------------------------------------
+            | Order
+            |--------------------------------------------------------------------------
+            */
 
             ->orderBy('start_date')
             ->orderBy('name')
