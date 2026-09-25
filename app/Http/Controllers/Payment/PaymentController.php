@@ -1886,6 +1886,122 @@ class PaymentController extends Controller
         $orderItemContext = $this->resolveOrderItemSourceContext($order);
         $orderContext = $this->resolveOrderColumnSourceContext($order);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Program order
+        |--------------------------------------------------------------------------
+        |
+        | Untuk order program, source of truth harus selalu:
+        |
+        | Order
+        |   -> batch_id
+        |   -> Batch
+        |   -> program_id
+        |   -> Program
+        |
+        | Jangan mengambil nama program dari order_items atau payment schedule,
+        | karena data tersebut dapat berasal dari source lama / generic item dan
+        | berpotensi tidak sesuai dengan batch yang benar-benar dibeli.
+        |
+        */
+        $orderType = Str::of((string) data_get($order, 'order_type', ''))
+            ->lower()
+            ->replace(['-', ' '], '_')
+            ->toString();
+
+        if ($orderType === 'program') {
+            $programName = data_get($order, 'batch.program.name');
+            $batchName = data_get($order, 'batch.name');
+
+            $sourceItemName = filled($programName)
+                ? (string) $programName
+                : (filled($batchName) ? (string) $batchName : 'FlexLabs Program');
+
+            $sourceDescription = collect([
+                $programName,
+                $batchName,
+            ])
+                ->filter(fn ($value) => filled($value))
+                ->implode(' - ');
+
+            if (!$sourceDescription) {
+                $sourceDescription = $sourceItemName;
+            }
+
+            return [
+                'source_type' => 'program',
+                'source_type_label' => 'Program',
+                'source_item_name' => $sourceItemName,
+                'source_description' => $sourceDescription,
+                'schedule_title' => $schedule?->title,
+                'order_item' => $orderItemContext['raw'] ?? null,
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Non-program order
+        |--------------------------------------------------------------------------
+        |
+        | Workshop, webinar, trial class, dan tipe order lainnya tetap menggunakan
+        | resolver existing agar tidak mengubah behaviour yang sudah berjalan.
+        |
+        */
+        $sourceType = $orderItemContext['source_type']
+            ?: $orderContext['source_type']
+            ?: $scheduleContext['source_type']
+            ?: $this->resolveProgramSourceType($payment);
+
+        $sourceItemName = $orderItemContext['source_item_name']
+            ?: $orderContext['source_item_name']
+            ?: $this->resolveProgramSourceName($payment)
+            ?: $scheduleContext['source_item_name'];
+
+        $sourceDescription = $orderItemContext['source_description']
+            ?: $orderContext['source_description']
+            ?: $this->resolveProgramDescription($payment)
+            ?: $scheduleContext['source_description'];
+
+        $sourceTypeLabel = $this->humanizeSourceType($sourceType);
+
+        if (!$sourceTypeLabel && $sourceItemName) {
+            $sourceTypeLabel = 'Order';
+        }
+
+        if (!$sourceTypeLabel) {
+            $sourceTypeLabel = 'Program';
+        }
+
+        if (!$sourceItemName) {
+            $sourceItemName = $sourceDescription ?: 'FlexLabs Payment';
+        }
+
+        if (!$sourceDescription) {
+            $sourceDescription = $sourceItemName;
+        }
+
+        return [
+            'source_type' => $sourceType ?: Str::slug($sourceTypeLabel, '_'),
+            'source_type_label' => $sourceTypeLabel,
+            'source_item_name' => $sourceItemName,
+            'source_description' => $sourceDescription,
+            'schedule_title' => $schedule?->title,
+            'order_item' => $orderItemContext['raw'] ?? null,
+        ];
+    }
+
+    private function resolvePaymentSourceContext_(
+        Payment $payment,
+        ?Order $order = null,
+        ?PaymentSchedule $schedule = null
+    ): array {
+        $order = $order ?: $this->resolveFullOrderForPayment($payment);
+        $schedule = $schedule ?: $this->resolveFullPaymentScheduleForPayment($payment);
+
+        $scheduleContext = $this->resolveScheduleSourceContext($schedule);
+        $orderItemContext = $this->resolveOrderItemSourceContext($order);
+        $orderContext = $this->resolveOrderColumnSourceContext($order);
+
         $sourceType = $orderItemContext['source_type']
             ?: $orderContext['source_type']
             ?: $scheduleContext['source_type']
