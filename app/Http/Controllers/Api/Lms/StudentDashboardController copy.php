@@ -46,7 +46,6 @@ class StudentDashboardController extends Controller
         }
 
         $student = $user->student;
-
         $activeEnrollments = $this->getEligibleEnrollments($student);
 
         if ($activeEnrollments->isEmpty()) {
@@ -56,240 +55,73 @@ class StudentDashboardController extends Controller
             ], 403);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve enrollment scope
-        |--------------------------------------------------------------------------
-        |
-        | Dashboard harus mengikuti enrollment aktif student:
-        |
-        | Enrollment
-        | -> Batch
-        | -> Program
-        | -> Program Stage
-        | -> Module
-        | -> Topic
-        | -> Sub Topic
-        |
-        | Contoh:
-        | CORE_SE_01_0926 hanya boleh mendapatkan curriculum CORE.
-        |
-        */
-
         $batchIds = $this->resolveBatchIds($activeEnrollments);
-
         $programIds = $this->resolveProgramIds($activeEnrollments);
 
-        $stageIds = $this->resolveStageIdsFromEnrollments(
-            $activeEnrollments
-        );
+        $subTopics = $this->getSubTopicsForPrograms($programIds);
+        $progressRows = $this->getProgressRows($student, $subTopics);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Curriculum
-        |--------------------------------------------------------------------------
-        |
-        | Jangan lagi mengambil curriculum hanya berdasarkan program.
-        |
-        | Sebelumnya:
-        |
-        | getSubTopicsForPrograms($programIds)
-        |
-        | Itu menyebabkan INTRO + CORE ikut terambil.
-        |
-        */
-
-        $subTopics = collect();
-
-        if ($stageIds->isNotEmpty()) {
-            $subTopics = $this->getFastTimelineSubTopics(
-                programIds: $programIds,
-                stageIds: $stageIds
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Safe fallback
-        |--------------------------------------------------------------------------
-        |
-        | Fallback tetap membawa stageIds.
-        |
-        | Jadi tidak boleh fallback ke seluruh curriculum program.
-        |
-        */
-
-        if ($subTopics->isEmpty()) {
-            $subTopics = $this->getFallbackSubTopics(
-                programIds: $programIds,
-                batchIds: $batchIds,
-                stageIds: $stageIds
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Progress
-        |--------------------------------------------------------------------------
-        |
-        | Progress hanya diambil untuk sub topic yang memang termasuk
-        | curriculum student saat ini.
-        |
-        */
-
-        $progressRows = $this->getProgressRows(
-            $student,
-            $subTopics
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Merge incomplete progress
-        |--------------------------------------------------------------------------
-        |
-        | Tetap dipertahankan untuk kompatibilitas dashboard.
-        |
-        | Tetapi helper sekarang menerima curriculum yang sudah difilter
-        | berdasarkan program + stage.
-        |
-        */
-
+        // FAST_DASHBOARD_QUERY_V2
+        // Jangan merge semua progress student di flow normal. Progress dashboard
+        // cukup dibatasi ke subtopic dari program aktif supaya request tetap ringan.
         $subTopics = $this->mergeIncompleteProgressSubTopics(
             subTopics: $subTopics,
             progressRows: $progressRows
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Courses
-        |--------------------------------------------------------------------------
-        */
-
         $courses = collect($activeEnrollments->all())
-            ->map(
-                fn ($enrollment) => $this->formatCourse(
-                    enrollment: $enrollment,
-                    student: $student
-                )
-            )
+            ->map(fn ($enrollment) => $this->formatCourse($enrollment, $student))
             ->filter()
-            ->unique(function (array $course) {
-                /*
-                * Program yang sama bisa memiliki INTRO dan CORE.
-                *
-                * Jangan unique hanya berdasarkan program ID karena bisa
-                * menghilangkan enrollment berbeda pada stage berbeda.
-                */
-
-                return implode(':', [
-                    $course['id'] ?? 0,
-                    $course['batch_id'] ?? 0,
-                ]);
-            })
+            ->unique(fn (array $course) => $course['id'] ?? null)
             ->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Pending tasks
-        |--------------------------------------------------------------------------
-        */
-
-        $pendingTasks = $this->getPendingTasks(
-            $student,
-            $batchIds
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Summary
-        |--------------------------------------------------------------------------
-        */
-
-        $summary = $this->formatSummary(
-            $courses,
-            $pendingTasks
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Current lesson
-        |--------------------------------------------------------------------------
-        |
-        | Current lesson sekarang berasal dari curriculum yang sudah
-        | difilter berdasarkan stage.
-        |
-        */
+        $pendingTasks = $this->getPendingTasks($student, $batchIds);
+        $summary = $this->formatSummary($courses, $pendingTasks);
 
         $currentLesson = $this->resolveCurrentLesson(
             subTopics: $subTopics,
             progressRows: $progressRows
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Current lesson fallback
-        |--------------------------------------------------------------------------
-        */
-
         if (!$currentLesson) {
             $currentLesson = $this->resolveCurrentLessonFallback(
                 student: $student,
                 programIds: $programIds,
-                batchIds: $batchIds,
-                stageIds: $stageIds
+                batchIds: $batchIds
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Response
-        |--------------------------------------------------------------------------
-        */
-
         return response()->json([
             'success' => true,
-
             'data' => [
-
                 'student' => $this->formatStudent($student),
-
                 'notification_count' => $pendingTasks->count(),
 
                 'summary' => $summary,
-
-                'stats' => $this->formatStats(
-                    $summary,
-                    $courses
-                ),
+                'stats' => $this->formatStats($summary, $courses),
 
                 'weekly_summary' => $this->formatWeeklySummary(
                     student: $student,
                     progressRows: $progressRows
                 ),
 
-                'pending_tasks' => $pendingTasks
-                    ->values()
-                    ->toArray(),
-
+                'pending_tasks' => $pendingTasks->values()->toArray(),
                 'current_lesson' => $currentLesson,
 
                 'courses' => $courses->toArray(),
 
                 /*
-                * Upcoming sessions sengaja tidak diambil dari
-                * StudentDashboardController.
-                *
-                * Sumber jadwal student:
-                *
-                * GET /api/lms/student/schedules
-                */
-
-                'announcements' => $this
-                    ->getDashboardAnnouncements(
-                        programIds: $programIds,
-                        batchIds: $batchIds
-                    )
-                    ->toArray(),
+                 * Upcoming sessions sengaja tidak diambil dari DashboardController.
+                 * Sumber jadwal student sekarang satu pintu:
+                 * GET /api/lms/student/schedules
+                 *
+                 * Dashboard Vue tetap mengambil upcoming sessions lewat endpoint schedules
+                 * supaya hasilnya sama dengan halaman Schedule.
+                 */
+                'announcements' => $this->getDashboardAnnouncements(
+                    programIds: $programIds,
+                    batchIds: $batchIds
+                )->toArray(),
             ],
         ]);
     }
@@ -981,256 +813,59 @@ class StudentDashboardController extends Controller
         return $query->get();
     }
 
-    private function formatCourse(
-        $enrollment,
-        Student $student
-    ): ?array {
-        $program = $enrollment->program
-            ?? $enrollment->batch?->program;
+    private function formatCourse($enrollment, Student $student): ?array
+    {
+        $program = $enrollment->program ?? $enrollment->batch?->program;
 
         if (!$program) {
             return null;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve curriculum scope
-        |--------------------------------------------------------------------------
-        |
-        | Jangan mengambil seluruh curriculum program.
-        |
-        | Program yang sama bisa mempunyai:
-        |
-        | INTRO
-        | CORE
-        |
-        | Stage harus mengikuti batch enrollment.
-        |
-        */
-
-        $programIds = collect([
-            (int) $program->id,
-        ]);
-
-        $batchIds = collect([
-            $enrollment->batch_id,
-        ])
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        $stageIds = $this->resolveStageIdsFromEnrollments(
-            collect([$enrollment])
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get stage-filtered curriculum
-        |--------------------------------------------------------------------------
-        */
-
-        $subTopics = collect();
-
-        if ($stageIds->isNotEmpty()) {
-            $subTopics = $this->getFastTimelineSubTopics(
-                programIds: $programIds,
-                stageIds: $stageIds
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Safe fallback
-        |--------------------------------------------------------------------------
-        */
-
-        if ($subTopics->isEmpty()) {
-            $subTopics = $this->getFallbackSubTopics(
-                programIds: $programIds,
-                batchIds: $batchIds,
-                stageIds: $stageIds
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Student progress
-        |--------------------------------------------------------------------------
-        */
-
-        $progressRows = $this->getProgressRows(
-            $student,
-            $subTopics
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Totals
-        |--------------------------------------------------------------------------
-        */
+        $subTopics = $this->getSubTopicsForPrograms(collect([(int) $program->id]));
+        $progressRows = $this->getProgressRows($student, $subTopics);
 
         $totalSubTopics = $subTopics->count();
 
         $completedSubTopics = $progressRows
-            ->filter(
-                fn ($progress) =>
-                    $this->isProgressCompleted($progress)
-            )
+            ->filter(fn ($progress) => $this->isProgressCompleted($progress))
             ->pluck('sub_topic_id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
             ->unique()
             ->count();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Progress percentage
-        |--------------------------------------------------------------------------
-        */
-
         $progress = $totalSubTopics > 0
-            ? $this->clampPercent(
-                ($completedSubTopics / $totalSubTopics) * 100
-            )
+            ? $this->clampPercent(($completedSubTopics / $totalSubTopics) * 100)
             : 0;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Next lesson
-        |--------------------------------------------------------------------------
-        */
-
-        $nextLesson = $this->resolveNextLessonTitle(
-            $subTopics,
-            $progressRows
-        );
-
-        $programSlug = $this->resolveProgramSlug(
-            $program
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Stage metadata
-        |--------------------------------------------------------------------------
-        |
-        | Tidak wajib dipakai frontend, tapi berguna untuk memastikan
-        | course memang berasal dari stage yang benar.
-        |
-        */
-
-        $stageId = $stageIds->first();
-
-        $stageName = null;
-        $stageSlug = null;
-
-        if (
-            $stageId
-            && Schema::hasTable('program_stages')
-        ) {
-            $stage = DB::table('program_stages')
-                ->where('id', $stageId)
-                ->first();
-
-            if ($stage) {
-                $stageName = $stage->name ?? null;
-                $stageSlug = $stage->slug ?? null;
-            }
-        }
+        $nextLesson = $this->resolveNextLessonTitle($subTopics, $progressRows);
+        $programSlug = $this->resolveProgramSlug($program);
 
         return [
             'id' => $program->id,
-
-            'title' => $program->name
-                ?? $program->title
-                ?? 'Untitled Course',
-
-            'name' => $program->name
-                ?? $program->title
-                ?? 'Untitled Course',
-
+            'title' => $program->name ?? $program->title ?? 'Untitled Course',
+            'name' => $program->name ?? $program->title ?? 'Untitled Course',
             'slug' => $programSlug,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Batch
-            |--------------------------------------------------------------------------
-            */
 
             'batch_id' => $enrollment->batch_id,
             'batch_name' => $enrollment->batch?->name,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Stage
-            |--------------------------------------------------------------------------
-            */
-
-            'stage_id' => $stageId,
-            'stageId' => $stageId,
-
-            'stage_name' => $stageName,
-            'stageName' => $stageName,
-
-            'stage_slug' => $stageSlug,
-            'stageSlug' => $stageSlug,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Next lesson
-            |--------------------------------------------------------------------------
-            */
-
             'next_lesson' => $nextLesson,
             'nextLesson' => $nextLesson,
-
             'next_sub_topic' => $nextLesson,
             'nextSubTopic' => $nextLesson,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Progress
-            |--------------------------------------------------------------------------
-            */
-
             'progress' => $progress,
-
             'progress_percentage' => $progress,
             'progressPercentage' => $progress,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Sub topics
-            |--------------------------------------------------------------------------
-            */
-
             'completed_sub_topics' => $completedSubTopics,
             'completedSubTopics' => $completedSubTopics,
-
             'total_sub_topics' => $totalSubTopics,
             'totalSubTopics' => $totalSubTopics,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Lessons
-            |--------------------------------------------------------------------------
-            |
-            | Dashboard saat ini memperlakukan sub topic sebagai lesson.
-            |
-            */
-
             'completed_lessons' => $completedSubTopics,
             'completedLessons' => $completedSubTopics,
-
             'total_lessons' => $totalSubTopics,
             'totalLessons' => $totalSubTopics,
-
-            /*
-            |--------------------------------------------------------------------------
-            | URL
-            |--------------------------------------------------------------------------
-            */
 
             'course_url' => '/my-courses/' . $programSlug,
             'courseUrl' => '/my-courses/' . $programSlug,
@@ -1588,143 +1223,34 @@ class StudentDashboardController extends Controller
     }
 
 
-    private function resolveCurrentLessonFallback(
-        Student $student,
-        Collection $programIds,
-        Collection $batchIds,
-        Collection $stageIds
-    ): ?array {
-        /*
-        |--------------------------------------------------------------------------
-        | Normalize scope
-        |--------------------------------------------------------------------------
-        */
-
-        $programIds = $programIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        $batchIds = $batchIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        $stageIds = $stageIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve allowed curriculum
-        |--------------------------------------------------------------------------
-        |
-        | Fallback current lesson tetap harus dibatasi curriculum
-        | enrollment student.
-        |
-        */
-
-        $allowedSubTopics = collect();
-
-        if (
-            $programIds->isNotEmpty()
-            && $stageIds->isNotEmpty()
-        ) {
-            $allowedSubTopics = $this->getFastTimelineSubTopics(
-                programIds: $programIds,
-                stageIds: $stageIds
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Safe fallback
-        |--------------------------------------------------------------------------
-        */
-
-        if ($allowedSubTopics->isEmpty()) {
-            $allowedSubTopics = $this->getFallbackSubTopics(
-                programIds: $programIds,
-                batchIds: $batchIds,
-                stageIds: $stageIds
-            );
-        }
-
-        if ($allowedSubTopics->isEmpty()) {
-            return null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Allowed IDs
-        |--------------------------------------------------------------------------
-        */
-
-        $allowedSubTopicIds = $allowedSubTopics
-            ->pluck('id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Student progress
-        |--------------------------------------------------------------------------
-        |
-        | getAllStudentProgressRows() boleh mengambil semua histori student,
-        | tetapi setelah itu WAJIB difilter ke curriculum enrollment aktif.
-        |
-        */
-
-        $progressRows = $this
-            ->getAllStudentProgressRows($student)
-            ->filter(function ($progress) use ($allowedSubTopicIds) {
-                $subTopicId = (int) $this->getColumnValue(
-                    $progress,
-                    ['sub_topic_id']
-                );
-
-                return $subTopicId > 0
-                    && $allowedSubTopicIds->contains($subTopicId);
-            })
-            ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve current lesson from valid progress
-        |--------------------------------------------------------------------------
-        */
+    private function resolveCurrentLessonFallback(Student $student, Collection $programIds, Collection $batchIds): ?array
+    {
+        $progressRows = $this->getAllStudentProgressRows($student);
 
         if ($progressRows->isNotEmpty()) {
-            $currentLesson = $this->resolveCurrentLesson(
-                subTopics: $allowedSubTopics,
-                progressRows: $progressRows
-            );
+            $subTopicIds = $progressRows
+                ->map(fn ($progress) => (int) $this->getColumnValue($progress, ['sub_topic_id']))
+                ->filter()
+                ->unique()
+                ->values();
+
+            $subTopics = $this->getSubTopicsByIds($subTopicIds);
+            $subTopics = $this->mergeIncompleteProgressSubTopics($subTopics, $progressRows);
+            $currentLesson = $this->resolveCurrentLesson($subTopics, $progressRows);
 
             if ($currentLesson) {
                 return $currentLesson;
             }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | No progress yet
-        |--------------------------------------------------------------------------
-        |
-        | Kalau student belum mempunyai progress, lesson pertama dari
-        | curriculum stage aktif menjadi current lesson.
-        |
-        */
+        $fallbackSubTopics = $this->getFallbackSubTopics($programIds, $batchIds);
+        $currentLesson = $this->resolveCurrentLesson($fallbackSubTopics, $progressRows);
 
-        return $this->resolveCurrentLesson(
-            subTopics: $allowedSubTopics,
-            progressRows: collect()
-        );
+        if ($currentLesson) {
+            return $currentLesson;
+        }
+
+        return null;
     }
 
     private function getAllStudentProgressRows(Student $student): Collection
