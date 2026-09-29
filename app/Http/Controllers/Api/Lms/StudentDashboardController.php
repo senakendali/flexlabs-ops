@@ -99,24 +99,31 @@ class StudentDashboardController extends Controller
         |
         */
 
-        $subTopics = collect();
+        /*
+        |--------------------------------------------------------------------------
+        | Curriculum
+        |--------------------------------------------------------------------------
+        |
+        | Gunakan Eloquent SubTopic supaya relation:
+        |
+        | topic
+        | -> module
+        | -> stage
+        | -> program
+        |
+        | tetap tersedia untuk Current Lesson.
+        |
+        */
 
-        if ($stageIds->isNotEmpty()) {
-            $subTopics = $this->getFastTimelineSubTopics(
-                programIds: $programIds,
-                stageIds: $stageIds
-            );
-        }
+        $subTopics = $this->getSubTopicsForPrograms(
+            programIds: $programIds,
+            stageIds: $stageIds
+        );
 
         /*
         |--------------------------------------------------------------------------
-        | Safe fallback
+        | Safe Fallback
         |--------------------------------------------------------------------------
-        |
-        | Fallback tetap membawa stageIds.
-        |
-        | Jadi tidak boleh fallback ke seluruh curriculum program.
-        |
         */
 
         if ($subTopics->isEmpty()) {
@@ -630,64 +637,235 @@ class StudentDashboardController extends Controller
         return 'Last active ' . Carbon::parse($date)->diffForHumans();
     }
 
-    private function getSubTopicsForPrograms(Collection $programIds): Collection
-    {
-        // FAST_CURRICULUM_QUERY_V2
-        // Struktur curriculum FlexLabs sudah jelas:
-        // programs -> program_stages -> modules -> topics -> sub_topics.
-        // Jadi tidak perlu lagi mencoba banyak fallback path/pivot table.
-        if (!$this->canUseProgramStageCurriculumPath()) {
-            return collect();
-        }
+    private function getSubTopicsForPrograms(
+            Collection $programIds,
+            ?Collection $stageIds = null
+        ): Collection {
+            /*
+            |--------------------------------------------------------------------------
+            | Normalize program IDs
+            |--------------------------------------------------------------------------
+            */
 
-        $programIds = $programIds
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
+            $programIds = $programIds
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
 
-        if ($programIds->isEmpty()) {
-            return collect();
-        }
+            $stageIds = ($stageIds ?? collect())
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
 
-        $subTopicIds = DB::table('sub_topics')
-            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
-            ->join('modules', 'modules.id', '=', 'topics.module_id')
-            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
-            ->whereIn('program_stages.program_id', $programIds->all())
-            ->when(Schema::hasColumn('program_stages', 'is_active'), fn ($query) => $query->where('program_stages.is_active', true))
-            ->when(Schema::hasColumn('modules', 'is_active'), fn ($query) => $query->where('modules.is_active', true))
-            ->when(Schema::hasColumn('topics', 'is_active'), fn ($query) => $query->where('topics.is_active', true))
-            ->when(Schema::hasColumn('sub_topics', 'is_active'), fn ($query) => $query->where('sub_topics.is_active', true))
-            ->when(Schema::hasColumn('sub_topics', 'status'), function ($query) {
+            if ($programIds->isEmpty()) {
+                return collect();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Validate curriculum path
+            |--------------------------------------------------------------------------
+            |
+            | Curriculum FlexLabs:
+            |
+            | Program
+            | -> Program Stage
+            | -> Module
+            | -> Topic
+            | -> Sub Topic
+            |
+            */
+
+            if (!$this->canUseProgramStageCurriculumPath()) {
+                return collect();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Find eligible Sub Topic IDs
+            |--------------------------------------------------------------------------
+            |
+            | Penting:
+            |
+            | Query Builder hanya dipakai untuk menentukan ID curriculum yang eligible.
+            |
+            | Hasil akhirnya nanti TIDAK menggunakan row dari DB::table().
+            | Kita load ulang menggunakan Eloquent SubTopic supaya relation:
+            |
+            | topic
+            | -> module
+            | -> stage
+            | -> program
+            |
+            | tetap tersedia.
+            |
+            */
+
+            $query = DB::table('sub_topics')
+                ->join(
+                    'topics',
+                    'topics.id',
+                    '=',
+                    'sub_topics.topic_id'
+                )
+                ->join(
+                    'modules',
+                    'modules.id',
+                    '=',
+                    'topics.module_id'
+                )
+                ->join(
+                    'program_stages',
+                    'program_stages.id',
+                    '=',
+                    'modules.program_stage_id'
+                )
+                ->join(
+                    'programs',
+                    'programs.id',
+                    '=',
+                    'program_stages.program_id'
+                )
+                ->whereIn(
+                    'programs.id',
+                    $programIds->all()
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stage filter
+            |--------------------------------------------------------------------------
+            |
+            | Kalau stage berhasil di-resolve dari enrollment:
+            |
+            | CORE_SE_01_0926
+            | -> stage CORE
+            |
+            | maka curriculum dibatasi ke CORE.
+            |
+            | Kalau stageIds kosong, kita tidak memaksa filter stage.
+            | Ini penting untuk kompatibilitas program yang tidak memakai stage.
+            |
+            */
+
+            if ($stageIds->isNotEmpty()) {
+                $query->whereIn(
+                    'program_stages.id',
+                    $stageIds->all()
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Active filters
+            |--------------------------------------------------------------------------
+            */
+
+            if (Schema::hasColumn('programs', 'is_active')) {
+                $query->where('programs.is_active', true);
+            }
+
+            if (Schema::hasColumn('program_stages', 'is_active')) {
+                $query->where('program_stages.is_active', true);
+            }
+
+            if (Schema::hasColumn('modules', 'is_active')) {
+                $query->where('modules.is_active', true);
+            }
+
+            if (Schema::hasColumn('topics', 'is_active')) {
+                $query->where('topics.is_active', true);
+            }
+
+            if (Schema::hasColumn('sub_topics', 'is_active')) {
+                $query->where('sub_topics.is_active', true);
+            }
+
+            if (Schema::hasColumn('sub_topics', 'status')) {
                 $query->where(function ($statusQuery) {
-                    $statusQuery->whereNull('sub_topics.status')
-                        ->orWhereNotIn('sub_topics.status', ['inactive', 'archived', 'deleted']);
+                    $statusQuery
+                        ->whereNull('sub_topics.status')
+                        ->orWhereNotIn(
+                            'sub_topics.status',
+                            [
+                                'inactive',
+                                'archived',
+                                'deleted',
+                            ]
+                        );
                 });
-            })
-            ->orderBy('program_stages.sort_order')
-            ->orderBy('program_stages.name')
-            ->orderBy('modules.sort_order')
-            ->orderBy('modules.name')
-            ->orderBy('topics.sort_order')
-            ->orderBy('topics.name')
-            ->orderBy('sub_topics.sort_order')
-            ->orderBy('sub_topics.name')
-            ->pluck('sub_topics.id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
+            }
 
-        if ($subTopicIds->isEmpty()) {
-            return collect();
+            /*
+            |--------------------------------------------------------------------------
+            | Curriculum ordering
+            |--------------------------------------------------------------------------
+            */
+
+            $query
+                ->orderBy('program_stages.sort_order')
+                ->orderBy('program_stages.name')
+                ->orderBy('modules.sort_order')
+                ->orderBy('modules.name')
+                ->orderBy('topics.sort_order')
+                ->orderBy('topics.name')
+                ->orderBy('sub_topics.sort_order')
+                ->orderBy('sub_topics.name')
+                ->orderBy('sub_topics.id');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Get Sub Topic IDs
+            |--------------------------------------------------------------------------
+            */
+
+            $subTopicIds = $query
+                ->pluck('sub_topics.id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($subTopicIds->isEmpty()) {
+                return collect();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Load Sub Topics using Eloquent
+            |--------------------------------------------------------------------------
+            |
+            | INI BAGIAN PENTING.
+            |
+            | querySubTopicsByIds() sudah menggunakan:
+            |
+            | SubTopic::query()
+            | ->with(
+            |     topic.module.stage.program
+            | )
+            |
+            | Jadi formatCurrentLessonPayload() bisa kembali membaca:
+            |
+            | $currentSubTopic->topic
+            | $topic->module
+            | $module->stage
+            | $stage->program
+            |
+            */
+
+            return $this->querySubTopicsByIds(
+                $subTopicIds,
+                false
+            )
+                ->get()
+                ->sortBy(
+                    fn ($subTopic) =>
+                        $this->formatSubTopicSortKey($subTopic)
+                )
+                ->values();
         }
-
-        return $this->querySubTopicsByIds($subTopicIds, false)
-            ->get()
-            ->sortBy(fn ($subTopic) => $this->formatSubTopicSortKey($subTopic))
-            ->values();
-    }
 
 
     private function querySubTopicsByIds(Collection $subTopicIds, bool $applyVisibilityFilters = true)
@@ -985,6 +1163,12 @@ class StudentDashboardController extends Controller
         $enrollment,
         Student $student
     ): ?array {
+        /*
+        |--------------------------------------------------------------------------
+        | Program
+        |--------------------------------------------------------------------------
+        */
+
         $program = $enrollment->program
             ?? $enrollment->batch?->program;
 
@@ -994,23 +1178,19 @@ class StudentDashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Resolve curriculum scope
+        | Program Scope
         |--------------------------------------------------------------------------
-        |
-        | Jangan mengambil seluruh curriculum program.
-        |
-        | Program yang sama bisa mempunyai:
-        |
-        | INTRO
-        | CORE
-        |
-        | Stage harus mengikuti batch enrollment.
-        |
         */
 
         $programIds = collect([
             (int) $program->id,
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Batch Scope
+        |--------------------------------------------------------------------------
+        */
 
         $batchIds = collect([
             $enrollment->batch_id,
@@ -1020,28 +1200,34 @@ class StudentDashboardController extends Controller
             ->unique()
             ->values();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Stage Scope
+        |--------------------------------------------------------------------------
+        */
+
         $stageIds = $this->resolveStageIdsFromEnrollments(
             collect([$enrollment])
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Get stage-filtered curriculum
+        | Curriculum
         |--------------------------------------------------------------------------
+        |
+        | Gunakan Eloquent curriculum.
+        | Jangan getFastTimelineSubTopics() di sini.
+        |
         */
 
-        $subTopics = collect();
-
-        if ($stageIds->isNotEmpty()) {
-            $subTopics = $this->getFastTimelineSubTopics(
-                programIds: $programIds,
-                stageIds: $stageIds
-            );
-        }
+        $subTopics = $this->getSubTopicsForPrograms(
+            programIds: $programIds,
+            stageIds: $stageIds
+        );
 
         /*
         |--------------------------------------------------------------------------
-        | Safe fallback
+        | Safe Fallback
         |--------------------------------------------------------------------------
         */
 
@@ -1055,7 +1241,7 @@ class StudentDashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Student progress
+        | Progress Rows
         |--------------------------------------------------------------------------
         */
 
@@ -1085,7 +1271,7 @@ class StudentDashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Progress percentage
+        | Progress
         |--------------------------------------------------------------------------
         */
 
@@ -1097,7 +1283,7 @@ class StudentDashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Next lesson
+        | Next Lesson
         |--------------------------------------------------------------------------
         */
 
@@ -1106,18 +1292,20 @@ class StudentDashboardController extends Controller
             $progressRows
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Program Slug
+        |--------------------------------------------------------------------------
+        */
+
         $programSlug = $this->resolveProgramSlug(
             $program
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Stage metadata
+        | Stage Metadata
         |--------------------------------------------------------------------------
-        |
-        | Tidak wajib dipakai frontend, tapi berguna untuk memastikan
-        | course memang berasal dari stage yang benar.
-        |
         */
 
         $stageId = $stageIds->first();
@@ -1130,14 +1318,35 @@ class StudentDashboardController extends Controller
             && Schema::hasTable('program_stages')
         ) {
             $stage = DB::table('program_stages')
-                ->where('id', $stageId)
+                ->where(
+                    'id',
+                    $stageId
+                )
+                ->where(
+                    'program_id',
+                    (int) $program->id
+                )
                 ->first();
 
             if ($stage) {
                 $stageName = $stage->name ?? null;
-                $stageSlug = $stage->slug ?? null;
+
+                if (
+                    Schema::hasColumn(
+                        'program_stages',
+                        'slug'
+                    )
+                ) {
+                    $stageSlug = $stage->slug ?? null;
+                }
             }
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Response
+        |--------------------------------------------------------------------------
+        */
 
         return [
             'id' => $program->id,
@@ -1178,7 +1387,7 @@ class StudentDashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Next lesson
+            | Next Lesson
             |--------------------------------------------------------------------------
             */
 
@@ -1201,27 +1410,24 @@ class StudentDashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Sub topics
+            | Completed
             |--------------------------------------------------------------------------
             */
 
             'completed_sub_topics' => $completedSubTopics,
             'completedSubTopics' => $completedSubTopics,
 
-            'total_sub_topics' => $totalSubTopics,
-            'totalSubTopics' => $totalSubTopics,
+            'completed_lessons' => $completedSubTopics,
+            'completedLessons' => $completedSubTopics,
 
             /*
             |--------------------------------------------------------------------------
-            | Lessons
+            | Total
             |--------------------------------------------------------------------------
-            |
-            | Dashboard saat ini memperlakukan sub topic sebagai lesson.
-            |
             */
 
-            'completed_lessons' => $completedSubTopics,
-            'completedLessons' => $completedSubTopics,
+            'total_sub_topics' => $totalSubTopics,
+            'totalSubTopics' => $totalSubTopics,
 
             'total_lessons' => $totalSubTopics,
             'totalLessons' => $totalSubTopics,
