@@ -65,48 +65,17 @@ class StudentCourseController extends Controller
             ->unique()
             ->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Format courses berdasarkan enrollment
-        |--------------------------------------------------------------------------
-        |
-        | Jangan unique hanya berdasarkan program ID.
-        |
-        | Program yang sama bisa punya:
-        | - INTRO
-        | - CORE
-        |
-        | sehingga batch/enrollment harus tetap dibedakan.
-        |
-        */
-
         $courses = $activeEnrollments
-            ->map(fn ($enrollment) => $this->formatCourse(
-                $enrollment,
-                $student
-            ))
-            ->filter()
-            ->unique(function (array $course) {
-                return implode(':', [
-                    $course['id'] ?? 0,
-                    $course['batch_id'] ?? 0,
-                    $course['stage_id'] ?? 0,
-                ]);
-            })
+            ->map(fn ($enrollment) => $this->formatCourse($enrollment, $student))
+            ->unique('id')
             ->values();
 
         return response()->json([
             'success' => true,
             'data' => [
                 'student' => $this->formatStudent($student),
-
-                'notification_count' => $this->countPendingTasks(
-                    $student,
-                    $batchIds
-                ),
-
+                'notification_count' => $this->countPendingTasks($student, $batchIds),
                 'summaries' => $this->formatSummaries($courses),
-
                 'courses' => $courses->toArray(),
             ],
         ]);
@@ -534,29 +503,16 @@ class StudentCourseController extends Controller
     {
         $user = $request->user();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load student enrollment + program stages
-        |--------------------------------------------------------------------------
-        */
-
         $user->load([
             'student.activeEnrollments.program.stages' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order');
             },
-
             'student.activeEnrollments.batch.program.stages' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order');
             },
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Validate student
-        |--------------------------------------------------------------------------
-        */
 
         if (!$this->isStudentUser($user) || !$user->student) {
             return response()->json([
@@ -566,12 +522,6 @@ class StudentCourseController extends Controller
         }
 
         $student = $user->student;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get active enrollments
-        |--------------------------------------------------------------------------
-        */
 
         $activeEnrollments = $student->activeEnrollments
             ->filter(fn ($enrollment) => $enrollment->is_accessible)
@@ -584,16 +534,7 @@ class StudentCourseController extends Controller
             ], 403);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Find enrollment berdasarkan course slug
-        |--------------------------------------------------------------------------
-        */
-
-        $enrollment = $this->findEnrollmentByCourseSlug(
-            $activeEnrollments,
-            $slug
-        );
+        $enrollment = $this->findEnrollmentByCourseSlug($activeEnrollments, $slug);
 
         if (!$enrollment) {
             return response()->json([
@@ -602,16 +543,7 @@ class StudentCourseController extends Controller
             ], 404);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve program + batch
-        |--------------------------------------------------------------------------
-        */
-
-        $program = $enrollment->program
-            ?? $enrollment->batch?->program;
-
-        $batch = $enrollment->batch;
+        $program = $enrollment->program ?? $enrollment->batch?->program;
 
         if (!$program) {
             return response()->json([
@@ -620,97 +552,16 @@ class StudentCourseController extends Controller
             ], 404);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Batch IDs
-        |--------------------------------------------------------------------------
-        |
-        | Tetap gunakan seluruh batch aktif student untuk pending task count.
-        |
-        */
-
         $batchIds = $activeEnrollments
             ->pluck('batch_id')
             ->filter()
             ->unique()
             ->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Course slug
-        |--------------------------------------------------------------------------
-        */
-
         $courseSlug = $this->getProgramSlug($program);
+        $subTopics = $this->getSubTopicsForProgram((int) $program->id);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve stage student
-        |--------------------------------------------------------------------------
-        |
-        | Contoh:
-        |
-        | INTRO_SE_03_0826
-        |     -> Intro
-        |
-        | CORE_SE_01_0926
-        |     -> Core
-        |
-        */
-
-        $stageId = $this->resolveCourseStageId(
-            $program,
-            $batch
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get curriculum berdasarkan PROGRAM + STAGE
-        |--------------------------------------------------------------------------
-        |
-        | Sebelumnya:
-        |
-        | getSubTopicsForProgram($program->id)
-        |
-        | menghasilkan seluruh curriculum:
-        |
-        | INTRO + CORE = 480
-        |
-        | Sekarang:
-        |
-        | getSubTopicsForProgram(
-        |     programId: 1,
-        |     stageId: 2
-        | )
-        |
-        | hanya mengambil CORE.
-        |
-        */
-
-        $subTopics = $this->getSubTopicsForProgram(
-            programId: (int) $program->id,
-            stageId: $stageId
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Student progress
-        |--------------------------------------------------------------------------
-        |
-        | Progress otomatis hanya dihitung terhadap subtopic stage yang aktif.
-        |
-        */
-
-        $progressRows = $this->getProgressRows(
-            $student,
-            $subTopics
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Format curriculum
-        |--------------------------------------------------------------------------
-        */
+        $progressRows = $this->getProgressRows($student, $subTopics);
 
         $modules = $this->formatModules(
             subTopics: $subTopics,
@@ -718,25 +569,8 @@ class StudentCourseController extends Controller
             progressRows: $progressRows
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Calculate totals
-        |--------------------------------------------------------------------------
-        */
-
-        $totalSubTopics = (int) $modules->sum(
-            'total_lessons'
-        );
-
-        $completedSubTopics = (int) $modules->sum(
-            'completed_lessons'
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Calculate course progress
-        |--------------------------------------------------------------------------
-        */
+        $totalSubTopics = (int) $modules->sum('total_lessons');
+        $completedSubTopics = (int) $modules->sum('completed_lessons');
 
         $progress = $this->calculateLessonProgress(
             enrollment: $enrollment,
@@ -744,116 +578,25 @@ class StudentCourseController extends Controller
             totalLessons: $totalSubTopics
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Next lesson
-        |--------------------------------------------------------------------------
-        */
-
-        $nextSubTopic = $this->getNextSubTopicFromModules(
-            $modules
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Course detail
-        |--------------------------------------------------------------------------
-        */
-
-        $course = $this->formatCourseDetail(
-            enrollment: $enrollment,
-            totalSubTopics: $totalSubTopics,
-            completedSubTopics: $completedSubTopics,
-            progress: $progress,
-            nextSubTopic: $nextSubTopic
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Add stage metadata
-        |--------------------------------------------------------------------------
-        */
-
-        $stage = null;
-
-        if ($stageId) {
-            $stage = DB::table('program_stages')
-                ->where('id', $stageId)
-                ->where('program_id', $program->id)
-                ->where('is_active', true)
-                ->first();
-        }
-
-        $course['stage_id'] = $stageId;
-
-        $course['stage_name'] = $stage->name
-            ?? $this->resolveCourseLevel(
-                $program,
-                $batch
-            );
-
-        $course['stage_slug'] = $stage->slug
-            ?? null;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Response
-        |--------------------------------------------------------------------------
-        */
+        $nextSubTopic = $this->getNextSubTopicFromModules($modules);
 
         return response()->json([
             'success' => true,
-
             'data' => [
+                'student' => $this->formatStudent($student),
+                'notification_count' => $this->countPendingTasks($student, $batchIds),
 
-                /*
-                |--------------------------------------------------------------------------
-                | Student
-                |--------------------------------------------------------------------------
-                */
-
-                'student' => $this->formatStudent(
-                    $student
+                'course' => $this->formatCourseDetail(
+                    enrollment: $enrollment,
+                    totalSubTopics: $totalSubTopics,
+                    completedSubTopics: $completedSubTopics,
+                    progress: $progress,
+                    nextSubTopic: $nextSubTopic
                 ),
 
-                /*
-                |--------------------------------------------------------------------------
-                | Notifications
-                |--------------------------------------------------------------------------
-                */
+                'modules' => $modules->values()->toArray(),
 
-                'notification_count' => $this->countPendingTasks(
-                    $student,
-                    $batchIds
-                ),
-
-                /*
-                |--------------------------------------------------------------------------
-                | Course
-                |--------------------------------------------------------------------------
-                */
-
-                'course' => $course,
-
-                /*
-                |--------------------------------------------------------------------------
-                | Curriculum
-                |--------------------------------------------------------------------------
-                */
-
-                'modules' => $modules
-                    ->values()
-                    ->toArray(),
-
-                /*
-                |--------------------------------------------------------------------------
-                | Instructor
-                |--------------------------------------------------------------------------
-                */
-
-                'instructor' => $this->formatInstructor(
-                    $enrollment
-                ),
+                'instructor' => $this->formatInstructor($enrollment),
             ],
         ]);
     }
@@ -987,209 +730,28 @@ class StudentCourseController extends Controller
         return 'All Levels';
     }
 
-    private function resolveCourseStageId(
-        $program = null,
-        $batch = null
-    ): ?int {
-        $program = $program ?: $batch?->program;
-
-        if (!$program || !$program->id) {
-            return null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 1. Kalau batch punya program_stage_id / stage_id
-        |--------------------------------------------------------------------------
-        */
-
-        $stageId = $batch?->program_stage_id
-            ?? $batch?->stage_id
-            ?? $batch?->programStageId
-            ?? $batch?->stageId
-            ?? null;
-
-        if ($stageId) {
-            $exists = DB::table('program_stages')
-                ->where('id', $stageId)
-                ->where('program_id', $program->id)
-                ->where('is_active', true)
-                ->exists();
-
-            if ($exists) {
-                return (int) $stageId;
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 2. Resolve berdasarkan nama batch
-        |--------------------------------------------------------------------------
-        |
-        | Contoh:
-        |
-        | INTRO_SE_03_0826 -> intro
-        | CORE_SE_01_0926  -> core
-        |
-        */
-
-        $batchName = strtoupper(
-            trim((string) ($batch?->name ?? ''))
-        );
-
-        if ($batchName === '') {
-            return null;
-        }
-
-        $stageKey = null;
-
-        if (preg_match('/^INTRO(?:_|-)/', $batchName)) {
-            $stageKey = 'intro';
-        } elseif (preg_match('/^CORE(?:_|-)/', $batchName)) {
-            $stageKey = 'core';
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 3. Generic fallback
-        |--------------------------------------------------------------------------
-        |
-        | Untuk format seperti:
-        |
-        | Intro - Batch 1
-        | Core - Batch 1
-        |
-        */
-
-        if (!$stageKey) {
-            $normalizedBatchName = strtolower($batchName);
-
-            $stages = DB::table('program_stages')
-                ->where('program_id', $program->id)
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->get([
-                    'id',
-                    'name',
-                    'slug',
-                ]);
-
-            $matchedStage = $stages->first(function ($stage) use ($normalizedBatchName) {
-                $stageName = strtolower(
-                    trim((string) ($stage->name ?? ''))
-                );
-
-                $stageSlug = strtolower(
-                    trim((string) ($stage->slug ?? ''))
-                );
-
-                return (
-                    $stageName !== ''
-                    && str_contains($normalizedBatchName, $stageName)
-                ) || (
-                    $stageSlug !== ''
-                    && str_contains($normalizedBatchName, $stageSlug)
-                );
-            });
-
-            return $matchedStage
-                ? (int) $matchedStage->id
-                : null;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 4. Cari stage berdasarkan slug/name
-        |--------------------------------------------------------------------------
-        */
-
-        $query = DB::table('program_stages')
-            ->where('program_id', $program->id)
-            ->where('is_active', true)
-            ->where(function ($query) use ($stageKey) {
-                $query
-                    ->whereRaw('LOWER(name) = ?', [$stageKey]);
-
-                if (Schema::hasColumn('program_stages', 'slug')) {
-                    $query->orWhereRaw(
-                        'LOWER(slug) = ?',
-                        [$stageKey]
-                    );
-                }
-            });
-
-        $stageId = $query->value('id');
-
-        return $stageId
-            ? (int) $stageId
-            : null;
-    }
-
-    private function formatCourse(
-        $enrollment,
-        Student $student
-    ): array {
-        $program = $enrollment->program
-            ?? $enrollment->batch?->program;
-
+    private function formatCourse($enrollment, Student $student): array
+    {
+        $program = $enrollment->program ?? $enrollment->batch?->program;
         $batch = $enrollment->batch;
 
         $programId = $program->id ?? null;
-
-        $programName = $program->name
-            ?? 'Untitled Course';
-
-        $courseSlug = $program
-            ? $this->getProgramSlug($program)
-            : $this->slugify($programName);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Resolve stage student
-        |--------------------------------------------------------------------------
-        */
-
-        $stageId = $this->resolveCourseStageId(
-            $program,
-            $batch
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Curriculum berdasarkan Program + Stage
-        |--------------------------------------------------------------------------
-        */
+        $programName = $program->name ?? 'Untitled Course';
+        $courseSlug = $program ? $this->getProgramSlug($program) : $this->slugify($programName);
 
         $subTopics = $programId
-            ? $this->getSubTopicsForProgram(
-                programId: (int) $programId,
-                stageId: $stageId
-            )
+            ? $this->getSubTopicsForProgram((int) $programId)
             : collect();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Progress
-        |--------------------------------------------------------------------------
-        */
-
-        $progressRows = $this->getProgressRows(
-            $student,
-            $subTopics
-        );
+        $progressRows = $this->getProgressRows($student, $subTopics);
 
         $totalSubTopics = $subTopics->count();
 
         $completedSubTopics = $subTopics
             ->filter(function ($subTopic) use ($progressRows) {
-                $progress = $progressRows->get(
-                    $subTopic->id
-                );
+                $progress = $progressRows->get($subTopic->id);
 
-                return (bool) (
-                    $progress?->is_completed
-                    ?? false
-                );
+                return (bool) ($progress?->is_completed ?? false);
             })
             ->count();
 
@@ -1199,112 +761,46 @@ class StudentCourseController extends Controller
             totalLessons: $totalSubTopics
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Next sub topic
-        |--------------------------------------------------------------------------
-        */
-
         $nextSubTopic = $this->getNextSubTopicForProgram(
             subTopics: $subTopics,
             courseSlug: $courseSlug,
             progressRows: $progressRows
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Thumbnail
-        |--------------------------------------------------------------------------
-        */
+        $thumbnailUrl = $this->getColumnValue($program, [
+            'thumbnail_url',
+            'thumbnail',
+            'image_url',
+            'image',
+        ]);
 
-        $thumbnailUrl = $this->getColumnValue(
-            $program,
-            [
-                'thumbnail_url',
-                'thumbnail',
-                'image_url',
-                'image',
-            ]
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Course level
-        |--------------------------------------------------------------------------
-        */
-
-        $courseLevel = $this->resolveCourseLevel(
-            $program,
-            $batch
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Stage metadata
-        |--------------------------------------------------------------------------
-        */
-
-        $stage = null;
-
-        if ($stageId) {
-            $stage = DB::table('program_stages')
-                ->where('id', $stageId)
-                ->where('program_id', $programId)
-                ->first();
-        }
+        $courseLevel = $this->resolveCourseLevel($program, $batch);
 
         return [
-            'id' => $programId
-                ?? $enrollment->id,
-
+            'id' => $programId ?? $enrollment->id,
             'slug' => $courseSlug,
 
             'title' => $programName,
             'name' => $programName,
 
-            'category' => $this->getColumnValue(
-                $program,
-                [
-                    'category',
-                    'program_type',
-                    'type',
-                ]
-            ) ?: 'Learning Program',
+            'category' => $this->getColumnValue($program, [
+                'category',
+                'program_type',
+                'type',
+            ]) ?: 'Learning Program',
 
             'instructor' => 'FlexLabs Team',
 
-            'description' => $this->getColumnValue(
-                $program,
-                [
-                    'description',
-                    'summary',
-                    'short_description',
-                ]
-            ) ?: 'Continue your learning progress with FlexLabs.',
+            'description' => $this->getColumnValue($program, [
+                'description',
+                'summary',
+                'short_description',
+            ]) ?: 'Continue your learning progress with FlexLabs.',
 
             'thumbnail_url' => $thumbnailUrl,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Status
-            |--------------------------------------------------------------------------
-            */
-
-            'status' => $this->resolveCourseStatus(
-                $enrollment,
-                $progress
-            ),
-
-            'status_label' => $this->resolveCourseStatusLabel(
-                $enrollment,
-                $progress
-            ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Progress
-            |--------------------------------------------------------------------------
-            */
+            'status' => $this->resolveCourseStatus($enrollment, $progress),
+            'status_label' => $this->resolveCourseStatusLabel($enrollment, $progress),
 
             'progress' => $progress,
             'progress_percentage' => $progress,
@@ -1315,82 +811,24 @@ class StudentCourseController extends Controller
             'completed_sub_topics' => $completedSubTopics,
             'total_sub_topics' => $totalSubTopics,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Next lesson
-            |--------------------------------------------------------------------------
-            */
+            'next_lesson' => $nextSubTopic['title'] ?? 'No next sub topic',
+            'next_lesson_url' => $nextSubTopic['url'] ?? null,
 
-            'next_lesson' => $nextSubTopic['title']
-                ?? 'No next sub topic',
+            'next_sub_topic' => $nextSubTopic['title'] ?? 'No next sub topic',
+            'next_sub_topic_url' => $nextSubTopic['url'] ?? null,
 
-            'next_lesson_url' => $nextSubTopic['url']
-                ?? null,
-
-            'next_sub_topic' => $nextSubTopic['title']
-                ?? 'No next sub topic',
-
-            'next_sub_topic_url' => $nextSubTopic['url']
-                ?? null,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Course metadata
-            |--------------------------------------------------------------------------
-            */
-
-            'duration' => $this->resolveDuration(
-                $program,
-                $batch
-            ),
+            'duration' => $this->resolveDuration($program, $batch),
 
             'level' => $courseLevel,
             'level_label' => $courseLevel,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Stage metadata
-            |--------------------------------------------------------------------------
-            */
-
-            'stage_id' => $stageId,
-
-            'stage_name' => $stage->name
-                ?? $courseLevel,
-
-            'stage_slug' => $stage->slug
-                ?? null,
-
-            /*
-            |--------------------------------------------------------------------------
-            | URL
-            |--------------------------------------------------------------------------
-            */
-
             'course_url' => '/courses/' . $courseSlug,
 
-            /*
-            |--------------------------------------------------------------------------
-            | Batch
-            |--------------------------------------------------------------------------
-            */
-
-            'batch_id' => $batch->id
-                ?? null,
-
-            'batch_name' => $batch->name
-                ?? null,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Enrollment
-            |--------------------------------------------------------------------------
-            */
+            'batch_id' => $batch->id ?? null,
+            'batch_name' => $batch->name ?? null,
 
             'enrollment_id' => $enrollment->id,
-
             'enrollment_status' => $enrollment->status,
-
             'access_status' => $enrollment->access_status,
         ];
     }
@@ -1756,83 +1194,27 @@ class StudentCourseController extends Controller
         return null;
     }
 
-    private function getSubTopicsForProgram(
-        int $programId,
-        ?int $stageId = null
-    ): Collection {
+    private function getSubTopicsForProgram(int $programId): Collection
+    {
         /*
-        |--------------------------------------------------------------------------
-        | FAST_COURSE_SHOW_QUERY_V2
-        |--------------------------------------------------------------------------
-        |
-        | Curriculum:
-        |
-        | programs
-        | -> program_stages
-        | -> modules
-        | -> topics
-        | -> sub_topics
-        |
-        | Kalau stage diketahui, curriculum WAJIB dibatasi ke stage tersebut.
-        |
-        */
-
-        $query = DB::table('sub_topics')
-            ->join(
-                'topics',
-                'topics.id',
-                '=',
-                'sub_topics.topic_id'
-            )
-            ->join(
-                'modules',
-                'modules.id',
-                '=',
-                'topics.module_id'
-            )
-            ->join(
-                'program_stages',
-                'program_stages.id',
-                '=',
-                'modules.program_stage_id'
-            )
-            ->where(
-                'program_stages.program_id',
-                $programId
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Filter stage
-        |--------------------------------------------------------------------------
-        */
-
-        if ($stageId !== null) {
-            $query->where(
-                'program_stages.id',
-                $stageId
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Active curriculum only
-        |--------------------------------------------------------------------------
-        */
-
-        $query
+         * FAST_COURSE_SHOW_QUERY_V1
+         *
+         * Struktur curriculum FlexLabs sekarang sudah jelas:
+         * programs -> program_stages -> modules -> topics -> sub_topics.
+         *
+         * Untuk halaman show course, jangan hydrate Eloquent nested relation dan jangan ambil
+         * kolom berat seperti sub_topics.content. Query flat ini cukup untuk membentuk
+         * modules/topics/sub_topics di response.
+         */
+        return DB::table('sub_topics')
+            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
+            ->join('modules', 'modules.id', '=', 'topics.module_id')
+            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
+            ->where('program_stages.program_id', $programId)
             ->where('program_stages.is_active', true)
             ->where('modules.is_active', true)
             ->where('topics.is_active', true)
-            ->where('sub_topics.is_active', true);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sorting
-        |--------------------------------------------------------------------------
-        */
-
-        $query
+            ->where('sub_topics.is_active', true)
             ->orderBy('program_stages.sort_order')
             ->orderBy('program_stages.name')
             ->orderBy('modules.sort_order')
@@ -1840,15 +1222,7 @@ class StudentCourseController extends Controller
             ->orderBy('topics.sort_order')
             ->orderBy('topics.name')
             ->orderBy('sub_topics.sort_order')
-            ->orderBy('sub_topics.name');
-
-        /*
-        |--------------------------------------------------------------------------
-        | Select
-        |--------------------------------------------------------------------------
-        */
-
-        return $query
+            ->orderBy('sub_topics.name')
             ->select([
                 'sub_topics.id',
                 'sub_topics.topic_id',
