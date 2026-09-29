@@ -687,46 +687,621 @@ class StudentProgressMonitoringController extends Controller
         return $student;
     }
 
-    private function getAssignedLessonsForStudent(Student $student, array $filters = []): Collection
-    {
-        $programIds = $this->resolveStudentProgramIds($student, $filters);
+    private function resolveStudentStageIds(
+        Student $student,
+        array $filters = []
+    ): array {
+        /*
+        |--------------------------------------------------------------------------
+        | Manual Stage Filter
+        |--------------------------------------------------------------------------
+        |
+        | Kalau Academic memilih stage secara manual dari filter,
+        | gunakan stage tersebut sebagai source of truth.
+        |
+        */
 
-        if (empty($programIds)) {
-            return collect();
+        if (! empty($filters['stage_id'])) {
+            return [
+                (int) $filters['stage_id'],
+            ];
         }
 
-        sort($programIds);
+        /*
+        |--------------------------------------------------------------------------
+        | Requirements
+        |--------------------------------------------------------------------------
+        */
 
-        $stageId = ! empty($filters['stage_id']) ? (int) $filters['stage_id'] : null;
-
-        $cacheKey = implode('-', $programIds) . '|stage:' . ($stageId ?: 'all');
-
-        if (array_key_exists($cacheKey, $this->assignedLessonCache)) {
-            return $this->assignedLessonCache[$cacheKey];
+        if (
+            ! Schema::hasTable('student_enrollments')
+            || ! Schema::hasTable('programs')
+            || ! Schema::hasTable('program_stages')
+        ) {
+            return [];
         }
 
-        $lessons = SubTopic::query()
-            ->from('sub_topics')
-            ->join('topics', 'topics.id', '=', 'sub_topics.topic_id')
-            ->join('modules', 'modules.id', '=', 'topics.module_id')
-            ->join('program_stages', 'program_stages.id', '=', 'modules.program_stage_id')
-            ->join('programs', 'programs.id', '=', 'program_stages.program_id')
-            ->whereIn('programs.id', $programIds)
-            ->when($stageId, fn ($query) => $query->where('program_stages.id', $stageId))
-            ->where('programs.is_active', 1)
-            ->where('program_stages.is_active', 1)
-            ->where('modules.is_active', 1)
-            ->where('topics.is_active', 1)
-            ->where('sub_topics.is_active', 1)
-            ->where(function ($query) {
-                $query->whereNull('programs.slug')
-                    ->orWhereRaw("LOWER(programs.slug) NOT LIKE ?", ['%workshop%']);
-            })
-            ->where(function ($query) {
-                $query->whereNull('programs.name')
-                    ->orWhereRaw("LOWER(programs.name) NOT LIKE ?", ['%workshop%']);
-            })
-            ->select([
+        /*
+        |--------------------------------------------------------------------------
+        | Get Student Enrollments
+        |--------------------------------------------------------------------------
+        |
+        | Kita ambil enrollment yang masih mempunyai akses.
+        |
+        | Batch digunakan untuk menentukan apakah enrollment tersebut:
+        |
+        | INTRO
+        | CORE
+        |
+        | Contoh:
+        |
+        | INTRO_SE_03_0826 -> INTRO
+        | CORE_SE_01_0926  -> CORE
+        |
+        */
+
+        $query = DB::table('student_enrollments')
+            ->join(
+                'programs',
+                'programs.id',
+                '=',
+                'student_enrollments.program_id'
+            )
+            ->where(
+                'student_enrollments.student_id',
+                $student->id
+            )
+            ->whereNotNull(
+                'student_enrollments.program_id'
+            )
+            ->whereIn(
+                'student_enrollments.status',
+                [
+                    'active',
+                    'completed',
+                    'on_hold',
+                ]
+            )
+            ->where(
+                'student_enrollments.access_status',
+                'active'
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Optional Batch Filter
+        |--------------------------------------------------------------------------
+        */
+
+        if (! empty($filters['batch_id'])) {
+            $query->where(
+                'student_enrollments.batch_id',
+                (int) $filters['batch_id']
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Join Batch
+        |--------------------------------------------------------------------------
+        */
+
+        $hasBatches = Schema::hasTable('batches');
+
+        if ($hasBatches) {
+            $query->leftJoin(
+                'batches',
+                'batches.id',
+                '=',
+                'student_enrollments.batch_id'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Select
+        |--------------------------------------------------------------------------
+        */
+
+        $selects = [
+            'student_enrollments.id as enrollment_id',
+            'student_enrollments.program_id',
+            'student_enrollments.batch_id',
+        ];
+
+        if (
+            $hasBatches
+            && Schema::hasColumn('batches', 'name')
+        ) {
+            $selects[] = 'batches.name as batch_name';
+        } else {
+            $selects[] = DB::raw(
+                'NULL as batch_name'
+            );
+        }
+
+        $enrollments = $query
+            ->select($selects)
+            ->get();
+
+        if ($enrollments->isEmpty()) {
+            return [];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Stage
+        |--------------------------------------------------------------------------
+        */
+
+        $stageIds = collect();
+
+        foreach ($enrollments as $enrollment) {
+            $programId = (int) $enrollment->program_id;
+
+            if ($programId <= 0) {
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Get Active Stages For Program
+            |--------------------------------------------------------------------------
+            */
+
+            $stagesQuery = DB::table('program_stages')
+                ->where(
+                    'program_id',
+                    $programId
+                );
+
+            if (
+                Schema::hasColumn(
+                    'program_stages',
+                    'is_active'
+                )
+            ) {
+                $stagesQuery->where(
+                    'is_active',
+                    1
+                );
+            }
+
+            $stages = $stagesQuery
+                ->orderBy(
+                    Schema::hasColumn(
+                        'program_stages',
+                        'sort_order'
+                    )
+                        ? 'sort_order'
+                        : 'id'
+                )
+                ->get();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Program Without Stage
+            |--------------------------------------------------------------------------
+            |
+            | Beberapa program bisa saja tidak memakai stage.
+            | Jangan memaksa stage jika memang tidak tersedia.
+            |
+            */
+
+            if ($stages->isEmpty()) {
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Batch Name
+            |--------------------------------------------------------------------------
+            */
+
+            $batchName = strtoupper(
+                trim(
+                    (string) (
+                        $enrollment->batch_name
+                        ?? ''
+                    )
+                )
+            );
+
+            if ($batchName === '') {
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Explicit INTRO / CORE Detection
+            |--------------------------------------------------------------------------
+            */
+
+            $expectedStage = null;
+
+            if (
+                preg_match(
+                    '/(^|[_\-\s])INTRO([_\-\s]|$)/i',
+                    $batchName
+                )
+            ) {
+                $expectedStage = 'intro';
+            } elseif (
+                preg_match(
+                    '/(^|[_\-\s])CORE([_\-\s]|$)/i',
+                    $batchName
+                )
+            ) {
+                $expectedStage = 'core';
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Match Explicit Stage
+            |--------------------------------------------------------------------------
+            */
+
+            if ($expectedStage !== null) {
+                $matchedStage = $stages->first(
+                    function ($stage) use ($expectedStage) {
+                        $stageName = strtolower(
+                            trim(
+                                (string) (
+                                    $stage->name
+                                    ?? ''
+                                )
+                            )
+                        );
+
+                        $stageSlug = strtolower(
+                            trim(
+                                (string) (
+                                    $stage->slug
+                                    ?? ''
+                                )
+                            )
+                        );
+
+                        return $stageName === $expectedStage
+                            || $stageSlug === $expectedStage;
+                    }
+                );
+
+                if ($matchedStage) {
+                    $stageIds->push(
+                        (int) $matchedStage->id
+                    );
+
+                    continue;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Generic Stage Detection
+            |--------------------------------------------------------------------------
+            |
+            | Supaya tidak hardcoded hanya INTRO dan CORE.
+            |
+            | Kalau nama/slug stage muncul di nama batch, gunakan stage tersebut.
+            |
+            */
+
+            $matchedStage = $stages->first(
+                function ($stage) use ($batchName) {
+                    $stageName = strtoupper(
+                        trim(
+                            (string) (
+                                $stage->name
+                                ?? ''
+                            )
+                        )
+                    );
+
+                    $stageSlug = strtoupper(
+                        trim(
+                            (string) (
+                                $stage->slug
+                                ?? ''
+                            )
+                        )
+                    );
+
+                    if (
+                        $stageName !== ''
+                        && str_contains(
+                            $batchName,
+                            $stageName
+                        )
+                    ) {
+                        return true;
+                    }
+
+                    if (
+                        $stageSlug !== ''
+                        && str_contains(
+                            $batchName,
+                            $stageSlug
+                        )
+                    ) {
+                        return true;
+                    }
+
+                    return false;
+                }
+            );
+
+            if ($matchedStage) {
+                $stageIds->push(
+                    (int) $matchedStage->id
+                );
+            }
+        }
+
+        return $stageIds
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function getAssignedLessonsForStudent(
+            Student $student,
+            array $filters = []
+        ): Collection {
+            /*
+            |--------------------------------------------------------------------------
+            | Resolve Programs
+            |--------------------------------------------------------------------------
+            */
+
+            $programIds = $this->resolveStudentProgramIds(
+                $student,
+                $filters
+            );
+
+            if (empty($programIds)) {
+                return collect();
+            }
+
+            $programIds = collect($programIds)
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Resolve Student Stages
+            |--------------------------------------------------------------------------
+            |
+            | Prioritas:
+            |
+            | 1. Manual stage filter
+            | 2. Enrollment + batch student
+            |
+            | Contoh:
+            |
+            | CORE_SE_01_0926
+            | -> Core
+            | -> stage_id = 2
+            |
+            */
+
+            $stageIds = $this->resolveStudentStageIds(
+                $student,
+                $filters
+            );
+
+            $stageIds = collect($stageIds)
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cache Key
+            |--------------------------------------------------------------------------
+            |
+            | Cache sekarang harus memperhitungkan stage student.
+            |
+            | Jangan lagi:
+            |
+            | program:2|stage:all
+            |
+            | untuk student CORE.
+            |
+            */
+
+            $cacheKey = implode(
+                '-',
+                $programIds
+            )
+                . '|stage:'
+                . (
+                    ! empty($stageIds)
+                        ? implode('-', $stageIds)
+                        : 'all'
+                );
+
+            if (
+                array_key_exists(
+                    $cacheKey,
+                    $this->assignedLessonCache
+                )
+            ) {
+                return $this->assignedLessonCache[
+                    $cacheKey
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Lesson Query
+            |--------------------------------------------------------------------------
+            */
+
+            $query = SubTopic::query()
+                ->from('sub_topics')
+
+                ->join(
+                    'topics',
+                    'topics.id',
+                    '=',
+                    'sub_topics.topic_id'
+                )
+
+                ->join(
+                    'modules',
+                    'modules.id',
+                    '=',
+                    'topics.module_id'
+                )
+
+                ->join(
+                    'program_stages',
+                    'program_stages.id',
+                    '=',
+                    'modules.program_stage_id'
+                )
+
+                ->join(
+                    'programs',
+                    'programs.id',
+                    '=',
+                    'program_stages.program_id'
+                )
+
+                /*
+                |--------------------------------------------------------------------------
+                | Program Filter
+                |--------------------------------------------------------------------------
+                */
+
+                ->whereIn(
+                    'programs.id',
+                    $programIds
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stage Filter
+            |--------------------------------------------------------------------------
+            |
+            | Kalau enrollment student berhasil di-resolve ke stage tertentu,
+            | curriculum WAJIB dibatasi ke stage tersebut.
+            |
+            */
+
+            if (! empty($stageIds)) {
+                $query->whereIn(
+                    'program_stages.id',
+                    $stageIds
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Active Curriculum Only
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                Schema::hasColumn(
+                    'programs',
+                    'is_active'
+                )
+            ) {
+                $query->where(
+                    'programs.is_active',
+                    1
+                );
+            }
+
+            if (
+                Schema::hasColumn(
+                    'program_stages',
+                    'is_active'
+                )
+            ) {
+                $query->where(
+                    'program_stages.is_active',
+                    1
+                );
+            }
+
+            if (
+                Schema::hasColumn(
+                    'modules',
+                    'is_active'
+                )
+            ) {
+                $query->where(
+                    'modules.is_active',
+                    1
+                );
+            }
+
+            if (
+                Schema::hasColumn(
+                    'topics',
+                    'is_active'
+                )
+            ) {
+                $query->where(
+                    'topics.is_active',
+                    1
+                );
+            }
+
+            if (
+                Schema::hasColumn(
+                    'sub_topics',
+                    'is_active'
+                )
+            ) {
+                $query->where(
+                    'sub_topics.is_active',
+                    1
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Exclude Workshop
+            |--------------------------------------------------------------------------
+            */
+
+            $query->where(function ($query) {
+                $query
+                    ->whereNull('programs.slug')
+                    ->orWhereRaw(
+                        "LOWER(programs.slug) NOT LIKE ?",
+                        ['%workshop%']
+                    );
+            });
+
+            $query->where(function ($query) {
+                $query
+                    ->whereNull('programs.name')
+                    ->orWhereRaw(
+                        "LOWER(programs.name) NOT LIKE ?",
+                        ['%workshop%']
+                    );
+            });
+
+            /*
+            |--------------------------------------------------------------------------
+            | Select Lesson Data
+            |--------------------------------------------------------------------------
+            */
+
+            $query->select([
                 'sub_topics.id',
                 'sub_topics.topic_id',
                 'sub_topics.name',
@@ -738,27 +1313,86 @@ class StudentProgressMonitoringController extends Controller
                 'sub_topics.video_duration_seconds',
                 'sub_topics.sort_order',
 
-                DB::raw('topics.name as topic_name'),
-                DB::raw('modules.name as module_name'),
-                DB::raw('program_stages.name as stage_name'),
-                DB::raw('programs.name as program_name'),
+                DB::raw(
+                    'topics.name as topic_name'
+                ),
 
-                DB::raw('COALESCE(topics.sort_order, 0) as topic_sort_order'),
-                DB::raw('COALESCE(modules.sort_order, 0) as module_sort_order'),
-                DB::raw('COALESCE(program_stages.sort_order, 0) as stage_sort_order'),
-            ])
-            ->distinct()
-            ->orderBy('stage_sort_order')
-            ->orderBy('module_sort_order')
-            ->orderBy('topic_sort_order')
-            ->orderBy('sub_topics.sort_order')
-            ->orderBy('sub_topics.id')
-            ->get();
+                DB::raw(
+                    'modules.name as module_name'
+                ),
 
-        $this->assignedLessonCache[$cacheKey] = $lessons;
+                DB::raw(
+                    'program_stages.id as stage_id'
+                ),
 
-        return $lessons;
-    }
+                DB::raw(
+                    'program_stages.name as stage_name'
+                ),
+
+                DB::raw(
+                    'programs.id as program_id'
+                ),
+
+                DB::raw(
+                    'programs.name as program_name'
+                ),
+
+                DB::raw(
+                    'COALESCE(topics.sort_order, 0) as topic_sort_order'
+                ),
+
+                DB::raw(
+                    'COALESCE(modules.sort_order, 0) as module_sort_order'
+                ),
+
+                DB::raw(
+                    'COALESCE(program_stages.sort_order, 0) as stage_sort_order'
+                ),
+            ]);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Ordering
+            |--------------------------------------------------------------------------
+            */
+
+            $lessons = $query
+                ->distinct()
+
+                ->orderBy(
+                    'stage_sort_order'
+                )
+
+                ->orderBy(
+                    'module_sort_order'
+                )
+
+                ->orderBy(
+                    'topic_sort_order'
+                )
+
+                ->orderBy(
+                    'sub_topics.sort_order'
+                )
+
+                ->orderBy(
+                    'sub_topics.id'
+                )
+
+                ->get();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cache
+            |--------------------------------------------------------------------------
+            */
+
+            $this->assignedLessonCache[
+                $cacheKey
+            ] = $lessons;
+
+            return $lessons;
+        }
 
     private function resolveStudentProgramIds(Student $student, array $filters = []): array
     {
