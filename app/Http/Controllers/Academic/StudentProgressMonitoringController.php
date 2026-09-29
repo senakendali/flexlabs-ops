@@ -90,7 +90,10 @@ class StudentProgressMonitoringController extends Controller
             'stage_id' => request('stage_id'),
         ];
 
-        $assignedLessons = $this->getAssignedLessonsForStudent($student, $filters);
+        $assignedLessons = $this->getAssignedLessonsForStudent(
+            $student,
+            $filters
+        );
 
         $progressRows = $this->getProgressRowsForStudent(
             $student,
@@ -101,33 +104,64 @@ class StudentProgressMonitoringController extends Controller
             $progress = $progressRows->get((int) $lesson->id);
 
             /*
-            * Raw progress dari VOD.
-            *
-            * Nilai ini tetap merepresentasikan progress video sebenarnya
-            * dan tidak diubah hanya karena lesson selesai dari live attendance.
+            |--------------------------------------------------------------------------
+            | Raw VOD Progress
+            |--------------------------------------------------------------------------
+            |
+            | Tetap merepresentasikan progress video sebenarnya.
+            | Attendance completion tidak mengubah raw VOD progress.
+            |
             */
+
             $progressPercentage = $progress
-                ? $this->normalizePercentage((float) $progress->progress_percentage)
+                ? $this->normalizePercentage(
+                    (float) $progress->progress_percentage
+                )
                 : 0;
 
             /*
-            * Lesson dianggap completed jika:
-            * - is_completed sudah true, termasuk completion dari attendance; atau
-            * - progress VOD sudah mencapai minimum 95%.
+            |--------------------------------------------------------------------------
+            | Completion Status
+            |--------------------------------------------------------------------------
+            |
+            | Lesson dianggap selesai jika:
+            |
+            | - is_completed = true
+            |   termasuk completion otomatis dari attendance/live session
+            |
+            | - atau progress VOD >= 95%
+            |
             */
+
             $isCompleted = $progress
-                ? ((bool) $progress->is_completed || $progressPercentage >= 95)
+                ? (
+                    (bool) $progress->is_completed
+                    || $progressPercentage >= 95
+                )
                 : false;
 
             /*
-            * Effective progress digunakan untuk academic monitoring.
-            *
-            * Lesson yang sudah completed dihitung 100% walaupun raw VOD
-            * progress-nya masih 0%, 40%, 70%, dan sebagainya.
+            |--------------------------------------------------------------------------
+            | Effective Academic Progress
+            |--------------------------------------------------------------------------
+            |
+            | Completed lesson selalu dihitung 100%.
+            |
+            | Jadi live session yang completed melalui attendance tetap
+            | berkontribusi penuh terhadap academic progress walaupun
+            | progress_percentage VOD = 0.
+            |
             */
+
             $effectiveProgress = $isCompleted
                 ? 100
                 : $progressPercentage;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Duration
+            |--------------------------------------------------------------------------
+            */
 
             $durationSeconds = $progress?->duration_seconds
                 ?: $lesson->video_duration_seconds
@@ -137,125 +171,335 @@ class StudentProgressMonitoringController extends Controller
                         : 0
                 );
 
-            $lesson->last_position_seconds = $progress?->last_position_seconds ?? 0;
+            /*
+            |--------------------------------------------------------------------------
+            | Lesson Runtime Data
+            |--------------------------------------------------------------------------
+            */
+
+            $lesson->last_position_seconds =
+                $progress?->last_position_seconds ?? 0;
+
             $lesson->duration_seconds = $durationSeconds;
 
             /*
-            * Raw VOD progress tetap tersedia untuk kebutuhan detail lesson.
+            |--------------------------------------------------------------------------
+            | Raw VOD Progress
+            |--------------------------------------------------------------------------
             */
-            $lesson->progress_percentage = $progressPercentage;
-            $lesson->progress_label = $this->formatPercentage($progressPercentage);
+
+            $lesson->progress_percentage =
+                $progressPercentage;
+
+            $lesson->progress_label =
+                $this->formatPercentage(
+                    $progressPercentage
+                );
 
             /*
-            * Effective progress khusus untuk academic progress calculation.
+            |--------------------------------------------------------------------------
+            | Effective Academic Progress
+            |--------------------------------------------------------------------------
             */
-            $lesson->effective_progress_percentage = $effectiveProgress;
-            $lesson->effective_progress_label = $this->formatPercentage($effectiveProgress);
 
-            $lesson->is_completed = $isCompleted;
-            $lesson->completed_at = $progress?->completed_at;
-            $lesson->last_watched_at = $progress?->last_watched_at;
+            $lesson->effective_progress_percentage =
+                $effectiveProgress;
 
-            $lesson->duration_label = $this->formatDuration(
-                (int) $durationSeconds
-            );
+            $lesson->effective_progress_label =
+                $this->formatPercentage(
+                    $effectiveProgress
+                );
 
-            $lesson->last_position_label = $this->formatDuration(
-                (int) ($progress?->last_position_seconds ?? 0)
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Completion
+            |--------------------------------------------------------------------------
+            */
 
-            $lesson->lesson_status = $this->resolveLessonStatus(
-                $progressPercentage,
-                $isCompleted,
-                $progress?->last_watched_at
-            );
+            $lesson->is_completed =
+                $isCompleted;
 
-            $lesson->lesson_status_badge = $this->getLessonStatusBadge(
-                $lesson->lesson_status
-            );
+            $lesson->completed_at =
+                $progress?->completed_at;
 
-            $lesson->last_watched_label = $this->formatDateTime(
-                $progress?->last_watched_at
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | VOD Activity
+            |--------------------------------------------------------------------------
+            |
+            | Tetap disimpan terpisah.
+            |
+            */
 
-            $lesson->completed_at_label = $this->formatDateTime(
-                $progress?->completed_at
-            );
+            $lesson->last_watched_at =
+                $progress?->last_watched_at;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Learning Activity
+            |--------------------------------------------------------------------------
+            |
+            | Aktivitas belajar terakhir bisa berasal dari:
+            |
+            | 1. Menonton VOD
+            | 2. Lesson completed, termasuk attendance live session
+            |
+            */
+
+            $activityDates = collect([
+                $progress?->last_watched_at,
+                $progress?->completed_at,
+            ])
+                ->filter()
+                ->map(
+                    fn ($date) => Carbon::parse($date)
+                );
+
+            $lesson->last_learning_activity_at =
+                $activityDates->isNotEmpty()
+                    ? $activityDates
+                        ->sortByDesc(
+                            fn ($date) => $date->timestamp
+                        )
+                        ->first()
+                    : null;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Labels
+            |--------------------------------------------------------------------------
+            */
+
+            $lesson->duration_label =
+                $this->formatDuration(
+                    (int) $durationSeconds
+                );
+
+            $lesson->last_position_label =
+                $this->formatDuration(
+                    (int) (
+                        $progress?->last_position_seconds
+                        ?? 0
+                    )
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Lesson Status
+            |--------------------------------------------------------------------------
+            */
+
+            $lesson->lesson_status =
+                $this->resolveLessonStatus(
+                    $progressPercentage,
+                    $isCompleted,
+                    $lesson->last_learning_activity_at
+                );
+
+            $lesson->lesson_status_badge =
+                $this->getLessonStatusBadge(
+                    $lesson->lesson_status
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Activity Labels
+            |--------------------------------------------------------------------------
+            */
+
+            $lesson->last_watched_label =
+                $this->formatDateTime(
+                    $progress?->last_watched_at
+                );
+
+            $lesson->completed_at_label =
+                $this->formatDateTime(
+                    $progress?->completed_at
+                );
+
+            $lesson->last_learning_activity_label =
+                $this->formatDateTime(
+                    $lesson->last_learning_activity_at
+                );
 
             return $lesson;
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Totals
+        |--------------------------------------------------------------------------
+        */
+
         $totalLessons = $lessons->count();
 
         $completedLessons = $lessons
-            ->filter(fn ($lesson) => (bool) $lesson->is_completed)
+            ->filter(
+                fn ($lesson) =>
+                    (bool) $lesson->is_completed
+            )
             ->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Opened / Active Lessons
+        |--------------------------------------------------------------------------
+        |
+        | Sekarang completion dari attendance juga dianggap sebagai
+        | aktivitas terhadap lesson.
+        |
+        */
 
         $openedLessons = $lessons
             ->filter(function ($lesson) {
-                return ! empty($lesson->last_watched_at)
-                    || (float) ($lesson->progress_percentage ?? 0) > 0
-                    || (bool) ($lesson->is_completed ?? false);
+                return ! empty(
+                    $lesson->last_learning_activity_at
+                )
+                    || (float) (
+                        $lesson->progress_percentage
+                        ?? 0
+                    ) > 0
+                    || (bool) (
+                        $lesson->is_completed
+                        ?? false
+                    );
             })
             ->count();
 
         /*
-        * Overall academic progress menggunakan effective progress.
-        *
-        * Completed lesson = 100%.
-        * Incomplete lesson = raw VOD progress.
+        |--------------------------------------------------------------------------
+        | Overall Academic Progress
+        |--------------------------------------------------------------------------
         */
-        $totalProgressPercentage = $lessons->sum(
-            'effective_progress_percentage'
-        );
+
+        $totalProgressPercentage =
+            $lessons->sum(
+                'effective_progress_percentage'
+            );
 
         $overallProgress = $totalLessons > 0
-            ? round($totalProgressPercentage / $totalLessons, 2)
+            ? round(
+                $totalProgressPercentage
+                / $totalLessons,
+                2
+            )
             : 0;
 
         /*
-        * Last activity tetap berdasarkan aktivitas VOD.
-        *
-        * Attendance completion tidak dipalsukan sebagai aktivitas menonton.
+        |--------------------------------------------------------------------------
+        | Last Learning Activity
+        |--------------------------------------------------------------------------
+        |
+        | Bukan lagi hanya last_watched_at.
+        |
+        | Aktivitas terbaru bisa berasal dari:
+        |
+        | - VOD watched
+        | - lesson completed
+        | - live session attendance completion
+        |
         */
+
         $lastActivity = $lessons
-            ->pluck('last_watched_at')
+            ->pluck('last_learning_activity_at')
             ->filter()
-            ->sortDesc()
+            ->sortByDesc(
+                fn ($date) =>
+                    Carbon::parse($date)->timestamp
+            )
             ->first();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Student Summary
+        |--------------------------------------------------------------------------
+        */
+
         $studentSummary = [
-            'program_names' => $this->getStudentProgramNames($student, $filters),
-            'batch_names' => $this->getStudentBatchNames($student, $filters),
+            'program_names' =>
+                $this->getStudentProgramNames(
+                    $student,
+                    $filters
+                ),
 
-            'total_lessons' => $totalLessons,
-            'opened_lessons' => $openedLessons,
-            'completed_lessons' => $completedLessons,
+            'batch_names' =>
+                $this->getStudentBatchNames(
+                    $student,
+                    $filters
+                ),
 
-            'overall_progress' => $overallProgress,
-            'overall_progress_label' => $this->formatPercentage($overallProgress),
+            'total_lessons' =>
+                $totalLessons,
 
-            'last_activity' => $lastActivity,
-            'last_activity_label' => $this->formatDateTime($lastActivity),
-            'inactive_days' => $this->getInactiveDays($lastActivity),
+            'opened_lessons' =>
+                $openedLessons,
 
-            'monitoring_status' => $this->resolveMonitoringStatus(
-                $overallProgress,
-                $lastActivity,
+            'completed_lessons' =>
                 $completedLessons,
-                $totalLessons
-            ),
+
+            'overall_progress' =>
+                $overallProgress,
+
+            'overall_progress_label' =>
+                $this->formatPercentage(
+                    $overallProgress
+                ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Learning Activity
+            |--------------------------------------------------------------------------
+            */
+
+            'last_activity' =>
+                $lastActivity,
+
+            'last_activity_label' =>
+                $this->formatDateTime(
+                    $lastActivity
+                ),
+
+            'inactive_days' =>
+                $this->getInactiveDays(
+                    $lastActivity
+                ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Monitoring
+            |--------------------------------------------------------------------------
+            */
+
+            'monitoring_status' =>
+                $this->resolveMonitoringStatus(
+                    $overallProgress,
+                    $lastActivity,
+                    $completedLessons,
+                    $totalLessons
+                ),
         ];
 
-        $studentSummary['monitoring_status_badge'] = $this->getMonitoringStatusBadge(
-            $studentSummary['monitoring_status']
-        );
+        $studentSummary['monitoring_status_badge'] =
+            $this->getMonitoringStatusBadge(
+                $studentSummary[
+                    'monitoring_status'
+                ]
+            );
 
-        return view('academic.student-progress.show', [
-            'student' => $student,
-            'lessons' => $lessons,
-            'studentSummary' => $studentSummary,
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | View
+        |--------------------------------------------------------------------------
+        */
+
+        return view(
+            'academic.student-progress.show',
+            [
+                'student' => $student,
+                'lessons' => $lessons,
+                'studentSummary' => $studentSummary,
+            ]
+        );
     }
 
     public function show_(Student $student): View
@@ -441,10 +685,17 @@ class StudentProgressMonitoringController extends Controller
         Student $student,
         array $filters = []
     ): Student {
-        $assignedLessons = $this->getAssignedLessonsForStudent(
-            $student,
-            $filters
-        );
+        /*
+        |--------------------------------------------------------------------------
+        | Assigned Lessons
+        |--------------------------------------------------------------------------
+        */
+
+        $assignedLessons =
+            $this->getAssignedLessonsForStudent(
+                $student,
+                $filters
+            );
 
         $lessonIds = $assignedLessons
             ->pluck('id')
@@ -453,150 +704,338 @@ class StudentProgressMonitoringController extends Controller
             ->values()
             ->all();
 
-        $progressRows = $this->getProgressRowsForStudent(
-            $student,
-            $lessonIds
-        );
+        /*
+        |--------------------------------------------------------------------------
+        | Progress Rows
+        |--------------------------------------------------------------------------
+        */
+
+        $progressRows =
+            $this->getProgressRowsForStudent(
+                $student,
+                $lessonIds
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Initial Values
+        |--------------------------------------------------------------------------
+        */
 
         $totalLessons = count($lessonIds);
+
         $openedLessons = 0;
+
         $completedLessons = 0;
+
         $totalProgressPercentage = 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Last Learning Activity
+        |--------------------------------------------------------------------------
+        |
+        | Bukan hanya last_watched_at.
+        |
+        | Bisa berasal dari:
+        |
+        | - last_watched_at
+        | - completed_at
+        |
+        */
+
         $lastActivity = null;
 
+        /*
+        |--------------------------------------------------------------------------
+        | Calculate Lesson Progress
+        |--------------------------------------------------------------------------
+        */
+
         foreach ($lessonIds as $lessonId) {
-            $progress = $progressRows->get($lessonId);
+            $progress =
+                $progressRows->get(
+                    $lessonId
+                );
 
             if (! $progress) {
                 continue;
             }
 
             /*
-            * Progress asli dari VOD.
+            |--------------------------------------------------------------------------
+            | Raw VOD Progress
+            |--------------------------------------------------------------------------
             */
-            $progressPercentage = $this->normalizePercentage(
-                (float) $progress->progress_percentage
-            );
+
+            $progressPercentage =
+                $this->normalizePercentage(
+                    (float)
+                    $progress->progress_percentage
+                );
 
             /*
-            * Lesson completed jika:
-            * - is_completed = true; atau
-            * - VOD progress sudah >= 95%.
+            |--------------------------------------------------------------------------
+            | Completion Status
+            |--------------------------------------------------------------------------
+            |
+            | is_completed bisa berasal dari:
+            |
+            | - VOD completion
+            | - attendance live session
+            | - manual completion
+            |
             */
-            $isCompleted = (bool) $progress->is_completed
+
+            $isCompleted =
+                (bool) $progress->is_completed
                 || $progressPercentage >= 95;
 
             /*
-            * Academic/effective progress:
-            *
-            * Completed lesson selalu dihitung 100%.
-            * Kalau belum completed, gunakan progress VOD asli.
+            |--------------------------------------------------------------------------
+            | Effective Academic Progress
+            |--------------------------------------------------------------------------
+            |
+            | Completed = 100%.
+            |
+            | Incomplete = raw VOD progress.
+            |
             */
-            $effectiveProgress = $isCompleted
-                ? 100
-                : $progressPercentage;
 
-            $totalProgressPercentage += $effectiveProgress;
+            $effectiveProgress =
+                $isCompleted
+                    ? 100
+                    : $progressPercentage;
+
+            $totalProgressPercentage +=
+                $effectiveProgress;
 
             /*
-            * Lesson dianggap sudah dibuka jika:
-            * - pernah ditonton;
-            * - punya progress VOD; atau
-            * - sudah completed melalui attendance/manual completion.
+            |--------------------------------------------------------------------------
+            | Resolve Lesson Activity
+            |--------------------------------------------------------------------------
+            |
+            | Ambil aktivitas paling baru antara:
+            |
+            | last_watched_at
+            | completed_at
+            |
             */
+
+            $lessonActivity = null;
+
             if (
-                ! empty($progress->last_watched_at)
+                ! empty(
+                    $progress->last_watched_at
+                )
+            ) {
+                $lessonActivity =
+                    Carbon::parse(
+                        $progress->last_watched_at
+                    );
+            }
+
+            if (
+                ! empty(
+                    $progress->completed_at
+                )
+            ) {
+                $completedAt =
+                    Carbon::parse(
+                        $progress->completed_at
+                    );
+
+                if (
+                    ! $lessonActivity
+                    || $completedAt->gt(
+                        $lessonActivity
+                    )
+                ) {
+                    $lessonActivity =
+                        $completedAt;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Opened / Active Lesson
+            |--------------------------------------------------------------------------
+            |
+            | Lesson dianggap pernah ada aktivitas jika:
+            |
+            | - pernah ditonton
+            | - punya progress
+            | - sudah completed
+            | - attendance live session sudah completed
+            |
+            */
+
+            if (
+                $lessonActivity
                 || $progressPercentage > 0
                 || $isCompleted
             ) {
                 $openedLessons++;
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Completed Lesson
+            |--------------------------------------------------------------------------
+            */
+
             if ($isCompleted) {
                 $completedLessons++;
             }
 
             /*
-            * Last activity tetap mengambil aktivitas VOD sebenarnya.
+            |--------------------------------------------------------------------------
+            | Last Learning Activity
+            |--------------------------------------------------------------------------
             */
-            if (! empty($progress->last_watched_at)) {
+
+            if ($lessonActivity) {
                 if (
-                    empty($lastActivity)
-                    || Carbon::parse($progress->last_watched_at)
-                        ->gt(Carbon::parse($lastActivity))
+                    ! $lastActivity
+                    || $lessonActivity->gt(
+                        Carbon::parse(
+                            $lastActivity
+                        )
+                    )
                 ) {
-                    $lastActivity = $progress->last_watched_at;
+                    $lastActivity =
+                        $lessonActivity;
                 }
             }
         }
 
         /*
-        * Overall progress sekarang menggunakan effective progress.
-        *
-        * Contoh:
-        *
-        * 4 lesson:
-        * - completed = 100
-        * - completed via attendance = 100
-        * - completed via attendance = 100
-        * - VOD progress 20 = 20
-        *
-        * Overall = 80%.
+        |--------------------------------------------------------------------------
+        | Overall Progress
+        |--------------------------------------------------------------------------
         */
-        $overallProgress = $totalLessons > 0
-            ? round($totalProgressPercentage / $totalLessons, 2)
-            : 0;
 
-        $student->program_names = $this->getStudentProgramNames(
-            $student,
-            $filters
-        );
-
-        $student->program_names_label = $student->program_names->isNotEmpty()
-            ? $student->program_names->implode(', ')
-            : '-';
-
-        $student->batch_names = $this->getStudentBatchNames(
-            $student,
-            $filters
-        );
-
-        $student->batch_names_label = $student->batch_names->isNotEmpty()
-            ? $student->batch_names->implode(', ')
-            : '-';
-
-        $student->total_lessons = $totalLessons;
-        $student->opened_lessons = $openedLessons;
-        $student->completed_lessons = $completedLessons;
+        $overallProgress =
+            $totalLessons > 0
+                ? round(
+                    $totalProgressPercentage
+                    / $totalLessons,
+                    2
+                )
+                : 0;
 
         /*
-        * Sekarang nilai ini juga merupakan effective academic progress total.
+        |--------------------------------------------------------------------------
+        | Program
+        |--------------------------------------------------------------------------
         */
-        $student->total_progress_percentage = round(
-            $totalProgressPercentage,
-            2
-        );
 
-        $student->overall_progress = $overallProgress;
+        $student->program_names =
+            $this->getStudentProgramNames(
+                $student,
+                $filters
+            );
 
-        $student->overall_progress_label = $this->formatPercentage(
-            $overallProgress
-        );
+        $student->program_names_label =
+            $student->program_names->isNotEmpty()
+                ? $student->program_names
+                    ->implode(', ')
+                : '-';
 
-        $student->last_activity = $lastActivity;
-        $student->last_activity_label = $this->formatDateTime($lastActivity);
-        $student->inactive_days = $this->getInactiveDays($lastActivity);
+        /*
+        |--------------------------------------------------------------------------
+        | Batch
+        |--------------------------------------------------------------------------
+        */
 
-        $student->monitoring_status = $this->resolveMonitoringStatus(
-            $overallProgress,
-            $lastActivity,
-            $completedLessons,
-            $totalLessons
-        );
+        $student->batch_names =
+            $this->getStudentBatchNames(
+                $student,
+                $filters
+            );
 
-        $student->monitoring_status_badge = $this->getMonitoringStatusBadge(
-            $student->monitoring_status
-        );
+        $student->batch_names_label =
+            $student->batch_names->isNotEmpty()
+                ? $student->batch_names
+                    ->implode(', ')
+                : '-';
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lesson Stats
+        |--------------------------------------------------------------------------
+        */
+
+        $student->total_lessons =
+            $totalLessons;
+
+        $student->opened_lessons =
+            $openedLessons;
+
+        $student->completed_lessons =
+            $completedLessons;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Progress
+        |--------------------------------------------------------------------------
+        */
+
+        $student->total_progress_percentage =
+            round(
+                $totalProgressPercentage,
+                2
+            );
+
+        $student->overall_progress =
+            $overallProgress;
+
+        $student->overall_progress_label =
+            $this->formatPercentage(
+                $overallProgress
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Learning Activity
+        |--------------------------------------------------------------------------
+        |
+        | Sekarang ini benar-benar aktivitas belajar terakhir,
+        | bukan hanya aktivitas menonton VOD.
+        |
+        */
+
+        $student->last_activity =
+            $lastActivity;
+
+        $student->last_activity_label =
+            $this->formatDateTime(
+                $lastActivity
+            );
+
+        $student->inactive_days =
+            $this->getInactiveDays(
+                $lastActivity
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Monitoring Status
+        |--------------------------------------------------------------------------
+        */
+
+        $student->monitoring_status =
+            $this->resolveMonitoringStatus(
+                $overallProgress,
+                $lastActivity,
+                $completedLessons,
+                $totalLessons
+            );
+
+        $student->monitoring_status_badge =
+            $this->getMonitoringStatusBadge(
+                $student->monitoring_status
+            );
 
         return $student;
     }
