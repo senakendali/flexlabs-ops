@@ -67,6 +67,7 @@ use App\Http\Controllers\Academic\PublicLearningMaterialImageController;
 use App\Http\Controllers\Academic\PublicLearningMaterialPageController;
 use App\Http\Controllers\Academic\LearningVideoController;
 use App\Http\Controllers\Academic\StudentProgressMonitoringController;
+use App\Http\Controllers\Academic\AiOfficeController;
 use App\Http\Controllers\Inventory\AtkItemController;
 use App\Http\Controllers\Inventory\AtkRequestController;
 use App\Http\Controllers\Marketing\MarketingDashboardController;
@@ -908,6 +909,71 @@ Route::middleware(['auth', 'verified'])
         Route::get('/finance/dashboard', [FinanceDashboardController::class, 'index'])
             ->middleware('permission:finance.dashboard.view')
             ->name('finance.dashboard');
+
+        
+            /*
+            |--------------------------------------------------------------------------
+            | Academic - AI Office
+            |--------------------------------------------------------------------------
+            |
+            | Virtual AI Office untuk Academic Division.
+            |
+            | Initial scope:
+            | - Office landing page
+            | - Office state / agents
+            | - Luna interaction
+            |
+            | Route names:
+            | - academic.ai-office.index
+            | - academic.ai-office.state
+            | - academic.ai-office.message
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            Route::prefix('academic/ai-office')
+                ->name('academic.ai-office.')
+                ->middleware('permission:academic.dashboard.view')
+                ->controller(AiOfficeController::class)
+                ->group(function () {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Office
+                    |--------------------------------------------------------------------------
+                    */
+
+                    Route::get('/', 'index')
+                        ->name('index');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Office State
+                    |--------------------------------------------------------------------------
+                    |
+                    | Digunakan frontend untuk mengambil kondisi office:
+                    | - Luna
+                    | - daftar agent
+                    | - status agent
+                    | - greeting
+                    |
+                    */
+
+                    Route::get('/state', 'state')
+                        ->name('state');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Luna - Message
+                    |--------------------------------------------------------------------------
+                    |
+                    | User mengirim pesan ke Luna.
+                    |
+                    */
+
+                    Route::post('/message', 'message')
+                        ->name('message');
+            });
 
         /*
         |--------------------------------------------------------------------------
