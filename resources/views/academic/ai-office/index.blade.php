@@ -2,6 +2,84 @@
 
 @section('title', 'Academic AI Office')
 
+@php
+    /*
+    |--------------------------------------------------------------------------
+    | Logged In User
+    |--------------------------------------------------------------------------
+    |
+    | Prioritas sapaan:
+    | 1. users.salutation -> mas / mba / mbak
+    | 2. users.gender     -> male / female / pria / wanita / l / p
+    | 3. fallback         -> Kak
+    |
+    | Jangan menebak sapaan dari nama.
+    |--------------------------------------------------------------------------
+    */
+
+    $loggedInUser = auth()->user();
+
+    $loggedInUserName =
+        $loggedInUser?->name
+        ?? 'User';
+
+    $loggedInUserFirstName = collect(
+        preg_split('/\s+/', trim($loggedInUserName)) ?: []
+    )->first() ?: 'User';
+
+    $loggedInUserSalutationValue = strtolower(
+        trim(
+            (string) (
+                $loggedInUser?->salutation
+                ?? ''
+            )
+        )
+    );
+
+    $loggedInUserGenderValue = strtolower(
+        trim(
+            (string) (
+                $loggedInUser?->gender
+                ?? ''
+            )
+        )
+    );
+
+    $loggedInUserSalutation = match (true) {
+        in_array(
+            $loggedInUserSalutationValue,
+            ['mas'],
+            true
+        ) => 'Mas',
+
+        in_array(
+            $loggedInUserSalutationValue,
+            ['mba', 'mbak'],
+            true
+        ) => 'Mba',
+
+        in_array(
+            $loggedInUserGenderValue,
+            ['male', 'pria', 'l', 'm'],
+            true
+        ) => 'Mas',
+
+        in_array(
+            $loggedInUserGenderValue,
+            ['female', 'wanita', 'perempuan', 'p', 'f'],
+            true
+        ) => 'Mba',
+
+        default => 'Kak',
+    };
+
+    $loggedInUserDisplayName = trim(
+        $loggedInUserSalutation
+        . ' '
+        . $loggedInUserFirstName
+    );
+@endphp
+
 @section('content')
 
 <div
@@ -14,6 +92,7 @@
     ============================================================ --}}
 
     <div
+        id="luna-character"
         class="
             absolute
             bottom-0
@@ -34,8 +113,10 @@
         "
     >
         <img
-            src="{{ asset('images/agent/01.png') }}"
+            id="luna-character-image"
+            src="{{ asset('images/agent/luna/luna_greeting.png') }}"
             alt="Luna - Academic Secretary"
+
             class="
                 h-full
                 w-auto
@@ -44,17 +125,22 @@
                 object-contain
                 object-bottom
                 drop-shadow-2xl
+                transition-opacity
+                duration-150
             "
+
             draggable="false"
         >
     </div>
 
 
     {{-- ============================================================
-        LUNA GREETING BUBBLE
+        LUNA BUBBLE
     ============================================================ --}}
 
     <div
+        id="luna-greeting"
+
         class="
             absolute
             left-[31%]
@@ -112,6 +198,7 @@
             <div class="flex items-center gap-2">
 
                 <span
+                    id="luna-status-dot"
                     class="
                         h-2
                         w-2
@@ -120,7 +207,9 @@
                     "
                 ></span>
 
+
                 <p
+                    id="luna-role"
                     class="
                         text-[10px]
                         font-extrabold
@@ -136,6 +225,7 @@
 
 
             <h1
+                id="luna-greeting-title"
                 class="
                     mt-2
                     text-xl
@@ -143,11 +233,12 @@
                     text-office-ink
                 "
             >
-                Halo, Mas! 👋
+                Halo, {{ $loggedInUserDisplayName }}! 👋
             </h1>
 
 
             <p
+                id="luna-greeting-message"
                 class="
                     mt-1
                     text-sm
@@ -167,14 +258,18 @@
                     inline-flex
                     items-center
                     gap-2
+
                     rounded-full
+
                     bg-office-primarySoft
+
                     px-3
                     py-1.5
                 "
             >
 
                 <span
+                    id="luna-status-badge-dot"
                     class="
                         h-2
                         w-2
@@ -183,7 +278,9 @@
                     "
                 ></span>
 
+
                 <span
+                    id="luna-status-text"
                     class="
                         text-[10px]
                         font-extrabold
@@ -205,6 +302,7 @@
     ============================================================ --}}
 
     <div
+        id="academic-workspace"
         class="
             absolute
             right-5
@@ -233,16 +331,11 @@
         <section
             class="
                 shrink-0
-
                 rounded-[1.5rem]
-
                 border
                 border-gray-200
-
                 bg-white
-
                 p-4
-
                 shadow-lg
             "
         >
@@ -270,6 +363,7 @@
                         Academic Team
                     </p>
 
+
                     <p
                         class="
                             mt-1
@@ -289,11 +383,8 @@
                         inline-flex
                         items-center
                         gap-1.5
-
                         rounded-full
-
                         bg-green-50
-
                         px-2.5
                         py-1
                     "
@@ -308,14 +399,16 @@
                         "
                     ></span>
 
+
                     <span
+                        id="academic-agent-count"
                         class="
                             text-[9px]
                             font-extrabold
                             text-office-green
                         "
                     >
-                        4 Agents
+                        0 Agents
                     </span>
 
                 </div>
@@ -323,391 +416,15 @@
             </div>
 
 
-            {{-- Agents --}}
             <div
+                id="academic-agent-list"
                 class="
                     mt-4
                     grid
                     grid-cols-4
                     gap-2
                 "
-            >
-
-                {{-- Luna --}}
-                <button
-                    type="button"
-                    class="
-                        rounded-[1rem]
-
-                        border
-                        border-office-primary/20
-
-                        bg-office-primarySoft
-
-                        p-2
-
-                        text-center
-
-                        transition
-
-                        hover:border-office-primary/40
-                    "
-                >
-
-                    <div
-                        class="
-                            mx-auto
-
-                            flex
-                            h-11
-                            w-11
-
-                            items-center
-                            justify-center
-
-                            overflow-hidden
-
-                            rounded-full
-
-                            bg-white
-                        "
-                    >
-                        <img
-                            src="{{ asset('images/agent/01.png') }}"
-                            alt="Luna"
-                            class="
-                                h-full
-                                w-full
-                                object-cover
-                                object-top
-                            "
-                        >
-                    </div>
-
-
-                    <p
-                        class="
-                            mt-2
-                            truncate
-                            text-[10px]
-                            font-extrabold
-                            text-office-ink
-                        "
-                    >
-                        Luna
-                    </p>
-
-
-                    <div
-                        class="
-                            mt-1
-                            flex
-                            items-center
-                            justify-center
-                            gap-1
-                        "
-                    >
-
-                        <span
-                            class="
-                                h-1.5
-                                w-1.5
-                                rounded-full
-                                bg-office-green
-                            "
-                        ></span>
-
-                        <span
-                            class="
-                                text-[8px]
-                                font-bold
-                                text-office-muted
-                            "
-                        >
-                            Active
-                        </span>
-
-                    </div>
-
-                </button>
-
-
-                {{-- Raka --}}
-                <button
-                    type="button"
-                    class="
-                        rounded-[1rem]
-
-                        border
-                        border-gray-200
-
-                        bg-white
-
-                        p-2
-
-                        text-center
-
-                        transition
-
-                        hover:border-office-primary/30
-                    "
-                >
-
-                    <div
-                        class="
-                            mx-auto
-
-                            flex
-                            h-11
-                            w-11
-
-                            items-center
-                            justify-center
-
-                            rounded-full
-
-                            bg-office-primarySoft
-
-                            text-xs
-
-                            font-black
-
-                            text-office-primary
-                        "
-                    >
-                        RA
-                    </div>
-
-                    <p
-                        class="
-                            mt-2
-                            truncate
-                            text-[10px]
-                            font-extrabold
-                            text-office-ink
-                        "
-                    >
-                        Raka
-                    </p>
-
-                    <div
-                        class="
-                            mt-1
-                            flex
-                            items-center
-                            justify-center
-                            gap-1
-                        "
-                    >
-
-                        <span
-                            class="
-                                h-1.5
-                                w-1.5
-                                rounded-full
-                                bg-office-green
-                            "
-                        ></span>
-
-                        <span
-                            class="
-                                text-[8px]
-                                font-bold
-                                text-office-muted
-                            "
-                        >
-                            Available
-                        </span>
-
-                    </div>
-
-                </button>
-
-
-                {{-- Bagas --}}
-                <button
-                    type="button"
-                    class="
-                        rounded-[1rem]
-
-                        border
-                        border-gray-200
-
-                        bg-white
-
-                        p-2
-
-                        text-center
-
-                        transition
-
-                        hover:border-office-primary/30
-                    "
-                >
-
-                    <div
-                        class="
-                            mx-auto
-
-                            flex
-                            h-11
-                            w-11
-
-                            items-center
-                            justify-center
-
-                            rounded-full
-
-                            bg-office-primarySoft
-
-                            text-xs
-
-                            font-black
-
-                            text-office-primary
-                        "
-                    >
-                        BA
-                    </div>
-
-                    <p
-                        class="
-                            mt-2
-                            truncate
-                            text-[10px]
-                            font-extrabold
-                            text-office-ink
-                        "
-                    >
-                        Bagas
-                    </p>
-
-                    <div
-                        class="
-                            mt-1
-                            flex
-                            items-center
-                            justify-center
-                            gap-1
-                        "
-                    >
-
-                        <span
-                            class="
-                                h-1.5
-                                w-1.5
-                                rounded-full
-                                bg-office-green
-                            "
-                        ></span>
-
-                        <span
-                            class="
-                                text-[8px]
-                                font-bold
-                                text-office-muted
-                            "
-                        >
-                            Available
-                        </span>
-
-                    </div>
-
-                </button>
-
-
-                {{-- Nova --}}
-                <button
-                    type="button"
-                    class="
-                        rounded-[1rem]
-
-                        border
-                        border-gray-200
-
-                        bg-white
-
-                        p-2
-
-                        text-center
-
-                        transition
-
-                        hover:border-office-primary/30
-                    "
-                >
-
-                    <div
-                        class="
-                            mx-auto
-
-                            flex
-                            h-11
-                            w-11
-
-                            items-center
-                            justify-center
-
-                            rounded-full
-
-                            bg-office-primarySoft
-
-                            text-xs
-
-                            font-black
-
-                            text-office-primary
-                        "
-                    >
-                        NO
-                    </div>
-
-                    <p
-                        class="
-                            mt-2
-                            truncate
-                            text-[10px]
-                            font-extrabold
-                            text-office-ink
-                        "
-                    >
-                        Nova
-                    </p>
-
-                    <div
-                        class="
-                            mt-1
-                            flex
-                            items-center
-                            justify-center
-                            gap-1
-                        "
-                    >
-
-                        <span
-                            class="
-                                h-1.5
-                                w-1.5
-                                rounded-full
-                                bg-office-green
-                            "
-                        ></span>
-
-                        <span
-                            class="
-                                text-[8px]
-                                font-bold
-                                text-office-muted
-                            "
-                        >
-                            Available
-                        </span>
-
-                    </div>
-
-                </button>
-
-            </div>
+            ></div>
 
         </section>
 
@@ -719,16 +436,11 @@
         <section
             class="
                 shrink-0
-
                 rounded-[1.5rem]
-
                 border
                 border-gray-200
-
                 bg-white
-
                 p-4
-
                 shadow-lg
             "
         >
@@ -742,7 +454,7 @@
                 "
             >
 
-                <div>
+                <div class="min-w-0">
 
                     <p
                         class="
@@ -756,11 +468,15 @@
                         Current Task
                     </p>
 
+
                     <h2
+                        id="current-task-title"
                         class="
                             mt-1
+                            line-clamp-2
                             text-sm
                             font-extrabold
+                            leading-5
                             text-office-ink
                         "
                     >
@@ -775,16 +491,11 @@
                         flex
                         h-9
                         w-9
-
                         shrink-0
-
                         items-center
                         justify-center
-
                         rounded-[1rem]
-
                         bg-office-primarySoft
-
                         text-office-primary
                     "
                 >
@@ -798,8 +509,10 @@
 
 
             <p
+                id="current-task-description"
                 class="
                     mt-2
+                    line-clamp-2
                     text-xs
                     font-medium
                     leading-5
@@ -820,6 +533,7 @@
             >
 
                 <span
+                    id="current-task-dot"
                     class="
                         h-2
                         w-2
@@ -828,7 +542,9 @@
                     "
                 ></span>
 
+
                 <span
+                    id="current-task-status"
                     class="
                         text-[10px]
                         font-extrabold
@@ -844,7 +560,7 @@
 
 
         {{-- ========================================================
-            PROCESS TIMELINE
+            PROCESS
         ======================================================== --}}
 
         <section
@@ -853,21 +569,15 @@
                 min-h-0
                 flex-1
                 flex-col
-
                 rounded-[1.5rem]
-
                 border
                 border-gray-200
-
                 bg-white
-
                 p-4
-
                 shadow-lg
             "
         >
 
-            {{-- Header --}}
             <div
                 class="
                     flex
@@ -891,6 +601,7 @@
                     >
                         Process
                     </p>
+
 
                     <p
                         class="
@@ -918,53 +629,29 @@
             </div>
 
 
-            {{-- Scroll Area --}}
             <div
+                id="process-timeline"
                 class="
                     ai-process-scroll
-
                     mt-4
-
                     min-h-0
                     flex-1
-
                     overflow-y-auto
-
                     pr-2
                 "
             >
 
-                {{-- Step 1 --}}
-                <div class="relative flex gap-3 pb-4">
+                <div class="flex gap-3">
 
                     <div
                         class="
-                            absolute
-                            left-[7px]
-                            top-4
-                            bottom-0
-                            w-px
-                            bg-gray-200
-                        "
-                    ></div>
-
-                    <div
-                        class="
-                            relative
-                            z-10
-
                             mt-0.5
-
                             h-4
                             w-4
-
                             shrink-0
-
                             rounded-full
-
                             border-[4px]
                             border-office-primarySoft
-
                             bg-office-primary
                         "
                     ></div>
@@ -979,8 +666,9 @@
                                 text-office-ink
                             "
                         >
-                            Request
+                            Waiting for Request
                         </p>
+
 
                         <p
                             class="
@@ -990,252 +678,7 @@
                                 text-office-muted
                             "
                         >
-                            Waiting for user instruction
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                {{-- Step 2 --}}
-                <div class="relative flex gap-3 pb-4">
-
-                    <div
-                        class="
-                            absolute
-                            left-[7px]
-                            top-4
-                            bottom-0
-                            w-px
-                            bg-gray-200
-                        "
-                    ></div>
-
-                    <div
-                        class="
-                            relative
-                            z-10
-
-                            mt-0.5
-
-                            h-4
-                            w-4
-
-                            shrink-0
-
-                            rounded-full
-
-                            border-[4px]
-                            border-gray-100
-
-                            bg-gray-300
-                        "
-                    ></div>
-
-
-                    <div>
-
-                        <p
-                            class="
-                                text-[11px]
-                                font-extrabold
-                                text-office-ink
-                            "
-                        >
-                            Luna
-                        </p>
-
-                        <p
-                            class="
-                                mt-0.5
-                                text-[10px]
-                                font-medium
-                                text-office-muted
-                            "
-                        >
-                            Understand request & build workflow
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                {{-- Step 3 --}}
-                <div class="relative flex gap-3 pb-4">
-
-                    <div
-                        class="
-                            absolute
-                            left-[7px]
-                            top-4
-                            bottom-0
-                            w-px
-                            bg-gray-200
-                        "
-                    ></div>
-
-                    <div
-                        class="
-                            relative
-                            z-10
-
-                            mt-0.5
-
-                            h-4
-                            w-4
-
-                            shrink-0
-
-                            rounded-full
-
-                            border-[4px]
-                            border-gray-100
-
-                            bg-gray-300
-                        "
-                    ></div>
-
-
-                    <div>
-
-                        <p
-                            class="
-                                text-[11px]
-                                font-extrabold
-                                text-office-ink
-                            "
-                        >
-                            Academic Agent
-                        </p>
-
-                        <p
-                            class="
-                                mt-0.5
-                                text-[10px]
-                                font-medium
-                                text-office-muted
-                            "
-                        >
-                            Assigned agent starts working
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                {{-- Step 4 --}}
-                <div class="relative flex gap-3 pb-4">
-
-                    <div
-                        class="
-                            absolute
-                            left-[7px]
-                            top-4
-                            bottom-0
-                            w-px
-                            bg-gray-200
-                        "
-                    ></div>
-
-                    <div
-                        class="
-                            relative
-                            z-10
-
-                            mt-0.5
-
-                            h-4
-                            w-4
-
-                            shrink-0
-
-                            rounded-full
-
-                            border-[4px]
-                            border-gray-100
-
-                            bg-gray-300
-                        "
-                    ></div>
-
-
-                    <div>
-
-                        <p
-                            class="
-                                text-[11px]
-                                font-extrabold
-                                text-office-ink
-                            "
-                        >
-                            Review
-                        </p>
-
-                        <p
-                            class="
-                                mt-0.5
-                                text-[10px]
-                                font-medium
-                                text-office-muted
-                            "
-                        >
-                            Luna reviews the result
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                {{-- Step 5 --}}
-                <div class="flex gap-3">
-
-                    <div
-                        class="
-                            relative
-                            z-10
-
-                            mt-0.5
-
-                            h-4
-                            w-4
-
-                            shrink-0
-
-                            rounded-full
-
-                            border-[4px]
-                            border-gray-100
-
-                            bg-gray-300
-                        "
-                    ></div>
-
-
-                    <div>
-
-                        <p
-                            class="
-                                text-[11px]
-                                font-extrabold
-                                text-office-ink
-                            "
-                        >
-                            Completed
-                        </p>
-
-                        <p
-                            class="
-                                mt-0.5
-                                text-[10px]
-                                font-medium
-                                text-office-muted
-                            "
-                        >
-                            Result returned to user
+                            Send an instruction to Luna to start.
                         </p>
 
                     </div>
@@ -1256,10 +699,8 @@
     <div
         class="
             absolute
-
             bottom-5
             left-1/2
-
             z-40
 
             w-[min(720px,calc(100%-40px))]
@@ -1276,9 +717,7 @@
 
         <form
             id="luna-chat-form"
-
             action="{{ route('academic.ai-office.message') }}"
-
             method="POST"
 
             class="
@@ -1302,40 +741,29 @@
             @csrf
 
 
-            {{-- Icon --}}
             <div
                 class="
                     flex
                     h-11
                     w-11
-
                     shrink-0
-
                     items-center
                     justify-center
-
                     rounded-[1rem]
-
                     bg-office-primarySoft
-
                     text-office-primary
                 "
             >
-
                 <i
                     data-lucide="sparkles"
                     class="h-5 w-5"
                 ></i>
-
             </div>
 
 
-            {{-- Input --}}
             <input
                 id="luna-message"
-
                 type="text"
-
                 name="message"
 
                 placeholder="Tulis perintah untuk Luna..."
@@ -1353,9 +781,7 @@
                     py-3
 
                     text-sm
-
                     font-medium
-
                     text-office-ink
 
                     outline-none
@@ -1369,39 +795,30 @@
             >
 
 
-            {{-- Send --}}
             <button
+                id="luna-send-button"
                 type="submit"
 
                 class="
                     inline-flex
                     h-11
                     w-11
-
                     shrink-0
-
                     items-center
                     justify-center
-
                     rounded-[1rem]
-
                     bg-office-primary
-
                     text-white
-
                     transition
-
                     hover:bg-office-primaryDark
                 "
 
                 aria-label="Kirim pesan"
             >
-
                 <i
                     data-lucide="send"
                     class="h-4 w-4"
                 ></i>
-
             </button>
 
         </form>
@@ -1410,13 +827,9 @@
         <p
             class="
                 mt-2
-
                 text-center
-
                 text-[10px]
-
                 font-semibold
-
                 text-white
             "
         >
@@ -1431,12 +844,6 @@
     ============================================================ --}}
 
     <style>
-
-        /*
-        |--------------------------------------------------------------------------
-        | Process Scrollbar
-        |--------------------------------------------------------------------------
-        */
 
         .ai-process-scroll {
             scrollbar-width: thin;
@@ -1461,20 +868,14 @@
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Tablet
-        |--------------------------------------------------------------------------
-        */
-
         @media (max-width: 1279px) {
 
-            #academic-ai-office > div:nth-of-type(1) {
+            #luna-character {
                 left: 3%;
                 height: 82%;
             }
 
-            #academic-ai-office > div:nth-of-type(2) {
+            #luna-greeting {
                 left: 37%;
                 top: 8%;
             }
@@ -1482,26 +883,17 @@
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Mobile
-        |--------------------------------------------------------------------------
-        */
-
         @media (max-width: 767px) {
 
-            #academic-ai-office > div:nth-of-type(1) {
+            #luna-character {
                 left: -45px;
                 height: 66%;
             }
 
-
-            #academic-ai-office > div:nth-of-type(2) {
+            #luna-greeting {
                 left: 16px;
                 right: 16px;
-
                 top: 16px;
-
                 width: auto;
             }
 
@@ -1512,3 +904,2635 @@
 </div>
 
 @endsection
+
+
+@push('scripts')
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | URLs
+        |--------------------------------------------------------------------------
+        */
+
+        const stateUrl =
+            @json(route('academic.ai-office.state'));
+
+        const messageUrl =
+            @json(route('academic.ai-office.message'));
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current User
+        |--------------------------------------------------------------------------
+        */
+
+        const currentUser = {
+            name:
+                @json($loggedInUserName),
+
+            firstName:
+                @json($loggedInUserFirstName),
+
+            salutation:
+                @json($loggedInUserSalutation),
+
+            displayName:
+                @json($loggedInUserDisplayName),
+        };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Elements
+        |--------------------------------------------------------------------------
+        */
+
+        const lunaImage =
+            document.getElementById('luna-character-image');
+
+        const lunaRole =
+            document.getElementById('luna-role');
+
+        const lunaStatusText =
+            document.getElementById('luna-status-text');
+
+        const lunaGreetingTitle =
+            document.getElementById('luna-greeting-title');
+
+        const lunaGreetingMessage =
+            document.getElementById('luna-greeting-message');
+
+
+        const agentList =
+            document.getElementById('academic-agent-list');
+
+        const agentCount =
+            document.getElementById('academic-agent-count');
+
+
+        const currentTaskTitle =
+            document.getElementById('current-task-title');
+
+        const currentTaskDescription =
+            document.getElementById('current-task-description');
+
+        const currentTaskStatus =
+            document.getElementById('current-task-status');
+
+        const currentTaskDot =
+            document.getElementById('current-task-dot');
+
+
+        const processTimeline =
+            document.getElementById('process-timeline');
+
+
+        const chatForm =
+            document.getElementById('luna-chat-form');
+
+        const messageInput =
+            document.getElementById('luna-message');
+
+        const submitButton =
+            document.getElementById('luna-send-button');
+
+
+        const csrfToken = document
+            .querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Runtime Data
+        |--------------------------------------------------------------------------
+        */
+
+        let officeState = null;
+
+        let primaryAgent = null;
+
+        let activeAgent = null;
+
+        let activeAgentAvatarStates = {};
+
+        let mainAgentImageRequestId = 0;
+
+        let officeReady = false;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Handoff Presentation Timing
+        |--------------------------------------------------------------------------
+        |
+        | Workflow backend masih synchronous pada MVP ini.
+        | Timing di bawah hanya memberi ruang agar perpindahan
+        | Luna → specialist → Luna bisa terbaca oleh user.
+        |
+        | Saat realtime workflow/event sudah dipakai, bagian ini
+        | bisa diganti dengan state progress yang benar-benar live.
+        |--------------------------------------------------------------------------
+        */
+
+        const handoffPresentationTiming = {
+            delegation: 1800,
+            specialistWorking: 900,
+            specialistCompleted: 750,
+            returnToLuna: 900,
+        };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Conversational Presentation Timing
+        |--------------------------------------------------------------------------
+        |
+        | Direct conversation tetap punya visual state:
+        |
+        | listening → thinking → explaining
+        |
+        | Nilai kecil ini hanya memastikan perubahan avatar sempat terlihat.
+        | Request backend tetap dimulai secepat mungkin dan berjalan paralel.
+        |--------------------------------------------------------------------------
+        */
+
+        const conversationPresentationTiming = {
+            listeningMinimum: 320,
+            thinkingMinimum: 420,
+        };
+
+
+        function waitForPresentation(
+            milliseconds
+        ) {
+
+            return new Promise(
+                resolve =>
+                    window.setTimeout(
+                        resolve,
+                        milliseconds
+                    )
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Image Preload Cache
+        |--------------------------------------------------------------------------
+        */
+
+        const imagePreloadCache =
+            new Map();
+
+
+        function preloadImage(url) {
+
+            if (!url) {
+                return Promise.resolve(false);
+            }
+
+
+            if (
+                imagePreloadCache.has(url)
+            ) {
+                return imagePreloadCache.get(url);
+            }
+
+
+            const promise =
+                new Promise(resolve => {
+
+                    const image =
+                        new Image();
+
+
+                    image.onload =
+                        function () {
+                            resolve(true);
+                        };
+
+
+                    image.onerror =
+                        function () {
+
+                            console.error(
+                                'AI Office avatar preload failed:',
+                                url
+                            );
+
+                            resolve(false);
+                        };
+
+
+                    image.src =
+                        url;
+                });
+
+
+            imagePreloadCache.set(
+                url,
+                promise
+            );
+
+
+            return promise;
+        }
+
+
+        async function preloadAgentAvatars(
+            avatars
+        ) {
+
+            if (
+                !avatars
+                ||
+                typeof avatars !== 'object'
+            ) {
+                return;
+            }
+
+
+            const urls = [
+                ...new Set(
+                    Object
+                        .values(avatars)
+                        .filter(Boolean)
+                ),
+            ];
+
+
+            await Promise.all(
+                urls.map(
+                    url =>
+                        preloadImage(url)
+                )
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Safe Luna Image Swap
+        |--------------------------------------------------------------------------
+        */
+
+        async function setMainAgentImage(
+            url
+        ) {
+
+            if (
+                !url
+                ||
+                !lunaImage
+            ) {
+                return false;
+            }
+
+
+            const requestId =
+                ++mainAgentImageRequestId;
+
+
+            const loaded =
+                await preloadImage(url);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Ignore Old State Request
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                requestId
+                !== mainAgentImageRequestId
+            ) {
+                return false;
+            }
+
+
+            if (!loaded) {
+
+                const fallback =
+                    activeAgentAvatarStates.idle
+                    ?? activeAgentAvatarStates.greeting
+                    ?? null;
+
+
+                if (
+                    fallback
+                    &&
+                    fallback !== url
+                ) {
+
+                    const fallbackLoaded =
+                        await preloadImage(
+                            fallback
+                        );
+
+
+                    if (
+                        fallbackLoaded
+                        &&
+                        requestId
+                            === mainAgentImageRequestId
+                    ) {
+
+                        lunaImage.src =
+                            fallback;
+                    }
+                }
+
+
+                return false;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Swap Image
+            |--------------------------------------------------------------------------
+            */
+
+            lunaImage.style.opacity =
+                '0.88';
+
+
+            lunaImage.src =
+                url;
+
+
+            await new Promise(
+                resolve =>
+                    requestAnimationFrame(
+                        resolve
+                    )
+            );
+
+
+            if (
+                requestId
+                === mainAgentImageRequestId
+            ) {
+
+                lunaImage.style.opacity =
+                    '1';
+            }
+
+
+            return true;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Main Agent Image Error Protection
+        |--------------------------------------------------------------------------
+        */
+
+        lunaImage?.addEventListener(
+            'error',
+
+            async function () {
+
+                const failedUrl =
+                    lunaImage.currentSrc
+                    || lunaImage.src;
+
+
+                console.error(
+                    'Main agent avatar failed to render:',
+                    failedUrl
+                );
+
+
+                const fallback =
+                    activeAgentAvatarStates.idle
+                    ?? activeAgentAvatarStates.greeting
+                    ?? null;
+
+
+                if (
+                    !fallback
+                    ||
+                    failedUrl === fallback
+                ) {
+                    return;
+                }
+
+
+                const loaded =
+                    await preloadImage(
+                        fallback
+                    );
+
+
+                if (loaded) {
+                    lunaImage.src =
+                        fallback;
+                }
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Conversation Storage
+        |--------------------------------------------------------------------------
+        */
+
+        const conversationStorageKey =
+            'flexops_academic_ai_conversation_id';
+
+
+        function getConversationId() {
+
+            const value =
+                sessionStorage.getItem(
+                    conversationStorageKey
+                );
+
+
+            if (!value) {
+                return null;
+            }
+
+
+            const id =
+                Number(value);
+
+
+            return Number.isInteger(id)
+                && id > 0
+                    ? id
+                    : null;
+        }
+
+
+        function setConversationId(
+            id
+        ) {
+
+            if (!id) {
+                return;
+            }
+
+
+            sessionStorage.setItem(
+                conversationStorageKey,
+                String(id)
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | State Labels
+        |--------------------------------------------------------------------------
+        */
+
+        const stateLabels = {
+            idle: 'Available',
+            greeting: 'Available',
+            listening: 'Listening',
+            thinking: 'Thinking',
+            working: 'Working',
+            waiting: 'Waiting',
+            waiting_approval: 'Waiting Approval',
+            completed: 'Completed',
+            questioning: 'Need Clarification',
+            explaining: 'Explaining',
+            error: 'Needs Attention',
+        };
+
+
+        function formatState(
+            state
+        ) {
+
+            return stateLabels[state]
+                ?? state
+                ?? 'Unknown';
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workflow Status Labels
+        |--------------------------------------------------------------------------
+        */
+
+        const workflowStatusLabels = {
+            pending: 'Pending',
+            running: 'In Progress',
+            waiting: 'Waiting',
+            waiting_approval: 'Waiting Approval',
+            completed: 'Completed',
+            failed: 'Failed',
+            cancelled: 'Cancelled',
+        };
+
+
+        function formatWorkflowStatus(
+            status
+        ) {
+
+            return workflowStatusLabels[status]
+                ?? status
+                ?? 'Unknown';
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Luna Bubble Content
+        |--------------------------------------------------------------------------
+        |
+        | Greeting hanya digunakan saat pertama kali office dibuka.
+        |
+        | Setelah user mulai berinteraksi, bubble mengikuti state
+        | pekerjaan terakhir.
+        |--------------------------------------------------------------------------
+        */
+
+        const agentStateContent = {
+
+            greeting: {
+                title:
+                    `Halo, ${currentUser.displayName}! 👋`,
+
+                message:
+                    'Selamat datang di Academic AI Office. Ada yang bisa saya bantu hari ini?',
+            },
+
+
+            listening: {
+                title:
+                    `Saya dengarkan, ${currentUser.displayName}.`,
+
+                message:
+                    'Saya sedang menerima instruksi yang diberikan.',
+            },
+
+
+            thinking: {
+                title:
+                    'Sebentar...',
+
+                message:
+                    'Saya sedang memahami permintaan dan menentukan langkah berikutnya.',
+            },
+
+
+            working: {
+                title:
+                    'Sedang dikerjakan.',
+
+                message:
+                    'Tim Academic AI sedang menjalankan pekerjaan yang dibutuhkan.',
+            },
+
+
+            waiting: {
+                title:
+                    'Masih dalam proses.',
+
+                message:
+                    'Saya sedang menunggu proses berikutnya selesai.',
+            },
+
+
+            waiting_approval: {
+                title:
+                    `Menunggu persetujuan ${currentUser.displayName}.`,
+
+                message:
+                    'Ada tindakan yang perlu disetujui sebelum proses dilanjutkan.',
+            },
+
+
+            completed: {
+                title:
+                    `Selesai, ${currentUser.displayName}. ✓`,
+
+                message:
+                    'Pekerjaan sudah selesai diproses.',
+            },
+
+
+            questioning: {
+                title:
+                    `Ada yang perlu saya pastikan, ${currentUser.displayName}.`,
+
+                message:
+                    'Saya membutuhkan sedikit klarifikasi sebelum melanjutkan.',
+            },
+
+
+            explaining: {
+                title:
+                    `Berikut hasilnya, ${currentUser.displayName}.`,
+
+                message:
+                    'Saya sedang menyiapkan hasil pekerjaan untuk disampaikan.',
+            },
+
+
+            error: {
+                title:
+                    'Ada kendala.',
+
+                message:
+                    'Permintaan belum berhasil diproses. Silakan coba kembali.',
+            },
+
+        };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Set Main Agent State
+        |--------------------------------------------------------------------------
+        |
+        | Karakter utama tidak lagi hardcoded ke Luna.
+        | Agent yang tampil mengikuti agent yang sedang aktif.
+        |--------------------------------------------------------------------------
+        */
+
+        async function setMainAgentState(
+            agent,
+            state,
+            options = {}
+        ) {
+
+            if (!agent) {
+                return;
+            }
+
+
+            activeAgent =
+                agent;
+
+
+            activeAgentAvatarStates =
+                agent.avatars
+                ?? {};
+
+
+            await preloadAgentAvatars(
+                activeAgentAvatarStates
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Agent Header
+            |--------------------------------------------------------------------------
+            */
+
+            if (lunaRole) {
+
+                lunaRole.textContent =
+                    `${agent.name} · ${agent.role}`;
+            }
+
+
+            if (lunaImage) {
+
+                lunaImage.alt =
+                    `${agent.name} - ${agent.role}`;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Status
+            |--------------------------------------------------------------------------
+            */
+
+            if (lunaStatusText) {
+
+                lunaStatusText.textContent =
+                    formatState(state);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Bubble Content
+            |--------------------------------------------------------------------------
+            */
+
+            const defaultContent =
+                agentStateContent[state]
+                ?? null;
+
+
+            const title =
+                options.title
+                ?? defaultContent?.title
+                ?? null;
+
+
+            const message =
+                options.message
+                ?? defaultContent?.message
+                ?? null;
+
+
+            if (
+                !options.preserveContent
+                &&
+                title
+                &&
+                lunaGreetingTitle
+            ) {
+
+                lunaGreetingTitle.textContent =
+                    title;
+            }
+
+
+            if (
+                !options.preserveContent
+                &&
+                message
+                &&
+                lunaGreetingMessage
+            ) {
+
+                lunaGreetingMessage.textContent =
+                    message;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Avatar
+            |--------------------------------------------------------------------------
+            */
+
+            const avatarUrl =
+                activeAgentAvatarStates[state]
+                ?? agent.avatar_url
+                ?? activeAgentAvatarStates.idle
+                ?? activeAgentAvatarStates.greeting
+                ?? null;
+
+
+            if (!avatarUrl) {
+                return;
+            }
+
+
+            await setMainAgentImage(
+                avatarUrl
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Set Luna State
+        |--------------------------------------------------------------------------
+        |
+        | Luna tetap menjadi primary/orchestrator.
+        | Wrapper ini dipakai saat user baru mengirim instruksi.
+        |--------------------------------------------------------------------------
+        */
+
+        async function setLunaState(
+            state,
+            options = {}
+        ) {
+
+            const luna =
+                primaryAgent
+                ?? officeState?.primary_agent
+                ?? null;
+
+
+            if (!luna) {
+                return;
+            }
+
+
+            await setMainAgentState(
+                luna,
+                state,
+                options
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Agent Initial
+        |--------------------------------------------------------------------------
+        */
+
+        function getInitials(
+            name
+        ) {
+
+            if (!name) {
+                return 'AI';
+            }
+
+
+            return name
+                .trim()
+                .split(/\s+/)
+                .slice(0, 2)
+                .map(
+                    part =>
+                        part
+                            .charAt(0)
+                            .toUpperCase()
+                )
+                .join('');
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Agent Card
+        |--------------------------------------------------------------------------
+        |
+        | Academic Team sekarang sengaja dibuat name-only.
+        | Tidak memakai thumbnail/avatar supaya panel lebih clean.
+        |--------------------------------------------------------------------------
+        */
+
+        function createAgentCard(
+            agent
+        ) {
+
+            const button =
+                document.createElement(
+                    'button'
+                );
+
+
+            button.type =
+                'button';
+
+
+            button.className = [
+                'min-w-0',
+                'rounded-[0.9rem]',
+                'border',
+
+                agent.code === 'luna'
+                    ? 'border-office-primary/20'
+                    : 'border-gray-200',
+
+                agent.code === 'luna'
+                    ? 'bg-office-primarySoft'
+                    : 'bg-white',
+
+                'px-2.5',
+                'py-2.5',
+                'text-center',
+                'transition',
+                'hover:border-office-primary/30',
+                'hover:bg-office-primarySoft/40',
+            ].join(' ');
+
+
+            const name =
+                document.createElement(
+                    'p'
+                );
+
+
+            name.className = [
+                'truncate',
+                'text-[10px]',
+                'font-extrabold',
+
+                agent.code === 'luna'
+                    ? 'text-office-primary'
+                    : 'text-office-ink',
+            ].join(' ');
+
+
+            name.textContent =
+                agent.name;
+
+
+            button.appendChild(
+                name
+            );
+
+
+            return button;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Render Office State
+        |--------------------------------------------------------------------------
+        */
+
+        async function renderOfficeState(
+            data
+        ) {
+
+            officeState =
+                data;
+
+
+            primaryAgent =
+                data.primary_agent;
+
+
+            if (primaryAgent) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Initial Main Agent
+                |--------------------------------------------------------------------------
+                |
+                | Saat office pertama dibuka, Luna tetap menjadi karakter utama.
+                |--------------------------------------------------------------------------
+                */
+
+                await setMainAgentState(
+                    primaryAgent,
+                    'greeting'
+                );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Academic Team
+            |--------------------------------------------------------------------------
+            */
+
+            const agents =
+                Array.isArray(
+                    data.agents
+                )
+                    ? data.agents
+                    : [];
+
+
+            if (agentCount) {
+
+                agentCount.textContent =
+                    `${agents.length} ${
+                        agents.length === 1
+                            ? 'Agent'
+                            : 'Agents'
+                    }`;
+            }
+
+
+            if (agentList) {
+
+                agentList.innerHTML =
+                    '';
+
+
+                agents.forEach(
+                    agent => {
+
+                        agentList.appendChild(
+                            createAgentCard(
+                                agent
+                            )
+                        );
+                    }
+                );
+            }
+
+
+            refreshIcons();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Process Step Dot
+        |--------------------------------------------------------------------------
+        */
+
+        function getStepDotClasses(
+            status
+        ) {
+
+            switch (status) {
+
+                case 'completed':
+
+                    return [
+                        'border-green-100',
+                        'bg-office-green',
+                    ];
+
+
+                case 'running':
+
+                    return [
+                        'border-office-primarySoft',
+                        'bg-office-primary',
+                    ];
+
+
+                case 'waiting':
+
+                case 'waiting_approval':
+
+                    return [
+                        'border-yellow-100',
+                        'bg-office-yellow',
+                    ];
+
+
+                case 'failed':
+
+                    return [
+                        'border-red-100',
+                        'bg-red-500',
+                    ];
+
+
+                default:
+
+                    return [
+                        'border-gray-100',
+                        'bg-gray-300',
+                    ];
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Render Workflow
+        |--------------------------------------------------------------------------
+        */
+
+        function renderWorkflow(
+            workflow
+        ) {
+
+            if (!workflow) {
+                return;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Current Task
+            |--------------------------------------------------------------------------
+            |
+            | Percakapan langsung dengan Luna bukan operational task.
+            |
+            | Jadi untuk respond_directly:
+            | - jangan tampilkan isi chat sebagai Current Task
+            | - reset panel ke kondisi office ready
+            |
+            | Operational request seperti specialist execution atau
+            | unsupported execution tetap ditampilkan sebagai Current Task.
+            |--------------------------------------------------------------------------
+            */
+
+            const isDirectConversation =
+                workflow.resolved_action
+                === 'respond_directly';
+
+
+            if (isDirectConversation) {
+
+                if (currentTaskTitle) {
+
+                    currentTaskTitle.textContent =
+                        'Academic Office is ready';
+                }
+
+
+                if (currentTaskDescription) {
+
+                    currentTaskDescription.textContent =
+                        'Send an academic request to Luna when you need operational support.';
+                }
+
+
+                if (currentTaskStatus) {
+
+                    currentTaskStatus.textContent =
+                        'Waiting for your instruction';
+                }
+
+            } else {
+
+                if (currentTaskTitle) {
+
+                    currentTaskTitle.textContent =
+                        workflow.title
+                        ?? 'Academic Request';
+                }
+
+
+                if (currentTaskDescription) {
+
+                    currentTaskDescription.textContent =
+                        workflow.objective
+                        ?? workflow.title
+                        ?? '';
+                }
+
+
+                if (currentTaskStatus) {
+
+                    currentTaskStatus.textContent =
+                        formatWorkflowStatus(
+                            workflow.status
+                        );
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Timeline
+            |--------------------------------------------------------------------------
+            */
+
+            if (!processTimeline) {
+                return;
+            }
+
+
+            const steps =
+                Array.isArray(
+                    workflow.steps
+                )
+                    ? workflow.steps
+                    : [];
+
+
+            processTimeline.innerHTML =
+                '';
+
+
+            if (
+                steps.length === 0
+            ) {
+
+                processTimeline.innerHTML = `
+                    <div class="flex gap-3">
+
+                        <div
+                            class="
+                                mt-0.5
+                                h-4
+                                w-4
+                                shrink-0
+                                rounded-full
+                                border-[4px]
+                                border-gray-100
+                                bg-gray-300
+                            "
+                        ></div>
+
+                        <div>
+
+                            <p
+                                class="
+                                    text-[11px]
+                                    font-extrabold
+                                    text-office-ink
+                                "
+                            >
+                                Workflow created
+                            </p>
+
+                            <p
+                                class="
+                                    mt-0.5
+                                    text-[10px]
+                                    font-medium
+                                    text-office-muted
+                                "
+                            >
+                                Waiting for process steps.
+                            </p>
+
+                        </div>
+
+                    </div>
+                `;
+
+                return;
+            }
+
+
+            steps.forEach(
+                (step, index) => {
+
+                    const item =
+                        document.createElement(
+                            'div'
+                        );
+
+
+                    item.className =
+                        'relative flex gap-3 pb-4';
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Connector
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        index
+                        <
+                        steps.length - 1
+                    ) {
+
+                        const connector =
+                            document.createElement(
+                                'div'
+                            );
+
+
+                        connector.className = [
+                            'absolute',
+                            'left-[7px]',
+                            'top-4',
+                            'bottom-0',
+                            'w-px',
+                            'bg-gray-200',
+                        ].join(' ');
+
+
+                        item.appendChild(
+                            connector
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Dot
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const dot =
+                        document.createElement(
+                            'div'
+                        );
+
+
+                    dot.className = [
+                        'relative',
+                        'z-10',
+                        'mt-0.5',
+                        'h-4',
+                        'w-4',
+                        'shrink-0',
+                        'rounded-full',
+                        'border-[4px]',
+                        ...getStepDotClasses(
+                            step.status
+                        ),
+                    ].join(' ');
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Content
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const content =
+                        document.createElement(
+                            'div'
+                        );
+
+
+                    content.className =
+                        'min-w-0 flex-1';
+
+
+                    const header =
+                        document.createElement(
+                            'div'
+                        );
+
+
+                    header.className = [
+                        'flex',
+                        'items-start',
+                        'justify-between',
+                        'gap-2',
+                    ].join(' ');
+
+
+                    const title =
+                        document.createElement(
+                            'p'
+                        );
+
+
+                    title.className = [
+                        'text-[11px]',
+                        'font-extrabold',
+                        'text-office-ink',
+                    ].join(' ');
+
+
+                    title.textContent =
+                        step.name
+                        ?? 'Workflow Step';
+
+
+                    const status =
+                        document.createElement(
+                            'span'
+                        );
+
+
+                    status.className = [
+                        'shrink-0',
+                        'text-[8px]',
+                        'font-extrabold',
+                        'uppercase',
+                        'tracking-[0.08em]',
+                        'text-office-muted',
+                    ].join(' ');
+
+
+                    status.textContent =
+                        formatWorkflowStatus(
+                            step.status
+                        );
+
+
+                    header.appendChild(
+                        title
+                    );
+
+                    header.appendChild(
+                        status
+                    );
+
+
+                    const description =
+                        document.createElement(
+                            'p'
+                        );
+
+
+                    description.className = [
+                        'mt-0.5',
+                        'text-[10px]',
+                        'font-medium',
+                        'leading-4',
+                        'text-office-muted',
+                    ].join(' ');
+
+
+                    description.textContent =
+                        step.description
+                        ?? '';
+
+
+                    content.appendChild(
+                        header
+                    );
+
+                    content.appendChild(
+                        description
+                    );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Agent
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        step.agent?.name
+                    ) {
+
+                        const agent =
+                            document.createElement(
+                                'p'
+                            );
+
+
+                        agent.className = [
+                            'mt-1',
+                            'text-[9px]',
+                            'font-extrabold',
+                            'text-office-primary',
+                        ].join(' ');
+
+
+                        agent.textContent =
+                            `${step.agent.name} · ${step.agent.role ?? ''}`;
+
+
+                        content.appendChild(
+                            agent
+                        );
+                    }
+
+
+                    item.appendChild(
+                        dot
+                    );
+
+                    item.appendChild(
+                        content
+                    );
+
+
+                    processTimeline.appendChild(
+                        item
+                    );
+                }
+            );
+
+
+            processTimeline.scrollTop =
+                0;
+
+
+            refreshIcons();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Split Assistant Message
+        |--------------------------------------------------------------------------
+        |
+        | LunaResponseService mengirim satu natural message.
+        | Untuk bubble UI, kalimat pertama yang pendek dipakai sebagai title
+        | dan sisanya sebagai body agar tetap terasa conversational.
+        |--------------------------------------------------------------------------
+        */
+
+        function splitAssistantMessageContent(
+            content,
+            fallbackTitle = 'Luna'
+        ) {
+
+            const normalized =
+                String(
+                    content
+                    ?? ''
+                )
+                    .trim()
+                    .replace(
+                        /\s+/g,
+                        ' '
+                    );
+
+
+            if (!normalized) {
+
+                return {
+                    title:
+                        fallbackTitle,
+
+                    message:
+                        '',
+                };
+            }
+
+
+            const firstSentenceMatch =
+                normalized.match(
+                    /^(.{1,80}?[.!?])(?:\s+|$)(.*)$/s
+                );
+
+
+            if (
+                firstSentenceMatch
+                &&
+                firstSentenceMatch[1]
+            ) {
+
+                const title =
+                    firstSentenceMatch[1]
+                        .trim();
+
+
+                const message =
+                    (
+                        firstSentenceMatch[2]
+                        ?? ''
+                    )
+                        .trim();
+
+
+                if (message) {
+
+                    return {
+                        title:
+                            title,
+
+                        message:
+                            message,
+                    };
+                }
+            }
+
+
+            return {
+                title:
+                    fallbackTitle,
+
+                message:
+                    normalized,
+            };
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Render Luna Assistant Message
+        |--------------------------------------------------------------------------
+        |
+        | Dipakai untuk response user-facing yang sudah dihasilkan backend:
+        |
+        | - respond_directly
+        | - unsupported
+        |
+        | Untuk specialist flow yang belum punya assistant_message,
+        | frontend tetap memakai workflow handoff yang sudah ada.
+        |--------------------------------------------------------------------------
+        */
+
+        async function renderAssistantMessage(
+            assistantMessage
+        ) {
+
+            const content =
+                String(
+                    assistantMessage?.content
+                    ?? ''
+                )
+                    .trim();
+
+
+            if (!content) {
+                return false;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Resolve Agent
+            |--------------------------------------------------------------------------
+            |
+            | assistant_message.agent dari API belum membawa daftar avatar.
+            | Karena saat ini response user-facing datang dari Luna,
+            | gabungkan payload agent dengan primaryAgent supaya avatar states
+            | tetap tersedia.
+            |--------------------------------------------------------------------------
+            */
+
+            const assistantAgent = {
+                ...(primaryAgent ?? {}),
+                ...(assistantMessage.agent ?? {}),
+
+                avatars:
+                    primaryAgent?.avatars
+                    ?? {},
+
+                avatar_url:
+                    primaryAgent?.avatar_url
+                    ?? null,
+            };
+
+
+            const bubble =
+                splitAssistantMessageContent(
+                    content,
+                    assistantAgent.name
+                    ?? 'Luna'
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Show Natural Response
+            |--------------------------------------------------------------------------
+            |
+            | Direct conversation berakhir di explaining, bukan completed.
+            | Jadi bahkan tanpa specialist workflow karakter tetap hidup:
+            |
+            | listening → thinking → explaining
+            |--------------------------------------------------------------------------
+            */
+
+            await setMainAgentState(
+                assistantAgent,
+                'explaining',
+                {
+                    title:
+                        bubble.title,
+
+                    message:
+                        bubble.message,
+                }
+            );
+
+
+            return true;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Apply Workflow Final Agent
+        |--------------------------------------------------------------------------
+        |
+        | Dipakai untuk workflow yang tidak membutuhkan specialist,
+        | atau sebagai fallback ketika payload handoff tidak tersedia.
+        |--------------------------------------------------------------------------
+        */
+
+        async function applyWorkflowFinalAgent(
+            workflow
+        ) {
+
+            if (!workflow) {
+                return;
+            }
+
+
+            const workflowAgent =
+                workflow.active_agent
+                ?? primaryAgent
+                ?? null;
+
+
+            const workflowState =
+                workflow.active_state
+                ?? (
+                    workflow.status === 'completed'
+                        ? 'completed'
+                        : workflow.status === 'failed'
+                            ? 'error'
+                            : workflow.status === 'waiting_approval'
+                                ? 'waiting_approval'
+                                : workflow.status === 'waiting'
+                                    ? 'waiting'
+                                    : workflow.status === 'running'
+                                        ? 'working'
+                                        : 'thinking'
+                );
+
+
+            if (!workflowAgent) {
+                return;
+            }
+
+
+            const options = {};
+
+
+            if (
+                workflowState === 'completed'
+            ) {
+
+                options.title =
+                    `Selesai, ${currentUser.displayName}. ✓`;
+
+
+                options.message =
+                    `Proses "${workflow.title ?? 'Academic Request'}" sudah selesai.`;
+            }
+
+
+            if (
+                workflowState === 'waiting_approval'
+            ) {
+
+                options.message =
+                    `Proses "${workflow.title ?? 'Academic Request'}" membutuhkan persetujuan sebelum dilanjutkan.`;
+            }
+
+
+            if (
+                workflowState === 'error'
+            ) {
+
+                options.message =
+                    `Proses "${workflow.title ?? 'Academic Request'}" mengalami kendala.`;
+            }
+
+
+            await setMainAgentState(
+                workflowAgent,
+                workflowState,
+                options
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Build Luna Final Response
+        |--------------------------------------------------------------------------
+        |
+        | Untuk sekarang response masih deterministic dari structured result.
+        | Belum menggunakan AI untuk menyusun bahasa final.
+        |
+        | Nanti saat AI orchestration aktif, fungsi ini bisa digantikan
+        | oleh response generator Luna tanpa mengubah flow frontend.
+        |--------------------------------------------------------------------------
+        */
+
+        function buildLunaFinalResponse(
+            workflow
+        ) {
+
+            const specialistResult =
+                workflow?.specialist_result
+                ?? null;
+
+
+            if (!specialistResult) {
+
+                return {
+                    title:
+                        `Selesai, ${currentUser.displayName}. ✓`,
+
+                    message:
+                        `Proses "${workflow?.title ?? 'Academic Request'}" sudah selesai.`,
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Get Active Classes
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                specialistResult.action
+                === 'get_active_classes'
+            ) {
+
+                const result =
+                    specialistResult.result
+                    ?? {};
+
+
+                const classes =
+                    Array.isArray(
+                        result.data
+                    )
+                        ? result.data
+                        : [];
+
+
+                const total =
+                    Number(
+                        result.meta?.count
+                        ?? classes.length
+                    );
+
+
+                if (total === 0) {
+
+                    return {
+                        title:
+                            `Berikut hasilnya, ${currentUser.displayName}.`,
+
+                        message:
+                            'Raka tidak menemukan kelas yang berstatus ongoing di FlexOps.',
+                    };
+                }
+
+
+                const classNames =
+                    classes
+                        .map(
+                            item =>
+                                item?.name
+                                ?? null
+                        )
+                        .filter(Boolean);
+
+
+                const visibleClassNames =
+                    classNames.slice(
+                        0,
+                        5
+                    );
+
+
+                let classSummary =
+                    visibleClassNames.join(
+                        ', '
+                    );
+
+
+                if (
+                    classNames.length > 5
+                ) {
+
+                    classSummary +=
+                        `, dan ${
+                            classNames.length - 5
+                        } lainnya`;
+                }
+
+
+                return {
+                    title:
+                        `Berikut hasilnya, ${currentUser.displayName}.`,
+
+                    message:
+                        classSummary
+                            ? `Raka menemukan ${total} kelas berstatus ongoing di FlexOps: ${classSummary}.`
+                            : `Raka menemukan ${total} kelas berstatus ongoing di FlexOps.`,
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Generic Specialist Result
+            |--------------------------------------------------------------------------
+            */
+
+            return {
+                title:
+                    `Berikut hasilnya, ${currentUser.displayName}.`,
+
+                message:
+                    `${specialistResult.agent?.name ?? 'Specialist'} sudah menyelesaikan pekerjaannya dan hasilnya sudah saya tinjau.`,
+            };
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Play Workflow Handoff
+        |--------------------------------------------------------------------------
+        |
+        | Flow visual:
+        |
+        | Luna
+        | → menjelaskan delegasi
+        | → specialist bekerja
+        | → specialist selesai & return result
+        | → kembali ke Luna
+        | → Luna menutup workflow
+        |
+        | Specialist tidak menyampaikan final answer ke user.
+        |--------------------------------------------------------------------------
+        */
+
+        async function playWorkflowHandoff(
+            workflow
+        ) {
+
+            if (!workflow) {
+                return;
+            }
+
+
+            const handoff =
+                workflow.handoff
+                ?? null;
+
+
+            const executionAgent =
+                workflow.execution_agent
+                ?? null;
+
+
+            const finalAgent =
+                workflow.active_agent
+                ?? primaryAgent
+                ?? null;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | No Specialist Handoff
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !handoff
+                ||
+                !executionAgent
+                ||
+                !finalAgent
+            ) {
+
+                await applyWorkflowFinalAgent(
+                    workflow
+                );
+
+                return;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Preload Specialist + Final Agent
+            |--------------------------------------------------------------------------
+            */
+
+            await Promise.all([
+                preloadAgentAvatars(
+                    executionAgent.avatars
+                    ?? {}
+                ),
+
+                preloadAgentAvatars(
+                    finalAgent.avatars
+                    ?? {}
+                ),
+            ]);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Luna Explains Delegation
+            |--------------------------------------------------------------------------
+            */
+
+            await setLunaState(
+                'explaining',
+                {
+                    title:
+                        `Saya akan menghubungi ${executionAgent.name}.`,
+
+                    message:
+                        handoff.message
+                            ? `${handoff.message} Setelah selesai, ${executionAgent.name} akan mengembalikan hasilnya kepada saya.`
+                            : `${executionAgent.name} akan membantu mengerjakan proses ini. Setelah selesai, hasilnya akan dikembalikan kepada saya.`,
+                }
+            );
+
+
+            await waitForPresentation(
+                handoffPresentationTiming.delegation
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Specialist Working
+            |--------------------------------------------------------------------------
+            */
+
+            await setMainAgentState(
+                executionAgent,
+                'working',
+                {
+                    title:
+                        `${executionAgent.name} sedang bekerja.`,
+
+                    message:
+                        `${executionAgent.name} sedang mengerjakan "${workflow.title ?? 'Academic Request'}".`,
+                }
+            );
+
+
+            await waitForPresentation(
+                handoffPresentationTiming.specialistWorking
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | 3. Specialist Completed
+            |--------------------------------------------------------------------------
+            |
+            | Specialist hanya mengembalikan hasil ke Luna.
+            | Bukan memberikan final explanation ke user.
+            |--------------------------------------------------------------------------
+            */
+
+            await setMainAgentState(
+                executionAgent,
+                'completed',
+                {
+                    title:
+                        `${executionAgent.name} selesai. ✓`,
+
+                    message:
+                        `Pekerjaan sudah selesai. Hasilnya dikembalikan ke ${finalAgent.name ?? 'Luna'} untuk ditinjau.`,
+                }
+            );
+
+
+            await waitForPresentation(
+                handoffPresentationTiming.specialistCompleted
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | 4. Return To Luna
+            |--------------------------------------------------------------------------
+            */
+
+            await setMainAgentState(
+                finalAgent,
+                'explaining',
+                {
+                    title:
+                        `${executionAgent.name} sudah kembali dengan hasilnya.`,
+
+                    message:
+                        `Hasil dari ${executionAgent.name} sudah saya terima. Saya sedang meninjaunya sebelum menyampaikannya kepada ${currentUser.displayName}.`,
+                }
+            );
+
+
+            await waitForPresentation(
+                handoffPresentationTiming.returnToLuna
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | 5. Luna Explains Final Result
+            |--------------------------------------------------------------------------
+            |
+            | Specialist hanya mengembalikan structured result.
+            | Luna yang menyampaikan hasil final ke user.
+            |--------------------------------------------------------------------------
+            */
+
+            const finalResponse =
+                buildLunaFinalResponse(
+                    workflow
+                );
+
+
+            await setMainAgentState(
+                finalAgent,
+                workflow.active_state
+                    ?? 'completed',
+                finalResponse
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Refresh Icons
+        |--------------------------------------------------------------------------
+        */
+
+        function refreshIcons() {
+
+            if (
+                typeof window.renderLucideIcons
+                === 'function'
+            ) {
+
+                window.renderLucideIcons();
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Office State
+        |--------------------------------------------------------------------------
+        */
+
+        async function loadOfficeState() {
+
+            try {
+
+                const response =
+                    await fetch(
+                        stateUrl,
+                        {
+                            method:
+                                'GET',
+
+                            headers: {
+                                'Accept':
+                                    'application/json',
+
+                                'X-Requested-With':
+                                    'XMLHttpRequest',
+                            },
+
+                            credentials:
+                                'same-origin',
+                        }
+                    );
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        `Failed to load office state: ${response.status}`
+                    );
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                if (!data.success) {
+
+                    throw new Error(
+                        'Academic AI Office state response is invalid.'
+                    );
+                }
+
+
+                await renderOfficeState(
+                    data
+                );
+
+
+                officeReady =
+                    true;
+
+
+                return data;
+
+            } catch (error) {
+
+                officeReady =
+                    false;
+
+
+                console.error(
+                    'Academic AI Office state error:',
+                    error
+                );
+
+
+                throw error;
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Chat Loading
+        |--------------------------------------------------------------------------
+        */
+
+        function setChatLoading(
+            isLoading
+        ) {
+
+            if (
+                !submitButton
+                ||
+                !messageInput
+            ) {
+                return;
+            }
+
+
+            submitButton.disabled =
+                isLoading;
+
+            messageInput.disabled =
+                isLoading;
+
+
+            submitButton.classList.toggle(
+                'opacity-60',
+                isLoading
+            );
+
+
+            submitButton.classList.toggle(
+                'cursor-not-allowed',
+                isLoading
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Submit Message
+        |--------------------------------------------------------------------------
+        */
+
+        async function submitMessage(
+            message
+        ) {
+
+            const payload = {
+                message: message,
+            };
+
+
+            const conversationId =
+                getConversationId();
+
+
+            if (conversationId) {
+
+                payload.conversation_id =
+                    conversationId;
+            }
+
+
+            const response =
+                await fetch(
+                    messageUrl,
+                    {
+                        method:
+                            'POST',
+
+                        headers: {
+                            'Accept':
+                                'application/json',
+
+                            'Content-Type':
+                                'application/json',
+
+                            'X-Requested-With':
+                                'XMLHttpRequest',
+
+                            'X-CSRF-TOKEN':
+                                csrfToken,
+                        },
+
+                        credentials:
+                            'same-origin',
+
+                        body:
+                            JSON.stringify(
+                                payload
+                            ),
+                    }
+                );
+
+
+            if (
+                response.status
+                === 422
+            ) {
+
+                const errorData =
+                    await response.json();
+
+
+                const firstError =
+                    Object.values(
+                        errorData.errors
+                        ?? {}
+                    )[0]?.[0];
+
+
+                throw new Error(
+                    firstError
+                    ?? 'Pesan tidak valid.'
+                );
+            }
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `Gagal mengirim pesan. HTTP ${response.status}`
+                );
+            }
+
+
+            return response.json();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Chat Form
+        |--------------------------------------------------------------------------
+        */
+
+        chatForm?.addEventListener(
+            'submit',
+
+            async function (event) {
+
+                event.preventDefault();
+
+
+                const message =
+                    messageInput
+                        .value
+                        .trim();
+
+
+                if (!message) {
+
+                    messageInput.focus();
+
+                    return;
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Ensure Office Ready
+                |--------------------------------------------------------------------------
+                */
+
+                if (!officeReady) {
+
+                    try {
+
+                        setChatLoading(
+                            true
+                        );
+
+
+                        await loadOfficeState();
+
+                    } catch (error) {
+
+                        alert(
+                            'Academic AI Office belum siap. Silakan coba kembali.'
+                        );
+
+
+                        setChatLoading(
+                            false
+                        );
+
+
+                        return;
+                    }
+                }
+
+
+                setChatLoading(
+                    true
+                );
+
+
+                try {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Listening
+                    |--------------------------------------------------------------------------
+                    |
+                    | Setiap message baru — termasuk chat kedua, ketiga, dst —
+                    | selalu memulai conversational state dari Luna.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    await setLunaState(
+                        'listening'
+                    );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Start Request Immediately
+                    |--------------------------------------------------------------------------
+                    |
+                    | Backend mulai diproses tanpa menunggu presentation timing.
+                    | Jadi perubahan avatar tidak menambah latency AI secara berarti.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const messageRequest =
+                        submitMessage(
+                            message
+                        );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Keep Listening Visible Briefly
+                    |--------------------------------------------------------------------------
+                    */
+
+                    await waitForPresentation(
+                        conversationPresentationTiming.listeningMinimum
+                    );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Thinking
+                    |--------------------------------------------------------------------------
+                    |
+                    | Luna tetap thinking selama menunggu Planner / Gemini /
+                    | workflow backend selesai.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    await setLunaState(
+                        'thinking'
+                    );
+
+
+                    const thinkingMinimum =
+                        waitForPresentation(
+                            conversationPresentationTiming.thinkingMinimum
+                        );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Await Backend + Minimum Thinking Presentation
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const [
+                        data,
+                    ] =
+                        await Promise.all([
+                            messageRequest,
+                            thinkingMinimum,
+                        ]);
+
+
+                    if (!data.success) {
+
+                        throw new Error(
+                            'Response message tidak valid.'
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Conversation
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        data.conversation?.id
+                    ) {
+
+                        setConversationId(
+                            data.conversation.id
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Workflow
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (data.workflow) {
+
+                        renderWorkflow(
+                            data.workflow
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | User-Facing Luna Response
+                    |--------------------------------------------------------------------------
+                    |
+                    | Prioritas:
+                    |
+                    | 1. Kalau backend sudah mengirim assistant_message,
+                    |    tampilkan jawaban natural Luna.
+                    |
+                    | 2. Kalau belum ada assistant_message (contoh:
+                    |    specialist result yang masih deterministic),
+                    |    lanjutkan visual handoff workflow seperti sebelumnya.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const hasAssistantMessage =
+                        await renderAssistantMessage(
+                            data.assistant_message
+                        );
+
+
+                    if (
+                        !hasAssistantMessage
+                        &&
+                        data.workflow
+                    ) {
+
+                        await playWorkflowHandoff(
+                            data.workflow
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Clear Input
+                    |--------------------------------------------------------------------------
+                    */
+
+                    messageInput.value =
+                        '';
+
+
+                    messageInput.focus();
+
+
+                    console.log(
+                        'Academic AI Office message saved:',
+                        data
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        'Academic AI Office message error:',
+                        error
+                    );
+
+
+                    await setLunaState(
+                        'questioning',
+                        {
+                            message:
+                                'Permintaan belum berhasil diproses. Silakan periksa kembali atau coba lagi.',
+                        }
+                    );
+
+
+                    alert(
+                        error.message
+                        ?? 'Pesan gagal dikirim.'
+                    );
+
+                } finally {
+
+                    setChatLoading(
+                        false
+                    );
+                }
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Init
+        |--------------------------------------------------------------------------
+        */
+
+        async function initAcademicAiOffice() {
+
+            setChatLoading(
+                true
+            );
+
+
+            try {
+
+                await loadOfficeState();
+
+            } catch (error) {
+
+                console.error(
+                    'Academic AI Office initialization failed:',
+                    error
+                );
+
+            } finally {
+
+                setChatLoading(
+                    false
+                );
+            }
+        }
+
+
+        initAcademicAiOffice();
+
+    });
+</script>
+
+@endpush

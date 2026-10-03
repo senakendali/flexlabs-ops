@@ -25,6 +25,12 @@ class AiAgent extends Model
         'can_delegate' => 'boolean',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     public function conversations(): HasMany
     {
         return $this->hasMany(
@@ -54,6 +60,52 @@ class AiAgent extends Model
         return $this->hasMany(
             AiWorkflowStep::class,
             'agent_id'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Avatar State Mapping
+    |--------------------------------------------------------------------------
+    */
+
+    public function avatarForState(?string $state = null): string
+    {
+        $state ??= $this->runtime_state;
+
+        $stateMap = [
+            'idle' => 'greeting',
+            'greeting' => 'greeting',
+
+            'listening' => 'listening',
+
+            'thinking' => 'thinking',
+
+            'working' => 'working',
+
+            'waiting' => 'waiting',
+            'waiting_approval' => 'waiting',
+
+            'completed' => 'completed',
+
+            'questioning' => 'questioning',
+            'error' => 'questioning',
+
+            'explaining' => 'explain',
+            'explain' => 'explain',
+        ];
+
+        $visualState = $stateMap[$state] ?? 'greeting';
+
+        return asset(
+            'images/agent/'
+            . $this->code
+            . '/'
+            . $this->code
+            . '_'
+            . $visualState
+            . '.png'
         );
     }
 }
