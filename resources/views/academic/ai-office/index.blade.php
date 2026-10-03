@@ -1424,6 +1424,218 @@
 
         /*
         |--------------------------------------------------------------------------
+        | Conversational State Copy
+        |--------------------------------------------------------------------------
+        |
+        | Avatar state tetap:
+        |
+        | listening → thinking → explaining
+        |
+        | Tetapi copy sementara menyesuaikan isi pesan user supaya Luna tidak
+        | terdengar seperti sedang "menganalisis pekerjaan" ketika user hanya
+        | menyapa, berterima kasih, atau memberi acknowledgement.
+        |
+        | Ini hanya presentation heuristic di frontend.
+        | Intent dan routing sebenarnya tetap ditentukan Luna AI Planner.
+        |--------------------------------------------------------------------------
+        */
+
+        function getConversationStateCopy(
+            message
+        ) {
+
+            const normalized =
+                String(
+                    message
+                    ?? ''
+                )
+                    .trim()
+                    .toLowerCase();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Thanks
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                /\b(terima\s*kasih|makasih|makasi|thanks|thank\s*you|thx)\b/i
+                    .test(normalized)
+            ) {
+
+                return {
+                    listening: {
+                        title:
+                            'Saya terima. 😊',
+
+                        message:
+                            'Senang bisa membantu.',
+                    },
+
+                    thinking: {
+                        title:
+                            'Siap.',
+
+                        message:
+                            'Saya sedang menyiapkan respons.',
+                    },
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Greeting
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                /^(halo|hai|hi|hello|pagi|selamat\s+pagi|siang|selamat\s+siang|sore|selamat\s+sore|malam|selamat\s+malam)\b/i
+                    .test(normalized)
+            ) {
+
+                return {
+                    listening: {
+                        title:
+                            `Halo, ${currentUser.displayName}. 👋`,
+
+                        message:
+                            'Saya di sini.',
+                    },
+
+                    thinking: {
+                        title:
+                            'Halo.',
+
+                        message:
+                            'Saya sedang menyiapkan jawaban.',
+                    },
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Simple Acknowledgement
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                /^(oke|ok|okay|sip|siap|baik|yoi|mantap|noted|noted bro|gas|lanjut)\b/i
+                    .test(normalized)
+            ) {
+
+                return {
+                    listening: {
+                        title:
+                            'Siap.',
+
+                        message:
+                            'Saya dengarkan.',
+                    },
+
+                    thinking: {
+                        title:
+                            'Baik.',
+
+                        message:
+                            'Saya sedang menyiapkan respons berikutnya.',
+                    },
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Contextual Follow-up
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                /\b(yang\s+tadi|yang\s+itu|yang\s+ini|kalau|kalo|terus|lanjutannya|gimana|bagaimana|dia|itu\s+gimana|yang\s+lain|yang\s+lainnya)\b/i
+                    .test(normalized)
+            ) {
+
+                return {
+                    listening: {
+                        title:
+                            'Saya ikuti konteksnya.',
+
+                        message:
+                            'Saya menangkap bahwa ini masih terkait pembicaraan sebelumnya.',
+                    },
+
+                    thinking: {
+                        title:
+                            'Saya cek konteksnya.',
+
+                        message:
+                            'Saya sedang menghubungkan pertanyaan ini dengan percakapan sebelumnya.',
+                    },
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Likely Operational Request
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                /^(cek|tolong\s+cek|buat|buatkan|bikin|ubah|update|cari|lihat|tampilkan|ambil|jadwalkan|susun|siapkan|buatkanlah)\b/i
+                    .test(normalized)
+            ) {
+
+                return {
+                    listening: {
+                        title:
+                            `Saya dengarkan, ${currentUser.displayName}.`,
+
+                        message:
+                            'Saya sudah menerima permintaan yang diberikan.',
+                    },
+
+                    thinking: {
+                        title:
+                            'Sebentar...',
+
+                        message:
+                            'Saya sedang memahami permintaan dan menentukan langkah berikutnya.',
+                    },
+                };
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Generic Conversation
+            |--------------------------------------------------------------------------
+            */
+
+            return {
+                listening: {
+                    title:
+                        'Saya dengarkan.',
+
+                    message:
+                        'Saya sedang membaca pesan yang diberikan.',
+                },
+
+                thinking: {
+                    title:
+                        'Saya pahami dulu.',
+
+                    message:
+                        'Saya sedang menyiapkan respons yang paling sesuai.',
+                },
+            };
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
         | Workflow Status Labels
         |--------------------------------------------------------------------------
         */
@@ -3299,6 +3511,18 @@
 
                     /*
                     |--------------------------------------------------------------------------
+                    | Dynamic Conversation Copy
+                    |--------------------------------------------------------------------------
+                    */
+
+                    const conversationCopy =
+                        getConversationStateCopy(
+                            message
+                        );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
                     | Listening
                     |--------------------------------------------------------------------------
                     |
@@ -3308,7 +3532,8 @@
                     */
 
                     await setLunaState(
-                        'listening'
+                        'listening',
+                        conversationCopy.listening
                     );
 
 
@@ -3344,13 +3569,15 @@
                     | Thinking
                     |--------------------------------------------------------------------------
                     |
-                    | Luna tetap thinking selama menunggu Planner / Gemini /
-                    | workflow backend selesai.
+                    | State visual tetap thinking, tetapi copy menyesuaikan
+                    | percakapan. "Terima kasih" tidak lagi dipresentasikan
+                    | seperti sebuah operational task.
                     |--------------------------------------------------------------------------
                     */
 
                     await setLunaState(
-                        'thinking'
+                        'thinking',
+                        conversationCopy.thinking
                     );
 
 
