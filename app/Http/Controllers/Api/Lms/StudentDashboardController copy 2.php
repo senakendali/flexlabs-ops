@@ -2601,62 +2601,18 @@ class StudentDashboardController extends Controller
             ?? $this->getColumnValue($quiz, ['batch_name'])
             ?? 'Learning Quiz';
 
-        /*
-        |--------------------------------------------------------------------------
-        | Quiz IDs
-        |--------------------------------------------------------------------------
-        |
-        | $quiz adalah BatchLearningQuiz.
-        |
-        | learningQuizId:
-        | ID master learning_quizzes.
-        | Digunakan oleh endpoint student quiz:
-        | /api/lms/student/quizzes/{quiz}/start
-        |
-        | batchLearningQuizId:
-        | ID assignment quiz ke batch.
-        | Tetap dikirim terpisah untuk kebutuhan attempt / batch context.
-        |
-        */
-
-        $learningQuizId = (int) (
-            $quiz->learning_quiz_id
-            ?? $relatedQuiz?->id
-            ?? 0
-        );
-
-        $batchLearningQuizId = (int) $quiz->id;
+        $quizId = $quiz->id;
 
         return [
-            /*
-            |--------------------------------------------------------------------------
-            | Identifiers
-            |--------------------------------------------------------------------------
-            */
-
-            'id' => $learningQuizId,
-            'quiz_id' => $learningQuizId,
-            'batch_learning_quiz_id' => $batchLearningQuizId,
-
+            'id' => $quizId,
+            'quiz_id' => $quiz->learning_quiz_id ?? $relatedQuiz?->id ?? null,
+            'batch_learning_quiz_id' => $quiz->id,
             'type' => 'quiz',
 
-            /*
-            |--------------------------------------------------------------------------
-            | Content
-            |--------------------------------------------------------------------------
-            */
-
             'title' => $title,
-
             'course' => $courseName,
             'course_name' => $courseName,
             'program_name' => $courseName,
-
-            /*
-            |--------------------------------------------------------------------------
-            | Deadline
-            |--------------------------------------------------------------------------
-            */
 
             'deadline' => $this->formatDeadlineLabel($deadline),
             'deadline_label' => $this->formatDeadlineLabel($deadline),
@@ -2665,36 +2621,17 @@ class StudentDashboardController extends Controller
             'remaining' => $this->formatRemainingTime($deadline),
             'remaining_label' => $this->formatRemainingTime($deadline),
 
-            /*
-            |--------------------------------------------------------------------------
-            | Priority
-            |--------------------------------------------------------------------------
-            */
-
             'priority' => $priority,
             'priority_label' => $this->formatPriorityLabel($priority),
             'priorityLabel' => $this->formatPriorityLabel($priority),
 
-            /*
-            |--------------------------------------------------------------------------
-            | URLs
-            |--------------------------------------------------------------------------
-            */
+            'detail_url' => '/quizzes/' . $quizId,
+            'detailUrl' => '/quizzes/' . $quizId,
 
-            'detail_url' => '/quizzes/' . $learningQuizId,
-            'detailUrl' => '/quizzes/' . $learningQuizId,
+            'submit_url' => '/quizzes/' . $quizId . '/start',
+            'submitUrl' => '/quizzes/' . $quizId . '/start',
 
-            'submit_url' => '/quizzes/' . $learningQuizId . '/start',
-            'submitUrl' => '/quizzes/' . $learningQuizId . '/start',
-
-            /*
-            |--------------------------------------------------------------------------
-            | Internal sorting
-            |--------------------------------------------------------------------------
-            */
-
-            'sort_deadline' => $deadline?->timestamp
-                ?? now()->addYears(10)->timestamp,
+            'sort_deadline' => $deadline?->timestamp ?? now()->addYears(10)->timestamp,
         ];
     }
 
