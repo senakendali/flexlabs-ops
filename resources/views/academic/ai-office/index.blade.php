@@ -224,31 +224,25 @@
             </div>
 
 
-            <h1
+            {{-- Compatibility node only. Bubble tidak lagi memakai heading. --}}
+            <p
                 id="luna-greeting-title"
-                class="
-                    mt-2
-                    text-xl
-                    font-black
-                    text-office-ink
-                "
-            >
-                Halo, {{ $loggedInUserDisplayName }}! 👋
-            </h1>
+                class="hidden"
+                aria-hidden="true"
+            ></p>
 
 
             <p
                 id="luna-greeting-message"
                 class="
-                    mt-1
-                    text-sm
-                    font-medium
+                    mt-2
+                    text-[15px]
+                    font-semibold
                     leading-6
-                    text-office-muted
+                    text-office-ink
                 "
             >
-                Selamat datang di Academic AI Office.
-                Ada yang bisa saya bantu hari ini?
+                Halo, {{ $loggedInUserDisplayName }}! 👋 Selamat datang di Academic AI Office. Ada yang bisa saya bantu hari ini?
             </p>
 
 
@@ -1467,7 +1461,7 @@
                 return {
                     listening: {
                         title:
-                            'Saya terima. 😊',
+                            'Sama-sama. 😊',
 
                         message:
                             'Senang bisa membantu.',
@@ -1475,10 +1469,10 @@
 
                     thinking: {
                         title:
-                            'Siap.',
+                            'Baik.',
 
                         message:
-                            'Saya sedang menyiapkan respons.',
+                            'Saya siapkan responsnya.',
                     },
                 };
             }
@@ -1506,10 +1500,10 @@
 
                     thinking: {
                         title:
-                            'Halo.',
+                            'Senang bertemu lagi.',
 
                         message:
-                            'Saya sedang menyiapkan jawaban.',
+                            'Saya siap membantu.',
                     },
                 };
             }
@@ -1540,7 +1534,7 @@
                             'Baik.',
 
                         message:
-                            'Saya sedang menyiapkan respons berikutnya.',
+                            'Saya siap melanjutkan.',
                     },
                 };
             }
@@ -1568,10 +1562,10 @@
 
                     thinking: {
                         title:
-                            'Saya cek konteksnya.',
+                            'Saya pahami konteksnya.',
 
                         message:
-                            'Saya sedang menghubungkan pertanyaan ini dengan percakapan sebelumnya.',
+                            'Saya sedang menghubungkan pesan ini dengan percakapan sebelumnya.',
                     },
                 };
             }
@@ -1625,7 +1619,7 @@
 
                 thinking: {
                     title:
-                        'Saya pahami dulu.',
+                        'Baik.',
 
                     message:
                         'Saya sedang menyiapkan respons yang paling sesuai.',
@@ -1839,6 +1833,10 @@
             |--------------------------------------------------------------------------
             | Bubble Content
             |--------------------------------------------------------------------------
+            |
+            | Semua state ditampilkan sebagai SATU conversational text block.
+            | Tidak ada lagi title besar + description kecil.
+            |--------------------------------------------------------------------------
             */
 
             const defaultContent =
@@ -1849,38 +1847,51 @@
             const title =
                 options.title
                 ?? defaultContent?.title
-                ?? null;
+                ?? '';
 
 
             const message =
                 options.message
                 ?? defaultContent?.message
-                ?? null;
+                ?? '';
 
 
-            if (
-                !options.preserveContent
-                &&
-                title
-                &&
-                lunaGreetingTitle
-            ) {
+            if (lunaGreetingTitle) {
 
                 lunaGreetingTitle.textContent =
-                    title;
+                    '';
+
+                lunaGreetingTitle.classList.add(
+                    'hidden'
+                );
             }
 
 
             if (
                 !options.preserveContent
                 &&
-                message
-                &&
                 lunaGreetingMessage
             ) {
 
+                const bubbleParts =
+                    [
+                        title,
+                        message,
+                    ]
+                        .map(
+                            item =>
+                                String(
+                                    item
+                                    ?? ''
+                                ).trim()
+                        )
+                        .filter(Boolean);
+
+
                 lunaGreetingMessage.textContent =
-                    message;
+                    bubbleParts.join(
+                        ' '
+                    );
             }
 
 
@@ -2592,91 +2603,14 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Split Assistant Message
+        | Assistant Message Presentation
         |--------------------------------------------------------------------------
         |
-        | LunaResponseService mengirim satu natural message.
-        | Untuk bubble UI, kalimat pertama yang pendek dipakai sebagai title
-        | dan sisanya sebagai body agar tetap terasa conversational.
+        | Response AI ditampilkan sebagai satu conversational text block.
+        | Tidak lagi memecah kalimat pertama menjadi heading besar karena
+        | hasilnya terasa kaku untuk percakapan natural.
         |--------------------------------------------------------------------------
         */
-
-        function splitAssistantMessageContent(
-            content,
-            fallbackTitle = 'Luna'
-        ) {
-
-            const normalized =
-                String(
-                    content
-                    ?? ''
-                )
-                    .trim()
-                    .replace(
-                        /\s+/g,
-                        ' '
-                    );
-
-
-            if (!normalized) {
-
-                return {
-                    title:
-                        fallbackTitle,
-
-                    message:
-                        '',
-                };
-            }
-
-
-            const firstSentenceMatch =
-                normalized.match(
-                    /^(.{1,80}?[.!?])(?:\s+|$)(.*)$/s
-                );
-
-
-            if (
-                firstSentenceMatch
-                &&
-                firstSentenceMatch[1]
-            ) {
-
-                const title =
-                    firstSentenceMatch[1]
-                        .trim();
-
-
-                const message =
-                    (
-                        firstSentenceMatch[2]
-                        ?? ''
-                    )
-                        .trim();
-
-
-                if (message) {
-
-                    return {
-                        title:
-                            title,
-
-                        message:
-                            message,
-                    };
-                }
-            }
-
-
-            return {
-                title:
-                    fallbackTitle,
-
-                message:
-                    normalized,
-            };
-        }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -2736,37 +2670,46 @@
             };
 
 
-            const bubble =
-                splitAssistantMessageContent(
-                    content,
-                    assistantAgent.name
-                    ?? 'Luna'
-                );
-
-
             /*
             |--------------------------------------------------------------------------
             | Show Natural Response
             |--------------------------------------------------------------------------
             |
-            | Direct conversation berakhir di explaining, bukan completed.
-            | Jadi bahkan tanpa specialist workflow karakter tetap hidup:
+            | Final conversational answer memakai satu body text block.
+            | Tidak ada sentence yang dipaksa menjadi heading.
+            |
+            | Direct conversation berakhir di explaining, bukan completed:
             |
             | listening → thinking → explaining
             |--------------------------------------------------------------------------
             */
 
+            if (lunaGreetingTitle) {
+
+                lunaGreetingTitle.textContent =
+                    '';
+
+                lunaGreetingTitle.classList.add(
+                    'hidden'
+                );
+            }
+
+
             await setMainAgentState(
                 assistantAgent,
                 'explaining',
                 {
-                    title:
-                        bubble.title,
-
-                    message:
-                        bubble.message,
+                    preserveContent:
+                        true,
                 }
             );
+
+
+            if (lunaGreetingMessage) {
+
+                lunaGreetingMessage.textContent =
+                    content;
+            }
 
 
             return true;
