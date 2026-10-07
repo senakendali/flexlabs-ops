@@ -236,14 +236,38 @@
                 id="luna-greeting-message"
                 class="
                     mt-2
-                    text-[15px]
-                    font-semibold
+                    text-sm
+                    font-medium
                     leading-6
-                    text-office-ink
+                    text-office-muted
                 "
             >
                 Halo, {{ $loggedInUserDisplayName }}! 👋 Selamat datang di Academic AI Office. Ada yang bisa saya bantu hari ini?
             </p>
+
+
+            <div
+                id="luna-loading-bar"
+                class="
+                    mt-3
+                    hidden
+                    h-1.5
+                    overflow-hidden
+                    rounded-full
+                    bg-office-primarySoft
+                "
+                aria-hidden="true"
+            >
+                <div
+                    class="
+                        luna-loading-bar-indicator
+                        h-full
+                        w-1/3
+                        rounded-full
+                        bg-office-primary
+                    "
+                ></div>
+            </div>
 
 
             <div
@@ -862,6 +886,28 @@
         }
 
 
+        @keyframes luna-loading-slide {
+
+            0% {
+                transform: translateX(-120%);
+            }
+
+            100% {
+                transform: translateX(320%);
+            }
+
+        }
+
+
+        .luna-loading-bar-indicator {
+            animation:
+                luna-loading-slide
+                1.15s
+                ease-in-out
+                infinite;
+        }
+
+
         @media (max-width: 1279px) {
 
             #luna-character {
@@ -959,6 +1005,9 @@
 
         const lunaGreetingMessage =
             document.getElementById('luna-greeting-message');
+
+        const lunaLoadingBar =
+            document.getElementById('luna-loading-bar');
 
 
         const agentList =
@@ -1387,6 +1436,36 @@
 
         /*
         |--------------------------------------------------------------------------
+        | Bubble Loading Bar
+        |--------------------------------------------------------------------------
+        */
+
+        function setBubbleLoading(
+            isLoading
+        ) {
+
+            if (!lunaLoadingBar) {
+                return;
+            }
+
+
+            lunaLoadingBar.classList.toggle(
+                'hidden',
+                !isLoading
+            );
+
+
+            lunaLoadingBar.setAttribute(
+                'aria-hidden',
+                isLoading
+                    ? 'false'
+                    : 'true'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
         | State Labels
         |--------------------------------------------------------------------------
         */
@@ -1460,19 +1539,13 @@
 
                 return {
                     listening: {
-                        title:
-                            'Sama-sama. 😊',
-
-                        message:
-                            'Senang bisa membantu.',
+                        title: '',
+                        message: 'Sama-sama. 😊',
                     },
 
                     thinking: {
-                        title:
-                            'Baik.',
-
-                        message:
-                            'Saya siapkan responsnya.',
+                        title: '',
+                        message: 'Siap.',
                     },
                 };
             }
@@ -1491,19 +1564,13 @@
 
                 return {
                     listening: {
-                        title:
-                            `Halo, ${currentUser.displayName}. 👋`,
-
-                        message:
-                            'Saya di sini.',
+                        title: '',
+                        message: `Halo, ${currentUser.displayName}. 👋`,
                     },
 
                     thinking: {
-                        title:
-                            'Senang bertemu lagi.',
-
-                        message:
-                            'Saya siap membantu.',
+                        title: '',
+                        message: 'Saya di sini.',
                     },
                 };
             }
@@ -1516,25 +1583,19 @@
             */
 
             if (
-                /^(oke|ok|okay|sip|siap|baik|yoi|mantap|noted|noted bro|gas|lanjut)\b/i
+                /^(oke|ok|okay|sip|siap|baik|yoi|mantap|noted|gas|lanjut)\b/i
                     .test(normalized)
             ) {
 
                 return {
                     listening: {
-                        title:
-                            'Siap.',
-
-                        message:
-                            'Saya dengarkan.',
+                        title: '',
+                        message: 'Siap.',
                     },
 
                     thinking: {
-                        title:
-                            'Baik.',
-
-                        message:
-                            'Saya siap melanjutkan.',
+                        title: '',
+                        message: 'Oke.',
                     },
                 };
             }
@@ -1553,19 +1614,13 @@
 
                 return {
                     listening: {
-                        title:
-                            'Saya ikuti konteksnya.',
-
-                        message:
-                            'Saya menangkap bahwa ini masih terkait pembicaraan sebelumnya.',
+                        title: '',
+                        message: 'Oke, saya ikuti.',
                     },
 
                     thinking: {
-                        title:
-                            'Saya pahami konteksnya.',
-
-                        message:
-                            'Saya sedang menghubungkan pesan ini dengan percakapan sebelumnya.',
+                        title: '',
+                        message: 'Saya cek dulu yang tadi.',
                     },
                 };
             }
@@ -1584,19 +1639,13 @@
 
                 return {
                     listening: {
-                        title:
-                            `Saya dengarkan, ${currentUser.displayName}.`,
-
-                        message:
-                            'Saya sudah menerima permintaan yang diberikan.',
+                        title: '',
+                        message: 'Baik, saya cek dulu.',
                     },
 
                     thinking: {
-                        title:
-                            'Sebentar...',
-
-                        message:
-                            'Saya sedang memahami permintaan dan menentukan langkah berikutnya.',
+                        title: '',
+                        message: 'Sebentar ya.',
                     },
                 };
             }
@@ -1610,19 +1659,13 @@
 
             return {
                 listening: {
-                    title:
-                        'Saya dengarkan.',
-
-                    message:
-                        'Saya sedang membaca pesan yang diberikan.',
+                    title: '',
+                    message: 'Oke, saya dengarkan.',
                 },
 
                 thinking: {
-                    title:
-                        'Baik.',
-
-                    message:
-                        'Saya sedang menyiapkan respons yang paling sesuai.',
+                    title: '',
+                    message: 'Sebentar ya.',
                 },
             };
         }
@@ -1679,38 +1722,34 @@
 
 
             listening: {
-                title:
-                    `Saya dengarkan, ${currentUser.displayName}.`,
+                title: '',
 
                 message:
-                    'Saya sedang menerima instruksi yang diberikan.',
+                    'Oke, saya dengarkan.',
             },
 
 
             thinking: {
-                title:
-                    'Sebentar...',
+                title: '',
 
                 message:
-                    'Saya sedang memahami permintaan dan menentukan langkah berikutnya.',
+                    'Sebentar ya.',
             },
 
 
             working: {
-                title:
-                    'Sedang dikerjakan.',
+                title: '',
 
                 message:
-                    'Tim Academic AI sedang menjalankan pekerjaan yang dibutuhkan.',
+                    'Sedang saya kerjakan.',
             },
 
 
             waiting: {
-                title:
-                    'Masih dalam proses.',
+                title: '',
 
                 message:
-                    'Saya sedang menunggu proses berikutnya selesai.',
+                    'Masih saya tunggu sebentar.',
             },
 
 
@@ -1724,38 +1763,34 @@
 
 
             completed: {
-                title:
-                    `Selesai, ${currentUser.displayName}. ✓`,
+                title: '',
 
                 message:
-                    'Pekerjaan sudah selesai diproses.',
+                    'Sudah selesai. ✓',
             },
 
 
             questioning: {
-                title:
-                    `Ada yang perlu saya pastikan, ${currentUser.displayName}.`,
+                title: '',
 
                 message:
-                    'Saya membutuhkan sedikit klarifikasi sebelum melanjutkan.',
+                    'Ada sedikit yang perlu saya pastikan dulu.',
             },
 
 
             explaining: {
-                title:
-                    `Berikut hasilnya, ${currentUser.displayName}.`,
+                title: '',
 
                 message:
-                    'Saya sedang menyiapkan hasil pekerjaan untuk disampaikan.',
+                    'Ini hasilnya.',
             },
 
 
             error: {
-                title:
-                    'Ada kendala.',
+                title: '',
 
                 message:
-                    'Permintaan belum berhasil diproses. Silakan coba kembali.',
+                    'Ada kendala. Coba lagi sebentar ya.',
             },
 
         };
@@ -1834,10 +1869,24 @@
             | Bubble Content
             |--------------------------------------------------------------------------
             |
-            | Semua state ditampilkan sebagai SATU conversational text block.
-            | Tidak ada lagi title besar + description kecil.
+            | Untuk state thinking:
+            |
+            | - teks acknowledgement sebelumnya dipertahankan
+            | - progress bar ditampilkan
+            | - tidak ada lagi copy seperti "Saya di sini" / "Sebentar ya"
+            |
+            | State lain tetap memakai satu conversational text block.
             |--------------------------------------------------------------------------
             */
+
+            const isThinking =
+                state === 'thinking';
+
+
+            setBubbleLoading(
+                isThinking
+            );
+
 
             const defaultContent =
                 agentStateContent[state]
@@ -1868,6 +1917,8 @@
 
 
             if (
+                !isThinking
+                &&
                 !options.preserveContent
                 &&
                 lunaGreetingMessage
@@ -2693,6 +2744,11 @@
                     'hidden'
                 );
             }
+
+
+            setBubbleLoading(
+                false
+            );
 
 
             await setMainAgentState(
