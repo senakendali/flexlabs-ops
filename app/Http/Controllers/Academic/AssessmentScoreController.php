@@ -784,6 +784,21 @@ class AssessmentScoreController extends Controller
 
         $lessonIds = $this->resolveVodLessonIds($batch);
 
+        $batchName = strtoupper(trim((string) (
+            $batch->name
+            ?? $batch->batch_name
+            ?? $batch->code
+            ?? ''
+        )));
+        $isIntroOrCoreBatch = preg_match('/(^|[^A-Z0-9])INTRO([^A-Z0-9]|$)/', $batchName)
+            || preg_match('/(^|[^A-Z0-9])CORE([^A-Z0-9]|$)/', $batchName);
+
+        // Untuk batch Intro/Core, lesson yang tidak berhasil di-resolve tidak
+        // boleh memicu fallback AVG seluruh program karena bisa mencampur stage.
+        if ($isIntroOrCoreBatch && empty($lessonIds)) {
+            return null;
+        }
+
         /*
         |--------------------------------------------------------------------------
         | Match Student Progress Monitoring Calculation
@@ -940,30 +955,113 @@ class AssessmentScoreController extends Controller
 
     private function applyVodLessonProgramScope($query, Batch $batch): void
     {
-        if (empty($batch->program_id)) {
-            if (Schema::hasColumn('sub_topics', 'batch_id')) {
-                $query->where('sub_topics.batch_id', $batch->id);
+        $batchName = strtoupper(trim((string) (
+            $batch->name
+            ?? $batch->batch_name
+            ?? $batch->code
+            ?? ''
+        )));
+
+        // Nama batch Intro/Core adalah sumber penentu stage yang sudah dipakai
+        // pada StudentProgressMonitoringController.
+        $stageKeyword = null;
+
+        if (preg_match('/(^|[^A-Z0-9])INTRO([^A-Z0-9]|$)/', $batchName)) {
+            $stageKeyword = 'intro';
+        } elseif (preg_match('/(^|[^A-Z0-9])CORE([^A-Z0-9]|$)/', $batchName)) {
+            $stageKeyword = 'core';
+        }
+
+        $hasStagePath = Schema::hasTable('topics')
+            && Schema::hasTable('modules')
+            && Schema::hasTable('program_stages')
+            && Schema::hasColumn('sub_topics', 'topic_id')
+            && Schema::hasColumn('topics', 'module_id')
+            && Schema::hasColumn('modules', 'program_stage_id')
+            && Schema::hasColumn('program_stages', 'program_id');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Strict stage scope for Intro/Core batches
+        |--------------------------------------------------------------------------
+        | Jangan fallback ke seluruh program jika batch jelas-jelas Intro/Core,
+        | tetapi struktur stage tidak bisa di-resolve. Lebih aman tidak mengambil
+        | lesson daripada mencampur materi antar-stage.
+        */
+        if ($stageKeyword !== null) {
+            if (! $hasStagePath || empty($batch->program_id)) {
+                $query->whereRaw('1 = 0');
+
+                return;
             }
+
+            if (
+                ! Schema::hasColumn('program_stages', 'slug')
+                && ! Schema::hasColumn('program_stages', 'name')
+            ) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $stageQuery = DB::table('program_stages')
+                ->where('program_stages.program_id', $batch->program_id)
+                ->where(function ($stageQuery) use ($stageKeyword) {
+                    if (Schema::hasColumn('program_stages', 'slug')) {
+                        $stageQuery->whereRaw('LOWER(program_stages.slug) = ?', [$stageKeyword]);
+                    }
+
+                    if (Schema::hasColumn('program_stages', 'name')) {
+                        $method = Schema::hasColumn('program_stages', 'slug') ? 'orWhereRaw' : 'whereRaw';
+                        $stageQuery->{$method}('LOWER(program_stages.name) = ?', [$stageKeyword]);
+                    }
+                });
+
+            if (Schema::hasColumn('program_stages', 'is_active')) {
+                $stageQuery->where('program_stages.is_active', true);
+            }
+
+            $stageIds = $stageQuery->pluck('program_stages.id')->all();
+
+            if (empty($stageIds)) {
+                $query->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $query
+                ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
+                ->join('modules', 'topics.module_id', '=', 'modules.id')
+                ->join('program_stages', 'modules.program_stage_id', '=', 'program_stages.id')
+                ->where('program_stages.program_id', $batch->program_id)
+                ->whereIn('program_stages.id', $stageIds);
 
             return;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Direct program scope
+        | Program scope for programs/batches without Intro/Core stage markers
         |--------------------------------------------------------------------------
+        | Contohnya program yang memang tidak memakai stage. Tetap batasi ke
+        | program terkait dan jangan mengubah perilaku program non-stage.
         */
+        if (empty($batch->program_id)) {
+            if (Schema::hasColumn('sub_topics', 'batch_id')) {
+                $query->where('sub_topics.batch_id', $batch->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+
+            return;
+        }
+
         if (Schema::hasColumn('sub_topics', 'program_id')) {
             $query->where('sub_topics.program_id', $batch->program_id);
 
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> modules -> program_id
-        |--------------------------------------------------------------------------
-        */
         if (
             Schema::hasTable('topics')
             && Schema::hasTable('modules')
@@ -979,35 +1077,24 @@ class AssessmentScoreController extends Controller
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> modules -> stages -> program_id
-        |--------------------------------------------------------------------------
-        | Ini handle struktur curriculum Program → Stage → Module → Topic → Sub Topic.
-        */
         if (
             Schema::hasTable('topics')
             && Schema::hasTable('modules')
-            && Schema::hasTable('stages')
+            && Schema::hasTable('program_stages')
             && Schema::hasColumn('sub_topics', 'topic_id')
             && Schema::hasColumn('topics', 'module_id')
-            && Schema::hasColumn('modules', 'stage_id')
-            && Schema::hasColumn('stages', 'program_id')
+            && Schema::hasColumn('modules', 'program_stage_id')
+            && Schema::hasColumn('program_stages', 'program_id')
         ) {
             $query
                 ->join('topics', 'sub_topics.topic_id', '=', 'topics.id')
                 ->join('modules', 'topics.module_id', '=', 'modules.id')
-                ->join('stages', 'modules.stage_id', '=', 'stages.id')
-                ->where('stages.program_id', $batch->program_id);
+                ->join('program_stages', 'modules.program_stage_id', '=', 'program_stages.id')
+                ->where('program_stages.program_id', $batch->program_id);
 
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | sub_topics -> topics -> program_id
-        |--------------------------------------------------------------------------
-        */
         if (
             Schema::hasTable('topics')
             && Schema::hasColumn('sub_topics', 'topic_id')
@@ -1020,14 +1107,14 @@ class AssessmentScoreController extends Controller
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Last safe fallback
-        |--------------------------------------------------------------------------
-        */
         if (Schema::hasColumn('sub_topics', 'batch_id')) {
             $query->where('sub_topics.batch_id', $batch->id);
+
+            return;
         }
+
+        // Fail closed: jangan menghitung lesson yang tidak bisa di-scope.
+        $query->whereRaw('1 = 0');
     }
 
     private function calculateQuizScore(int $studentId, Batch $batch): ?float
