@@ -90,17 +90,27 @@ class AssessmentScoreController extends Controller
                 })
                 ->get();
 
+            // Keep list cards and score details aligned with AssessmentCalculatorService:
+            // the active assessment template is the source of truth for component weights.
+            $componentsById = $components->keyBy('id');
+
             $scoreMap = $scores
                 ->groupBy('student_id')
-                ->map(function ($studentScores) {
+                ->map(function ($studentScores) use ($componentsById) {
                     return $studentScores
                         ->keyBy('assessment_component_id')
-                        ->map(function ($score) {
+                        ->map(function ($score) use ($componentsById) {
+                            $component = $componentsById->get($score->assessment_component_id);
+                            $rawScore = (float) $score->raw_score;
+                            $currentWeight = $component
+                                ? (float) $component->weight
+                                : (float) $score->weight;
+
                             return [
                                 'id' => $score->id,
-                                'raw_score' => (float) $score->raw_score,
-                                'weight' => (float) $score->weight,
-                                'weighted_score' => (float) $score->weighted_score,
+                                'raw_score' => $rawScore,
+                                'weight' => $currentWeight,
+                                'weighted_score' => round(($rawScore * $currentWeight) / 100, 2),
                                 'feedback' => $score->feedback,
                                 'status' => $score->status,
                                 'rubric_scores' => $score->rubricScores->map(function ($rubricScore) {
