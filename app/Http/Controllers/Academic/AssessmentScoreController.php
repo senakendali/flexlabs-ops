@@ -472,8 +472,9 @@ class AssessmentScoreController extends Controller
         |--------------------------------------------------------------------------
         | Ensure auto score is fresh before preview.
         |--------------------------------------------------------------------------
-        | Preview tetap baca student_assessment_scores. Jadi sebelum preview dibuka,
-        | auto component termasuk Coding Practice harus disync dulu.
+        | Auto-calculated components are synchronized first. The preview then uses
+        | the same AssessmentCalculatorService as Report Card generation so both
+        | screens apply the current assessment-template component weights.
         */
         $this->syncAutoCalculatedScores(
             batch: $batch,
@@ -483,20 +484,45 @@ class AssessmentScoreController extends Controller
             assessedBy: $request->user()?->id
         );
 
-        $scores = StudentAssessmentScore::query()
-            ->with(['component', 'rubricScores.criteria'])
-            ->where('student_id', $student->id)
-            ->where('batch_id', $batch->id)
-            ->where('assessment_template_id', $template->id)
-            ->get();
+        // Single source of truth: identical calculation rules to Report Card.
+        $calculation = $this->calculator->calculate($student, $batch);
 
-        $totalWeightedScore = round((float) $scores->sum('weighted_score'), 2);
+        $templateComponents = $template->components->keyBy('id');
+        $componentRows = collect($calculation['components'] ?? []);
 
-        $missingComponents = $template->components
-            ->filter(function ($component) use ($scores) {
-                return ! $scores->firstWhere('assessment_component_id', $component->id);
+        $scores = $componentRows
+            ->filter(fn ($row) => (bool) ($row['has_score'] ?? false))
+            ->map(function ($row) {
+                return [
+                    'component' => $row['name'] ?? '-',
+                    'type' => $row['type'] ?? null,
+                    'raw_score' => (float) ($row['raw_score'] ?? 0),
+                    'weight' => (float) ($row['weight'] ?? 0),
+                    'weighted_score' => (float) ($row['weighted_score'] ?? 0),
+                    'feedback' => $row['feedback'] ?? null,
+                    'status' => $row['score_status'] ?? null,
+                ];
             })
             ->values();
+
+        $missingComponents = $componentRows
+            ->filter(fn ($row) => ! (bool) ($row['has_score'] ?? false))
+            ->map(function ($row) use ($templateComponents) {
+                $component = $templateComponents->get($row['component_id'] ?? null);
+
+                return [
+                    'id' => $row['component_id'] ?? null,
+                    'name' => $row['name'] ?? '-',
+                    'type' => $row['type'] ?? null,
+                    'weight' => (float) ($row['weight'] ?? 0),
+                    'is_auto_calculated' => $component
+                        ? $this->isAutoCalculatedComponent($component)
+                        : false,
+                ];
+            })
+            ->values();
+
+        $finalScore = (float) ($calculation['final_score'] ?? 0);
 
         $payload = [
             'student' => [
@@ -514,28 +540,10 @@ class AssessmentScoreController extends Controller
                 'name' => $template->name,
                 'passing_score' => (float) $template->passing_score,
             ],
-            'scores' => $scores->map(function ($score) {
-                return [
-                    'component' => $score->component->name ?? '-',
-                    'type' => $score->component->type ?? null,
-                    'raw_score' => (float) $score->raw_score,
-                    'weight' => (float) $score->weight,
-                    'weighted_score' => (float) $score->weighted_score,
-                    'feedback' => $score->feedback,
-                    'status' => $score->status,
-                ];
-            })->values(),
-            'missing_components' => $missingComponents->map(function ($component) {
-                return [
-                    'id' => $component->id,
-                    'name' => $component->name,
-                    'type' => $component->type,
-                    'weight' => (float) $component->weight,
-                    'is_auto_calculated' => $this->isAutoCalculatedComponent($component),
-                ];
-            })->values(),
-            'final_score' => $totalWeightedScore,
-            'is_passed' => $totalWeightedScore >= (float) $template->passing_score,
+            'scores' => $scores,
+            'missing_components' => $missingComponents,
+            'final_score' => $finalScore,
+            'is_passed' => (bool) ($calculation['is_passed'] ?? false),
         ];
 
         return response()->json($payload);
