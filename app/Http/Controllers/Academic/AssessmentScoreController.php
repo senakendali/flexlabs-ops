@@ -715,7 +715,7 @@ class AssessmentScoreController extends Controller
 
         return match ($component->type) {
             'attendance' => $this->calculateAttendanceScore($studentId, $batch),
-            'progress' => $this->calculateVodProgressScore($studentId, $batch),
+            //'progress' => $this->calculateVodProgressScore($studentId, $batch),
             'quiz' => $this->calculateQuizScore($studentId, $batch),
             default => null,
         };
@@ -1469,6 +1469,10 @@ class AssessmentScoreController extends Controller
 
     private function isAutoCalculatedComponent(AssessmentComponent $component): bool
     {
+         // Progress tidak ikut dalam scoring
+        if ($component->type === 'progress') {
+            return false;
+        }
         /*
         |--------------------------------------------------------------------------
         | Manual Override
@@ -1490,7 +1494,6 @@ class AssessmentScoreController extends Controller
 
         return in_array($component->type, [
             'attendance',
-            'progress',
             'quiz',
         ], true);
     }
